@@ -1,0 +1,53 @@
+---
+import { pick, home as copy }    from '../../data/i18n';
+import { RESTAURANT }              from '../../data/restaurant';
+import { path }                    from '../../lib/paths';
+import type { Lang }               from '../../data/i18n';
+import type { PhotoEntry }         from '../../data/photos';
+
+export interface Props {
+  lang:  Lang;
+  photo: PhotoEntry;
+}
+
+const { lang, photo } = Astro.props;
+const t = pick(copy, lang);
+
+const scrollLabel = lang === 'he' ? 'גלול' : 'Scroll';
+---
+
+<section class="hero-bleed" aria-label="Zahara">
+  <div class="hero-bleed__media" data-hero-parallax aria-hidden="true">
+    <img
+      class="hero-bleed__img ken-burns"
+      src={photo.src}
+      alt={photo.alt[lang]}
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+    />
+  </div>
+  <div class="hero-bleed__overlay" aria-hidden="true"></div>
+  <div class="hero-bleed__inner">
+    <p class="eyebrow eyebrow--on-photo fade-up">{t.heroEyebrow}</p>
+    <h1
+      class="display hero-bleed__title"
+      data-word-reveal
+      data-word-reveal-delay="0.15"
+      data-word-reveal-step="0.08"
+    >
+      {t.heroHeadline}
+      <span class="hero-bleed__title-mark">{t.heroTitleMark}</span>
+    </h1>
+    <p class="hero-bleed__lede fade-up" set:html={t.heroLede} />
+    <div class="btn-row fade-up">
+      <a class="btn"          href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.heroCtaReserve}</a>
+      <a class="btn btn--ghost" href={path('menu', lang)}>{t.heroCtaMenu}</a>
+    </div>
+  </div>
+
+  <div class="scroll-cue" aria-hidden="true">
+    <span>{scrollLabel}</span>
+    <span class="scroll-cue__line"></span>
+  </div>
+</section>

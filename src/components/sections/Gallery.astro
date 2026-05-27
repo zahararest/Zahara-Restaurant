@@ -1,0 +1,32 @@
+---
+import Photo               from '../Photo.astro';
+import type { Lang }       from '../../data/i18n';
+import type { PhotoEntry } from '../../data/photos';
+
+export interface Props {
+  lang:    Lang;
+  eyebrow: string;
+  heading: string;
+  /** 6–8 photos render best with the asymmetric grid. */
+  photos:  readonly PhotoEntry[];
+}
+
+const { lang, eyebrow, heading, photos } = Astro.props;
+---
+
+<section class="section-tight">
+  <div class="wrap">
+    <div class="section-head reveal-on-scroll">
+      <p class="eyebrow eyebrow--center">{eyebrow}</p>
+      <h2
+        class="display"
+        data-word-reveal
+        data-word-reveal-delay="0.06"
+        data-word-reveal-step="0.06"
+      >{heading}</h2>
+    </div>
+  </div>
+  <div class="gallery stagger reveal-on-scroll">
+    {photos.map(p => <Photo src={p.src} alt={p.alt[lang]} aspect="1/1" />)}
+  </div>
+</section>

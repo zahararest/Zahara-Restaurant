@@ -1,0 +1,184 @@
+---
+import '../styles/global.css';
+import Header        from '../components/Header.astro';
+import Footer        from '../components/Footer.astro';
+import Motion        from '../components/Motion.astro';
+import Accessibility from '../components/Accessibility.astro';
+import { RESTAURANT } from '../data/restaurant';
+import { PHOTOS } from '../data/photos';
+
+export interface Props {
+  title:           string;
+  description?:    string;
+  lang?:           'he' | 'en';
+  /** Set true on pages whose hero is a full-bleed photo behind the header. */
+  transparentHeader?: boolean;
+}
+
+const {
+  title,
+  lang = 'he',
+  transparentHeader = false,
+} = Astro.props;
+const dir = lang === 'he' ? 'rtl' : 'ltr';
+
+const defaultDescription = lang === 'he'
+  ? "זהרה — מסעדת שף כשרה במלון נוצ׳ה, ירושלים. מטבח ים-תיכוני עכשווי, טכניקה צרפתית, השפעות אסייתיות. שף רועי אחדות."
+  : "Zahara — a kosher chef's restaurant inside Nucha Hotel, Jerusalem. Contemporary Mediterranean kitchen with French technique and Asian influences. Chef Roi Achdut.";
+
+const description = Astro.props.description || defaultDescription;
+const brandName   = RESTAURANT.name[lang];
+const fullTitle   = `${title} — ${brandName}`;
+
+const path    = Astro.url.pathname;
+const altPath = lang === 'he'
+  ? (path === '/' ? '/en/' : `/en${path}`)
+  : (path.replace(/^\/en/, '') || '/');
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type':    'Restaurant',
+  name:             RESTAURANT.name.en,
+  alternateName:    RESTAURANT.name.he,
+  description,
+  address: {
+    '@type':         'PostalAddress',
+    streetAddress:   RESTAURANT.address.streetAddress,
+    addressLocality: RESTAURANT.address.city,
+    addressCountry:  RESTAURANT.address.country,
+  },
+  telephone:           `+972-${RESTAURANT.phone.display.replace(/^0/, '')}`,
+  servesCuisine:       ['Contemporary', 'Mediterranean', 'French', 'Asian'],
+  acceptsReservations: 'True',
+  priceRange:          '$$$',
+  hasMenu:             `${Astro.url.origin}/menu/`,
+  openingHoursSpecification: [{
+    '@type':    'OpeningHoursSpecification',
+    dayOfWeek:  [...RESTAURANT.hours.days],
+    opens:      RESTAURANT.hours.opens,
+    closes:     RESTAURANT.hours.closes,
+  }],
+  isPartOf: { '@type': 'Hotel', name: RESTAURANT.hotel.en },
+};
+---
+
+<!doctype html>
+<html lang={lang} dir={dir}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color"   content="#F4EDDF" />
+    <meta name="format-detection" content="telephone=yes" />
+
+    <link rel="canonical"      href={Astro.url.href} />
+    <link rel="alternate" hreflang={lang}                         href={Astro.url.href} />
+    <link rel="alternate" hreflang={lang === 'he' ? 'en' : 'he'} href={new URL(altPath, Astro.url.origin).href} />
+    <link rel="alternate" hreflang="x-default"                   href={new URL('/', Astro.url.origin).href} />
+
+    <meta property="og:type"           content="website" />
+    <meta property="og:title"          content={fullTitle} />
+    <meta property="og:description"    content={description} />
+    <meta property="og:url"            content={Astro.url.href} />
+    <meta property="og:locale"         content={lang === 'he' ? 'he_IL' : 'en_US'} />
+    <meta property="og:locale:alternate" content={lang === 'he' ? 'en_US' : 'he_IL'} />
+    <meta property="og:site_name"      content="Zahara" />
+    <meta property="og:image"          content={new URL(PHOTOS.hero.src, Astro.url.origin).href} />
+    <meta property="og:image:alt"      content={PHOTOS.hero.alt[lang]} />
+    <meta name="twitter:card"          content="summary_large_image" />
+    <meta name="twitter:title"         content={fullTitle} />
+    <meta name="twitter:description"   content={description} />
+    <meta name="twitter:image"         content={new URL(PHOTOS.hero.src, Astro.url.origin).href} />
+
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..600,0..100;1,9..144,300..600,0..100&display=swap"
+      rel="stylesheet"
+    />
+
+    {/* Live colour overrides — reads localStorage and applies any
+        user-set palette overrides (saved by /admin/colors/) to the
+        :root before first paint, and listens for cross-tab updates
+        via BroadcastChannel('zahara-colors') so editing in the admin
+        tab updates the live site tab in real time. */}
+    <script is:inline>
+      (function () {
+        const root = document.documentElement;
+        // Track which color-token props we've set so we can REMOVE
+        // properties the admin no longer overrides. Without this, a
+        // token reset on /admin/colors/ never propagates: the broadcast
+        // payload simply drops the key, and the listener (which only
+        // ADDS) leaves the previous custom value frozen on the page.
+        // Other inline props on <html> (like --a11y-font-scale) are
+        // left alone — we only touch what we ourselves applied.
+        const applied = new Set();
+
+        function applyOverrides(ov) {
+          if (!ov) return;
+          // Remove props we previously set that aren't in the new state.
+          for (const key of Array.from(applied)) {
+            if (!(key in ov)) {
+              root.style.removeProperty(key);
+              applied.delete(key);
+            }
+          }
+          // Set / update everything in the new state.
+          for (const [k, v] of Object.entries(ov)) {
+            if (typeof k === 'string' && k.startsWith('--') && typeof v === 'string') {
+              root.style.setProperty(k, v);
+              applied.add(k);
+            }
+          }
+        }
+        function clearAll() {
+          for (const key of Array.from(applied)) {
+            root.style.removeProperty(key);
+          }
+          applied.clear();
+        }
+
+        try {
+          const ov = JSON.parse(localStorage.getItem('zahara-color-overrides') || '{}');
+          applyOverrides(ov);
+        } catch (_) { /* localStorage blocked — no overrides */ }
+
+        try {
+          const bc = new BroadcastChannel('zahara-colors');
+          bc.addEventListener('message', (ev) => {
+            const d = ev && ev.data;
+            if (!d) return;
+            if (d.type === 'reset') { clearAll(); return; }
+            if (d.type === 'colors-changed') applyOverrides(d.overrides || {});
+          });
+        } catch (_) { /* BroadcastChannel unsupported — refresh to see */ }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      {lang === 'he' ? 'דלג לתוכן' : 'Skip to content'}
+    </a>
+    <div class="scroll-progress" aria-hidden="true">
+      <div class="scroll-progress__bar"></div>
+    </div>
+    <Header lang={lang} transparent={transparentHeader} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer lang={lang} />
+    {/* Motion owns every animation primitive — reveals, section HUD,
+        parallax, progress bar, past-hero hand-off. Native browser scroll
+        only; no Lenis. */}
+    <Motion />
+
+    {/* Accessibility toolkit — required on Israeli public-facing sites. */}
+    <Accessibility lang={lang} />
+  </body>
+</html>

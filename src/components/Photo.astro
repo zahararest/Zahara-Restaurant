@@ -1,0 +1,52 @@
+---
+// Photo component for local images served from /public/photos.
+
+interface Props {
+  src: string;          // e.g. "/photos/MOYAL-00009.jpg"
+  alt: string;
+  aspect?: string;      // e.g. "4/5", "3/4", "16/9"
+  loading?: 'lazy' | 'eager';
+  class?: string;
+  sizes?: string;
+}
+
+const {
+  src,
+  alt,
+  aspect = '4/5',
+  loading = 'lazy',
+  class: className = '',
+  sizes = '(min-width: 880px) 50vw, 100vw',
+} = Astro.props;
+---
+
+<figure class={`photo ${className}`} style={`aspect-ratio: ${aspect};`}>
+  <img
+    src={src}
+    alt={alt}
+    loading={loading}
+    decoding="async"
+    sizes={sizes}
+  />
+</figure>
+
+<style>
+  .photo {
+    margin: 0;
+    overflow: hidden;
+    background: var(--paper-deep);
+    position: relative;
+  }
+  .photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 1s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.6s ease;
+    filter: saturate(0.95);
+  }
+  .photo:hover img {
+    transform: scale(1.03);
+    filter: saturate(1.05);
+  }
+</style>

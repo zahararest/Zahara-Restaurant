@@ -1,0 +1,463 @@
+---
+// Global motion runtime — runs on EVERY page (included from BaseLayout)
+// and powers every animation primitive identically across V1 and V2:
+//
+//   • One-shot reveals via IntersectionObserver. Elements animate in
+//     the first time they enter view and are then unobserved; there
+//     is no scroll-back replay.
+//   • Word-mask reveals: any [data-word-reveal] heading is split into
+//     per-word clipping masks that cascade up on activation.
+//   • Line-mask reveals: any plain-text [data-line-reveal] element is
+//     measured and grouped into per-line masks (same activation hook).
+//   • Hero parallax (.hero-bleed / .intro-photo wrappers with
+//     [data-hero-parallax]) and the scroll cue fade.
+//   • Top scroll-progress bar (.scroll-progress__bar) driven from
+//     scrollY / scrollable height.
+//   • Section HUD (.section-hud) injected automatically when the page
+//     has [data-section-name] wrappers.
+//   • Transparent-header hand-off: once the hero scrolls past the
+//     header height, swap .is-on-photo for the paper-translucent +
+//     ink-text past-hero state.
+//   • Sliding menu-tab indicator on the menu page.
+//
+// MotionV2.astro layers Lenis smooth scroll + the pin-cycle device on
+// top of this — never duplicating anything Motion already owns.
+---
+<script is:inline>
+  (function () {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ── Word-mask reveal builder ────────────────────────────────
+    function wrapWordsIn(node) {
+      const children = Array.from(node.childNodes);
+      children.forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          const text = child.nodeValue;
+          if (!text || !text.trim()) return;
+          const frag  = document.createDocumentFragment();
+          const parts = text.split(/(\s+)/);
+          parts.forEach((part) => {
+            if (!part) return;
+            if (/^\s+$/.test(part)) {
+              frag.appendChild(document.createTextNode(part));
+              return;
+            }
+            const outer = document.createElement('span');
+            outer.className = 'word-mask';
+            const inner = document.createElement('span');
+            inner.className = 'word-mask__inner';
+            inner.textContent = part;
+            outer.appendChild(inner);
+            frag.appendChild(outer);
+          });
+          child.parentNode.replaceChild(frag, child);
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          if (!child.classList.contains('word-mask')) wrapWordsIn(child);
+        }
+      });
+    }
+
+    function buildWordReveals() {
+      document.querySelectorAll('[data-word-reveal]').forEach((el) => {
+        if (el.dataset.wordRevealReady === '1') return;
+        el.dataset.wordRevealReady = '1';
+        wrapWordsIn(el);
+        const masks = el.querySelectorAll('.word-mask');
+        const baseDelay = parseFloat(el.dataset.wordRevealDelay || '0.05');
+        const step      = parseFloat(el.dataset.wordRevealStep  || '0.07');
+        masks.forEach((m, i) => {
+          const inner = m.querySelector('.word-mask__inner');
+          if (inner) inner.style.transitionDelay = (baseDelay + step * i).toFixed(2) + 's';
+        });
+      });
+    }
+
+    // ── Reveal observer ─────────────────────────────────────────
+    // One-shot: activate when the element enters view and then never
+    // touches it again. We deliberately don't deactivate on exit, so
+    // there's no re-animation on scroll-back.
+    function activate(el) {
+      el.classList.remove('reveal--off');
+      el.classList.add('is-in-view');
+      el.querySelectorAll?.('.word-mask').forEach((m) => m.classList.add('is-in'));
+      el.querySelectorAll?.('.line-mask').forEach((m) => m.classList.add('is-in'));
+    }
+
+    function ensureRevealHosts() {
+      document.querySelectorAll('[data-word-reveal]').forEach((el) => {
+        if (!el.classList.contains('is-reveal-host')) el.classList.add('is-reveal-host');
+      });
+    }
+
+    const REVEAL_SELECTOR = [
+      '.reveal-on-scroll',
+      '.stagger',
+      '.menu-section-group',
+      '.draw-rule',
+      '.img-mask',
+      '.is-reveal-host'
+    ].join(',');
+
+    let observer = null;
+    function setup() {
+      ensureRevealHosts();
+      buildWordReveals();
+
+      if (reduce) {
+        document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => activate(el));
+        return;
+      }
+
+      // One-shot: every element animates in the first time it enters
+      // view, then is unobserved. No reverse-play on scroll back —
+      // content stays visible once revealed.
+      observer = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            activate(e.target);
+            observer.unobserve(e.target);
+          }
+        }
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+
+      // Initial state: arm below-the-fold so it animates in; activate
+      // above-the-fold immediately so the first paint shows content.
+      const fold = window.innerHeight * 0.85;
+      document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.top > fold) {
+          el.classList.add('reveal--off');  // off-state defaults to "from below"
+        } else {
+          el.classList.add('is-in-view');
+          el.querySelectorAll('.word-mask').forEach((m) => m.classList.add('is-in'));
+        }
+        observer.observe(el);
+      });
+    }
+
+    // ── Scroll-linked side-effects ──────────────────────────────
+    const heroWrappers = () => document.querySelectorAll('[data-hero-parallax]');
+    const heroInner    = () => document.querySelector('.hero-bleed__inner');
+    const heroSection  = () => document.querySelector('.hero-bleed, .intro-photo');
+    const genericPx    = () => document.querySelectorAll('[data-parallax]');
+    const scrollCue    = () => document.querySelector('.scroll-cue');
+    const progressBar  = () => document.querySelector('.scroll-progress__bar');
+
+    let ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y   = window.scrollY || window.pageYOffset || 0;
+        const max = Math.max(1,
+          (document.documentElement.scrollHeight || document.body.scrollHeight)
+          - window.innerHeight);
+
+        // Progress bar
+        const bar = progressBar();
+        if (bar) bar.style.transform = `scaleX(${Math.min(1, Math.max(0, y / max)).toFixed(4)})`;
+
+        // (Past-hero hand-off removed: the user wants the transparent
+        //  header on hero pages to stay transparent over content too.
+        //  The .is-on-photo dark gradient is now strong enough to keep
+        //  the paper-cream text readable over any background.)
+
+        if (!reduce) {
+          // Hero parallax — wrapper drifts at 0.28× scroll speed.
+          const hero = heroSection();
+          if (hero) {
+            const h = hero.offsetHeight || 1;
+            const progress = Math.max(0, Math.min(1, y / h));
+            heroWrappers().forEach((el) => {
+              el.style.transform = `translate3d(0, ${(y * 0.28).toFixed(1)}px, 0)`;
+            });
+            const inner = heroInner();
+            if (inner) inner.style.setProperty('--hero-progress', progress.toFixed(3));
+            const cue = scrollCue();
+            if (cue) cue.classList.toggle('is-hidden', progress > 0.08);
+          }
+
+          // Generic [data-parallax="0.2"]
+          genericPx().forEach((el) => {
+            const speed   = parseFloat(el.dataset.parallax || '0.15');
+            const rect    = el.getBoundingClientRect();
+            const center  = rect.top + rect.height / 2;
+            const offset  = (window.innerHeight / 2) - center;
+            el.style.setProperty('--parallax-y', (offset * speed).toFixed(1) + 'px');
+          });
+        }
+
+        ticking = false;
+      });
+    }
+
+    // (Magnetic-button hover + 3D cocktail-card tilt were removed per the
+    //  design-principles audit — both were "SaaS-y" UI tricks that fought
+    //  the editorial aesthetic and the user explicitly requested no magnetism.)
+
+    // ── Sliding tab indicator (menu page) ───────────────────────
+    function positionTabIndicator() {
+      const tabsBar   = document.querySelector('.menu-tabs');
+      const indicator = document.querySelector('.menu-tabs__indicator');
+      const active    = tabsBar?.querySelector('.menu-tab.is-active');
+      if (!tabsBar || !indicator || !active) return;
+      const barRect    = tabsBar.getBoundingClientRect();
+      const tabRect    = active.getBoundingClientRect();
+      indicator.style.width     = tabRect.width + 'px';
+      indicator.style.transform = `translateX(${tabRect.left - barRect.left}px)`;
+    }
+    function watchTabIndicator() {
+      const tabsBar = document.querySelector('.menu-tabs');
+      if (!tabsBar) return;
+      positionTabIndicator();
+      // Re-position on tab click (delegated) and on resize.
+      tabsBar.addEventListener('click', () => requestAnimationFrame(positionTabIndicator));
+      window.addEventListener('resize', positionTabIndicator, { passive: true });
+      // After fonts load (which may resize tabs), reposition.
+      if (document.fonts?.ready) document.fonts.ready.then(positionTabIndicator).catch(() => {});
+    }
+
+    // ── Line-mask reveal ─────────────────────────────────────────
+    // For any [data-line-reveal] element with plain text (no inline
+    // HTML), split the words by their measured offsetTop and group
+    // them into per-line clipping masks. Each line's inner span sits
+    // at translateY(110%) (CSS) and rises into view when the host
+    // gets `.is-in-view` — same trigger as the word-mask system.
+    //
+    // We deliberately fall back to word-reveal if the element has
+    // inline children (em, strong, span) so we don't lose styling.
+    function hasInlineMarkup(el) {
+      for (const child of el.childNodes) {
+        if (child.nodeType === Node.ELEMENT_NODE) return true;
+      }
+      return false;
+    }
+    function buildLineReveals() {
+      document.querySelectorAll('[data-line-reveal]').forEach((el) => {
+        if (el.dataset.lineRevealReady === '1') return;
+        // Mixed-content elements can't be reliably line-split without
+        // losing the inline styling — skip them and let the author
+        // use [data-word-reveal] instead.
+        if (hasInlineMarkup(el)) {
+          console.warn('[Motion] [data-line-reveal] needs plain text — use [data-word-reveal] for elements with inline markup:', el);
+          return;
+        }
+        const text = el.textContent.trim();
+        if (!text) return;
+
+        // Step 1: wrap each word in a measurable inline-block span.
+        const words = text.split(/\s+/);
+        el.innerHTML = words
+          .map((w) => `<span class="__line-word" style="display:inline-block">${w
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`)
+          .join(' ');
+
+        // Step 2: group words by offsetTop (same row = same line).
+        const wordSpans = Array.from(el.querySelectorAll('.__line-word'));
+        const lines = [];
+        let currentTop = null;
+        let currentLine = [];
+        wordSpans.forEach((w) => {
+          const top = Math.round(w.offsetTop);
+          if (top !== currentTop) {
+            if (currentLine.length) lines.push(currentLine);
+            currentLine = [w];
+            currentTop = top;
+          } else {
+            currentLine.push(w);
+          }
+        });
+        if (currentLine.length) lines.push(currentLine);
+
+        // Step 3: rebuild with per-line mask wrappers + stagger delay.
+        const baseDelay = parseFloat(el.dataset.lineRevealDelay || '0.05');
+        const step      = parseFloat(el.dataset.lineRevealStep  || '0.09');
+        el.innerHTML = lines.map((spans, i) => {
+          const inner = spans.map((s) => s.textContent).join(' ');
+          const delay = (baseDelay + step * i).toFixed(2);
+          return `<span class="line-mask"><span class="line-mask__inner" style="transition-delay:${delay}s">${inner}</span></span>`;
+        }).join(' ');
+
+        // Tag the host so the existing IntersectionObserver picks it
+        // up via .is-reveal-host (already in REVEAL_SELECTOR). Activate
+        // will toggle .is-in-view on the host; CSS reads that to slide
+        // the per-line .line-mask__inner spans into place.
+        el.classList.add('is-reveal-host');
+        el.dataset.lineRevealReady = '1';
+      });
+    }
+
+    // ── Section HUD — bottom-left number + label ─────────────────
+    // Injected once if the page has any [data-section-name]. Reads
+    // the active section via IntersectionObserver (no extra ST cost).
+    function setupSectionHud() {
+      const sections = Array.from(document.querySelectorAll('[data-section-name]'));
+      if (!sections.length) return;
+      // Skip if MotionV2 already mounted the HUD (it owns its own).
+      if (document.querySelector('.section-hud')) return;
+
+      const hud = document.createElement('aside');
+      hud.className = 'section-hud';
+      hud.setAttribute('aria-live', 'polite');
+      hud.innerHTML = `
+        <span class="section-hud__num"   data-section-hud-num>01</span>
+        <span class="section-hud__sep">·</span>
+        <span class="section-hud__label" data-section-hud-label></span>`;
+      document.body.appendChild(hud);
+
+      const num   = hud.querySelector('[data-section-hud-num]');
+      const label = hud.querySelector('[data-section-hud-label]');
+      const pad   = (n) => String(n).padStart(2, '0');
+      let active  = 0;
+
+      const setActive = (i) => {
+        if (i === active) return;
+        active = i;
+        num.textContent   = pad(i + 1);
+        label.textContent = sections[i].dataset.sectionName || '';
+      };
+
+      // Initialise to section 0 (visible at page load).
+      num.textContent   = pad(1);
+      label.textContent = sections[0].dataset.sectionName || '';
+
+      // One IntersectionObserver: a section becomes "active" once its
+      // top passes 35% from viewport top going down. Walking back up
+      // past that line restores the previous section.
+      const io = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          const i = sections.indexOf(e.target);
+          if (i >= 0) setActive(i);
+        }
+      }, { rootMargin: '-35% 0px -55% 0px', threshold: 0 });
+
+      sections.forEach((s) => io.observe(s));
+    }
+
+    // ── Scroll-to-top button ─────────────────────────────────────
+    // Injected once per page. Fades in after the user has scrolled
+    // past 80% of the first viewport (i.e. clearly past the hero on
+    // every page type). Click smooth-scrolls to the top.
+    function setupScrollTop() {
+      if (document.querySelector('.scroll-top')) return;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'scroll-top';
+      btn.setAttribute('aria-label',
+        document.documentElement.lang === 'he' ? 'גלילה למעלה' : 'Scroll to top');
+      // Up arrow glyph — simple, no icon dependency.
+      btn.innerHTML = '<span aria-hidden="true">↑</span>';
+      document.body.appendChild(btn);
+
+      btn.addEventListener('click', () => {
+        const lenis = window.__lenis;
+        if (lenis) {
+          lenis.scrollTo(0, { duration: 1.1 });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+
+      // Visibility tracked via a single IO on a 1px probe at the top
+      // of the document; cheap and stays in sync with native scroll.
+      const probe = document.createElement('div');
+      probe.setAttribute('aria-hidden', 'true');
+      probe.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:1px;pointer-events:none;';
+      document.body.appendChild(probe);
+
+      const io = new IntersectionObserver(([entry]) => {
+        // Show button only AFTER the probe (top of doc) has left view
+        // by more than 80% of the viewport.
+        btn.classList.toggle('is-visible',
+          !entry.isIntersecting && Math.abs(entry.boundingClientRect.top) > window.innerHeight * 0.8);
+      }, { threshold: 0 });
+      io.observe(probe);
+
+      // Also refresh on each scroll tick — IO doesn't fire continuously,
+      // but the threshold logic depends on continuously-changing rect.
+      window.addEventListener('scroll', () => {
+        const past = window.scrollY > window.innerHeight * 0.8;
+        btn.classList.toggle('is-visible', past);
+      }, { passive: true });
+    }
+
+    // ── Active-tab click → scroll-to-top ─────────────────────────
+    // Clicking the nav link of the page you're already on shouldn't
+    // reload — scroll the page to the top instead. Detects the link
+    // by aria-current="page" (set by Header.astro at render time).
+    function setupActiveNavScrollTop() {
+      const navLinks = document.querySelectorAll('.nav a, .mobile-nav a');
+      navLinks.forEach((a) => {
+        a.addEventListener('click', (e) => {
+          if (a.getAttribute('aria-current') === 'page') {
+            e.preventDefault();
+            const lenis = window.__lenis;
+            if (lenis) {
+              lenis.scrollTo(0, { duration: 1.1 });
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          }
+        });
+      });
+      // Brand link also scrolls to top if you're already home.
+      const brand = document.querySelector('.brand');
+      if (brand) {
+        const brandPath = (brand.getAttribute('href') || '').replace(/\/$/, '') || '/';
+        const here      = window.location.pathname.replace(/\/$/, '') || '/';
+        if (brandPath === here) {
+          brand.addEventListener('click', (e) => {
+            e.preventDefault();
+            const lenis = window.__lenis;
+            if (lenis) {
+              lenis.scrollTo(0, { duration: 1.1 });
+            } else {
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+          });
+        }
+      }
+    }
+
+    // ── Boot ────────────────────────────────────────────────────
+    function boot() {
+      // buildLineReveals tags hosts with `.is-reveal-host`, so it must
+      // run BEFORE setup() — which observes REVEAL_SELECTOR including
+      // that class.
+      buildLineReveals();
+      setup();
+      setupSectionHud();
+      setupScrollTop();
+      setupActiveNavScrollTop();
+      watchTabIndicator();
+      onScroll();
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot, { once: true });
+    } else {
+      boot();
+    }
+
+    // ── Helper for dynamically-inserted content (menu tab swaps) ──
+    window.__zaharaArmReveals = function (root) {
+      if (!root) return;
+      ensureRevealHosts();
+      buildWordReveals();
+      if (reduce) {
+        root.querySelectorAll(REVEAL_SELECTOR).forEach((el) => activate(el));
+        return;
+      }
+      root.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
+        el.classList.add('reveal--off');
+        if (observer) observer.observe(el);
+      });
+      // Tab content swap can change layout under the indicator.
+      requestAnimationFrame(positionTabIndicator);
+    };
+  })();
+</script>

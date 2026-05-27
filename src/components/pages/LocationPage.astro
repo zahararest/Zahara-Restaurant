@@ -1,0 +1,79 @@
+---
+import BaseLayout    from '../../layouts/BaseLayout.astro';
+import Photo         from '../Photo.astro';
+import { pick, location as copy } from '../../data/i18n';
+import { RESTAURANT } from '../../data/restaurant';
+import { PHOTOS }    from '../../data/photos';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(copy, lang);
+const title    = lang === 'he' ? 'מיקום' : 'Location';
+
+const dial     = lang === 'he' ? RESTAURANT.phone.dialHe : RESTAURANT.phone.dialEn;
+const encoded  = encodeURIComponent(RESTAURANT.address.maps);
+const wazeUrl  = `https://waze.com/ul?q=${encoded}`;
+const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
+---
+
+<BaseLayout title={title} lang={lang}>
+  <section class="page-intro wrap">
+    <div class="stagger reveal-on-scroll">
+      <p class="eyebrow">{t.eyebrow}</p>
+      <h1
+        class="display"
+        data-word-reveal
+        data-word-reveal-delay="0.08"
+        data-word-reveal-step="0.07"
+      >{t.heading}</h1>
+      <p style="max-width: 36rem;">{t.lede}</p>
+    </div>
+  </section>
+
+  <section class="section-tight wrap">
+    <div class="img-mask reveal-on-scroll">
+      <iframe
+        class="map-frame"
+        src={mapEmbed}
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade"
+        title={t.mapTitle}
+      ></iframe>
+    </div>
+
+    <div class="directions-grid stagger reveal-on-scroll">
+      <a class="btn btn--block"            href={wazeUrl}  target="_blank" rel="noopener">{t.waze}</a>
+      <a class="btn btn--block btn--ghost" href={gmapsUrl} target="_blank" rel="noopener">{t.gmaps}</a>
+      <a class="btn btn--block btn--ghost" href={`tel:${dial}`}>{t.call}</a>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <section class="section">
+    <div class="wrap">
+      <div class="photo-block">
+        <div class="img-mask reveal-on-scroll">
+          <Photo src={PHOTOS.interior.src} alt={PHOTOS.interior.alt[lang]} aspect="4/5" />
+        </div>
+        <div class="photo-block__content stagger reveal-on-scroll">
+          <p class="eyebrow">{t.infoEyebrow}</p>
+          <h2
+            class="display"
+            data-word-reveal
+            data-word-reveal-delay="0.06"
+            data-word-reveal-step="0.06"
+            set:html={t.infoHeading}
+          />
+          <p set:html={t.infoByCar} />
+          <p set:html={t.infoByTransit} />
+          <p set:html={t.infoAccessibility} />
+          <p set:html={t.infoBooking} />
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,422 @@
+---
+// HomePage — the editorial cinematic home page.
+//
+// This file used to fork into a "v1 editorial" and a "v2 cinematic"
+// HomePageV2. They've been merged: V2's structure is the only home now,
+// with three changes that came out of the last review:
+//
+//   1. No Lenis smooth-scroll — native browser scroll is silkier on
+//      track-pads and weak GPUs. Parallax + reveals still work via the
+//      vanilla Motion runtime; we just drop GSAP/ScrollTrigger pinning.
+//   2. No `data-pin-cycle` on the cinematic menu — the chapters STACK
+//      in normal flow (each `min-height: 100vh`), and the pin-cycle
+//      CSS clamping the container to one viewport was hiding chapters
+//      2-4 entirely.
+//   3. A quiet magazine-masthead "issue line" sits below the hero, and
+//      a "table of contents" plate introduces the menu — both add a
+//      uniquely editorial moment without any flashy motion.
+//
+// Cinematic menu data sourcing:
+//   • HE food   → server-rendered from menu-he.ts (instant first paint)
+//   • Everything else hydrates client-side from /api/menu/{slug}.
+
+import BaseLayout    from '../../layouts/BaseLayout.astro';
+import HeroBleed     from '../sections/HeroBleed.astro';
+import InfoStrip     from '../sections/InfoStrip.astro';
+import Editorial     from '../sections/Editorial.astro';
+import BleedPhoto    from '../sections/BleedPhoto.astro';
+import PhotoBlock    from '../sections/PhotoBlock.astro';
+import PullQuote     from '../sections/PullQuote.astro';
+import Gallery       from '../sections/Gallery.astro';
+
+import { pick, home as copy } from '../../data/i18n';
+import { PHOTOS, MENU_CATEGORY_PHOTOS } from '../../data/photos';
+import type { PhotoEntry } from '../../data/photos';
+import { path } from '../../lib/paths';
+import { menuHe } from '../../data/menu-he';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(copy, lang);
+
+const title           = lang === 'he' ? 'בית' : 'Home';
+const kitchenCaption  = lang === 'he' ? 'המטבח של זהרה' : 'The Zahara kitchen';
+
+// Tightened gallery: four-shot edit (interior, chef, bar, wine).
+const galleryPhotos   = [
+  PHOTOS.interior, PHOTOS.chef, PHOTOS.bar, PHOTOS.wine,
+];
+
+const sec = {
+  hero:    lang === 'he' ? 'בית'      : 'Open',
+  story:   lang === 'he' ? 'סיפור'    : 'Story',
+  kitchen: lang === 'he' ? 'מטבח'     : 'Kitchen',
+  menu:    lang === 'he' ? 'תפריט'    : 'Menu',
+  gallery: lang === 'he' ? 'גלריה'    : 'Gallery',
+  events:  lang === 'he' ? 'אירועים'  : 'Events',
+};
+
+// ── Cinematic menu chapters ────────────────────────────────────
+// HE food sections are server-rendered from menuHe; the rest start
+// empty and hydrate from /api/menu/{slug}. Layout is stable either way.
+type Item = { name: string; description?: string; price: string };
+
+// HE food sections come from the static menuHe data. For EN we fall
+// through to client-side hydration (see the chapter loop below), so this
+// helper is only ever called when lang === 'he'.
+const findSection = (title: string): Item[] =>
+  menuHe.find((s) => s.title === title)?.items.map((it) => ({
+    name: it.name, description: it.description, price: it.price,
+  })) ?? [];
+
+const initialFoodStart: Item[] = lang === 'he'
+  ? findSection('משהו להתחלה').slice(0, 5)
+  : [];
+const initialFoodMain: Item[]  = lang === 'he'
+  ? findSection('כמעט הגענו').slice(0, 5)
+  : [];
+
+interface Chapter {
+  id:        'food-start' | 'food-main' | 'cocktails' | 'dessert';
+  menuTab:   'food' | 'cocktails' | 'dessert';
+  apiSlug:   string | null;
+  sectionTitle?: string;
+  take:      number;
+  number:    string;
+  eyebrow:   string;
+  title:     string;
+  /** Caption shown on the table-of-contents card above the chapters. */
+  tocLine:   string;
+  photo:     PhotoEntry;
+  initial:   Item[];
+}
+
+const chapters: Chapter[] = [
+  {
+    id: 'food-start', menuTab: 'food', take: 5,
+    apiSlug: lang === 'he' ? 'he' : 'en',
+    // Section title is language-specific — the API returns sections
+    // whose `title` matches the data file for that language. Hardcoding
+    // the HE title here used to silently drop the EN menu items on the
+    // English home page.
+    sectionTitle: lang === 'he' ? 'משהו להתחלה' : 'Beginnings',
+    number: '01',
+    eyebrow: lang === 'he' ? 'משהו להתחלה'  : 'To begin',
+    title:   lang === 'he' ? 'משהו להתחיל'   : 'Something to start',
+    tocLine: lang === 'he' ? 'פתיחות מהמטבח' : 'Openings from the kitchen',
+    photo:   MENU_CATEGORY_PHOTOS.food,
+    initial: initialFoodStart,
+  },
+  {
+    id: 'food-main', menuTab: 'food', take: 5,
+    apiSlug: lang === 'he' ? 'he' : 'en',
+    sectionTitle: lang === 'he' ? 'כמעט הגענו' : 'Almost There',
+    number: '02',
+    eyebrow: lang === 'he' ? 'ממשיכים'        : 'Mains',
+    title:   lang === 'he' ? 'כמעט הגענו'      : 'Almost there',
+    tocLine: lang === 'he' ? 'דגים ובשר מהשוק' : 'Fish and meat from the market',
+    photo:   PHOTOS.kitchen,
+    initial: initialFoodMain,
+  },
+  {
+    id: 'cocktails', menuTab: 'cocktails', take: 5,
+    apiSlug: 'cocktails',
+    number: '03',
+    eyebrow: lang === 'he' ? 'בר זהרה'    : 'Zahara bar',
+    title:   lang === 'he' ? 'קוקטיילים'   : 'Cocktails',
+    tocLine: lang === 'he' ? 'מהבר של איתי' : 'From the bar',
+    photo:   MENU_CATEGORY_PHOTOS.cocktails,
+    initial: [],
+  },
+  {
+    id: 'dessert', menuTab: 'dessert', take: 3,
+    apiSlug: lang === 'he' ? 'dessert' : 'dessert_en',
+    number: '04',
+    eyebrow: lang === 'he' ? 'בסוף'         : 'And then',
+    title:   lang === 'he' ? 'קינוחים'       : 'Desserts',
+    tocLine: lang === 'he' ? 'סיום מתוק לערב' : 'A sweet finish',
+    photo:   MENU_CATEGORY_PHOTOS.dessert,
+    initial: [],
+  },
+];
+
+const menuIntroEyebrow = lang === 'he' ? 'התפריט'        : 'The menu';
+const chapterCountLbl  = lang === 'he' ? 'פרקים'         : 'Chapters';
+const fullMenuLabelFor = (tab: 'food' | 'cocktails' | 'dessert') => {
+  if (lang === 'he') {
+    return tab === 'cocktails' ? 'לקוקטיילים המלאים ↗'
+         : tab === 'dessert'   ? 'לקינוחים המלאים ↗'
+         : 'לתפריט המלא ↗';
+  }
+  return tab === 'cocktails' ? 'See all cocktails ↗'
+       : tab === 'dessert'   ? 'See all desserts ↗'
+       : 'See the full menu ↗';
+};
+
+const menuPath = path('menu', lang);
+const ctaHrefFor = (tab: 'food' | 'cocktails' | 'dessert') =>
+  `${menuPath}#tab-${tab}`;
+
+// Hydration payload for the inline script — keeps only the fields it needs.
+const hydrationPayload = chapters.map((c) => ({
+  id:           c.id,
+  apiSlug:      c.apiSlug,
+  sectionTitle: c.sectionTitle ?? null,
+  take:         c.take,
+}));
+const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
+---
+
+<BaseLayout title={title} lang={lang} transparentHeader>
+  <div data-section-name={sec.hero}>
+    <HeroBleed lang={lang} photo={PHOTOS.hero} />
+    <InfoStrip lang={lang} />
+  </div>
+
+  {/* Editorial masthead — quiet magazine-style identity stamp.
+      The single touch of "issue / city / year" framing the cover. */}
+  <aside class="issue-stamp reveal-on-scroll" aria-label={t.issueLine}>
+    <div class="wrap wrap--tight issue-stamp__inner">
+      <span class="issue-stamp__line">{t.issueLine}</span>
+      <span class="issue-stamp__rule" aria-hidden="true"></span>
+      <span class="issue-stamp__chef">{t.issueChef}</span>
+    </div>
+  </aside>
+
+  <div data-section-name={sec.story}>
+    {/* Editorial story sits on a moody dining-room photo, grayscaled
+        and darkened so the body text reads in paper-cream over it. */}
+    <div class="section-on-photo" style={`--bg-photo: url(${PHOTOS.moodDining.src})`}>
+      <Editorial
+        eyebrow={t.storyEyebrow}
+        heading={t.storyHeading}
+        paragraphs={[t.storyP1, t.storyP2, t.storyP3]}
+      />
+    </div>
+    <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
+  </div>
+
+  <div data-section-name={sec.kitchen}>
+    <PhotoBlock
+      lang={lang}
+      photo={PHOTOS.dish}
+      eyebrow={t.kitchenEyebrow}
+      heading={t.kitchenHeading}
+      paragraphs={[t.kitchenP1, t.kitchenP2]}
+    />
+    {/* Pull quote sits on a moody chef-portrait photo. */}
+    <div class="section-on-photo section-on-photo--quote"
+         style={`--bg-photo: url(${PHOTOS.moodChef.src})`}>
+      <PullQuote quote={t.pullQuote} attribution={t.pullQuoteAttr} />
+    </div>
+  </div>
+
+  <div data-section-name={sec.menu}>
+    {/* Table of contents — a "what you'll see" plate above the chapters.
+        Pure typography; no chrome, no motion beyond the standard reveal. */}
+    <section class="menu-toc">
+      <div class="wrap wrap--tight">
+        <div class="menu-toc__head reveal-on-scroll">
+          <p class="eyebrow eyebrow--center">{t.tocEyebrow}</p>
+          <h2 class="display menu-toc__title"
+              data-word-reveal
+              data-word-reveal-delay="0.05"
+              data-word-reveal-step="0.06">{t.tocHeading}</h2>
+        </div>
+        <ol class="menu-toc__list stagger reveal-on-scroll">
+          {chapters.map((c) => (
+            <li class="menu-toc__row">
+              <span class="menu-toc__num">{c.number}</span>
+              <span class="menu-toc__title-inline">{c.title}</span>
+              <span class="menu-toc__dots" aria-hidden="true"></span>
+              <span class="menu-toc__line">{c.tocLine}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    {/* Cinematic menu chapters — each chapter is full-bleed, stacks in
+        normal scroll flow (no pin-cycle), and uses a softer photo
+        overlay than before so adjacent chapters BLEND instead of cutting
+        hard. */}
+    <section class="menu-cinema" aria-label={menuIntroEyebrow}>
+      {chapters.map((c, i) => (
+        <article
+          class={`menu-cinema__chapter menu-cinema__chapter--${c.id}`}
+          data-chapter-id={c.id}
+          data-chapter-pos={i === 0 ? 'first' : i === chapters.length - 1 ? 'last' : 'mid'}
+        >
+          <div
+            class="menu-cinema__media parallax"
+            data-parallax="0.12"
+            aria-hidden="true"
+          >
+            <img
+              class="menu-cinema__img"
+              src={c.photo.src}
+              alt={c.photo.alt[lang]}
+              loading={i === 0 ? 'eager' : 'lazy'}
+              decoding="async"
+            />
+          </div>
+          <div class="menu-cinema__overlay" aria-hidden="true"></div>
+
+          <div class="menu-cinema__layout">
+            <header class="menu-cinema__head reveal-on-scroll">
+              <p class="menu-cinema__eyebrow">
+                <span class="menu-cinema__num">{c.number}</span>
+                <span class="menu-cinema__sep">·</span>
+                <span>{c.eyebrow}</span>
+              </p>
+              <h2
+                class="menu-cinema__title"
+                data-word-reveal
+                data-word-reveal-delay="0.05"
+                data-word-reveal-step="0.06"
+              >{c.title}</h2>
+            </header>
+
+            <ul
+              class="menu-cinema__items stagger reveal-on-scroll"
+              data-cinema-items
+              data-chapter-id={c.id}
+            >
+              {c.initial.length > 0
+                ? c.initial.slice(0, c.take).map((item) => (
+                    <li class="menu-cinema__item">
+                      <div class="menu-cinema__item-main">
+                        <strong class="menu-cinema__item-name">{item.name}</strong>
+                        {item.description && (
+                          <span class="menu-cinema__item-desc">{item.description}</span>
+                        )}
+                      </div>
+                      <span class="menu-cinema__item-price">{item.price}</span>
+                    </li>
+                  ))
+                : Array.from({ length: c.take }).map(() => (
+                    <li class="menu-cinema__item menu-cinema__item--placeholder" aria-hidden="true">
+                      <div class="menu-cinema__item-main">
+                        <strong class="menu-cinema__item-name">{emptyLabel}</strong>
+                      </div>
+                      <span class="menu-cinema__item-price">—</span>
+                    </li>
+                  ))
+              }
+            </ul>
+
+            <footer class="menu-cinema__foot reveal-on-scroll">
+              <span class="menu-cinema__count">
+                {`0${i + 1}`.slice(-2)} / {`0${chapters.length}`.slice(-2)} {chapterCountLbl}
+              </span>
+              <a class="menu-cinema__cta" href={ctaHrefFor(c.menuTab)}>{fullMenuLabelFor(c.menuTab)}</a>
+            </footer>
+          </div>
+        </article>
+      ))}
+    </section>
+  </div>
+
+  <div data-section-name={sec.gallery}>
+    <Gallery lang={lang} eyebrow={t.galleryEyebrow} heading={t.galleryHeading} photos={galleryPhotos} />
+  </div>
+
+  <div data-section-name={sec.events}>
+    <PhotoBlock
+      lang={lang}
+      photo={PHOTOS.detail2}
+      eyebrow={t.eventsEyebrow}
+      heading={t.eventsHeading}
+      paragraphs={[t.eventsP1, t.eventsP2]}
+      cta={{ label: t.eventsCta, href: `${path('contact', lang)}?type=event` }}
+      reverse
+    />
+  </div>
+</BaseLayout>
+
+<script is:inline define:vars={{ hydrationPayload, lang }}>
+  // Hydrate chapters that have empty initial items (cocktails, desserts,
+  // and EN food) by fetching /api/menu/{slug} and rendering the first
+  // N items. Mirrors how MenuEmbed loads its panels.
+
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  async function hydrateChapter(cfg) {
+    if (!cfg.apiSlug) return;
+    const host = document.querySelector(`[data-cinema-items][data-chapter-id="${cfg.id}"]`);
+    if (!host) return;
+    // Skip hydration if the host already has real (non-placeholder) items.
+    if (!host.querySelector('.menu-cinema__item--placeholder')) return;
+
+    try {
+      const res = await fetch(`/api/menu/${cfg.apiSlug}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      const sections = Array.isArray(data) ? data : (data?.sections ?? []);
+
+      // Find the target items: either a specific section by Hebrew title
+      // (food chapters) or flatten across all sections (cocktails, dessert).
+      let items = [];
+      if (cfg.sectionTitle) {
+        const sec = sections.find((s) => s.title === cfg.sectionTitle);
+        items = sec?.items ?? [];
+      } else {
+        items = sections.flatMap((s) => s?.items ?? []);
+      }
+      items = items.slice(0, cfg.take);
+
+      if (items.length === 0) {
+        host.innerHTML = `<li class="menu-cinema__item menu-cinema__item--empty">
+          <div class="menu-cinema__item-main">
+            <em class="menu-cinema__item-name">${lang === 'he' ? 'יתעדכן בקרוב' : 'Updates coming soon'}</em>
+          </div>
+        </li>`;
+        return;
+      }
+
+      host.innerHTML = items.map((it) => `
+        <li class="menu-cinema__item">
+          <div class="menu-cinema__item-main">
+            <strong class="menu-cinema__item-name">${esc(it.name)}</strong>
+            ${it.description ? `<span class="menu-cinema__item-desc">${esc(it.description)}</span>` : ''}
+          </div>
+          <span class="menu-cinema__item-price">${esc(it.price)}</span>
+        </li>`).join('');
+    } catch (err) {
+      // Silently leave the placeholders; better than a broken page.
+      console.warn('[Home menu] hydration failed for', cfg.id, err);
+    }
+  }
+
+  hydrationPayload.forEach(hydrateChapter);
+
+  // ── Cinematic chapter "settle-in" ────────────────────────────
+  // Each menu-cinema chapter starts its photo slightly enlarged
+  // (scale 1.08). When the chapter enters view, we add `.is-settled`,
+  // which transitions the scale back to 1 over ~2.4s, then kicks in
+  // a slow continuous breath (see global.css). Feels like a camera
+  // arriving at the scene instead of cuts between still photos.
+  //
+  // One-shot: once a chapter settles, it stays settled — no replay on
+  // scroll-back.
+  const cinematicReduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!cinematicReduce && 'IntersectionObserver' in window) {
+    const chapters = document.querySelectorAll('.menu-cinema__chapter');
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add('is-settled');
+          io.unobserve(e.target);
+        }
+      }
+    }, { rootMargin: '0px 0px -15% 0px', threshold: 0 });
+    chapters.forEach((c) => io.observe(c));
+  } else {
+    // Reduced motion: skip the dolly-out so the photo lands at scale 1
+    // immediately.
+    document.querySelectorAll('.menu-cinema__chapter').forEach((c) => c.classList.add('is-settled'));
+  }
+</script>

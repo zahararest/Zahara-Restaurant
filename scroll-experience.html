@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Scroll Experience — GSAP · ScrollTrigger · Lenis</title>
+  <meta name="description" content="A scroll-driven landing page demo wiring Lenis smooth scroll into the GSAP ticker so ScrollTrigger fires in lockstep." />
+  <meta name="theme-color" content="#0a0a0a" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;700&family=Inter:wght@300;400;500&display=swap"
+  />
+
+  <style>
+    /* ============================================================
+       Tokens
+       ============================================================ */
+    :root {
+      --bg:        #0a0a0a;
+      --bg-soft:   #121212;
+      --line:      #1f1f1f;
+      --fg:        #f5f5f0;
+      --muted:     #6f6f6a;
+      --accent:    #ff5a1f;
+
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-body:    'Inter', system-ui, sans-serif;
+
+      --ease-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
+      --wrap:      1320px;
+      --pad:       clamp(1.5rem, 4vw, 3rem);
+    }
+
+    /* ============================================================
+       Reset + base
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-weight: 300;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    ::selection { background: var(--accent); color: var(--bg); }
+
+    img { display: block; max-width: 100%; height: auto; }
+
+    /* ============================================================
+       Lenis recommended skeleton (sets `html` overflow correctly
+       and disables native smooth-scroll while Lenis is in charge).
+       ============================================================ */
+    html.lenis, html.lenis body { height: auto; }
+    .lenis.lenis-smooth { scroll-behavior: auto !important; }
+    .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+    .lenis.lenis-stopped { overflow: clip; }
+    .lenis.lenis-smooth iframe { pointer-events: none; }
+
+    /* ============================================================
+       Layout primitives
+       ============================================================ */
+    .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 var(--pad); }
+
+    /* ============================================================
+       Top nav — solid colours (no mix-blend) + a soft dark gradient
+       backdrop so the labels stay readable over any background.
+       ============================================================ */
+    .nav {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 50;
+      padding: 1.5rem var(--pad) 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.875rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--fg);
+      pointer-events: none;
+    }
+    /* Gradient backdrop sits behind the nav row — dark at the top,
+       fading to fully transparent. Keeps labels legible without
+       needing a solid bar that fights the editorial feel. */
+    .nav::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 140%;
+      background: linear-gradient(180deg,
+        rgba(10, 10, 10, 0.75) 0%,
+        rgba(10, 10, 10, 0.35) 60%,
+        rgba(10, 10, 10, 0)    100%);
+      pointer-events: none;
+      z-index: -1;
+    }
+    .nav__brand,
+    .nav__links a { pointer-events: auto; }
+    .nav__brand {
+      font-family: var(--font-display);
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--fg);
+      transition: opacity 0.25s ease;
+    }
+    .nav__brand:hover { opacity: 0.75; }
+    .nav__links { display: flex; gap: 2rem; }
+    .nav__links a {
+      color: var(--fg);
+      text-decoration: none;
+      opacity: 0.78;
+      transition: opacity 0.25s ease, color 0.25s ease;
+    }
+    .nav__links a:hover { opacity: 1; color: var(--accent); }
+    @media (max-width: 640px) {
+      .nav__links { display: none; }
+    }
+
+    /* ============================================================
+       Hero
+       ============================================================ */
+    .hero {
+      min-height: 100svh;
+      padding: clamp(7rem, 14vh, 10rem) 0 6rem;
+      display: grid;
+      align-content: end;
+    }
+
+    .hero__kicker {
+      font-size: 0.85rem;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 2.5rem;
+    }
+    .hero__kicker::before {
+      content: '';
+      display: inline-block;
+      width: 2rem;
+      height: 1px;
+      background: var(--accent);
+      vertical-align: middle;
+      margin-inline-end: 0.9rem;
+    }
+
+    .hero__title {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.6rem, 11vw, 11rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      max-width: 18ch;
+    }
+    /* The .line wrapper provides the clipping mask; the .line__inner sits
+       below it (translated 110% on Y) and is animated up by GSAP. */
+    .hero__title .line {
+      display: block;
+      overflow: hidden;
+      padding-bottom: 0.08em;
+      margin-bottom: -0.08em;
+    }
+    .hero__title .line__inner {
+      display: block;
+      transform: translateY(110%);
+      will-change: transform;
+    }
+    .hero__title .accent { color: var(--accent); font-style: italic; font-weight: 400; }
+
+    .hero__row {
+      margin-top: 4rem;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      align-items: end;
+    }
+    @media (min-width: 880px) {
+      .hero__row { grid-template-columns: 1.2fr 1fr; gap: 4rem; }
+    }
+    .hero__lede {
+      max-width: 32rem;
+      font-size: clamp(1rem, 1.15vw, 1.15rem);
+      color: rgba(245, 245, 240, 0.72);
+      opacity: 0;
+      transform: translateY(28px);
+      will-change: opacity, transform;
+    }
+    .hero__meta {
+      display: grid;
+      gap: 0.6rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      opacity: 0;
+      transform: translateY(28px);
+      will-change: opacity, transform;
+    }
+    .hero__meta strong {
+      color: var(--fg);
+      font-weight: 400;
+      letter-spacing: 0.18em;
+    }
+
+    /* ============================================================
+       Parallax image section
+       ============================================================ */
+    .parallax {
+      position: relative;
+      height: clamp(640px, 110vh, 1100px);
+      overflow: hidden;
+      margin: 10rem 0;
+      background: #050505;
+    }
+    /* Over-extended container — the image sits inside and is translated
+       upward as the user scrolls, so its edges never expose the bg. */
+    .parallax__media {
+      position: absolute;
+      top: -15%;
+      left: 0;
+      right: 0;
+      height: 130%;
+      will-change: transform;
+    }
+    .parallax__media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(0.9) contrast(1.05);
+    }
+    .parallax__caption {
+      position: absolute;
+      inset-block-end: clamp(2rem, 6vw, 4rem);
+      inset-inline-start: 0;
+      width: 100%;
+      padding: 0 var(--pad);
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.2rem, 6vw, 5rem);
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: #fff;
+      mix-blend-mode: difference;
+      pointer-events: none;
+    }
+    .parallax__caption em { color: var(--accent); font-style: italic; font-weight: 400; }
+
+    /* ============================================================
+       Pinned horizontal scroll
+       ============================================================ */
+    .h-section {
+      position: relative;
+      height: 100vh;
+      overflow: hidden;
+      background: #060606;
+    }
+    .h-section__label {
+      position: absolute;
+      inset-block-start: 2.5rem;
+      inset-inline-start: 0;
+      width: 100%;
+      padding: 0 var(--pad);
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--muted);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .h-track {
+      position: relative;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: clamp(2rem, 4vw, 4rem);
+      padding-inline-start: var(--pad);
+      padding-inline-end: var(--pad);
+      will-change: transform;
+    }
+    .h-card {
+      flex: 0 0 auto;
+      width: clamp(280px, 38vw, 560px);
+      height: clamp(380px, 64vh, 620px);
+      background: var(--bg-soft);
+      border: 1px solid var(--line);
+      padding: clamp(1.75rem, 3vw, 2.75rem);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .h-card__num {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      color: var(--muted);
+      letter-spacing: 0.3em;
+    }
+    .h-card__title {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.4rem, 4.4vw, 4rem);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      align-self: end;
+    }
+    .h-card__meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-block-start: 1.5rem;
+      border-block-start: 1px solid var(--line);
+    }
+    .h-card::after {
+      content: '';
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 2px;
+      background: var(--accent);
+      transform-origin: left;
+      transform: scaleX(0);
+      transition: transform 0.6s var(--ease-out);
+    }
+    .h-card:hover::after { transform: scaleX(1); }
+
+    /* ============================================================
+       Fade / slide content section
+       ============================================================ */
+    .content {
+      padding-block: clamp(8rem, 14vw, 14rem);
+    }
+    .content__head {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(2.4rem, 6vw, 5.2rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      max-width: 18ch;
+      margin-bottom: clamp(4rem, 9vw, 7rem);
+    }
+    .content__head em { color: var(--accent); font-style: italic; font-weight: 400; }
+
+    .content__body {
+      max-width: 38rem;
+      margin-inline-start: auto;
+      display: grid;
+      gap: 2rem;
+    }
+    .content__body p {
+      font-size: clamp(1.05rem, 1.2vw, 1.18rem);
+      line-height: 1.75;
+      color: rgba(245, 245, 240, 0.78);
+    }
+
+    /* Reveal primitive — mask-slide-up.
+       Each .reveal becomes a clipping window; its inner content sits
+       translated 100% below the window and rises into view in one
+       smooth motion when scrolled to. One-shot — once revealed it
+       stays visible permanently.
+
+       Initial visibility is preserved via the body fade-in below, so
+       there's no flash of un-wrapped content while JS runs.
+    */
+    .reveal {
+      display: block;
+      overflow: hidden;
+      will-change: transform;
+    }
+    .reveal__inner {
+      display: block;
+      transform: translateY(105%);
+      transition: transform 1.3s var(--ease-out);
+      will-change: transform;
+    }
+    .reveal.is-revealed .reveal__inner { transform: translateY(0); }
+
+    /* Body fade-in — page starts at opacity:0 so JS has time to wrap
+       every .reveal in .reveal__inner before the first paint, then we
+       fade the whole page in once setup is complete. Avoids the brief
+       flash of un-masked text. */
+    body { opacity: 0; transition: opacity 0.35s var(--ease-out); }
+    body.is-ready { opacity: 1; }
+    /* If JS never marks the body ready (script blocked, error, etc.),
+       the no-JS fallback class shows everything after 1.5s so we
+       never leave the user with a blank page. */
+    @keyframes bodyReadyFallback { to { opacity: 1; } }
+    body { animation: bodyReadyFallback 0.01s linear 1.5s forwards; }
+
+    /* ============================================================
+       Footer
+       ============================================================ */
+    footer {
+      padding: 3rem 0 4rem;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    footer .accent { color: var(--accent); }
+
+    /* ============================================================
+       Scroll progress bar — bold accent bar at the very top, with
+       a small dot that travels at the leading edge. The bar grows
+       from 0 to full width; the dot sits exactly at the fill's tip.
+       ============================================================ */
+    .progress {
+      position: fixed;
+      inset: 0 0 auto 0;
+      height: 5px;
+      background: rgba(245, 245, 240, 0.06);
+      z-index: 80;
+      pointer-events: none;
+    }
+    .progress__fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 100%;
+      background: var(--accent);
+      transform-origin: left center;
+      transform: scaleX(0);
+      will-change: transform;
+    }
+    .progress__dot {
+      position: absolute;
+      top: 50%;
+      left: -7px;            /* centre of dot starts at viewport x=0 */
+      margin-top: -7px;
+      width: 14px;
+      height: 14px;
+      background: var(--fg);
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      box-shadow:
+        0 0 14px rgba(255, 90, 31, 0.55),
+        0 0 0 3px var(--bg);
+      will-change: transform;
+    }
+
+    /* ============================================================
+       Section HUD — bottom-left, small pill with solid backdrop so
+       it stays legible over any background (no mix-blend tricks).
+       ============================================================ */
+    .hud {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 1.5rem;
+      z-index: 70;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.7rem;
+      padding: 0.55rem 0.9rem 0.55rem 1rem;
+      background: rgba(10, 10, 10, 0.7);
+      backdrop-filter: blur(10px) saturate(140%);
+      -webkit-backdrop-filter: blur(10px) saturate(140%);
+      border: 1px solid rgba(245, 245, 240, 0.08);
+      font-family: var(--font-display);
+      letter-spacing: 0.12em;
+      color: var(--fg);
+      pointer-events: none;
+      user-select: none;
+    }
+    .hud__num,
+    .hud__label {
+      display: inline-block;
+      overflow: hidden;
+      line-height: 1.1;
+      will-change: transform, opacity;
+    }
+    .hud__num {
+      font-weight: 500;
+      font-size: 0.95rem;
+      min-width: 2.4ch;
+      color: var(--fg);
+    }
+    .hud__sep { color: var(--accent); font-size: 0.85rem; opacity: 0.95; }
+    .hud__label {
+      font-size: 0.72rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(245, 245, 240, 0.78);
+    }
+
+    /* ============================================================
+       Reduced motion — strip every transform/animation we own and
+       reveal hidden states immediately.
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      .hero__title .line__inner,
+      .hero__lede,
+      .hero__meta { opacity: 1 !important; transform: none !important; }
+      .reveal__inner { transform: none !important; }
+      .parallax__media { transform: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="progress" data-progress aria-hidden="true">
+    <span class="progress__fill"></span>
+    <span class="progress__dot"></span>
+  </div>
+
+  <nav class="nav" aria-label="Primary">
+    <a class="nav__brand" href="#">SCROLL/STUDIO</a>
+    <div class="nav__links">
+      <a href="#work">Work</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ════════════════════ Hero ════════════════════ -->
+    <section class="hero wrap" data-section="Open">
+      <p class="hero__kicker">Scroll · Studio · 2026</p>
+
+      <h1 class="hero__title">
+        <span class="line"><span class="line__inner">Designing motion</span></span>
+        <span class="line"><span class="line__inner">for stories that</span></span>
+        <span class="line"><span class="line__inner"><span class="accent">live</span> on screen.</span></span>
+      </h1>
+
+      <div class="hero__row">
+        <p class="hero__lede">
+          An experimental scroll showcase pairing Lenis smooth-scroll with GSAP ScrollTrigger —
+          a parallax, a pinned horizontal section, and reveals tuned to a single ticker so
+          every animation lines up with the pixel you&rsquo;re actually scrolling past.
+        </p>
+        <div class="hero__meta">
+          <span>Driven by — <strong>Lenis + GSAP</strong></span>
+          <span>Sections — <strong>04</strong></span>
+          <span>Mode — <strong>Dark</strong></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ Parallax ════════════════════ -->
+    <section class="parallax" data-section="Drift" aria-label="Parallax image">
+      <div class="parallax__media" data-parallax>
+        <img
+          src="https://images.unsplash.com/photo-1519681393784-d120267933ba?w=2200&q=80&auto=format&fit=crop"
+          alt="Mountain ridge at twilight"
+          loading="lazy"
+        />
+      </div>
+      <h2 class="parallax__caption">Slow drift. <em>Same</em> scroll.</h2>
+    </section>
+
+    <!-- ════════════════════ Pinned horizontal ════════════════════ -->
+    <section class="h-section" id="work" data-section="Work" aria-label="Selected work">
+      <div class="h-section__label">
+        <span>Selected work</span>
+        <span>04 — Scroll to advance</span>
+      </div>
+      <div class="h-track">
+        <article class="h-card">
+          <p class="h-card__num">01 / 04</p>
+          <h3 class="h-card__title">Aria<br />House</h3>
+          <p class="h-card__meta"><span>Brand · Web</span><span>2024</span></p>
+        </article>
+        <article class="h-card">
+          <p class="h-card__num">02 / 04</p>
+          <h3 class="h-card__title">Sōl<br />Capital</h3>
+          <p class="h-card__meta"><span>Editorial</span><span>2024</span></p>
+        </article>
+        <article class="h-card">
+          <p class="h-card__num">03 / 04</p>
+          <h3 class="h-card__title">North<br />Wave</h3>
+          <p class="h-card__meta"><span>Identity · Motion</span><span>2025</span></p>
+        </article>
+        <article class="h-card">
+          <p class="h-card__num">04 / 04</p>
+          <h3 class="h-card__title">Quiet<br />Atlas</h3>
+          <p class="h-card__meta"><span>Web · Type</span><span>2025</span></p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ════════════════════ Fade reveals ════════════════════ -->
+    <section class="content wrap" id="about" data-section="Notes">
+      <h2 class="content__head reveal">
+        Built around a <em>single</em> scroll source of truth.
+      </h2>
+
+      <div class="content__body">
+        <p class="reveal">
+          Lenis owns the scroll position. GSAP&rsquo;s ticker drives Lenis&rsquo;s requestAnimationFrame.
+          ScrollTrigger listens to Lenis&rsquo;s scroll event. The result: every animation lines up
+          with the pixel the user actually feels under their wheel or trackpad.
+        </p>
+        <p class="reveal">
+          No double animators racing each other. No 16-millisecond drift between the smooth-scroll
+          position and where ScrollTrigger thinks the page is. The pinning math, the parallax offset,
+          and the reveal triggers all read from exactly the same number.
+        </p>
+        <p class="reveal">
+          When you remove the friction of contention you get headroom for the things that matter —
+          typography that breathes, photography that drifts, transitions that feel like the next beat
+          in a measure rather than a UI tick.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap" id="contact">
+    <span>© Scroll/Studio</span>
+    <span><span class="accent">●</span> GSAP · ScrollTrigger · Lenis</span>
+  </footer>
+
+  <!-- Section HUD — number + label of current section in view -->
+  <aside class="hud" aria-live="polite" aria-atomic="true">
+    <span class="hud__num"   data-hud-num>01</span>
+    <span class="hud__sep">·</span>
+    <span class="hud__label" data-hud-label>Open</span>
+  </aside>
+
+
+  <!-- ════════════════════ Libraries (CDN) ════════════════════ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
+
+  <script>
+    'use strict';
+
+    gsap.registerPlugin(ScrollTrigger);
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* ──────────────────────────────────────────────────────────────
+       1. Core setup — Lenis ↔ GSAP ↔ ScrollTrigger
+       ──────────────────────────────────────────────────────────────
+       The integration is three steps, and the order matters:
+
+       (a) Pipe Lenis's `scroll` event into `ScrollTrigger.update` so
+           every ST trigger reads the exact smooth-scroll position.
+       (b) Drive Lenis's `raf(time)` from GSAP's ticker — one animation
+           loop, no double requestAnimationFrame.
+       (c) Disable GSAP's lag-smoothing; Lenis already smooths so we
+           don't want GSAP applying its own correction on top.
+    */
+    let lenis = null;
+    if (typeof Lenis !== 'undefined' && !reduce) {
+      lenis = new Lenis({
+        duration: 1.15,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),  // expoOut
+        smoothWheel: true,
+        touchMultiplier: 1.4,
+        wheelMultiplier: 1.0,
+      });
+
+      lenis.on('scroll', ScrollTrigger.update);
+      gsap.ticker.add((time) => { lenis.raf(time * 1000); });   // (b)
+      gsap.ticker.lagSmoothing(0);                              // (c)
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       2. Hero — line-by-line reveal
+       ──────────────────────────────────────────────────────────────
+       Each `.line` is an overflow:hidden mask; `.line__inner` sits at
+       translateY(110%) initially (set in CSS) and rises into view with
+       a small stagger between lines, plus a follow-up fade-in for the
+       lede and meta block.
+    */
+    const heroTL = gsap.timeline({ delay: 0.15 });
+    heroTL
+      .to('.hero__title .line__inner', {
+        yPercent: 0,
+        duration: 1.3,
+        ease: 'expo.out',
+        stagger: 0.12,
+      })
+      .to('.hero__lede', {
+        opacity: 1,
+        y: 0,
+        duration: 1.1,
+        ease: 'power3.out',
+      }, '-=0.7')
+      .to('.hero__meta', {
+        opacity: 1,
+        y: 0,
+        duration: 1.0,
+        ease: 'power3.out',
+      }, '-=0.85');
+
+    /* ──────────────────────────────────────────────────────────────
+       3. Parallax image — scroll-linked vertical drift
+       ──────────────────────────────────────────────────────────────
+       The .parallax__media is over-extended (top:-15%, height:130%) so
+       moving it -15% on Y never reveals empty space at the edges.
+       `scrub: true` ties the transform directly to scroll position.
+    */
+    if (!reduce) {
+      gsap.to('[data-parallax]', {
+        yPercent: -15,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: '.parallax',
+          start: 'top bottom',
+          end:   'bottom top',
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      });
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       4. Pinned horizontal scroll
+       ──────────────────────────────────────────────────────────────
+       Pin the section at the top of the viewport and translate the
+       inner track horizontally by exactly the amount of horizontal
+       overflow. After the full distance, ScrollTrigger unpins and
+       normal vertical scrolling resumes.
+
+       Using functions for `x` and `end` so `invalidateOnRefresh`
+       can recompute distances after resize / font load.
+    */
+    const hSection = document.querySelector('.h-section');
+    const hTrack   = document.querySelector('.h-track');
+
+    if (hSection && hTrack && !reduce) {
+      const distance = () => Math.max(0, hTrack.scrollWidth - window.innerWidth);
+
+      gsap.to(hTrack, {
+        x: () => -distance(),
+        ease: 'none',
+        scrollTrigger: {
+          trigger: hSection,
+          start: 'top top',
+          end:   () => '+=' + distance(),
+          pin: true,
+          scrub: 1,
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+        },
+      });
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       5. Mask-slide reveals — one-shot
+       ──────────────────────────────────────────────────────────────
+       Each .reveal element gets its content wrapped in a .reveal__inner
+       span at runtime. The wrapper becomes a clipping window; the inner
+       starts at translateY(105%) (CSS) and animates to 0 when the
+       element scrolls into view. `once: true` ensures the animation
+       fires exactly once — once revealed, the content stays visible
+       even as you scroll past or back. No reverse-play, no awkward
+       re-animations.
+    */
+    function wrapReveal(el) {
+      if (el.dataset.maskReady === '1') return;
+      const inner = document.createElement('span');
+      inner.className = 'reveal__inner';
+      while (el.firstChild) inner.appendChild(el.firstChild);
+      el.appendChild(inner);
+      el.dataset.maskReady = '1';
+    }
+
+    const reveals = gsap.utils.toArray('.reveal');
+    reveals.forEach(wrapReveal);
+
+    reveals.forEach((el, i) => {
+      ScrollTrigger.create({
+        trigger: el,
+        start: 'top 85%',
+        once: true,
+        onEnter: () => {
+          // Tiny stagger between consecutive reveals so a cluster of
+          // paragraphs cascades instead of firing all at once.
+          gsap.delayedCall((i % 4) * 0.08, () => el.classList.add('is-revealed'));
+        },
+      });
+    });
+
+    /* ──────────────────────────────────────────────────────────────
+       6. Scroll progress bar
+       ──────────────────────────────────────────────────────────────
+       Lenis exposes a normalized scroll progress (0..1) on every
+       scroll event. We pipe it straight to a single CSS transform —
+       no requestAnimationFrame of our own; ScrollTrigger already
+       refreshes on the same ticker that drives Lenis.
+
+       Native-scroll fallback (no Lenis, reduced motion, CDN blocked):
+       compute progress from window.scrollY against scrollable height.
+    */
+    const progressFill = document.querySelector('.progress__fill');
+    const progressDot  = document.querySelector('.progress__dot');
+    if (progressFill && progressDot) {
+      const setProgress = (p) => {
+        const v = Math.min(1, Math.max(0, p));
+        progressFill.style.transform = `scaleX(${v})`;
+        // Dot's centre is positioned at viewport x=0 by CSS (left:-7px),
+        // so translating by v*viewportWidth places the centre at the
+        // fill's leading edge.
+        progressDot.style.transform = `translate3d(${(v * window.innerWidth).toFixed(2)}px, 0, 0)`;
+      };
+
+      let lastProgress = 0;
+      if (lenis) {
+        lenis.on('scroll', (e) => { lastProgress = e.progress; setProgress(e.progress); });
+        window.addEventListener('resize', () => setProgress(lastProgress), { passive: true });
+      } else {
+        const recompute = () => {
+          const max = (document.documentElement.scrollHeight || 0) - window.innerHeight;
+          lastProgress = max > 0 ? window.scrollY / max : 0;
+          setProgress(lastProgress);
+        };
+        window.addEventListener('scroll', recompute, { passive: true });
+        window.addEventListener('resize', recompute, { passive: true });
+        recompute();
+      }
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       7. Section HUD — number + label of section currently in view
+       ──────────────────────────────────────────────────────────────
+       Robust pattern: skip the first section (it's the default at
+       page load). For every section AFTER the first, create one ST
+       triggered when its top crosses 65% of the viewport from above:
+         • onEnter      → set HUD to this section (scrolled down into it)
+         • onLeaveBack  → set HUD to the PREVIOUS section (scrolled up out)
+       This always fires correctly in both directions, including for
+       the hero whose top can never reach the viewport centre from
+       above.
+    */
+    const hudNum   = document.querySelector('[data-hud-num]');
+    const hudLabel = document.querySelector('[data-hud-label]');
+    const sections = gsap.utils.toArray('[data-section]');
+
+    if (hudNum && hudLabel && sections.length) {
+      let activeIndex = 0;
+      let activeTL = null;
+      const pad = (n) => String(n).padStart(2, '0');
+
+      const setHud = (index) => {
+        if (index === activeIndex) return;
+        activeIndex = index;
+        const num   = pad(index + 1);
+        const label = sections[index].dataset.section;
+
+        // Kill any in-flight HUD animation so rapid trigger bursts
+        // (e.g. fast scroll, deep-link load) don't stack timelines.
+        if (activeTL) activeTL.kill();
+
+        activeTL = gsap.timeline({ defaults: { ease: 'expo.out' } })
+          .to([hudNum, hudLabel], {
+            yPercent: -100, opacity: 0,
+            duration: 0.25, stagger: 0.04, ease: 'power2.in',
+          })
+          .call(() => {
+            hudNum.textContent   = num;
+            hudLabel.textContent = label;
+          })
+          .fromTo([hudNum, hudLabel],
+            { yPercent: 100, opacity: 0 },
+            { yPercent: 0,   opacity: 1, duration: 0.35, stagger: 0.04 }
+          );
+      };
+
+      // Initialise to section 0 (visible at page load).
+      hudNum.textContent   = pad(1);
+      hudLabel.textContent = sections[0].dataset.section;
+
+      // One ST per section from index 1 onwards.
+      sections.slice(1).forEach((section, idx) => {
+        const i = idx + 1;  // actual section index
+        ScrollTrigger.create({
+          trigger: section,
+          start: 'top 65%',          // top reaches 65% from viewport top
+          onEnter:     () => setHud(i),
+          onLeaveBack: () => setHud(i - 1),
+        });
+      });
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       Refresh once webfonts are ready — their metrics can change the
+       width of the horizontal track and the height of the hero, so we
+       need ScrollTrigger to re-measure with the final layout.
+    */
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => ScrollTrigger.refresh());
+    }
+
+    /* ──────────────────────────────────────────────────────────────
+       Mark the body ready so the CSS fade-in resolves to opacity:1.
+       We do this on the next frame so the wrapped reveals + initial
+       Lenis state have already been applied — no flash of un-masked
+       content.
+    */
+    requestAnimationFrame(() => {
+      document.body.classList.add('is-ready');
+    });
+  </script>
+</body>
+</html>

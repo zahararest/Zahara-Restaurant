@@ -1,0 +1,384 @@
+---
+// MenuPageV2 — blended menu page.
+//
+// Design DNA:
+//   • V1 (MenuEmbed): a horizontal tab bar with a sliding active
+//     indicator, sticky beneath the header. Quick chapter jumps.
+//   • V3 (MenuPageV3): a single long-scrolling column that exposes
+//     every chapter in sequence with editorial bleed-photo dividers,
+//     so the reader can also just keep reading.
+//
+// You get BOTH: the tabs let you jump, and the page reads top-to-bottom
+// like an editorial menu spread. Clicking a tab smooth-scrolls to its
+// chapter; the active tab updates as the reader scrolls past chapters
+// (IntersectionObserver, no scroll-jacking).
+//
+// Data sourcing: identical to V1/V3.
+//   • HE food is server-rendered from menu-he.ts.
+//   • Everything else hydrates client-side from /api/menu/{slug}.
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import IntroPhoto from '../sections/IntroPhoto.astro';
+import BleedPhoto from '../sections/BleedPhoto.astro';
+import { pick, menu as labels } from '../../data/i18n';
+import { menuHe } from '../../data/menu-he';
+import { MENU_CATEGORIES } from '../../data/menu-spec';
+import { PHOTOS } from '../../data/photos';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(labels, lang);
+const title    = lang === 'he' ? 'תפריט' : 'Menu';
+
+type ChapterId = 'food' | 'cocktails' | 'wine' | 'dessert' | 'events';
+interface Chapter {
+  id:       ChapterId;
+  apiSlug:  string;
+  kind:     'list' | 'wine' | 'cocktails';
+  /** Short label shown in the sticky tab bar. */
+  tabLabel: string;
+  /** Magazine kicker above the heading. */
+  eyebrow:  string;
+  /** Big serif chapter heading. */
+  heading:  string;
+  /** Bleed photo between this and the previous chapter. */
+  photo?:   typeof PHOTOS.kitchen;
+  caption?: string;
+}
+
+const cat = (id: ChapterId) => MENU_CATEGORIES.find((c) => c.id === id)!;
+
+const chapters: Chapter[] = [
+  {
+    id: 'food', apiSlug: cat('food').slugs[lang], kind: 'list',
+    tabLabel: t.tabFood,
+    eyebrow:  lang === 'he' ? 'מהמטבח' : 'From the kitchen',
+    heading:  lang === 'he' ? 'אוכל'   : 'Food',
+    // First chapter — no divider above (intro hero handles it).
+  },
+  {
+    id: 'cocktails', apiSlug: cat('cocktails').slugs[lang], kind: 'cocktails',
+    tabLabel: t.tabCocktails,
+    eyebrow:  lang === 'he' ? 'מהבר'      : 'From the bar',
+    heading:  lang === 'he' ? 'קוקטיילים'  : 'Cocktails',
+    photo:    PHOTOS.bar,
+    caption:  lang === 'he' ? 'הבר של זהרה' : 'The Zahara bar',
+  },
+  {
+    id: 'wine', apiSlug: cat('wine').slugs[lang], kind: 'wine',
+    tabLabel: t.tabWine,
+    eyebrow:  lang === 'he' ? 'לכוס שלכם' : 'For your glass',
+    heading:  lang === 'he' ? 'יין'       : 'Wine',
+    photo:    PHOTOS.wine,
+    caption:  lang === 'he' ? 'מבחר היין' : 'The wine selection',
+  },
+  {
+    id: 'dessert', apiSlug: cat('dessert').slugs[lang], kind: 'list',
+    tabLabel: t.tabDesserts,
+    eyebrow:  lang === 'he' ? 'בסוף'    : 'And then',
+    heading:  lang === 'he' ? 'קינוחים' : 'Desserts',
+    photo:    PHOTOS.detail2,
+    caption:  lang === 'he' ? 'קינוח'    : 'Dessert',
+  },
+  {
+    id: 'events', apiSlug: cat('events').slugs[lang], kind: 'list',
+    tabLabel: t.tabEvents,
+    eyebrow:  lang === 'he' ? 'באירוע'   : 'For events',
+    heading:  lang === 'he' ? 'אירועים'  : 'Events',
+    photo:    PHOTOS.interior,
+    caption:  lang === 'he' ? 'אירוח באולם' : 'Private dining',
+  },
+];
+
+const staticFood    = lang === 'he' ? menuHe : null;
+const updatedLbl    = lang === 'he' ? 'עודכן'        : 'Updated';
+const bottleLabel   = t.priceBottle;
+const glassLabel    = t.priceGlass;
+const loadingLabel  = lang === 'he' ? 'נטען…'        : 'Loading…';
+const comingSoonLbl = lang === 'he' ? 'יתעדכן בקרוב' : 'Updates coming soon';
+const tabsAriaLabel = lang === 'he' ? 'קטגוריות תפריט' : 'Menu categories';
+
+const hydrationPayload = chapters.map((c) => ({
+  id:        c.id,
+  apiSlug:   c.apiSlug,
+  kind:      c.kind,
+  prefilled: c.id === 'food' && staticFood !== null,
+}));
+---
+
+<BaseLayout title={title} lang={lang} transparentHeader>
+  <IntroPhoto
+    lang={lang}
+    photo={PHOTOS.dish}
+    eyebrow={t.eyebrow}
+    heading={t.heading}
+    lede={t.lede}
+  />
+
+  {/* Sticky tab bar — V1's quick-jump nav, sticky beneath the floating
+      header so it's always reachable. Sliding indicator shows which
+      chapter is currently in view; clicking a tab smooth-scrolls down. */}
+  <nav class="menu-blend__tabs" role="tablist" aria-label={tabsAriaLabel}>
+    <div class="menu-blend__tabs-inner wrap">
+      {chapters.map((c, i) => (
+        <button
+          class={`menu-blend__tab${i === 0 ? ' is-active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={i === 0 ? 'true' : 'false'}
+          aria-controls={`cat-${c.id}`}
+          data-blend-tab={c.id}
+        >{c.tabLabel}</button>
+      ))}
+      <span class="menu-blend__tabs-indicator" aria-hidden="true"></span>
+    </div>
+  </nav>
+
+  <article class="menu-blend">
+    {chapters.map((c, i) => (
+      <>
+        {i > 0 && c.photo && (
+          <BleedPhoto
+            lang={lang}
+            photo={c.photo}
+            caption={c.caption}
+            height="clamp(280px, 50vh, 480px)"
+          />
+        )}
+
+        <section
+          class={`menu-blend__chapter menu-blend__chapter--${c.id}`}
+          id={`cat-${c.id}`}
+          data-menu-chapter={c.id}
+          aria-labelledby={`cat-${c.id}-h`}
+        >
+          <div class="wrap menu-blend__wrap">
+            <header class="menu-blend__head reveal-on-scroll">
+              <p class="eyebrow eyebrow--center">{c.eyebrow}</p>
+              <h2
+                id={`cat-${c.id}-h`}
+                class="display menu-blend__title"
+                data-word-reveal
+                data-word-reveal-delay="0.05"
+                data-word-reveal-step="0.07"
+              >{c.heading}</h2>
+              <p class="menu-blend__meta" data-meta-for={c.apiSlug}></p>
+            </header>
+
+            <div
+              class="menu-blend__body"
+              data-menu-body
+              data-chapter-id={c.id}
+              data-slug={c.apiSlug}
+              data-kind={c.kind}
+            >
+              {c.id === 'food' && staticFood ? (
+                <div class="menu-blend__sections">
+                  {staticFood.map((section) => (
+                    <div class="menu-blend__section reveal-on-scroll">
+                      <h3 class="menu-blend__section-heading">{section.title}</h3>
+                      <ul class="menu-blend__items stagger reveal-on-scroll">
+                        {section.items.map((item) => (
+                          <li class="menu-blend__item">
+                            <div class="menu-blend__item-main">
+                              <strong class="menu-blend__item-name">{item.name}</strong>
+                              {item.description && (
+                                <span class="menu-blend__item-desc">{item.description}</span>
+                              )}
+                            </div>
+                            <span class="menu-blend__item-price">{item.price}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div class="menu-blend__loading" aria-live="polite">
+                  <span>{loadingLabel}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </>
+    ))}
+  </article>
+</BaseLayout>
+
+<script is:inline define:vars={{ hydrationPayload, updatedLbl, bottleLabel, glassLabel, comingSoonLbl, lang }}>
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    try {
+      return new Intl.DateTimeFormat(lang === 'he' ? 'he-IL' : 'en-GB',
+        { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+    } catch { return iso; }
+  }
+  function renderMeta(slug, iso) {
+    const el = document.querySelector(`[data-meta-for="${slug}"]`);
+    if (!el) return;
+    el.textContent = iso ? `${updatedLbl} · ${fmtDate(iso)}` : '';
+  }
+
+  function splitWinePrice(p) {
+    const m = String(p || '').match(/^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/);
+    return m ? { bottle: m[1], glass: m[2] } : null;
+  }
+  function renderPrice(price, kind) {
+    if (kind !== 'wine') return `<span class="menu-blend__item-price">${esc(price)}</span>`;
+    const split = splitWinePrice(price);
+    if (!split) return `<span class="menu-blend__item-price">${esc(price)}</span>`;
+    return `<span class="menu-blend__item-price menu-blend__item-price--wine">
+      <span>${esc(split.bottle)}</span>
+      <span class="menu-blend__price-sep">/</span>
+      <span class="menu-blend__price-glass">${esc(split.glass)}</span>
+    </span>`;
+  }
+
+  function renderList(sections, kind) {
+    return sections.map((s) => {
+      const items = (s.items || []).map((item) => `
+        <li class="menu-blend__item">
+          <div class="menu-blend__item-main">
+            <strong class="menu-blend__item-name">${esc(item.name)}</strong>
+            ${item.description ? `<span class="menu-blend__item-desc">${esc(item.description)}</span>` : ''}
+          </div>
+          ${renderPrice(item.price, kind)}
+        </li>`).join('');
+      const heading = s.title
+        ? `<h3 class="menu-blend__section-heading">${esc(s.title)}</h3>`
+        : '';
+      return `<div class="menu-blend__section reveal-on-scroll">
+        ${heading}
+        <ul class="menu-blend__items stagger reveal-on-scroll">${items}</ul>
+      </div>`;
+    }).join('');
+  }
+  function renderCocktails(sections) {
+    return sections.map((s) => {
+      const cards = (s.items || []).map((item) => `
+        <article class="menu-blend__cocktail">
+          <header class="menu-blend__cocktail-head">
+            <h4 class="menu-blend__cocktail-name">${esc(item.name)}</h4>
+            <span class="menu-blend__item-price">${esc(item.price)}</span>
+          </header>
+          ${item.description ? `<p class="menu-blend__cocktail-desc">${esc(item.description)}</p>` : ''}
+        </article>`).join('');
+      const heading = s.title
+        ? `<h3 class="menu-blend__section-heading">${esc(s.title)}</h3>`
+        : '';
+      return `<div class="menu-blend__section reveal-on-scroll">
+        ${heading}
+        <div class="menu-blend__cocktails stagger reveal-on-scroll">${cards}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function hydrate(cfg) {
+    if (cfg.prefilled) return;
+    const host = document.querySelector(`[data-menu-body][data-chapter-id="${cfg.id}"]`);
+    if (!host) return;
+
+    try {
+      const res = await fetch(`/api/menu/${cfg.apiSlug}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      const sections = Array.isArray(data) ? data : (data?.sections ?? []);
+      renderMeta(cfg.apiSlug, Array.isArray(data) ? null : (data?.date ?? null));
+
+      if (sections.length === 0) {
+        host.innerHTML = `<p class="menu-blend__empty">${esc(comingSoonLbl)}</p>`;
+        return;
+      }
+
+      const html = cfg.kind === 'cocktails'
+        ? renderCocktails(sections)
+        : renderList(sections, cfg.kind);
+      host.innerHTML = `<div class="menu-blend__sections">${html}</div>`;
+
+      if (typeof window.__zaharaArmReveals === 'function') {
+        window.__zaharaArmReveals(host);
+      }
+    } catch (err) {
+      console.warn('[MenuPageV2] hydration failed for', cfg.id, err);
+      host.innerHTML = `<p class="menu-blend__empty">${esc(comingSoonLbl)}</p>`;
+    }
+  }
+  hydrationPayload.forEach(hydrate);
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  const tabs = Array.from(document.querySelectorAll('[data-blend-tab]'));
+  const indicator = document.querySelector('.menu-blend__tabs-indicator');
+  const tabsWrap  = document.querySelector('.menu-blend__tabs-inner');
+
+  function positionIndicator() {
+    const active = tabs.find((t) => t.classList.contains('is-active'));
+    if (!active || !indicator || !tabsWrap) return;
+    const wrapRect = tabsWrap.getBoundingClientRect();
+    const btnRect  = active.getBoundingClientRect();
+    indicator.style.width     = btnRect.width + 'px';
+    indicator.style.transform =
+      `translateX(${btnRect.left - wrapRect.left + tabsWrap.scrollLeft}px)`;
+  }
+  function setActive(id, { scroll = false } = {}) {
+    tabs.forEach((t) => {
+      const active = t.dataset.blendTab === id;
+      t.classList.toggle('is-active', active);
+      t.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    requestAnimationFrame(positionIndicator);
+    if (scroll) {
+      const target = document.getElementById(`cat-${id}`);
+      if (target) {
+        const headerH = document.getElementById('site-header')?.offsetHeight || 76;
+        const tabH    = document.querySelector('.menu-blend__tabs')?.offsetHeight || 56;
+        const top     = target.getBoundingClientRect().top + window.scrollY
+                      - headerH - tabH - 8;
+        window.scrollTo({ top, behavior: 'smooth' });
+        history.replaceState(null, '', `#cat-${id}`);
+      }
+    }
+  }
+
+  tabs.forEach((t) => t.addEventListener('click', () => setActive(t.dataset.blendTab, { scroll: true })));
+  window.addEventListener('resize', positionIndicator, { passive: true });
+  if (document.fonts?.ready) document.fonts.ready.then(positionIndicator).catch(() => {});
+  requestAnimationFrame(positionIndicator);
+
+  // Sync active tab as chapters cross the viewport.
+  let suppressIo = false;
+  const io = new IntersectionObserver((entries) => {
+    if (suppressIo) return;
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      const id = e.target.getAttribute('data-menu-chapter');
+      if (id) setActive(id, { scroll: false });
+    }
+  }, { rootMargin: '-30% 0px -55% 0px', threshold: 0 });
+  document.querySelectorAll('[data-menu-chapter]').forEach((el) => io.observe(el));
+
+  // Deep-link via #cat-<id>.
+  const hash = (window.location.hash || '').replace(/^#cat-/, '');
+  if (hash && tabs.find((t) => t.dataset.blendTab === hash)) {
+    setActive(hash, { scroll: true });
+  }
+
+  // Live updates from /admin (same-origin tabs)
+  try {
+    const bc = new BroadcastChannel('zahara-menu');
+    bc.addEventListener('message', (ev) => {
+      const slug = ev?.data?.slug;
+      if (!slug) return;
+      const cfg = hydrationPayload.find((c) => c.apiSlug === slug);
+      if (cfg) hydrate({ ...cfg, prefilled: false });
+    });
+  } catch {}
+</script>

@@ -1,0 +1,179 @@
+---
+// Accessibility toolkit — required by Israeli accessibility regulations
+// (תקנות שוויון זכויות לאנשים עם מוגבלות, התשע״ג–2013) — provides a
+// user-controlled adjustment panel and a link to the statement page.
+//
+// Features:
+//   • Font-size +/− (1× — 1.4×) saved per visitor (localStorage)
+//   • High-contrast mode (boosts ink/paper to black/white)
+//   • Underline-every-link mode
+//   • Stop-animations toggle (forces prefers-reduced-motion behaviour)
+//   • Highlight headings outline
+//   • Reset
+// Plus: a permanent visible link to /accessibility/ (the statement page),
+// which Israeli law requires every public-facing site to provide.
+
+import type { Lang } from '../data/i18n';
+
+export interface Props { lang?: Lang }
+const { lang = 'he' } = Astro.props;
+const isHe = lang === 'he';
+
+const t = {
+  toggle:     isHe ? 'נגישות'          : 'Accessibility',
+  panelLabel: isHe ? 'לוח התאמות נגישות' : 'Accessibility adjustments',
+  fontInc:    isHe ? 'הגדלת טקסט'      : 'Larger text',
+  fontDec:    isHe ? 'הקטנת טקסט'      : 'Smaller text',
+  contrast:   isHe ? 'ניגודיות גבוהה'  : 'High contrast',
+  links:      isHe ? 'הדגשת קישורים'    : 'Underline links',
+  stopAnim:   isHe ? 'עצירת אנימציות'   : 'Stop animations',
+  headings:   isHe ? 'הדגשת כותרות'     : 'Highlight headings',
+  reset:      isHe ? 'איפוס'           : 'Reset',
+  statement:  isHe ? 'הצהרת נגישות'    : 'Accessibility statement',
+  close:      isHe ? 'סגירה'           : 'Close',
+};
+---
+
+<!-- Toggle button — fixed bottom-start corner, RTL-aware. Uses ♿ glyph. -->
+<button
+  class="a11y-toggle"
+  type="button"
+  data-a11y-toggle
+  aria-label={t.toggle}
+  aria-expanded="false"
+  aria-controls="a11y-panel"
+>
+  <span aria-hidden="true">♿</span>
+</button>
+
+<!-- The adjustments panel. Hidden by default; toggled by the button. -->
+<aside
+  class="a11y-panel"
+  id="a11y-panel"
+  data-a11y-panel
+  role="dialog"
+  aria-modal="false"
+  aria-label={t.panelLabel}
+  hidden
+>
+  <header class="a11y-panel__head">
+    <h2 class="a11y-panel__title">{t.panelLabel}</h2>
+    <button class="a11y-panel__close" type="button" data-a11y-close aria-label={t.close}>×</button>
+  </header>
+
+  <div class="a11y-panel__body">
+    <div class="a11y-row">
+      <span class="a11y-row__label">{t.fontDec} / {t.fontInc}</span>
+      <div class="a11y-row__controls">
+        <button class="a11y-btn" type="button" data-a11y-action="font-dec" aria-label={t.fontDec}>A−</button>
+        <button class="a11y-btn" type="button" data-a11y-action="font-reset" aria-label={t.reset}>100%</button>
+        <button class="a11y-btn" type="button" data-a11y-action="font-inc" aria-label={t.fontInc}>A+</button>
+      </div>
+    </div>
+
+    <button class="a11y-toggleable" type="button"
+            data-a11y-toggle-class="contrast"
+            aria-pressed="false">{t.contrast}</button>
+
+    <button class="a11y-toggleable" type="button"
+            data-a11y-toggle-class="links"
+            aria-pressed="false">{t.links}</button>
+
+    <button class="a11y-toggleable" type="button"
+            data-a11y-toggle-class="stop-anim"
+            aria-pressed="false">{t.stopAnim}</button>
+
+    <button class="a11y-toggleable" type="button"
+            data-a11y-toggle-class="headings"
+            aria-pressed="false">{t.headings}</button>
+
+    <button class="a11y-btn a11y-btn--reset" type="button" data-a11y-action="reset">{t.reset}</button>
+
+    <a class="a11y-statement-link" href={isHe ? '/accessibility/' : '/en/accessibility/'}>{t.statement} ↗</a>
+  </div>
+</aside>
+
+<script is:inline>
+  (function () {
+    'use strict';
+    const KEY = 'zahara-a11y';
+
+    const root = document.documentElement;
+    const toggle = document.querySelector('[data-a11y-toggle]');
+    const panel  = document.querySelector('[data-a11y-panel]');
+    const close  = document.querySelector('[data-a11y-close]');
+    if (!toggle || !panel) return;
+
+    // ── State management ────────────────────────────────────────
+    function loadState() {
+      try { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
+      catch { return {}; }
+    }
+    function saveState(s) {
+      try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (_) {}
+    }
+    let state = loadState();
+
+    // ── Apply state to <html> ───────────────────────────────────
+    function apply() {
+      // Font size scale (1 .. 1.4 in 0.1 steps)
+      const scale = Math.max(0.8, Math.min(1.6, state.fontScale || 1));
+      root.style.setProperty('--a11y-font-scale', String(scale));
+
+      // Mode classes
+      root.classList.toggle('a11y-contrast',  !!state.contrast);
+      root.classList.toggle('a11y-links',     !!state.links);
+      root.classList.toggle('a11y-stop-anim', !!state.stopAnim);
+      root.classList.toggle('a11y-headings',  !!state.headings);
+
+      // Reflect button pressed state
+      document.querySelectorAll('[data-a11y-toggle-class]').forEach((b) => {
+        const k = b.dataset.a11yToggleClass.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        b.setAttribute('aria-pressed', state[k] ? 'true' : 'false');
+      });
+    }
+    apply();
+
+    // ── Panel open/close ────────────────────────────────────────
+    function openPanel() {
+      panel.hidden = false;
+      toggle.setAttribute('aria-expanded', 'true');
+      // Focus the first interactive control for keyboard users.
+      const first = panel.querySelector('button, a');
+      if (first) first.focus();
+    }
+    function closePanel() {
+      panel.hidden = true;
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.focus();
+    }
+    toggle.addEventListener('click', () => {
+      panel.hidden ? openPanel() : closePanel();
+    });
+    if (close) close.addEventListener('click', closePanel);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !panel.hidden) closePanel();
+    });
+
+    // ── Actions ─────────────────────────────────────────────────
+    panel.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-a11y-action], [data-a11y-toggle-class]');
+      if (!target) return;
+
+      const action = target.dataset.a11yAction;
+      if (action === 'font-inc')   state.fontScale = Math.min(1.6, (state.fontScale || 1) + 0.1);
+      if (action === 'font-dec')   state.fontScale = Math.max(0.8, (state.fontScale || 1) - 0.1);
+      if (action === 'font-reset') state.fontScale = 1;
+      if (action === 'reset')      state = {};
+
+      const tc = target.dataset.a11yToggleClass;
+      if (tc) {
+        const k = tc.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        state[k] = !state[k];
+      }
+
+      apply();
+      saveState(state);
+    });
+  })();
+</script>

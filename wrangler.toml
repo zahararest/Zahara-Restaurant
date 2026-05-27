@@ -1,0 +1,29 @@
+name = "restaurant-site"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "./dist"
+
+# KV namespace for dynamic menu data (sections + items stored as JSON).
+# Create with: wrangler kv namespace create MENU_DATA
+# Then set kv_namespaces.id below.
+[[kv_namespaces]]
+binding = "MENU_DATA"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# R2 bucket for admin-uploaded image overrides. When a file exists at
+# `images/{name}` it overrides the default in /public/photos/. The
+# `functions/photos/[file].ts` middleware checks R2 first, then falls
+# through to the static asset.
+# Create with: wrangler r2 bucket create zahara-images
+[[r2_buckets]]
+binding     = "IMAGES"
+bucket_name = "zahara-images"
+
+# Secrets — set these via the Cloudflare Pages dashboard or with `wrangler pages secret put`.
+# DO NOT commit values here. This file is just declarative.
+#
+# Required secrets:
+#   ADMIN_USER          — username for /admin (e.g. "owner")
+#   ADMIN_PASSWORD      — password for /admin (use something long and random)
+#   RESEND_API_KEY      — from https://resend.com
+#   CONTACT_TO_EMAIL    — owner's inbox (e.g. "info@your-restaurant.com")
+#   CONTACT_FROM_EMAIL  — must be on a Resend-verified domain

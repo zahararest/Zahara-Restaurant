@@ -1,0 +1,23 @@
+---
+export interface Props {
+  /** Quote HTML (may contain <em>). */
+  quote:       string;
+  attribution: string;
+}
+
+const { quote, attribution } = Astro.props;
+---
+
+<section class="section-tight">
+  <div class="wrap wrap--narrow">
+    <blockquote class="pull-quote reveal-on-scroll reveal--zoom">
+      <span
+        data-word-reveal
+        data-word-reveal-delay="0.08"
+        data-word-reveal-step="0.05"
+        set:html={quote}
+      />
+      <span class="pull-quote__attribution">{attribution}</span>
+    </blockquote>
+  </div>
+</section>

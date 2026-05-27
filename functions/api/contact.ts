@@ -1,0 +1,143 @@
+// /functions/api/contact.ts
+//
+// Receives the events contact form and emails the owner via Resend.
+// Handles both JS fetch (returns plain text) and no-JS form submission
+// (redirects to the refering events page with ?submitted=1).
+//
+// Required Cloudflare Pages secrets:
+//   RESEND_API_KEY     — from resend.com
+//   CONTACT_TO_EMAIL   — owner's inbox
+//   CONTACT_FROM_EMAIL — must be on a Resend-verified domain
+
+interface Env {
+  RESEND_API_KEY:     string;
+  CONTACT_TO_EMAIL:   string;
+  CONTACT_FROM_EMAIL: string;
+}
+
+function escape(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function isFetchRequest(request: Request): boolean {
+  const mode = request.headers.get('sec-fetch-mode');
+  if (mode) return mode !== 'navigate';
+  // Fallback: check Accept header — browser form POSTs accept text/html
+  const accept = request.headers.get('accept') || '';
+  return !accept.includes('text/html');
+}
+
+function redirectBack(request: Request, param: string): Response {
+  const referer = request.headers.get('referer') || '/';
+  const isEn    = referer.includes('/en/');
+  const base    = isEn ? '/en/contact/' : '/contact/';
+  return new Response(null, {
+    status:  303,
+    headers: { Location: `${base}?${param}` },
+  });
+}
+
+export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
+  const ct = request.headers.get('content-type') || '';
+  if (!ct.includes('multipart/form-data') && !ct.includes('application/x-www-form-urlencoded')) {
+    return new Response('Invalid content type', { status: 400 });
+  }
+
+  const form = await request.formData();
+
+  // Honeypot — silent drop
+  if ((form.get('website') as string)?.length) {
+    return isFetchRequest(request)
+      ? new Response('OK', { status: 200 })
+      : redirectBack(request, 'submitted=1');
+  }
+
+  const name         = String(form.get('name')         || '').trim();
+  const phone        = String(form.get('phone')        || '').trim();
+  const email        = String(form.get('email')        || '').trim();
+  const event_date   = String(form.get('event_date')   || '').trim();
+  const event_type   = String(form.get('event_type')   || '').trim();
+  const guests       = String(form.get('guests')       || '').trim();
+  const message      = String(form.get('message')      || '').trim();
+  const inquiry_type = String(form.get('inquiry_type') || 'general').trim();
+  const isEvent      = inquiry_type === 'event' || !!(event_date || event_type || guests);
+
+  const isFetch = isFetchRequest(request);
+  const isEn    = (request.headers.get('referer') || '').includes('/en/');
+
+  const err = (msgHe: string, msgEn: string, status: number) =>
+    isFetch
+      ? new Response(isEn ? msgEn : msgHe, { status })
+      : redirectBack(request, 'error=1');
+
+  if (!name || !phone || !email) {
+    return err('שדות חובה חסרים', 'Required fields missing', 400);
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return err('כתובת אימייל לא תקינה', 'Invalid email address', 400);
+  }
+  if (name.length > 200 || message.length > 5000) {
+    return err('שדה ארוך מדי', 'Field too long', 400);
+  }
+
+  const heading = isEvent ? 'Event Inquiry — Zahara' : 'Contact — Zahara';
+  const subject = isEvent
+    ? `Event inquiry — ${name}${event_type ? ` (${event_type})` : ''}`
+    : `Contact — ${name}`;
+
+  const html = `
+    <div style="font-family:-apple-system,system-ui,sans-serif;max-width:600px;margin:0 auto;color:#111009">
+      <h2 style="font-family:Georgia,serif;border-bottom:1px solid #D4C9B0;padding-bottom:0.5rem">
+        ${heading}
+      </h2>
+      <table style="width:100%;border-collapse:collapse;margin:1.5rem 0">
+        <tr><td style="padding:0.5rem 0;color:#7B7060;width:30%">Name</td><td style="padding:0.5rem 0"><strong>${escape(name)}</strong></td></tr>
+        <tr><td style="padding:0.5rem 0;color:#7B7060">Phone</td><td style="padding:0.5rem 0"><a href="tel:${escape(phone)}">${escape(phone)}</a></td></tr>
+        <tr><td style="padding:0.5rem 0;color:#7B7060">Email</td><td style="padding:0.5rem 0"><a href="mailto:${escape(email)}">${escape(email)}</a></td></tr>
+        ${event_date ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Date</td><td style="padding:0.5rem 0">${escape(event_date)}</td></tr>` : ''}
+        ${event_type ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Type</td><td style="padding:0.5rem 0">${escape(event_type)}</td></tr>` : ''}
+        ${guests    ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Guests</td><td style="padding:0.5rem 0">${escape(guests)}</td></tr>` : ''}
+      </table>
+      ${message ? `<div style="background:#F5F1EB;padding:1rem 1.25rem;border-left:3px solid #4A5E3D"><strong style="display:block;margin-bottom:0.5rem;color:#7B7060">Message</strong>${escape(message).replace(/\n/g, '<br>')}</div>` : ''}
+    </div>`;
+
+  const text = [
+    heading,
+    `Name: ${name}`, `Phone: ${phone}`, `Email: ${email}`,
+    event_date ? `Date: ${event_date}` : '',
+    event_type ? `Type: ${event_type}` : '',
+    guests     ? `Guests: ${guests}`   : '',
+    message    ? `\nMessage:\n${message}` : '',
+  ].filter(Boolean).join('\n');
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({
+      from:     env.CONTACT_FROM_EMAIL,
+      to:       env.CONTACT_TO_EMAIL,
+      reply_to: email,
+      subject,
+      html,
+      text,
+    }),
+  });
+
+  if (!res.ok) {
+    console.error('Resend error:', res.status, await res.text());
+    return err(
+      'שגיאת שליחה. אנא חייגו אלינו ישירות.',
+      'Send failed. Please call us directly.',
+      502,
+    );
+  }
+
+  return isFetch
+    ? new Response('OK', { status: 200 })
+    : redirectBack(request, 'submitted=1');
+};

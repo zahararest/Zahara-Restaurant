@@ -1,0 +1,31 @@
+---
+export interface Props {
+  eyebrow:    string;
+  /** Heading HTML — may contain inline <br /> markers. */
+  heading:    string;
+  /** Paragraphs in order. May contain inline HTML. */
+  paragraphs: readonly string[];
+}
+
+const { eyebrow, heading, paragraphs } = Astro.props;
+---
+
+<section class="section">
+  <div class="wrap">
+    <div class="editorial">
+      <header class="editorial__head reveal-on-scroll">
+        <p class="eyebrow">{eyebrow}</p>
+        <h2
+          class="display"
+          data-word-reveal
+          data-word-reveal-delay="0.08"
+          data-word-reveal-step="0.06"
+          set:html={heading}
+        />
+      </header>
+      <div class="prose stagger reveal-on-scroll">
+        {paragraphs.map(p => <p set:html={p} />)}
+      </div>
+    </div>
+  </div>
+</section>

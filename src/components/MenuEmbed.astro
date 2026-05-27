@@ -1,0 +1,372 @@
+---
+import { pick, menu as labels }                  from '../data/i18n';
+import { menuHe }                                 from '../data/menu-he';
+import { MENU_CATEGORIES }                        from '../data/menu-spec';
+import { MENU_CATEGORY_PHOTOS }                   from '../data/photos';
+import type { Lang }                              from '../data/i18n';
+import type { MenuKind }                          from '../data/menu-spec';
+
+export interface Props { lang?: Lang }
+
+const { lang = 'he' } = Astro.props;
+const t = pick(labels, lang);
+
+// Materialize the tab list for this language from the canonical category spec.
+interface Tab {
+  id:    'food' | 'dessert' | 'wine' | 'cocktails' | 'events';
+  slug:  string;
+  label: string;
+  kind:  MenuKind;
+}
+
+const tabs: Tab[] = MENU_CATEGORIES.map(c => ({
+  id:    c.id,
+  slug:  c.slugs[lang],
+  label: t[c.labelKey],
+  kind:  c.kind,
+}));
+
+// Server-render the HE food panel from static data for instant first paint.
+// All other panels (and EN food) load lazily from /api/menu/[slug].
+const initialFood = lang === 'he' ? menuHe : [];
+
+const bottleLabel = t.priceBottle;
+const glassLabel  = t.priceGlass;
+const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
+---
+
+<div class="menu-embed" id="menu-embed" data-lang={lang}>
+  <!-- Category hero — swaps with a cross-fade as tabs change. -->
+  <div class="menu-hero" aria-hidden="true">
+    {tabs.map((tab, i) => {
+      const photo = MENU_CATEGORY_PHOTOS[tab.id];
+      return (
+        <img
+          class={`menu-hero__img${i === 0 ? ' is-active' : ''}`}
+          src={photo.src}
+          alt={photo.alt[lang]}
+          data-hero-for={tab.id}
+          loading={i === 0 ? 'eager' : 'lazy'}
+          decoding="async"
+        />
+      );
+    })}
+    <div class="menu-hero__overlay"></div>
+    <div class="menu-hero__label">
+      {tabs.map((tab, i) => (
+        <span class={`menu-hero__label-text${i === 0 ? ' is-active' : ''}`} data-hero-label-for={tab.id}>
+          {tab.label}
+        </span>
+      ))}
+    </div>
+  </div>
+
+  <nav class="menu-tabs" role="tablist" aria-label={lang === 'he' ? 'קטגוריות תפריט' : 'Menu categories'}>
+    {tabs.map((tab, i) => (
+      <button
+        class={`menu-tab${i === 0 ? ' is-active' : ''}`}
+        role="tab"
+        aria-selected={i === 0 ? 'true' : 'false'}
+        aria-controls={`panel-${tab.id}`}
+        id={`tab-${tab.id}`}
+        data-index={i}
+        data-tab-id={tab.id}
+        data-slug={tab.slug}
+        data-kind={tab.kind}
+      >{tab.label}</button>
+    ))}
+    <span class="menu-tabs__indicator" aria-hidden="true"></span>
+  </nav>
+
+  {tabs.map((tab, i) => (
+    <div
+      class={`menu-panel${i === 0 ? ' is-active' : ''}`}
+      role="tabpanel"
+      id={`panel-${tab.id}`}
+      aria-labelledby={`tab-${tab.id}`}
+      data-panel={i}
+      data-tab-id={tab.id}
+      data-slug={tab.slug}
+      data-kind={tab.kind}
+    >
+      <div class="menu-meta"    data-meta-for={tab.slug}></div>
+      <div class="menu-content" data-content-for={tab.slug}>
+        {i === 0 && initialFood.length > 0 ? (
+          <div class="menu-inline">
+            {initialFood.map((section) => (
+              <div class="menu-section-group">
+                <h2
+                  class="menu-section-heading"
+                  data-word-reveal
+                  data-word-reveal-delay="0.05"
+                  data-word-reveal-step="0.05"
+                >{section.title}</h2>
+                <ul class="menu-items-list">
+                  {section.items.map(item => (
+                    <li class="menu-item-row">
+                      <div class="menu-item__main">
+                        <strong class="menu-item__name">{item.name}</strong>
+                        {item.description && <span class="menu-item__desc">{item.description}</span>}
+                      </div>
+                      <span class="menu-item__price">{item.price}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div class="menu-coming-soon"><p>{t.notReady}</p></div>
+        )}
+      </div>
+    </div>
+  ))}
+</div>
+
+<script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel }}>
+  // ── HTML escape ─────────────────────────────────────────────
+  const esc = s => String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  // ── Date format ─────────────────────────────────────────────
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    const locale = pageLang === 'he' ? 'he-IL' : 'en-GB';
+    try {
+      return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+    } catch {
+      return iso;
+    }
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────
+  const hasHebrew = s => /[֐-׿]/.test(s || '');
+
+  /** Split "200/52" → { bottle, glass }; returns null otherwise. */
+  function splitWinePrice(p) {
+    const m = String(p || '').match(/^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/);
+    return m ? { bottle: m[1], glass: m[2] } : null;
+  }
+
+  function renderPrice(price, kind) {
+    if (kind !== 'wine') return `<span class="menu-item__price">${esc(price)}</span>`;
+    const split = splitWinePrice(price);
+    if (!split) return `<span class="menu-item__price">${esc(price)}</span>`;
+    return `<span class="menu-item__price menu-item__price--double" aria-label="${esc(bottleLabel)} ${esc(split.bottle)} / ${esc(glassLabel)} ${esc(split.glass)}">
+      <span class="menu-item__price-bottle">${esc(split.bottle)}</span>
+      <span class="menu-item__price-sep">/</span>
+      <span class="menu-item__price-glass">${esc(split.glass)}</span>
+    </span>`;
+  }
+
+  // ── Renderers per kind ──────────────────────────────────────
+  function renderList(sections, kind) {
+    if (!sections || sections.length === 0) return '';
+
+    const showLegend = kind === 'wine'
+      && sections.some(s => (s.items || []).some(it => splitWinePrice(it.price)));
+    const legend = showLegend
+      ? `<div class="wine-legend" role="note">
+           <span class="wine-legend__item"><span class="wine-legend__dot"></span>${esc(bottleLabel)}</span>
+           <span class="wine-legend__item"><span class="wine-legend__dot wine-legend__dot--glass"></span>${esc(glassLabel)}</span>
+         </div>`
+      : '';
+
+    const body = sections.map((s) => {
+      const items = (s.items ?? []).map(item => {
+        const desc = item.description
+          ? `<span class="menu-item__desc">${esc(item.description)}</span>`
+          : '';
+        return `<li class="menu-item-row">
+          <div class="menu-item__main">
+            <strong class="menu-item__name">${esc(item.name)}</strong>
+            ${desc}
+          </div>
+          ${renderPrice(item.price, kind)}
+        </li>`;
+      }).join('');
+      const heading = s.title ? `<h2 class="menu-section-heading" data-word-reveal data-word-reveal-delay="0.05" data-word-reveal-step="0.05">${esc(s.title)}</h2>` : '';
+      return `<div class="menu-section-group">${heading}<ul class="menu-items-list">${items}</ul></div>`;
+    }).join('');
+
+    return `<div class="menu-inline">${legend}${body}</div>`;
+  }
+
+  function renderCocktails(sections) {
+    if (!sections || sections.length === 0) return '';
+    return sections.map((s) => {
+      const cards = (s.items ?? []).map(item => {
+        const desc  = String(item.description || '');
+        const parts = desc.split(/\s*·\s*/).map(p => p.trim()).filter(Boolean);
+
+        let enLine = '', heLine = '';
+        if (parts.length >= 2) {
+          if      (hasHebrew(parts[1]) && !hasHebrew(parts[0])) { enLine = parts[0];                   heLine = parts.slice(1).join(' · '); }
+          else if (hasHebrew(parts[0]) && !hasHebrew(parts[1])) { heLine = parts[0];                   enLine = parts.slice(1).join(' · '); }
+          else                                                   { enLine = parts.filter(p => !hasHebrew(p)).join(' · ');
+                                                                    heLine = parts.filter(p =>  hasHebrew(p)).join(' · '); }
+        } else if (parts.length === 1) {
+          if (hasHebrew(parts[0])) heLine = parts[0]; else enLine = parts[0];
+        }
+
+        const enHtml = enLine ? `<p class="cocktail-card__line">${esc(enLine)}</p>` : '';
+        const heHtml = heLine ? `<p class="cocktail-card__line cocktail-card__line--he">${esc(heLine)}</p>` : '';
+
+        return `<article class="cocktail-card">
+          <header class="cocktail-card__head">
+            <h3 class="cocktail-card__name">${esc(item.name)}</h3>
+            <span class="cocktail-card__price">${esc(item.price)}</span>
+          </header>
+          <div class="cocktail-card__body">${enHtml}${heHtml}</div>
+        </article>`;
+      }).join('');
+
+      const heading = s.title ? `<h2 class="menu-section-heading" data-word-reveal data-word-reveal-delay="0.05" data-word-reveal-step="0.05">${esc(s.title)}</h2>` : '';
+      return `<div class="menu-section-group">${heading}<div class="cocktail-grid">${cards}</div></div>`;
+    }).join('');
+  }
+
+  // ── Reveal-on-scroll ───────────────────────────────────────
+  // We delegate to the global Motion runtime (see /components/Motion.astro):
+  //   • Initial server-rendered .menu-section-group elements are picked up by
+  //     Motion's setup() automatically.
+  //   • For dynamically-inserted content (panel swaps), we call
+  //     window.__zaharaArmReveals so the new nodes join the same bidirectional
+  //     observer that drives every other reveal on the page.
+  function armReveals(root) {
+    if (root && typeof window.__zaharaArmReveals === 'function') {
+      window.__zaharaArmReveals(root);
+    }
+  }
+
+  // ── Render orchestration ────────────────────────────────────
+  function renderMeta(metaEl, dateIso) {
+    if (!metaEl) return;
+    const formatted = formatDate(dateIso);
+    metaEl.innerHTML = formatted
+      ? `${updatedLbl} · <span class="menu-meta__date">${esc(formatted)}</span>`
+      : '';
+  }
+
+  function applyPayload(slug, kind, payload) {
+    const sections = Array.isArray(payload) ? payload : (payload?.sections ?? []);
+    const date     = Array.isArray(payload) ? null   : (payload?.date     ?? null);
+    const content  = document.querySelector(`[data-content-for="${slug}"]`);
+    const meta     = document.querySelector(`[data-meta-for="${slug}"]`);
+    const html     = kind === 'cocktails' ? renderCocktails(sections) : renderList(sections, kind);
+
+    if (content) {
+      if (html) content.innerHTML = html;
+      else {
+        const empty = kind === 'cocktails'
+          ? (pageLang === 'he' ? 'אין קוקטיילים זמינים כעת' : 'No cocktails available')
+          : (pageLang === 'he' ? 'התפריט עדיין לא הועלה'    : 'Menu coming soon');
+        content.innerHTML = `<div class="menu-coming-soon"><p>${esc(empty)}</p></div>`;
+      }
+      armReveals(content);
+    }
+    renderMeta(meta, date);
+  }
+
+  async function loadSlug(slug, kind) {
+    try {
+      const res = await fetch(`/api/menu/${slug}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      applyPayload(slug, kind, data);
+    } catch { /* keep whatever is already rendered */ }
+  }
+
+  // ── Tab wiring ──────────────────────────────────────────────
+  const tabBtns = Array.from(document.querySelectorAll('.menu-tab'));
+  const panels  = Array.from(document.querySelectorAll('.menu-panel'));
+  const heroImgs   = Array.from(document.querySelectorAll('[data-hero-for]'));
+  const heroLabels = Array.from(document.querySelectorAll('[data-hero-label-for]'));
+  const loaded     = new Set();
+
+  function activateHero(tabId) {
+    heroImgs.forEach(img =>
+      img.classList.toggle('is-active', img.dataset.heroFor === tabId));
+    heroLabels.forEach(el =>
+      el.classList.toggle('is-active', el.dataset.heroLabelFor === tabId));
+  }
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx   = Number(btn.dataset.index);
+      const slug  = btn.dataset.slug  ?? '';
+      const kind  = btn.dataset.kind  ?? 'list';
+      const tabId = btn.dataset.tabId ?? '';
+
+      tabBtns.forEach((t, i) => {
+        t.classList.toggle('is-active', i === idx);
+        t.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+      });
+      panels.forEach((p, i) => p.classList.toggle('is-active', i === idx));
+      activateHero(tabId);
+
+      // Trigger the panel-sweep entrance animation on the newly-active panel.
+      const activePanel = panels[idx];
+      if (activePanel) {
+        activePanel.classList.remove('is-switching');
+        // Force a reflow so the animation restarts even on the same panel.
+        void activePanel.offsetWidth;
+        activePanel.classList.add('is-switching');
+        armReveals(activePanel);
+      }
+
+      // Smooth-scroll the tabs into view so the user can see content scroll up.
+      const tabsBar = document.querySelector('.menu-tabs');
+      if (tabsBar) {
+        const top = tabsBar.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+
+      if (!loaded.has(slug)) {
+        loaded.add(slug);
+        loadSlug(slug, kind);
+      }
+    });
+  });
+
+  // Arm reveals on the initially-active panel (server-rendered HE food).
+  const firstPanel = panels.find(p => p.classList.contains('is-active'));
+  if (firstPanel) armReveals(firstPanel);
+
+  // Eagerly refresh the first (food) panel from the API
+  const firstBtn = tabBtns[0];
+  if (firstBtn) {
+    const slug = firstBtn.dataset.slug;
+    const kind = firstBtn.dataset.kind ?? 'list';
+    loaded.add(slug);
+    loadSlug(slug, kind);
+  }
+
+  // Deep-link support: if the URL hash points at a tab (#tab-cocktails,
+  // #tab-dessert, etc.), activate that tab on load. HomePageV2's chapter
+  // CTAs use this to land users on the right category.
+  function activateByHash() {
+    const hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash) return;
+    const m = hash.match(/^tab-(.+)$/);
+    if (!m) return;
+    const target = tabBtns.find((b) => b.dataset.tabId === m[1] || b.id === `tab-${m[1]}`);
+    if (target && !target.classList.contains('is-active')) target.click();
+  }
+  activateByHash();
+  window.addEventListener('hashchange', activateByHash);
+
+  // Live updates from /admin (same-origin tabs)
+  try {
+    const bc = new BroadcastChannel('zahara-menu');
+    bc.addEventListener('message', (ev) => {
+      const slug = ev?.data?.slug;
+      if (!slug) return;
+      const btn  = tabBtns.find(b => b.dataset.slug === slug);
+      const kind = btn?.dataset?.kind ?? 'list';
+      loadSlug(slug, kind);
+    });
+  } catch { /* BroadcastChannel unsupported — page refresh shows the new data */ }
+</script>

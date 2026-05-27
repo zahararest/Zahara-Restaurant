@@ -1,0 +1,40 @@
+---
+import { pick, home as copy } from '../../data/i18n';
+import { RESTAURANT }          from '../../data/restaurant';
+import { path }                from '../../lib/paths';
+import type { Lang }           from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(copy, lang);
+const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
+const display  = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
+---
+
+<div class="info-strip">
+  <div class="wrap">
+    <div class="info-strip__grid stagger reveal-on-scroll">
+      <div class="info-strip__cell">
+        <div class="meta-block__label">{t.infoHoursLabel}</div>
+        <div class="meta-block__value">{t.infoHoursValue}</div>
+      </div>
+
+      <div class="info-strip__cell">
+        <div class="meta-block__label">{t.infoAddressLabel}</div>
+        <a class="meta-block__value" href={path('location', lang)}>{t.infoAddressValue}</a>
+      </div>
+
+      <div class="info-strip__cell">
+        <div class="meta-block__label">{t.infoReservLabel}</div>
+        <a class="meta-block__value"   href={`tel:${dial}`}>{display}</a>
+        <a class="info-strip__sub"     href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.infoTabit}</a>
+      </div>
+
+      <div class="info-strip__cell">
+        <div class="meta-block__label">{t.infoChefLabel}</div>
+        <div class="meta-block__value">{RESTAURANT.chef[lang]}</div>
+      </div>
+    </div>
+  </div>
+</div>

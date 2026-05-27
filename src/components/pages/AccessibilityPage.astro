@@ -1,0 +1,194 @@
+---
+// Accessibility statement page — mandatory under Israeli regulations
+// (תקנות שוויון זכויות לאנשים עם מוגבלות (התאמות נגישות לשירות), התשע״ג–2013).
+// The statement must list: the standard the site aims to meet, the
+// accessibility features available, known limitations, and a contact
+// for accessibility issues.
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { RESTAURANT } from '../../data/restaurant';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const isHe = lang === 'he';
+
+const title = isHe ? 'הצהרת נגישות' : 'Accessibility statement';
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout title={title} lang={lang}>
+  <article class="a11y-page wrap">
+    <header class="a11y-page__head">
+      <p class="eyebrow">{isHe ? 'נגישות' : 'Accessibility'}</p>
+      <h1 class="display">{title}</h1>
+      <p class="a11y-page__updated">
+        {isHe ? 'עודכן לאחרונה' : 'Last updated'} · {today}
+      </p>
+    </header>
+
+    {isHe ? (
+      <section class="a11y-page__body prose">
+        <p>
+          <strong>{RESTAURANT.name.he}</strong> מתחייבת להנגיש את אתר האינטרנט שלה לכלל
+          הציבור, לרבות אנשים עם מוגבלות, בהתאם להוראות חוק שוויון זכויות לאנשים עם
+          מוגבלות, התשנ"ח–1998, ולתקנות שהותקנו מכוחו.
+        </p>
+
+        <h2>תקן הנגישות</h2>
+        <p>
+          האתר נבנה לפי הנחיות תקן ישראלי 5568 ברמת AA, התואם להנחיות
+          ה־WCAG 2.0 של ארגון ה־W3C.
+        </p>
+
+        <h2>אמצעי נגישות באתר</h2>
+        <ul>
+          <li>תפריט התאמות נגישות הזמין באייקון ♿ בפינה התחתונה של כל עמוד.</li>
+          <li>הגדלה והקטנה של גופן ללא פגיעה בפריסת התוכן.</li>
+          <li>מצב ניגודיות גבוהה — שחור על לבן עם תוספת דגש על קישורים וגבולות.</li>
+          <li>הדגשת קישורים בקו תחתון בכל מקום באתר.</li>
+          <li>עצירת אנימציות ומעברי מסך לבעלי רגישות לתנועה.</li>
+          <li>הדגשת כותרות במסגרת ויזואלית.</li>
+          <li>תמיכה מלאה בניווט באמצעות מקלדת (Tab / Shift+Tab / Enter / Esc).</li>
+          <li>טקסט חלופי (alt) לכל התמונות.</li>
+          <li>קישור דילוג לתוכן (Skip to content) בראש העמוד.</li>
+          <li>שמירה אוטומטית של ההעדפות בדפדפן.</li>
+        </ul>
+
+        <h2>אופן הניווט באתר</h2>
+        <p>
+          האתר תוכנן לתמוך בניווט באמצעות מקלדת בלבד וקורא מסך. כותרות
+          העמוד מסודרות בהיררכיה לוגית, אזורי הניווט מסומנים בתפקידים
+          מתאימים (role="navigation", role="main"), וכל הטפסים מקושרים
+          לתוויות מתאימות.
+        </p>
+
+        <h2>סייגים והגבלות ידועות</h2>
+        <p>
+          אנו פועלים באופן רציף לשיפור הנגישות. עם זאת, ייתכן וחלק מהפריטים
+          באתר אינם נגישים במלואם, בעיקר תוכן צד שלישי המוטמע באתר
+          (כגון מפת Google, מערכת ההזמנות החיצונית).
+        </p>
+
+        <h2>פנייה בנושאי נגישות</h2>
+        <p>
+          אם נתקלתם בקושי או יש לכם הצעה לשיפור הנגישות, נשמח לדעת.
+          ניתן ליצור קשר עם רכז הנגישות:
+        </p>
+        <ul>
+          <li>טלפון: <a href={`tel:${RESTAURANT.phone.dialHe}`}>{RESTAURANT.phone.display}</a></li>
+          <li>אימייל: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
+          <li>כתובת: {RESTAURANT.address.he}</li>
+        </ul>
+        <p>
+          אנו נשתדל לחזור לכל פנייה תוך 14 ימי עבודה.
+        </p>
+      </section>
+    ) : (
+      <section class="a11y-page__body prose">
+        <p>
+          <strong>{RESTAURANT.name.en}</strong> is committed to making its website
+          accessible to the widest possible audience, including people with disabilities,
+          in accordance with the Israeli Equal Rights for Persons with Disabilities Law,
+          5758–1998, and its accompanying regulations.
+        </p>
+
+        <h2>Accessibility standard</h2>
+        <p>
+          The site is built to Israeli Standard 5568 Level AA, which mirrors
+          the W3C's WCAG 2.0 Level AA recommendations.
+        </p>
+
+        <h2>What's available on this site</h2>
+        <ul>
+          <li>An on-page adjustments panel accessible via the ♿ button in the bottom corner of every page.</li>
+          <li>Font-size increase / decrease without breaking the layout.</li>
+          <li>High-contrast mode — black on white with strong link + border emphasis.</li>
+          <li>Underline-every-link mode.</li>
+          <li>Stop-animations mode for visitors with motion sensitivity.</li>
+          <li>Heading-outline mode.</li>
+          <li>Full keyboard navigation (Tab / Shift+Tab / Enter / Esc).</li>
+          <li>Alt text on every image.</li>
+          <li>Skip-to-content link at the top of every page.</li>
+          <li>Your preferences are stored locally in your browser between visits.</li>
+        </ul>
+
+        <h2>How the site is structured</h2>
+        <p>
+          Pages use semantic HTML headings in a logical hierarchy. Landmark
+          regions (nav, main, contentinfo) are explicitly tagged so screen
+          readers can jump between them. All form fields have associated
+          labels.
+        </p>
+
+        <h2>Known limitations</h2>
+        <p>
+          We work continuously to improve accessibility. Some embedded
+          third-party content (Google Maps, the external reservation
+          system) may not be fully accessible.
+        </p>
+
+        <h2>Contact us about accessibility</h2>
+        <p>
+          If you've run into a barrier or have a suggestion, please let us know.
+          You can reach our accessibility coordinator at:
+        </p>
+        <ul>
+          <li>Phone: <a href={`tel:${RESTAURANT.phone.dialEn}`}>{RESTAURANT.phone.intlDisplay}</a></li>
+          <li>Email: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
+          <li>Address: {RESTAURANT.address.en}</li>
+        </ul>
+        <p>
+          We will respond within 14 working days.
+        </p>
+      </section>
+    )}
+  </article>
+</BaseLayout>
+
+<style>
+  .a11y-page {
+    padding-block: clamp(6rem, 12vw, 9rem) var(--space-2xl);
+    max-width: 48rem;
+  }
+  .a11y-page__head { margin-block-end: var(--space-l); }
+  .a11y-page__head h1 {
+    font-family: var(--font-display-he);
+    font-weight: 400;
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0.6rem 0 0;
+  }
+  html[lang="en"] .a11y-page__head h1 { font-family: var(--font-display-en); }
+  .a11y-page__updated {
+    margin: 1rem 0 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .a11y-page__body h2 {
+    font-family: var(--font-display-he);
+    font-weight: 500;
+    font-size: var(--step-2);
+    margin: 2rem 0 0.6rem;
+    color: var(--ink);
+  }
+  html[lang="en"] .a11y-page__body h2 { font-family: var(--font-display-en); font-weight: 400; }
+  .a11y-page__body p,
+  .a11y-page__body ul {
+    margin: 0.6rem 0;
+    color: var(--ink-soft);
+    line-height: 1.75;
+    font-weight: 300;
+  }
+  .a11y-page__body ul { padding-inline-start: 1.4rem; }
+  .a11y-page__body li { margin-block: 0.3rem; }
+  .a11y-page__body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .a11y-page__body a:hover { color: var(--accent-deep); }
+</style>

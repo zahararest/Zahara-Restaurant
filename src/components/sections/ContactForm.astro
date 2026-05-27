@@ -1,0 +1,241 @@
+---
+// ContactForm — one form, two modes.
+//
+// The toggle at the top swaps between a "general inquiry" mode (name,
+// phone, email, message) and an "event inquiry" mode (adds date, type,
+// guests). Submission goes to the same /api/contact endpoint; a hidden
+// `inquiry_type` field tells the server how to subject-line the email.
+//
+// URL deep-link: /contact/?type=event lands the user directly on the
+// event tab (used by the home page's "Inquire about events" CTA).
+
+import { pick, contact as copy } from '../../data/i18n';
+import type { Lang }            from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(copy, lang);
+
+const eventTypes: { value: string; label: string }[] = [
+  { value: '',         label: t.typeChoose   },
+  { value: 'private',  label: t.typePrivate  },
+  { value: 'business', label: t.typeBusiness },
+  { value: 'birthday', label: t.typeBirthday },
+  { value: 'other',    label: t.typeOther    },
+];
+---
+
+<section class="section-tight">
+  <div class="wrap wrap--tight">
+    {/* Toggle — two buttons that switch the form between modes. The
+        underlying form keeps every field; mode = 'event' just unhides
+        the date/type/guests row. */}
+    <div class="contact-toggle reveal-on-scroll" role="tablist" aria-label={t.eyebrow}>
+      <button
+        class="contact-toggle__btn is-active"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        data-contact-mode="general"
+        id="contact-mode-general"
+      >
+        <span class="contact-toggle__label">{t.modeGeneral}</span>
+        <span class="contact-toggle__caption">{t.modeGeneralCaption}</span>
+      </button>
+      <button
+        class="contact-toggle__btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        data-contact-mode="event"
+        id="contact-mode-event"
+      >
+        <span class="contact-toggle__label">{t.modeEvent}</span>
+        <span class="contact-toggle__caption">{t.modeEventCaption}</span>
+      </button>
+      <span class="contact-toggle__indicator" aria-hidden="true"></span>
+    </div>
+
+    <div class="form-card stagger reveal-on-scroll" data-contact-card>
+      <header class="form-card__head">
+        <p class="eyebrow" data-form-eyebrow data-eyebrow-general={t.formEyebrowGeneral} data-eyebrow-event={t.formEyebrowEvent}>
+          {t.formEyebrowGeneral}
+        </p>
+        <h2
+          class="display"
+          data-form-heading
+          data-heading-general={t.formHeadingGeneral}
+          data-heading-event={t.formHeadingEvent}
+          data-word-reveal
+          data-word-reveal-delay="0.06"
+          data-word-reveal-step="0.06"
+        >{t.formHeadingGeneral}</h2>
+      </header>
+
+      <form class="form" method="POST" action="/api/contact" id="contact-form">
+        <input type="hidden" name="inquiry_type" value="general" data-inquiry-type />
+
+        <div class="form__row form__row--2">
+          <div class="field">
+            <label for="name">{t.fieldName}</label>
+            <input id="name" name="name" type="text" required autocomplete="name" />
+          </div>
+          <div class="field">
+            <label for="phone">{t.fieldPhone}</label>
+            <input id="phone" name="phone" type="tel" required autocomplete="tel" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="email">{t.fieldEmail}</label>
+          <input id="email" name="email" type="email" required autocomplete="email" />
+        </div>
+
+        {/* Event-only fields. JS toggles `data-event-only` visibility. */}
+        <div class="contact-event-fields" data-event-only hidden>
+          <div class="form__row form__row--2">
+            <div class="field">
+              <label for="event_date">{t.fieldDate}</label>
+              <input id="event_date" name="event_date" type="date" />
+            </div>
+            <div class="field">
+              <label for="guests">{t.fieldGuests}</label>
+              <input id="guests" name="guests" type="number" min="2" max="80" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="event_type">{t.fieldType}</label>
+            <select id="event_type" name="event_type">
+              {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="message">{t.fieldMessage}</label>
+          <textarea id="message" name="message" rows="5"></textarea>
+        </div>
+
+        <!-- Honeypot — silently filled by bots, never by humans -->
+        <div class="visually-hidden" aria-hidden="true">
+          <label for="website">Leave this empty</label>
+          <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <div class="form-card__submit">
+          <button
+            class="btn"
+            type="submit"
+            data-submit
+            data-submit-general={t.submitGeneral}
+            data-submit-event={t.submitEvent}
+          >{t.submitGeneral}</button>
+          <p id="form-status" role="status" aria-live="polite" class="form-status"></p>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<script define:vars={{
+  msgSending:    t.statusSending,
+  msgSuccess:    t.statusSuccess,
+  msgErrNetwork: t.statusErrNetwork,
+  msgErrGeneral: t.statusErrGeneral,
+}}>
+  // ── Mode toggle (general / event) ─────────────────────────────────────────
+  const toggleBtns   = Array.from(document.querySelectorAll('[data-contact-mode]'));
+  const eventFields  = document.querySelector('[data-event-only]');
+  const eyebrow      = document.querySelector('[data-form-eyebrow]');
+  const heading      = document.querySelector('[data-form-heading]');
+  const submitBtn    = document.querySelector('[data-submit]');
+  const inquiryInput = document.querySelector('[data-inquiry-type]');
+
+  function setMode(mode) {
+    toggleBtns.forEach((b) => {
+      const active = b.dataset.contactMode === mode;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    if (eventFields) eventFields.hidden = mode !== 'event';
+    if (eyebrow) eyebrow.textContent = mode === 'event'
+      ? eyebrow.dataset.eyebrowEvent : eyebrow.dataset.eyebrowGeneral;
+    if (heading) {
+      heading.textContent = mode === 'event'
+        ? heading.dataset.headingEvent : heading.dataset.headingGeneral;
+      // Re-arm the word-mask reveal so the new copy animates in.
+      heading.removeAttribute('data-word-reveal-ready');
+      if (typeof window.__zaharaArmReveals === 'function') {
+        window.__zaharaArmReveals(heading.parentElement);
+      }
+    }
+    if (submitBtn) submitBtn.textContent = mode === 'event'
+      ? submitBtn.dataset.submitEvent : submitBtn.dataset.submitGeneral;
+    if (inquiryInput) inquiryInput.value = mode;
+    // Reposition the sliding indicator under the new active tab.
+    requestAnimationFrame(positionIndicator);
+  }
+
+  toggleBtns.forEach((b) => b.addEventListener('click', () => setMode(b.dataset.contactMode)));
+
+  // Sliding indicator under the active toggle button.
+  const indicator = document.querySelector('.contact-toggle__indicator');
+  function positionIndicator() {
+    const wrap   = document.querySelector('.contact-toggle');
+    const active = wrap?.querySelector('.contact-toggle__btn.is-active');
+    if (!wrap || !indicator || !active) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const btnRect  = active.getBoundingClientRect();
+    indicator.style.width     = btnRect.width + 'px';
+    indicator.style.transform = `translateX(${btnRect.left - wrapRect.left}px)`;
+  }
+  window.addEventListener('resize', positionIndicator, { passive: true });
+  if (document.fonts?.ready) document.fonts.ready.then(positionIndicator).catch(() => {});
+  requestAnimationFrame(positionIndicator);
+
+  // Deep-link via ?type=event (used by home page's "Inquire about events" CTA).
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('type') === 'event') setMode('event');
+
+  // ── Submission ────────────────────────────────────────────────────────────
+  const form   = document.getElementById('contact-form');
+  const status = document.getElementById('form-status');
+
+  if (status) {
+    if (params.get('submitted') === '1') {
+      status.textContent = msgSuccess;
+      status.className   = 'form-status ok';
+      history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('error') === '1') {
+      status.textContent = msgErrGeneral;
+      status.className   = 'form-status err';
+      history.replaceState({}, '', window.location.pathname);
+    }
+  }
+
+  if (form && status) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      status.textContent = msgSending;
+      status.className   = 'form-status';
+
+      try {
+        const res = await fetch('/api/contact', { method: 'POST', body: new FormData(form) });
+        if (res.ok) {
+          status.textContent = msgSuccess;
+          status.className   = 'form-status ok';
+          form.reset();
+        } else {
+          const text = await res.text();
+          status.textContent = text || msgErrGeneral;
+          status.className   = 'form-status err';
+        }
+      } catch {
+        status.textContent = msgErrNetwork;
+        status.className   = 'form-status err';
+      }
+    });
+  }
+</script>

@@ -1,0 +1,48 @@
+---
+import Photo            from '../Photo.astro';
+import type { Lang }    from '../../data/i18n';
+import type { PhotoEntry } from '../../data/photos';
+
+export interface Props {
+  lang:       Lang;
+  photo:      PhotoEntry;
+  eyebrow:    string;
+  /** Heading HTML — may contain inline <br /> markers (rendered with set:html). */
+  heading:    string;
+  /** Paragraphs in order. May contain inline HTML (rendered with set:html). */
+  paragraphs: readonly string[];
+  /** Optional CTA at the bottom of the block. */
+  cta?:       { label: string; href: string };
+  /** Place the photo on the trailing edge (mirrored layout). */
+  reverse?:   boolean;
+}
+
+const { lang, photo, eyebrow, heading, paragraphs, cta, reverse = false } = Astro.props;
+const classList = reverse ? 'photo-block photo-block--reverse' : 'photo-block';
+---
+
+<section class="section">
+  <div class="wrap">
+    <div class={classList}>
+      <div class="img-mask reveal-on-scroll">
+        <Photo src={photo.src} alt={photo.alt[lang]} aspect="4/5" />
+      </div>
+      <div class="photo-block__content stagger reveal-on-scroll">
+        <p class="eyebrow">{eyebrow}</p>
+        <h2
+          class="display"
+          data-word-reveal
+          data-word-reveal-delay="0.06"
+          data-word-reveal-step="0.06"
+          set:html={heading}
+        />
+        {paragraphs.map(p => <p set:html={p} />)}
+        {cta && (
+          <div class="btn-row">
+            <a class="btn" href={cta.href}>{cta.label}</a>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</section>

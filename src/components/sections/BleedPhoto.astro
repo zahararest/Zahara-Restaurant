@@ -1,0 +1,19 @@
+---
+import type { Lang }       from '../../data/i18n';
+import type { PhotoEntry } from '../../data/photos';
+
+export interface Props {
+  lang:     Lang;
+  photo:    PhotoEntry;
+  caption?: string;
+  /** Override the default tall hero height. Pass any CSS height. */
+  height?:  string;
+}
+
+const { lang, photo, caption, height } = Astro.props;
+const classList = caption ? 'bleed-photo bleed-photo--caption img-mask' : 'bleed-photo img-mask';
+---
+
+<figure class={classList} data-caption={caption} style={height ? `height: ${height};` : undefined}>
+  <img src={photo.src} alt={photo.alt[lang]} loading="lazy" decoding="async" />
+</figure>

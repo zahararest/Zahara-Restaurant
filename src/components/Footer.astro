@@ -1,0 +1,55 @@
+---
+import { pick, footer as labels } from '../data/i18n';
+import { RESTAURANT }              from '../data/restaurant';
+import { path }                    from '../lib/paths';
+import type { Lang }               from '../data/i18n';
+
+export interface Props { lang?: Lang }
+
+const { lang = 'he' } = Astro.props;
+const t        = pick(labels, lang);
+const year     = new Date().getFullYear();
+const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
+const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
+---
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid stagger">
+      <div class="footer-block">
+        <h4>{t.hours}</h4>
+        <p>{t.weekdays}</p>
+        <p class="footer-note">{t.closedNote}</p>
+        <p class="footer-note">{t.hotelNote}</p>
+      </div>
+
+      <div class="footer-block">
+        <h4>{t.contact}</h4>
+        <a href={`tel:${dial}`}>{phoneTxt}</a>
+        <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a>
+        <a href={path('location', lang)}>{RESTAURANT.address[lang]}</a>
+      </div>
+
+      <div class="footer-block">
+        <h4>{t.follow}</h4>
+        <a href={RESTAURANT.instagram} target="_blank" rel="noopener">Instagram</a>
+        <a href={RESTAURANT.facebook}  target="_blank" rel="noopener">Facebook</a>
+      </div>
+
+      <div class="footer-block">
+        <h4>{t.reserve}</h4>
+        <a href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">Tabit ↗</a>
+        <a href={path('menu', lang)}>{t.menuLink}</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© {year} {RESTAURANT.name[lang]} — {t.rights}</span>
+      <span class="footer-bottom__links">
+        <a href={lang === 'he' ? '/accessibility/' : '/en/accessibility/'}
+           style="margin-inline-end: 1rem;">{t.accessibility}</a>
+        <a href="#">{t.privacy}</a>
+      </span>
+    </div>
+  </div>
+</footer>

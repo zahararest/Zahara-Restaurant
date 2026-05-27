@@ -1,0 +1,44 @@
+---
+// Photo-backed intro for sub-pages (menu, etc.) — shorter than HeroBleed,
+// but uses the same overlay treatment so a transparent header sits nicely
+// on top of it.
+
+import type { Lang }       from '../../data/i18n';
+import type { PhotoEntry } from '../../data/photos';
+
+export interface Props {
+  lang:    Lang;
+  photo:   PhotoEntry;
+  eyebrow: string;
+  /** Heading text. May contain inline HTML (rendered with set:html). */
+  heading: string;
+  lede?:   string;
+}
+
+const { lang, photo, eyebrow, heading, lede } = Astro.props;
+---
+
+<section class="intro-photo" aria-label={eyebrow}>
+  <div class="intro-photo__media" data-hero-parallax aria-hidden="true">
+    <img
+      class="intro-photo__img ken-burns"
+      src={photo.src}
+      alt={photo.alt[lang]}
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+    />
+  </div>
+  <div class="intro-photo__overlay" aria-hidden="true"></div>
+  <div class="intro-photo__inner">
+    <p class="eyebrow eyebrow--on-photo fade-up">{eyebrow}</p>
+    <h1
+      class="display intro-photo__title"
+      data-word-reveal
+      data-word-reveal-delay="0.12"
+      data-word-reveal-step="0.07"
+      set:html={heading}
+    />
+    {lede && <p class="intro-photo__lede fade-up">{lede}</p>}
+  </div>
+</section>
