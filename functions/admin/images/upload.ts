@@ -12,7 +12,7 @@ import { PHOTO_CATALOGUE } from '../../data/photos-map';
 
 interface Env extends AuthEnv { IMAGES: R2Bucket; }
 
-const MAX_BYTES = 5 * 1024 * 1024;  // 5 MB
+const MAX_BYTES = 10 * 1024 * 1024;  // 1 MB
 
 const VALID_TYPES = new Set([
   'image/jpeg',

@@ -1,339 +1,226 @@
 ---
-// Live colour editor for the Zahara palette.
+// ─────────────────────────────────────────────────────────────────────────────
 //
-// All edits write to localStorage AND broadcast via
-// BroadcastChannel('zahara-colors') so any open site tab updates in
-// real time. Production deploys are untouched — these are per-browser
-// overrides only. Use "Export CSS" to copy a permanent palette into
-// src/styles/global.css when you're satisfied.
+// Architecture notes
+// ──────────────────
+// • Token groups + Token definitions live here (server-side) because Astro
+//   uses them to render the HTML row elements. This is the correct Astro
+//   pattern for static server-rendered data.
+//
+// • PRESETS are defined inside the <script> tag below — they are purely
+//   client-side data. Keeping them here in the frontmatter and passing them
+//   via define:vars was unnecessary. Only `defaults` (the token→hex map) is
+//   passed via define:vars because it is derived from the array above.
+//
+// • STAGING MODEL: applyToken() applies to :root immediately so the preview
+//   updates live, but does NOT write to localStorage or broadcast to other
+//   tabs. Only clicking "Save" (or ⌘S / Ctrl+S) persists changes. "Discard"
+//   reverts all unsaved changes.
 
 const TITLE = 'Color editor · Zahara';
 
 interface Token {
-  token: string;
-  label: string;
-  def:   string;
-  /** Plain-language hint shown beneath the label. */
-  hint?: string;
-  /** Used by the preview to highlight elements that depend on this
-   *  token. Each preview element carries data-uses="…". */
+  token:     string;
+  label:     string;
+  def:       string;
+  hint?:     string;
   shortName: string;
 }
 interface Group {
-  group: string;
-  intro: string;
+  group:  string;
+  intro:  string;
   tokens: Token[];
 }
 
-// Hints are descriptions of where each token ACTUALLY shows up on the
-// public site. Keep them honest — if the preview pulses an element for
-// a token that doesn't really change, users lose trust fast. The Show
-// (👁) button on each row lights up every fragment in the preview pane
-// that lists this token in its data-uses, so the description and the
-// pulses must agree.
 const groups: Group[] = [
   {
     group: 'Paper & surfaces',
-    intro: 'The cream / paper tones. <code>--paper</code> is the page itself; the others are progressively raised or specialised surfaces.',
+    intro: 'Cream / paper tones. <code>--paper</code> is the page background everywhere. The others are progressively raised surfaces. Changing any of these shifts large background areas across the whole site.',
     tokens: [
-      { token: '--paper',          shortName: 'paper',          label: 'Paper (page bg)',
-        hint:  'The page background everywhere — home, menu, contact, location. Also the gallery and the mobile navigation drawer.',
-        def:   '#F0E8D2' },
-      { token: '--paper-deep',     shortName: 'paper-deep',     label: 'Paper deep',
-        hint:  'Footer background. The info-strip band under the hero. The "issue stamp" masthead line. Quietly raised surfaces against the page.',
-        def:   '#E5DCC4' },
-      { token: '--paper-edge',     shortName: 'paper-edge',     label: 'Paper edge',
-        hint:  'Strong borders on raised cards — the menu-page cocktail cards and the contact-form card edge.',
-        def:   '#D8CCAE' },
-      { token: '--paper-card',     shortName: 'paper-card',     label: 'Paper card',
-        hint:  'Filled card surfaces on the /menu/ page (cocktail cards) and on /contact/ (form panel + reach-us card). Does NOT affect the home page menu chapters — those sit on photographs.',
-        def:   '#F7F0DB' },
-      { token: '--paper-on-photo', shortName: 'paper-on-photo', label: 'Paper on photo',
-        hint:  'All light text and buttons placed OVER a photograph: the floating header on hero pages, hero CTA buttons, every menu-cinema chapter title / item / price on the home page, "section on photo" body text.',
-        def:   '#F4ECCF' },
+      {
+        token:     '--paper',
+        shortName: 'paper',
+        label:     'Paper — page background',
+        hint:      'Full page background on every page (home, menu, contact, location). Also the mobile nav drawer, gallery background, and the scrollbar track tint.',
+        def:       '#F0E8D2',
+      },
+      {
+        token:     '--paper-deep',
+        shortName: 'paper-deep',
+        label:     'Paper deep — raised bands',
+        hint:      'Footer background. Info-strip band below the hero. Issue-stamp masthead band. Menu section group card gradient base. Scrollbar track background.',
+        def:       '#E5DCC4',
+      },
+      {
+        token:     '--paper-edge',
+        shortName: 'paper-edge',
+        label:     'Paper edge — card outer border',
+        hint:      'Strong outer borders on raised cards: /menu/ cocktail cards and the /contact/ form-card edge.',
+        def:       '#D8CCAE',
+      },
+      {
+        token:     '--paper-card',
+        shortName: 'paper-card',
+        label:     'Paper card — card fill',
+        hint:      'Filled card surfaces on /menu/ (cocktail cards) and /contact/ (form panel + reach-us card). Also form input backgrounds, the contact-page tab toggle, and the section-HUD pill.',
+        def:       '#F7F0DB',
+      },
+      {
+        token:     '--paper-on-photo',
+        shortName: 'paper-on-photo',
+        label:     'Paper on photo — text over photography',
+        hint:      '⚠ Wide-impact token. ALL text and UI over photographs: floating header text (brand, nav, reserve) when on a hero page, hero eyebrow/title/CTA buttons, intro-photo page titles, menu-cinema chapter text + prices, skip-link background, and — crucially — the TEXT colour inside solid dark buttons (Reserve, active menu tab). Changing this shifts both on-photo reading text and dark-button label colour.',
+        def:       '#F4ECCF',
+      },
     ],
   },
   {
     group: 'Ink (text)',
-    intro: 'Text colours from solid through faint. Photo overlays and shadow halos do NOT use these tokens — they use a private <code>--shadow</code>. So changing ink here only changes actual text.',
+    intro: 'Text colours from solid through faint. <strong>Important:</strong> <code>--ink</code> is dual-role — it colours both <em>text</em> and the <em>background of solid dark buttons</em>. Lightening it will also lighten those button fills.',
     tokens: [
-      { token: '--ink',       shortName: 'ink',       label: 'Ink (body text)',
-        hint:  'All headlines, primary body text on paper backgrounds, dark buttons (Reserve, scroll-to-top, accessibility toggle). Does not tint the floating header on photos.',
-        def:   '#1A1410' },
-      { token: '--ink-soft',  shortName: 'ink-soft',  label: 'Ink soft',
-        hint:  'Long-form paragraph text on the home story, photo-block paragraphs, the hero lede.',
-        def:   '#3D362E' },
-      { token: '--ink-muted', shortName: 'ink-muted', label: 'Ink muted',
-        hint:  'Every eyebrow label, form field labels, footer notes, the table-of-contents captions, info-strip labels.',
-        def:   '#8A7E68' },
-      { token: '--ink-faint', shortName: 'ink-faint', label: 'Ink faint',
-        hint:  'The dotted leader between TOC chapter titles and captions, secondary metadata, the wine-price separator.',
-        def:   '#B6A98C' },
+      {
+        token:     '--ink',
+        shortName: 'ink',
+        label:     'Ink — text & dark-button background',
+        hint:      '⚠ Dual-role token. (1) All headlines, primary body text on paper. (2) Background of all solid dark buttons (Reserve, body CTAs, active menu tabs). (3) Form input text + select arrows. (4) Footer text. Changing from near-black affects both reading text AND button fills simultaneously.',
+        def:       '#1A1410',
+      },
+      {
+        token:     '--ink-soft',
+        shortName: 'ink-soft',
+        label:     'Ink soft — body paragraph text',
+        hint:      'Long-form paragraph text: home story editorial body, photo-block paragraphs, hero lede, menu item descriptions, cocktail card descriptions, form card intro text.',
+        def:       '#3D362E',
+      },
+      {
+        token:     '--ink-muted',
+        shortName: 'ink-muted',
+        label:     'Ink muted — labels & secondary',
+        hint:      'All eyebrow labels, form field labels, footer section heads, info-strip cell labels, footer copyright/meta, menu metadata bar, inactive menu-tab text, wine legend, section-HUD label, the contact toggle inactive button.',
+        def:       '#8A7E68',
+      },
+      {
+        token:     '--ink-faint',
+        shortName: 'ink-faint',
+        label:     'Ink faint — decorative details',
+        hint:      'TOC dotted leader lines (the dots between chapter title and caption), wine price separator between bottle / glass, secondary footnote metadata.',
+        def:       '#B6A98C',
+      },
     ],
   },
   {
     group: 'Rules & dividers',
-    intro: 'Horizontal rules and borders. The visible ones separate sections; the soft ones live inside cards.',
+    intro: 'Horizontal rules and borders. Strong rules separate major sections; soft rules live inside cards and between items.',
     tokens: [
-      { token: '--rule',      shortName: 'rule',      label: 'Rule (visible)',
-        hint:  'Strong dividers between major sections, form input borders, the accessibility-panel border.',
-        def:   '#CFC3A4' },
-      { token: '--rule-soft', shortName: 'rule-soft', label: 'Rule soft',
-        hint:  'Quiet dividers inside cards and form rows, between menu items, and the menu-page sticky-tab underline.',
-        def:   '#E2D8BB' },
+      {
+        token:     '--rule',
+        shortName: 'rule',
+        label:     'Rule — strong dividers',
+        hint:      'Strong dividers between major sections, form input borders (unfocused state), the accessibility-panel border, menu-tab hover border, section-HUD border.',
+        def:       '#CFC3A4',
+      },
+      {
+        token:     '--rule-soft',
+        shortName: 'rule-soft',
+        label:     'Rule soft — card internals',
+        hint:      'Quiet dividers inside cards and form rows, between menu items, footer bottom border, footer top border, cocktail card row dividers, wine legend border, form submit row border, mobile nav CTA divider, info-strip top/bottom border.',
+        def:       '#E2D8BB',
+      },
     ],
   },
   {
     group: 'Primary accent',
-    intro: 'The single accent colour the site leans on for emphasis — eyebrow rules, prices, hover underlines, sliding tab indicators.',
+    intro: 'The single accent the site uses for emphasis — prices, hover underlines, tab indicators, eyebrow rules, the scroll progress bar, the scrollbar thumb.',
     tokens: [
-      { token: '--accent',      shortName: 'accent',      label: 'Accent (primary)',
-        hint:  'Eyebrow rule mark, every menu price (home + menu page), the sliding tab indicator on /menu/ and /contact/, hover underlines.',
-        def:   '#A88947' },
-      { token: '--accent-deep', shortName: 'accent-deep', label: 'Accent deep',
-        hint:  'Hover state for accent-coloured links and the "Reach us" email/phone underline on /contact/.',
-        def:   '#7A6231' },
-      { token: '--accent-soft', shortName: 'accent-soft', label: 'Accent soft tint',
-        hint:  'Background tint for selected text and the pull-quote panel.',
-        def:   '#EAE0BD' },
+      {
+        token:     '--accent',
+        shortName: 'accent',
+        label:     'Accent — primary (gold/mustard)',
+        hint:      'Every menu price (home + /menu/ page), eyebrow rule mark (the short line before eyebrow labels), the sliding tab indicator on /menu/ and /contact/, nav link hover underline, scroll progress bar gradient start, info-strip sub-labels hover, wine legend dot, editorial drop-cap, draw-rule underlines, menu item hover accent bar, section diamond flourish, active menu tab ping ring, scrollbar thumb gradient.',
+        def:       '#A88947',
+      },
+      {
+        token:     '--accent-deep',
+        shortName: 'accent-deep',
+        label:     'Accent deep — pressed / hover',
+        hint:      'Hover state for accent-coloured links, the reach-us email/phone underline hover on /contact/, hero CTA button hover background, scrollbar thumb hover, menu-item name hover colour.',
+        def:       '#7A6231',
+      },
+      {
+        token:     '--accent-soft',
+        shortName: 'accent-soft',
+        label:     'Accent soft — selection & pull-quote',
+        hint:      'Text selection highlight background (the highlight you see when dragging to select text across the entire site). Pull-quote background tint on the home page.',
+        def:       '#EAE0BD',
+      },
     ],
   },
   {
     group: 'Highlights & category accents',
-    intro: 'Gold secondary highlight plus four category accents pulled from the printed menu bands. The category colours mark the menu page chapter chips.',
+    intro: 'Gold highlight plus four category accents pulled from the printed-menu bands. The category colours mark the /menu/ chapter chips and section identifiers.',
     tokens: [
-      { token: '--gold',    shortName: 'gold',    label: 'Gold highlight',
-        hint:  'The italic emphasis word inside the chef pull-quote (on the moody chef photo), wine-list highlights.',
-        def:   '#B69A52' },
-      { token: '--c-green', shortName: 'c-green', label: 'Category — green',
-        hint:  'Sage green band. Use as the food-section chip / divider on /menu/.',
-        def:   '#5A786A' },
-      { token: '--c-teal',  shortName: 'c-teal',  label: 'Category — teal',
-        hint:  'Deep teal band. Cocktails section.',
-        def:   '#3E6D77' },
-      { token: '--c-slate', shortName: 'c-slate', label: 'Category — slate',
-        hint:  'Slate / petrol band. Wine section.',
-        def:   '#3E5359' },
-      { token: '--c-mauve', shortName: 'c-mauve', label: 'Category — mauve',
-        hint:  'Dusty mauve band. Desserts section.',
-        def:   '#9D8499' },
+      {
+        token:     '--gold',
+        shortName: 'gold',
+        label:     'Gold — secondary highlight',
+        hint:      'Italic emphasis word inside the chef pull-quote, scroll progress bar gradient end, menu-section-group corner glow, scrollbar thumb gradient end.',
+        def:       '#B69A52',
+      },
+      {
+        token:     '--c-green',
+        shortName: 'c-green',
+        label:     'Category — green (food)',
+        hint:      'Sage green band for the food / starters section chip on /menu/.',
+        def:       '#5A786A',
+      },
+      {
+        token:     '--c-teal',
+        shortName: 'c-teal',
+        label:     'Category — teal (cocktails)',
+        hint:      'Deep teal band. Cocktails section chip on /menu/.',
+        def:       '#3E6D77',
+      },
+      {
+        token:     '--c-slate',
+        shortName: 'c-slate',
+        label:     'Category — slate (wine)',
+        hint:      'Slate / petrol band. Wine section chip on /menu/.',
+        def:       '#3E5359',
+      },
+      {
+        token:     '--c-mauve',
+        shortName: 'c-mauve',
+        label:     'Category — mauve (desserts)',
+        hint:      'Dusty mauve band. Desserts section chip on /menu/.',
+        def:       '#9D8499',
+      },
     ],
   },
   {
     group: 'Status colours',
-    intro: 'Used by the contact form and the accessibility statement page.',
+    intro: 'Used by the contact/events form feedback messages and the accessibility statement page.',
     tokens: [
-      { token: '--ok',  shortName: 'ok',  label: 'Success', hint: 'Successful contact-form submission message.',          def: '#4F6B47' },
-      { token: '--err', shortName: 'err', label: 'Error',   hint: 'Form validation failures and network-error messages.', def: '#A53623' },
+      {
+        token:     '--ok',
+        shortName: 'ok',
+        label:     'Success — form OK',
+        hint:      'Successful contact-form submission message colour (text + tinted background).',
+        def:       '#4F6B47',
+      },
+      {
+        token:     '--err',
+        shortName: 'err',
+        label:     'Error — form failure',
+        hint:      'Form validation failures and network-error messages (text + tinted background).',
+        def:       '#A53623',
+      },
     ],
   },
 ];
 
 const allTokens = groups.flatMap((g) => g.tokens);
-const defaults = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
-
-// ── Preset themes — each is a full palette the editor can swap in. ──
-const presets: Record<string, Record<string, string>> = {
-  default: defaults,
-  monochrome: {
-    '--paper':          '#F4F1EB',
-    '--paper-deep':     '#E8E3D8',
-    '--paper-edge':     '#D4CCBE',
-    '--paper-card':     '#FAF7F1',
-    '--paper-on-photo': '#F2EFE7',
-    '--ink':            '#15110D',
-    '--ink-soft':       '#34302A',
-    '--ink-muted':      '#807868',
-    '--ink-faint':      '#B0A793',
-    '--rule':           '#C8BFAA',
-    '--rule-soft':      '#DCD3BD',
-    '--accent':         '#2F2A22',
-    '--accent-deep':    '#15110D',
-    '--accent-soft':    '#D8D2C0',
-    '--gold':           '#8A7E68',
-    '--c-green':        '#5A786A',
-    '--c-teal':         '#3E6D77',
-    '--c-slate':        '#3E5359',
-    '--c-mauve':        '#9D8499',
-    '--ok':             '#4F6B47',
-    '--err':            '#A53623',
-  },
-  terracotta: {
-    '--paper':          '#F4EDDF',
-    '--paper-deep':     '#ECE3D0',
-    '--paper-edge':     '#DFD4BB',
-    '--paper-card':     '#FBF7EE',
-    '--paper-on-photo': '#F8F2E5',
-    '--ink':            '#1A1410',
-    '--ink-soft':       '#3D362E',
-    '--ink-muted':      '#857C6C',
-    '--ink-faint':      '#B6AC97',
-    '--rule':           '#D5CBB1',
-    '--rule-soft':      '#E5DCC4',
-    '--accent':         '#9C4621',
-    '--accent-deep':    '#6F2F12',
-    '--accent-soft':    '#F2DFCF',
-    '--gold':           '#B68A3F',
-    '--c-green':        '#5A786A',
-    '--c-teal':         '#3E6D77',
-    '--c-slate':        '#3E5359',
-    '--c-mauve':        '#9D8499',
-    '--ok':             '#4F6B47',
-    '--err':            '#A53623',
-  },
-  forest: {
-    '--paper':          '#F0EDE3',
-    '--paper-deep':     '#E2DFD2',
-    '--paper-edge':     '#CDCBB8',
-    '--paper-card':     '#F8F5EB',
-    '--paper-on-photo': '#F2EFE3',
-    '--ink':            '#16181A',
-    '--ink-soft':       '#2E3431',
-    '--ink-muted':      '#6E7A72',
-    '--ink-faint':      '#A3AC9F',
-    '--rule':           '#BFC6B7',
-    '--rule-soft':      '#D6DAC8',
-    '--accent':         '#3F6B4B',
-    '--accent-deep':    '#214731',
-    '--accent-soft':    '#CFDFCB',
-    '--gold':           '#9D936A',
-    '--c-green':        '#3F6B4B',
-    '--c-teal':         '#3E6D77',
-    '--c-slate':        '#3E5359',
-    '--c-mauve':        '#9D8499',
-    '--ok':             '#4F6B47',
-    '--err':            '#A53623',
-  },
-  navy: {
-    '--paper':          '#F2EEE5',
-    '--paper-deep':     '#E5E1D5',
-    '--paper-edge':     '#CFC9B9',
-    '--paper-card':     '#FAF7F0',
-    '--paper-on-photo': '#F3EFE5',
-    '--ink':            '#11161F',
-    '--ink-soft':       '#2A2F3B',
-    '--ink-muted':      '#6F7886',
-    '--ink-faint':      '#A2A8B5',
-    '--rule':           '#C2C7CF',
-    '--rule-soft':      '#DCDFE3',
-    '--accent':         '#2A4A7A',
-    '--accent-deep':    '#152846',
-    '--accent-soft':    '#D0DCEC',
-    '--gold':           '#7E8AA0',
-    '--c-green':        '#5A786A',
-    '--c-teal':         '#2D5C66',
-    '--c-slate':        '#3E5359',
-    '--c-mauve':        '#9D8499',
-    '--ok':             '#4F6B47',
-    '--err':            '#A53623',
-  },
-  'dark-frantzen': {
-    '--paper':          '#0E1014',
-    '--paper-deep':     '#14171D',
-    '--paper-edge':     '#1F232B',
-    '--paper-card':     '#181B22',
-    '--paper-on-photo': '#ECEEF2',
-    '--ink':            '#F0F2F6',
-    '--ink-soft':       '#C4C8D2',
-    '--ink-muted':      '#7A8090',
-    '--ink-faint':      '#4A4E58',
-    '--rule':           '#2A2E36',
-    '--rule-soft':      '#1E2128',
-    '--accent':         '#5878E8',
-    '--accent-deep':    '#3854D0',
-    '--accent-soft':    '#1A2440',
-    '--gold':           '#8AA4FF',
-    '--c-green':        '#5A786A',
-    '--c-teal':         '#3E6D77',
-    '--c-slate':        '#3E5359',
-    '--c-mauve':        '#9D8499',
-    '--ok':             '#4DB378',
-    '--err':            '#E54F4F',
-  },
-
-  // Pure dark with paper-white text. Accent = white itself for a stark
-  // monochrome look. The four category colours stay subtle so menu
-  // chapters still read distinct on a dark bg.
-  'dark-white': {
-    '--paper':          '#0A0A0A',
-    '--paper-deep':     '#121214',
-    '--paper-edge':     '#26262A',
-    '--paper-card':     '#17171A',
-    '--paper-on-photo': '#F5F5F5',
-    '--ink':            '#FFFFFF',
-    '--ink-soft':       '#D8D8D8',
-    '--ink-muted':      '#8C8C8C',
-    '--ink-faint':      '#454548',
-    '--rule':           '#2A2A2D',
-    '--rule-soft':      '#1A1A1D',
-    '--accent':         '#FFFFFF',
-    '--accent-deep':    '#C8C8C8',
-    '--accent-soft':    '#2A2A2D',
-    '--gold':           '#BCBCBC',
-    '--c-green':        '#7B9685',
-    '--c-teal':         '#558693',
-    '--c-slate':        '#5B6B71',
-    '--c-mauve':        '#A697A1',
-    '--ok':             '#5BC287',
-    '--err':            '#EF5A5A',
-  },
-
-  // Dark + paper-white + a vivid violet accent for chips & prices.
-  // Subtle purple tint on the paper surfaces ties the palette together.
-  'dark-white-purple': {
-    '--paper':          '#0A0612',
-    '--paper-deep':     '#160E22',
-    '--paper-edge':     '#2A1A38',
-    '--paper-card':     '#1A1126',
-    '--paper-on-photo': '#F1E8F8',
-    '--ink':            '#F5EFFA',
-    '--ink-soft':       '#D8CCE3',
-    '--ink-muted':      '#9482A2',
-    '--ink-faint':      '#4F4060',
-    '--rule':           '#2F2240',
-    '--rule-soft':      '#1F1530',
-    '--accent':         '#B86BFF',
-    '--accent-deep':    '#7E22D6',
-    '--accent-soft':    '#2B1748',
-    '--gold':           '#D9AAFF',
-    '--c-green':        '#7b8d76',
-    '--c-teal':         '#6A4F9C',
-    '--c-slate':        '#3F2D5C',
-    '--c-mauve':        '#C386D6',
-    '--ok':             '#5BC287',
-    '--err':            '#EF5A5A',
-  },
-
-  // "Midnight" — built around the user's four reference colours:
-  //   #191970 midnight blue   → primary accent
-  //   #104870 deep teal-blue  → category accent (teal)
-  //   #7b8d76 sage            → category accent (green)
-  //   #830c4f magenta         → highlight gold + mauve
-  // Light cream base so the deep accents pop.
-  'midnight': {
-    '--paper':          '#F6F1E5',
-    '--paper-deep':     '#E5DCC4',
-    '--paper-edge':     '#D1C8AE',
-    '--paper-card':     '#FBF7EE',
-    '--paper-on-photo': '#F2EBD8',
-    '--ink':            '#0E1326',
-    '--ink-soft':       '#2A2F45',
-    '--ink-muted':      '#6B7188',
-    '--ink-faint':      '#B0B5C5',
-    '--rule':           '#C8C2A8',
-    '--rule-soft':      '#E2D8BB',
-    '--accent':         '#191970',   /* midnight blue */
-    '--accent-deep':    '#0E0F4A',
-    '--accent-soft':    '#C5C9E0',
-    '--gold':           '#830C4F',   /* magenta as highlight */
-    '--c-green':        '#7B8D76',
-    '--c-teal':         '#104870',   /* deep teal-blue */
-    '--c-slate':        '#3E5359',
-    '--c-mauve':        '#830C4F',   /* same magenta as category */
-    '--ok':             '#4F6B47',
-    '--err':            '#A53623',
-  },
-};
+const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
+// Presets live in the <script> below — no define:vars needed for them.
 ---
 
 <!doctype html>
@@ -347,211 +234,176 @@ const presets: Record<string, Record<string, string>> = {
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   <style>
+    /* ── Editor UI tokens (isolated from the site palette) ── */
     :root {
-      --c-bg:    #fafaf7;
-      --c-fg:    #1a1410;
-      --c-mut:   #6f6457;
-      --c-rule:  #e2d8c4;
-      --c-acc:   #a88947;
-      --c-mod:   #d97706;   /* dot colour for "modified" tokens */
+      --e-bg:     #fafaf7;
+      --e-fg:     #1a1410;
+      --e-mut:    #6f6457;
+      --e-rule:   #e2d8c4;
+      --e-acc:    #a88947;
+      --e-mod:    #d97706;
+      --e-pend:   #2563eb;
+      --e-save:   #1a6b44;
+      --e-disc:   #8B2020;
     }
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
       margin: 0;
-      background: var(--c-bg);
-      color: var(--c-fg);
+      background: var(--e-bg);
+      color: var(--e-fg);
       font-family: 'Inter', system-ui, sans-serif;
       font-size: 14px;
       line-height: 1.55;
     }
-    code { font-family: 'Inter', ui-monospace, monospace; font-size: 0.85em; }
+    code { font-family: ui-monospace, monospace; font-size: 0.85em; }
 
-    /* ── Top bar — two stacked rows: admin nav, then tools ──── */
+    /* ── Top bar ─────────────────────────────────────────────── */
     header.editor-top {
-      position: sticky; top: 0; z-index: 10;
+      position: sticky; top: 0; z-index: 20;
       background: rgba(250,250,247,0.96);
       backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--c-rule);
-      padding: 0.7rem 1.5rem;
+      border-bottom: 1px solid var(--e-rule);
+      padding: 0.55rem 1.25rem;
       display: grid;
-      gap: 0.55rem;
+      gap: 0.45rem;
     }
     .editor-top__nav {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      flex-wrap: wrap;
+      display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;
     }
     .editor-top__brand {
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-      color: var(--c-fg);
-      text-decoration: none;
-      padding-inline-end: 0.4rem;
-      border-inline-end: 1px solid var(--c-rule);
-      margin-inline-end: 0.4rem;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--e-fg); text-decoration: none;
+      padding-inline-end: 0.5rem; border-inline-end: 1px solid var(--e-rule);
+      margin-inline-end: 0.25rem; white-space: nowrap;
     }
     .editor-top__navlink {
-      font-size: 0.78rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-weight: 600;
-      color: var(--c-mut);
-      text-decoration: none;
-      padding: 0.35rem 0.65rem;
-      border: 1px solid transparent;
-      transition: color 0.2s, border-color 0.2s, background 0.2s;
+      font-size: 0.75rem; letter-spacing: 0.16em; text-transform: uppercase;
+      font-weight: 600; color: var(--e-mut); text-decoration: none;
+      padding: 0.3rem 0.55rem; border: 1px solid transparent;
+      transition: color 0.18s, border-color 0.18s, background 0.18s;
+      white-space: nowrap;
     }
-    .editor-top__navlink:hover {
-      color: var(--c-fg);
-      border-color: var(--c-rule);
-    }
+    .editor-top__navlink:hover { color: var(--e-fg); border-color: var(--e-rule); }
     .editor-top__navlink.is-active {
-      color: var(--c-fg);
-      background: #ece3d0;
-      border-color: #d8ccae;
+      color: var(--e-fg); background: #ece3d0; border-color: #d8ccae;
       pointer-events: none;
     }
     .editor-top__spacer { flex: 1; }
     .editor-top__site {
-      font-size: 0.78rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--c-acc);
-      font-weight: 600;
-      text-decoration: none;
-      padding: 0.4rem 0.6rem;
+      font-size: 0.75rem; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--e-acc); font-weight: 600; text-decoration: none;
+      padding: 0.3rem 0.55rem; white-space: nowrap;
     }
     .editor-top__site:hover { text-decoration: underline; }
+
+    /* ── Tools row ───────────────────────────────────────────── */
     .editor-top__tools {
-      display: flex;
-      gap: 0.55rem;
-      align-items: center;
-      flex-wrap: wrap;
+      display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;
     }
     .editor-top h1 {
-      margin: 0;
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--c-mut);
-    }
-    .top-row {
-      display: flex;
-      gap: 0.55rem;
-      align-items: center;
-      flex-wrap: wrap;
+      margin: 0; font-size: 0.82rem; font-weight: 700;
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--e-mut);
+      white-space: nowrap;
     }
     .top-search {
-      flex: 1;
-      max-width: 280px;
-      padding: 0.5rem 0.8rem;
-      font: inherit;
-      font-size: 0.85rem;
-      background: #fff;
-      color: var(--c-fg);
-      border: 1px solid var(--c-rule);
+      flex: 1; max-width: 200px; padding: 0.45rem 0.7rem; font: inherit;
+      font-size: 0.82rem; background: #fff; color: var(--e-fg);
+      border: 1px solid var(--e-rule);
     }
-    .top-search:focus { outline: 2px solid var(--c-acc); outline-offset: -2px; }
-
+    .top-search:focus { outline: 2px solid var(--e-acc); outline-offset: -2px; }
     .top-select {
-      font: inherit;
-      font-size: 0.78rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-weight: 600;
-      padding: 0.5rem 0.85rem;
-      background: #fff;
-      color: var(--c-fg);
-      border: 1px solid var(--c-rule);
-      cursor: pointer;
+      font: inherit; font-size: 0.75rem; letter-spacing: 0.12em;
+      text-transform: uppercase; font-weight: 600; padding: 0.45rem 0.75rem;
+      background: #fff; color: var(--e-fg); border: 1px solid var(--e-rule);
+      cursor: pointer; max-width: 190px;
     }
+    .top-toggle-label {
+      display: flex; align-items: center; gap: 0.35rem; cursor: pointer;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--e-mut); user-select: none;
+      padding: 0.45rem 0.6rem; border: 1px solid var(--e-rule);
+      background: #fff; white-space: nowrap;
+    }
+    .top-toggle-label input { accent-color: var(--e-acc); margin: 0; }
+    .top-toggle-label:hover { color: var(--e-fg); }
+
+    /* Pending badge */
+    .pending-badge {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--e-pend); white-space: nowrap;
+      padding: 0.35rem 0.6rem; background: rgba(37,99,235,0.08);
+      border: 1px solid rgba(37,99,235,0.22);
+    }
+    .pending-badge[hidden] { display: none; }
+
+    /* Buttons */
     .btn-top {
-      font: inherit;
-      font-size: 0.78rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-weight: 600;
-      padding: 0.55rem 0.95rem;
-      background: var(--c-fg);
-      color: var(--c-bg);
-      border: 1px solid var(--c-fg);
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      font: inherit; font-size: 0.75rem; letter-spacing: 0.16em;
+      text-transform: uppercase; font-weight: 600;
+      padding: 0.48rem 0.85rem;
+      background: var(--e-fg); color: var(--e-bg);
+      border: 1px solid var(--e-fg); cursor: pointer;
+      transition: background 0.18s, color 0.18s, border-color 0.18s;
+      white-space: nowrap;
     }
-    .btn-top:hover { background: var(--c-acc); border-color: var(--c-acc); }
-    .btn-top:disabled { opacity: 0.45; cursor: not-allowed; }
-    .btn-top--ghost {
-      background: transparent;
-      color: var(--c-fg);
+    .btn-top:hover { background: var(--e-acc); border-color: var(--e-acc); }
+    .btn-top:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-top--ghost { background: transparent; color: var(--e-fg); }
+    .btn-top--ghost:hover { background: transparent; color: var(--e-acc); border-color: var(--e-acc); }
+    .btn-top--save {
+      background: var(--e-save); border-color: var(--e-save); color: #fff;
     }
-    .btn-top--ghost:hover { color: var(--c-acc); }
+    .btn-top--save:hover { background: #145235; border-color: #145235; }
+    .btn-top--save:disabled { background: var(--e-fg); border-color: var(--e-fg); opacity: 0.35; }
+    .btn-top--discard { color: var(--e-disc); border-color: var(--e-disc); }
+    .btn-top--discard:hover { background: var(--e-disc); color: #fff; }
 
-    .top-link {
-      font-size: 0.78rem;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--c-acc);
-      font-weight: 600;
-      text-decoration: none;
-      padding: 0.55rem 0.5rem;
-    }
-    .top-link:hover { text-decoration: underline; }
-
-    /* ── Main layout ────────────────────────────────────────── */
+    /* ── Main layout ─────────────────────────────────────────── */
     main.layout {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0;
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 1.5rem 1.5rem 6rem;
+      display: grid; grid-template-columns: 1fr;
+      gap: 0; max-width: 1440px; margin: 0 auto;
+      padding: 1.25rem 1.25rem 6rem;
     }
     @media (min-width: 1000px) {
-      main.layout { grid-template-columns: 1fr 1fr; gap: 3rem; }
+      main.layout { grid-template-columns: 1fr 1fr; gap: 2.5rem; }
     }
 
-    /* ── Token list ─────────────────────────────────────────── */
+    /* ── Token list ──────────────────────────────────────────── */
     .side h2 {
-      font-size: 0.78rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--c-mut);
-      margin: 0 0 0.35rem;
-      font-weight: 700;
+      font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--e-mut); margin: 0 0 0.3rem; font-weight: 700;
     }
-    .side__intro {
-      margin: 0 0 1.5rem;
-      color: var(--c-mut);
-      font-size: 0.85rem;
-    }
-    .group { margin-block-end: 2rem; }
-    .group__head {
-      padding-block-end: 0.5rem;
-      margin-block-end: 0.85rem;
-      border-bottom: 1px solid var(--c-rule);
-    }
-    .group__head h3 {
-      margin: 0;
-      font-size: 0.92rem;
-      font-weight: 700;
-    }
-    .group__head p {
-      margin: 0.3rem 0 0;
-      font-size: 0.82rem;
-      color: var(--c-mut);
-    }
-    .group__head p code { background: #ece3d0; padding: 0 0.3rem; }
+    .side__intro { margin: 0 0 1.25rem; color: var(--e-mut); font-size: 0.83rem; }
 
+    .group { margin-block-end: 1.75rem; }
+    .group.is-collapsed .group__body { display: none; }
+
+    .group__head {
+      padding-block-end: 0.45rem; margin-block-end: 0.75rem;
+      border-bottom: 1px solid var(--e-rule);
+      display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer;
+      user-select: none;
+    }
+    .group__head:hover .group__title { color: var(--e-fg); }
+    .group__toggle {
+      flex-shrink: 0; font-size: 0.7rem; margin-top: 0.15rem;
+      color: var(--e-mut); width: 1em; text-align: center;
+      transition: transform 0.2s;
+    }
+    .group.is-collapsed .group__toggle { transform: rotate(-90deg); }
+    .group__head-text { flex: 1; min-width: 0; }
+    .group__title { margin: 0; font-size: 0.9rem; font-weight: 700; color: var(--e-fg); }
+    .group__intro { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--e-mut); }
+    .group__intro code { background: #ece3d0; padding: 0 0.28rem; }
+    .group__intro strong { color: var(--e-fg); }
+
+    /* Each token row */
     .row {
       display: grid;
       grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 0.85rem;
-      padding-block: 0.7rem;
+      align-items: start;
+      gap: 0.75rem;
+      padding-block: 0.65rem;
       border-bottom: 1px solid rgba(0,0,0,0.04);
       position: relative;
     }
@@ -559,484 +411,334 @@ const presets: Record<string, Record<string, string>> = {
     .row.is-hidden { display: none; }
 
     .row__swatch-area {
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 0.45rem;
+      display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+      padding-top: 0.1rem;
     }
     .row__dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      background: transparent;
-      flex: 0 0 auto;
-      transition: background 0.2s ease;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: transparent; flex-shrink: 0;
+      transition: background 0.18s ease;
     }
-    .row__dot.is-modified { background: var(--c-mod); }
+    .row__dot.is-modified { background: var(--e-mod); }
+    .row__dot.is-pending  { background: var(--e-pend); }
+
     .row input[type="color"] {
-      width: 44px;
-      height: 34px;
-      padding: 0;
-      border: 1px solid var(--c-rule);
-      cursor: pointer;
-      background: transparent;
+      width: 40px; height: 32px; padding: 2px;
+      border: 1px solid var(--e-rule); cursor: pointer; background: transparent;
     }
-    .row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+    .row input[type="color"]::-webkit-color-swatch-wrapper { padding: 1px; }
     .row input[type="color"]::-webkit-color-swatch { border: 0; }
 
-    .row__meta {
-      display: grid;
-      gap: 0.15rem;
-      min-width: 0;
-    }
-    .row__name {
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-    .row__hint {
-      font-size: 0.78rem;
-      color: var(--c-mut);
-      line-height: 1.4;
-    }
-    .row__token-name {
-      font-family: ui-monospace, 'Inter', monospace;
-      font-size: 0.72rem;
-      color: var(--c-mut);
-    }
+    .row__meta { display: grid; gap: 0.12rem; min-width: 0; }
+    .row__name { font-weight: 600; font-size: 0.88rem; display: flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap; }
+    .row__hint { font-size: 0.76rem; color: var(--e-mut); line-height: 1.4; }
+    .row__token-name { font-family: ui-monospace, monospace; font-size: 0.7rem; color: var(--e-mut); }
     .row__contrast {
-      display: inline-block;
-      margin-inline-start: 0.45rem;
-      padding: 0 0.4rem;
-      font-size: 0.66rem;
-      letter-spacing: 0.08em;
-      font-weight: 700;
-      border: 1px solid currentColor;
-      border-radius: 2px;
-      color: var(--c-mut);
+      display: inline-block; padding: 0.02rem 0.35rem;
+      font-size: 0.64rem; letter-spacing: 0.08em; font-weight: 700;
+      border: 1px solid currentColor; border-radius: 2px; color: var(--e-mut);
+      line-height: 1.5;
     }
     .row__contrast--aaa { color: #3f7b3f; }
     .row__contrast--aa  { color: #5e5c2e; }
     .row__contrast--lo  { color: #a53623; }
 
+    /* Controls column */
     .row__controls {
       display: grid;
-      grid-template-columns: 1fr auto auto auto;
-      gap: 0.35rem;
-      align-items: center;
+      grid-template-columns: auto auto auto auto auto;
+      gap: 0.28rem; align-items: center;
     }
-    .row__btn--show {
-      /* Distinct accent so the "preview only" button reads differently
-         from copy/reset which actually modify state. */
-      color: var(--c-acc);
-      border-color: var(--c-acc);
+    .row__hex {
+      width: 88px; font-family: ui-monospace, monospace; font-size: 0.83rem;
+      font-weight: 600; letter-spacing: 0.04em; padding: 0.36rem 0.5rem;
+      background: #fff; color: var(--e-fg); border: 1px solid var(--e-rule);
+      text-transform: uppercase; grid-column: 1;
     }
-    .row__btn--show:hover {
-      background: var(--c-acc);
-      color: #fff;
+    .row__hex:focus { outline: 2px solid var(--e-acc); outline-offset: -2px; }
+    .row__hex.is-invalid { border-color: #a53623; color: #a53623; }
+    .row__btn {
+      font: inherit; font-size: 0.82rem; width: 30px; height: 30px;
+      display: grid; place-items: center; background: transparent;
+      color: var(--e-mut); border: 1px solid var(--e-rule);
+      cursor: pointer; transition: color 0.18s, border-color 0.18s, background 0.18s;
+      flex-shrink: 0;
     }
-    .row__btn--show.is-pulsing {
-      animation: showBtnPulse 1.2s ease-out;
-    }
-    @keyframes showBtnPulse {
+    .row__btn:hover { color: var(--e-fg); border-color: var(--e-fg); }
+    .row__btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+    .row__btn:focus-visible { outline: 2px solid var(--e-acc); outline-offset: -2px; }
+    .row__btn--show { color: var(--e-acc); border-color: var(--e-acc); }
+    .row__btn--show:hover { background: var(--e-acc); color: #fff; }
+    .row__btn--show.is-pulsing { animation: showPulse 1.2s ease-out; }
+    @keyframes showPulse {
       0%   { box-shadow: 0 0 0 0 rgba(168,137,71,0.45); }
       50%  { box-shadow: 0 0 0 6px rgba(168,137,71,0); }
       100% { box-shadow: 0 0 0 0 rgba(168,137,71,0); }
     }
-    .row__hex {
-      width: 92px;
-      font-family: ui-monospace, 'Inter', monospace;
-      font-size: 0.85rem;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      padding: 0.4rem 0.55rem;
-      background: #fff;
-      color: var(--c-fg);
-      border: 1px solid var(--c-rule);
-      text-transform: uppercase;
-    }
-    .row__hex:focus { outline: 2px solid var(--c-acc); outline-offset: -2px; }
-    .row__hex.is-invalid { border-color: #a53623; color: #a53623; }
-    .row__btn {
-      font: inherit;
-      font-size: 0.85rem;
-      width: 32px; height: 32px;
-      display: grid;
-      place-items: center;
-      background: transparent;
-      color: var(--c-mut);
-      border: 1px solid var(--c-rule);
-      cursor: pointer;
-      transition: color 0.2s, border-color 0.2s, background 0.2s;
-    }
-    .row__btn:hover { color: var(--c-fg); border-color: var(--c-fg); }
-    .row__btn[disabled] { opacity: 0.35; cursor: not-allowed; }
-    .row__btn:focus { outline: 2px solid var(--c-acc); outline-offset: -2px; }
 
-    /* ── Preview pane ──────────────────────────────────────── */
+    /* ── Preview pane ────────────────────────────────────────── */
     .preview-pane {
-      position: sticky;
-      top: 5.5rem;
-      align-self: start;
-      max-height: calc(100vh - 7rem);
-      overflow: auto;
-      padding-right: 0.25rem;
+      position: sticky; top: 5.2rem; align-self: start;
+      max-height: calc(100vh - 6.5rem); overflow: auto; padding-right: 0.2rem;
     }
     .preview-pane h2 {
-      font-size: 0.78rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--c-mut);
-      margin: 0 0 0.35rem;
-      font-weight: 700;
+      font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--e-mut); margin: 0 0 0.3rem; font-weight: 700;
     }
-    .preview-pane__intro {
-      margin: 0 0 1rem;
-      color: var(--c-mut);
-      font-size: 0.85rem;
-    }
+    .preview-pane__intro { margin: 0 0 0.85rem; color: var(--e-mut); font-size: 0.82rem; }
 
-    /* Highlight pulse for the element(s) affected by the currently
-       edited token. */
-    .preview-fragment {
-      position: relative;
-      transition: box-shadow 0.2s ease;
-    }
+    /* Fragment highlight pulse */
+    .preview-fragment { position: relative; transition: box-shadow 0.18s ease; }
     .preview-fragment.is-highlighted {
-      animation: pulseHighlight 1.4s var(--c-ease, ease-out);
+      animation: pulseFrag 1.4s ease-out;
       z-index: 1;
     }
-    @keyframes pulseHighlight {
-      0%   { box-shadow: 0 0 0 0   rgba(217,119,6, 0.85),  0 0 0 0 rgba(217,119,6, 0.18); }
-      40%  { box-shadow: 0 0 0 3px rgba(217,119,6, 0.85),  0 0 0 10px rgba(217,119,6, 0.10); }
-      100% { box-shadow: 0 0 0 0   rgba(217,119,6, 0),     0 0 0 0  rgba(217,119,6, 0); }
+    @keyframes pulseFrag {
+      0%   { box-shadow: 0 0 0 0   rgba(217,119,6,.85), 0 0 0 0 rgba(217,119,6,.18); }
+      40%  { box-shadow: 0 0 0 3px rgba(217,119,6,.85), 0 0 0 10px rgba(217,119,6,.1); }
+      100% { box-shadow: 0 0 0 0   rgba(217,119,6,0),   0 0 0 0  rgba(217,119,6,0); }
     }
 
-    /* ─────────────────────────────────────────────────────────
-       Simulated public site preview. Every block here is a 1:1
-       structural mirror of a real section on the site — what the
-       sim uses, the real site uses. If you change which tokens
-       a real section consumes, mirror the change here.
-       ───────────────────────────────────────────────────────── */
+    /* ── Sim shell ───────────────────────────────────────────── */
     .sim {
-      padding: 0;
       border: 1px solid var(--paper-edge, #D8CCAE);
       overflow: hidden;
+      font-family: Georgia, 'Inter', serif;
     }
-    /* Page wrapper — bg = --paper. Pulses on paper edit. */
+
+    /* Scroll progress bar */
+    .sim__progress {
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent, #A88947) 0%, var(--gold, #B69A52) 100%);
+      width: 55%;
+    }
+
+    /* Non-photo page header (what the header looks like on /menu, /contact etc.) */
+    .sim__nav {
+      background: color-mix(in srgb, var(--paper, #F0E8D2) 85%, transparent);
+      border-bottom: 1px solid var(--rule-soft, #E2D8BB);
+      padding: 0.6rem 0.9rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+      font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
+    }
+    .sim__nav-brand { font-family: Georgia, serif; font-size: 0.72rem; letter-spacing: 0.36em; }
+    .sim__nav-links { display: flex; gap: 0.7rem; }
+    .sim__nav-links span { color: var(--ink-soft, #3D362E); }
+    .sim__nav-links span:last-child {
+      color: var(--ink, #1A1410);
+      border-bottom: 1px solid var(--accent, #A88947);
+      padding-bottom: 1px;
+    }
+    .sim__nav-reserve {
+      border: 1px solid var(--ink, #1A1410);
+      padding: 0.2rem 0.55rem; color: var(--ink, #1A1410);
+    }
+
+    /* Page bg */
     .sim__page {
       background: var(--paper, #F0E8D2);
       color: var(--ink, #1A1410);
-      display: grid;
-      gap: 1.1rem;
-      padding: 0 0 1.25rem;
+      display: grid; gap: 0; padding: 0 0 0;
     }
 
-    /* HERO — photographic strip with floating header. The photograph
-       is a fixed-black gradient so it doesn't pulse on --ink change. */
+    /* HERO */
     .sim__hero {
       position: relative;
       background:
-        linear-gradient(180deg, rgba(10,8,6,0.55) 0%, rgba(10,8,6,0.18) 35%, rgba(10,8,6,0.62) 100%),
+        linear-gradient(180deg, rgba(10,8,6,.58) 0%, rgba(10,8,6,.18) 35%, rgba(10,8,6,.65) 100%),
         linear-gradient(135deg, #6e5a44, #2a221b);
-      padding: 0.7rem 0.9rem 1.4rem;
+      padding: 0.65rem 0.85rem 1.3rem;
       color: var(--paper-on-photo, #F4ECCF);
-      display: grid;
-      gap: 1rem;
-      min-height: 220px;
+      display: grid; gap: 0.9rem; min-height: 200px;
     }
     .sim__hero-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.7rem;
-      font-size: 0.62rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 600;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+      font-size: 0.58rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
     }
-    .sim__hero-brand { font-family: Georgia, serif; font-size: 0.78rem; letter-spacing: 0.18em; }
-    .sim__hero-navs { opacity: 0.85; flex: 1; text-align: center; }
+    .sim__hero-brand { font-family: Georgia, serif; font-size: 0.74rem; letter-spacing: 0.34em; }
+    .sim__hero-navs  { opacity: 0.82; flex: 1; text-align: center; font-size: 0.56rem; letter-spacing: 0.18em; }
     .sim__hero-reserve {
-      border: 1px solid var(--paper-on-photo, #F4ECCF);
-      padding: 0.25rem 0.6rem;
+      border: 1px solid var(--paper-on-photo, #F4ECCF); padding: 0.22rem 0.55rem;
     }
-    .sim__hero-body { display: grid; gap: 0.4rem; align-self: end; }
+    .sim__hero-body { display: grid; gap: 0.35rem; align-self: end; }
     .sim__hero-eyebrow {
-      display: inline-flex; align-items: center; gap: 0.55rem;
-      font-size: 0.64rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      font-weight: 600;
-      margin: 0;
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.6rem; letter-spacing: 0.28em; text-transform: uppercase; font-weight: 600; margin: 0;
     }
     .sim__hero-eyebrow::before {
-      content: '';
-      width: 1.2rem; height: 1px;
-      background: var(--accent, #A88947);
+      content: ''; width: 1.1rem; height: 1px; background: var(--accent, #A88947);
     }
     .sim__hero-title {
-      font-family: Georgia, serif;
-      font-size: 1.4rem;
-      letter-spacing: -0.018em;
-      line-height: 1.05;
-      margin: 0;
+      font-family: Georgia, serif; font-size: 1.35rem; letter-spacing: -0.018em;
+      line-height: 1.05; margin: 0;
     }
-    .sim__hero-btns { display: flex; gap: 0.4rem; }
+    .sim__hero-btns { display: flex; gap: 0.35rem; }
     .sim__hero-btn {
-      padding: 0.4rem 0.9rem;
-      background: var(--paper-on-photo, #F4ECCF);
-      color: var(--ink, #1A1410);
-      font-size: 0.6rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 600;
-      border: 1px solid var(--paper-on-photo, #F4ECCF);
+      padding: 0.38rem 0.85rem;
+      background: var(--ink, #F4ECCF); color: var(--ink-muted, #1A1410);
+      font-size: 0.57rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
+      border: 1px solid var(--paper-on-photo, #F4ECCF); font-family: 'Inter', sans-serif;
     }
-    .sim__hero-btn.is-ghost {
-      background: transparent;
-      color: var(--paper-on-photo, #F4ECCF);
+    .sim__hero-btn.ghost {
+      background: transparent; color: var(--paper-on-photo, #F4ECCF);
     }
 
-    /* INFO STRIP — sits under hero on the home page. */
+    /* INFO STRIP */
     .sim__info-strip {
       background: var(--paper-deep, #E5DCC4);
-      padding: 0.7rem 0.9rem;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.9rem;
-      margin-block-start: -1.1rem;
-      position: relative;
+      padding: 0.65rem 0.85rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;
+      border-block: 1px solid var(--rule-soft, #E2D8BB);
     }
-    .sim__info-cell { display: grid; gap: 0.15rem; }
+    .sim__info-cell { display: grid; gap: 0.12rem; }
     .sim__info-cell > span {
-      font-size: 0.6rem;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      font-weight: 600;
-      color: var(--ink-muted, #8A7E68);
+      font-size: 0.57rem; letter-spacing: 0.26em; text-transform: uppercase;
+      font-weight: 600; color: var(--ink-muted, #8A7E68); font-family: 'Inter', sans-serif;
     }
-    .sim__info-cell > strong {
-      font-size: 0.82rem;
-      color: var(--ink, #1A1410);
-      font-weight: 500;
-    }
+    .sim__info-cell > strong { font-size: 0.78rem; color: var(--ink, #1A1410); font-weight: 500; }
 
-    /* ISSUE STAMP — masthead under hero. */
+    /* ISSUE STAMP */
     .sim__issue {
       background: var(--paper-deep, #E5DCC4);
-      padding: 0.6rem 0.9rem;
-      display: flex;
-      gap: 0.6rem;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.6rem;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      font-weight: 600;
-      color: var(--ink-muted, #8A7E68);
-      border-block: 1px solid var(--rule-soft, #E2D8BB);
-      flex-wrap: wrap;
+      padding: 0.55rem 0.85rem;
+      display: flex; gap: 0.55rem; align-items: center; justify-content: center;
+      font-size: 0.57rem; letter-spacing: 0.26em; text-transform: uppercase;
+      font-weight: 600; color: var(--ink-muted, #8A7E68);
+      border-block: 1px solid var(--rule-soft, #E2D8BB); flex-wrap: wrap;
+      font-family: 'Inter', sans-serif;
     }
-    .sim__issue > span:last-child {
-      font-family: Georgia, serif;
-      font-style: italic;
-      letter-spacing: 0.06em;
-      text-transform: none;
-      font-weight: 400;
-      color: var(--ink-soft, #3D362E);
-    }
-    .sim__issue-rule {
-      width: 1.6rem; height: 1px;
-      background: var(--accent, #A88947);
+    .sim__issue-rule { width: 1.4rem; height: 1px; background: var(--accent, #A88947); }
+    .sim__issue .serif {
+      font-family: Georgia, serif; font-style: italic; letter-spacing: 0.04em;
+      text-transform: none; font-weight: 400; color: var(--ink-soft, #3D362E);
     }
 
-    /* EDITORIAL ARTICLE. */
-    .sim__article { padding: 0.4rem 1rem 0.6rem; display: grid; gap: 0.55rem; }
+    /* ARTICLE */
+    .sim__article { padding: 0.9rem 0.9rem 0.7rem; display: grid; gap: 0.5rem; }
     .sim__eyebrow {
-      font-size: 0.62rem;
-      letter-spacing: 0.3em;
-      text-transform: uppercase;
-      color: var(--ink-muted, #8A7E68);
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.55rem;
-      margin: 0;
+      font-size: 0.58rem; letter-spacing: 0.28em; text-transform: uppercase;
+      color: var(--ink-muted, #8A7E68); font-weight: 600;
+      display: inline-flex; align-items: center; gap: 0.5rem; margin: 0;
+      font-family: 'Inter', sans-serif;
     }
     .sim__eyebrow::before {
-      content: '';
-      width: 1.3rem; height: 1px;
-      background: var(--accent, #A88947);
+      content: ''; width: 1.2rem; height: 1px; background: var(--accent, #A88947);
     }
     .sim__title {
-      font-family: Georgia, serif;
-      font-size: 1.55rem;
-      line-height: 1.05;
-      letter-spacing: -0.018em;
-      margin: 0;
-      color: var(--ink, #1A1410);
+      font-family: Georgia, serif; font-size: 1.45rem; line-height: 1.05;
+      letter-spacing: -0.018em; margin: 0; color: var(--ink, #1A1410);
     }
     .sim__body {
-      color: var(--ink-soft, #3D362E);
-      font-size: 0.86rem;
-      line-height: 1.65;
-      margin: 0;
-      font-weight: 300;
+      color: var(--ink-soft, #3D362E); font-size: 0.83rem; line-height: 1.65;
+      margin: 0; font-weight: 300; font-family: 'Inter', sans-serif;
     }
-    .sim__btn-row { display: flex; gap: 0.45rem; flex-wrap: wrap; margin-block-start: 0.4rem; }
+    .sim__btn-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.35rem; }
     .sim__btn {
-      font: inherit;
-      font-size: 0.64rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 500;
-      padding: 0.45rem 1rem;
-      background: var(--ink, #1A1410);
-      color: var(--paper-on-photo, #F4ECCF);
-      border: 1px solid var(--ink, #1A1410);
-      cursor: default;
+      font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em;
+      text-transform: uppercase; font-weight: 500; padding: 0.42rem 0.9rem;
+      background: var(--paper-on-photo, #1A1410); color: var(--ink-muted, #F4ECCF);
+      border: 1px solid var(--ink, #1A1410); cursor: default;
     }
-    .sim__btn.is-ghost {
-      background: transparent;
-      color: var(--ink, #1A1410);
+    .sim__btn.ghost {
+      background: transparent; color: var(--ink, #1A1410);
+    }
+
+    /* MENU TABS (shows --ink as active-tab bg) */
+    .sim__tabs {
+      display: flex; gap: 0.3rem; justify-content: center;
+      padding: 0.65rem 0.85rem; border-bottom: 2px solid var(--rule-soft, #E2D8BB);
+      background: var(--paper, #F0E8D2); position: relative;
+    }
+    .sim__tab {
+      font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em;
+      text-transform: uppercase; font-weight: 500; padding: 0.35rem 0.8rem;
+      border: 1px solid transparent; border-radius: 999px;
+      color: var(--ink-muted, #8A7E68);
+    }
+    .sim__tab.is-active {
+      background: var(--ink-muted, #1A1410); color: var(--paper-on-photo, #F4ECCF);
+      border-color: var(--ink-muted, #1A1410);
+    }
+    .sim__tab:not(.is-active):hover { border-color: var(--rule, #CFC3A4); color: var(--ink, #1A1410); }
+    .sim__tabs-indicator {
+      position: absolute; inset-block-end: -2px; inset-inline-start: 0;
+      height: 2px; width: 30%;
+      background: linear-gradient(90deg, transparent, var(--accent, #A88947) 20%, var(--accent, #A88947) 80%, transparent);
     }
 
     /* DIVIDERS */
-    .sim__rule {
-      height: 1px;
-      background: var(--rule, #CFC3A4);
-      width: calc(100% - 2rem);
-      margin-inline: 1rem;
-    }
+    .sim__rule { height: 1px; background: var(--rule, #CFC3A4); width: calc(100% - 1.8rem); margin-inline: 0.9rem; }
     .sim__rule--soft { background: var(--rule-soft, #E2D8BB); }
 
-    /* MENU-PAGE COCKTAIL CARD. */
+    /* MENU CARD */
     .sim__card {
-      background: var(--paper-card, #F7F0DB);
-      border: 1px solid var(--paper-edge, #D8CCAE);
-      padding: 0.85rem 1rem;
-      margin-inline: 1rem;
-      display: grid;
-      gap: 0.4rem;
+      background: var(--paper-card, #F7F0DB); border: 1px solid var(--paper-edge, #D8CCAE);
+      padding: 0.8rem 0.9rem; margin-inline: 0.9rem; display: grid; gap: 0.35rem;
     }
     .sim__card-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 0.8rem;
-      align-items: baseline;
-      padding-block: 0.35rem;
+      display: grid; grid-template-columns: 1fr auto; gap: 0.7rem;
+      align-items: baseline; padding-block: 0.3rem;
       border-bottom: 1px solid var(--rule-soft, #E2D8BB);
     }
     .sim__card-row:last-child { border-bottom: 0; }
-    .sim__card-row strong { font-weight: 600; color: var(--ink, #1A1410); }
-    .sim__card-row span:last-child {
-      color: var(--accent, #A88947);
-      font-weight: 600;
-    }
+    .sim__card-row strong { font-weight: 600; color: var(--ink, #1A1410); font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+    .sim__card-row span:last-child { color: var(--accent, #A88947); font-weight: 600; font-family: 'Inter', sans-serif; font-size: 0.82rem; }
 
-    /* PULL QUOTE — soft accent tint. */
+    /* PULL QUOTE */
     .sim__quote {
-      background: var(--accent-soft, #EAE0BD);
-      padding: 0.85rem 1rem;
-      margin-inline: 1rem;
-      color: var(--ink, #1A1410);
-      font-family: Georgia, serif;
-      font-size: 0.95rem;
-      line-height: 1.5;
+      background: var(--accent-soft, #EAE0BD); padding: 0.8rem 0.9rem;
+      margin-inline: 0.9rem; color: var(--ink, #1A1410);
+      font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.5;
     }
     .sim__quote em { color: var(--gold, #B69A52); font-style: italic; }
 
-    /* MENU-CINEMA chapter — text on photograph. */
+    /* MENU CINEMA */
     .sim__cinema {
       position: relative;
       background:
-        linear-gradient(180deg, rgba(10,8,6,0.30) 0%, rgba(10,8,6,0.15) 30%, rgba(10,8,6,0.55) 100%),
+        linear-gradient(180deg, rgba(10,8,6,.32) 0%, rgba(10,8,6,.16) 30%, rgba(10,8,6,.58) 100%),
         linear-gradient(135deg, #4a3a2d, #1f1812);
-      padding: 1rem 1rem 0.95rem;
-      color: var(--paper-on-photo, #F4ECCF);
-      display: grid;
-      gap: 0.55rem;
+      padding: 0.9rem 0.9rem 0.85rem; color: var(--paper-on-photo, #F4ECCF);
+      display: grid; gap: 0.5rem;
     }
     .sim__cinema-eyebrow {
-      font-size: 0.62rem;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      font-weight: 600;
+      font-size: 0.58rem; letter-spacing: 0.26em; text-transform: uppercase; font-weight: 600;
+      font-family: 'Inter', sans-serif;
     }
-    .sim__cinema-eyebrow [data-uses="accent"] { color: var(--accent, #A88947); }
-    .sim__cinema-title {
-      font-family: Georgia, serif;
-      font-size: 1.4rem;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      margin: 0;
-    }
+    .sim__cinema-title { font-family: Georgia, serif; font-size: 1.3rem; letter-spacing: -0.02em; line-height: 1; margin: 0; }
     .sim__cinema-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 0.7rem;
-      align-items: baseline;
-      font-size: 0.82rem;
-      padding-block-end: 0.4rem;
-      border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo, #F4ECCF) 18%, transparent);
+      display: grid; grid-template-columns: 1fr auto; gap: 0.65rem;
+      align-items: baseline; font-size: 0.78rem; font-family: 'Inter', sans-serif;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid color-mix(in srgb, var(--paper-on-photo, #F4ECCF) 18%, transparent);
     }
-    .sim__cinema-desc {
-      display: inline-block;
-      font-size: 0.7rem;
-      font-weight: 300;
-      opacity: 0.85;
-      line-height: 1.4;
-    }
-    .sim__cinema-row > span:last-child {
-      color: var(--accent, #A88947);
-      font-weight: 600;
-    }
+    .sim__cinema-row > span:last-child { color: var(--accent, #A88947); font-weight: 600; }
     .sim__cinema-cta {
-      font-size: 0.6rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 500;
-      padding: 0.45rem 0.85rem;
-      border: 1px solid var(--paper-on-photo, #F4ECCF);
-      justify-self: start;
+      font-family: 'Inter', sans-serif; font-size: 0.57rem; letter-spacing: 0.2em;
+      text-transform: uppercase; font-weight: 500; padding: 0.4rem 0.8rem;
+      border: 1px solid var(--paper-on-photo, #F4ECCF); justify-self: start;
     }
 
-    /* TOC — dotted leader between chapter title and caption. */
-    .sim__toc { padding: 0.4rem 1rem; display: grid; gap: 0.4rem; }
+    /* TOC */
+    .sim__toc { padding: 0.35rem 0.9rem; display: grid; gap: 0.35rem; }
     .sim__toc-row {
-      display: grid;
-      grid-template-columns: auto auto 1fr auto;
-      align-items: baseline;
-      gap: 0.55rem;
-      padding-block: 0.4rem;
-      border-block-end: 1px solid var(--rule-soft, #E2D8BB);
-      font-size: 0.82rem;
+      display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline;
+      gap: 0.5rem; padding-block: 0.35rem; border-bottom: 1px solid var(--rule-soft, #E2D8BB);
+      font-size: 0.78rem;
     }
     .sim__toc-row > span:nth-child(1) { font-family: Georgia, serif; font-weight: 500; color: var(--accent, #A88947); }
     .sim__toc-row > span:nth-child(2) { font-family: Georgia, serif; color: var(--ink, #1A1410); }
-    .sim__toc-row > span:last-child {
-      color: var(--ink-soft, #3D362E);
-      font-size: 0.72rem;
-      font-style: italic;
-    }
+    .sim__toc-row > span:last-child   { color: var(--ink-soft, #3D362E); font-size: 0.68rem; font-style: italic; font-family: Georgia, serif; }
     .sim__toc-dots {
-      border-block-end: 2px dotted var(--ink-faint, #B6A98C);
-      align-self: end;
-      transform: translateY(-0.32rem);
-      min-width: 1rem;
+      border-bottom: 2px dotted var(--ink-faint, #B6A98C); align-self: end;
+      transform: translateY(-0.3rem); min-width: 1rem;
     }
 
-    /* CATEGORY CHIPS. */
-    .sim__chip-row {
-      display: flex;
-      gap: 0.4rem;
-      flex-wrap: wrap;
-    }
+    /* CATEGORY CHIPS */
+    .sim__chips { display: flex; gap: 0.35rem; flex-wrap: wrap; padding: 0 0.9rem; }
     .sim__chip {
-      font-size: 0.62rem;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      font-weight: 700;
-      padding: 0.3rem 0.6rem;
+      font-family: 'Inter', sans-serif; font-size: 0.58rem; letter-spacing: 0.16em;
+      text-transform: uppercase; font-weight: 700; padding: 0.28rem 0.55rem;
       border: 1px solid currentColor;
     }
     .sim__chip--green { color: var(--c-green, #5A786A); }
@@ -1045,229 +747,276 @@ const presets: Record<string, Record<string, string>> = {
     .sim__chip--mauve { color: var(--c-mauve, #9D8499); }
     .sim__chip--gold  { color: var(--gold,    #B69A52); }
 
-    /* CONTACT TOGGLE — sliding accent indicator under active button. */
+    /* CONTACT TOGGLE */
     .sim__toggle {
-      position: relative;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      background: var(--paper-card, #F7F0DB);
-      border: 1px solid var(--rule, #CFC3A4);
-      margin-inline: 1rem;
+      position: relative; display: grid; grid-template-columns: 1fr 1fr;
+      background: var(--paper-card, #F7F0DB); border: 1px solid var(--rule, #CFC3A4);
+      margin-inline: 0.9rem;
     }
     .sim__toggle-btn {
-      padding: 0.55rem 0.85rem;
-      font-size: 0.66rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      font-weight: 600;
-      text-align: center;
+      padding: 0.5rem 0.8rem; font-family: 'Inter', sans-serif; font-size: 0.62rem;
+      letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; text-align: center;
       color: var(--ink-muted, #8A7E68);
     }
     .sim__toggle-btn.is-active { color: var(--ink, #1A1410); }
-    .sim__toggle-indicator {
-      position: absolute;
-      inset-block-end: 0;
-      inset-inline-start: 0;
-      height: 2px;
-      width: 50%;
-      background: var(--accent, #A88947);
+    .sim__toggle-ind {
+      position: absolute; inset-block-end: 0; inset-inline-start: 0;
+      height: 2px; width: 50%; background: var(--accent, #A88947);
     }
 
-    /* REACH-US card on /contact/ — phone + email row. */
+    /* REACH-US CARD */
     .sim__reach {
-      background: var(--paper-card, #F7F0DB);
-      border: 1px solid var(--rule-soft, #E2D8BB);
-      padding: 0.85rem 1rem;
-      margin-inline: 1rem;
-      display: grid;
-      gap: 0.45rem;
+      background: var(--paper-card, #F7F0DB); border: 1px solid var(--rule-soft, #E2D8BB);
+      padding: 0.8rem 0.9rem; margin-inline: 0.9rem; display: grid; gap: 0.4rem;
     }
     .sim__reach-row {
-      display: grid;
-      grid-template-columns: minmax(4.5rem, 6rem) 1fr;
-      align-items: baseline;
-      gap: 0.8rem;
+      display: grid; grid-template-columns: minmax(4rem, 5.5rem) 1fr;
+      align-items: baseline; gap: 0.7rem;
     }
     .sim__reach-row > span {
-      font-size: 0.6rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      color: var(--ink-muted, #8A7E68);
-      font-weight: 600;
+      font-family: 'Inter', sans-serif; font-size: 0.57rem; letter-spacing: 0.2em;
+      text-transform: uppercase; color: var(--ink-muted, #8A7E68); font-weight: 600;
     }
     .sim__reach-link {
-      color: var(--ink, #1A1410);
-      text-decoration: underline;
-      text-decoration-color: var(--accent, #A88947);
-      text-underline-offset: 3px;
-      font-size: 0.85rem;
+      color: var(--ink, #1A1410); text-decoration: underline;
+      text-decoration-color: var(--accent, #A88947); text-underline-offset: 3px;
+      font-family: 'Inter', sans-serif; font-size: 0.82rem;
     }
-    .sim__reach-link:hover { color: var(--accent-deep, #7A6231); }
 
-    /* FAINT METADATA. */
+    /* TEXT SELECTION demo */
+    .sim__selection {
+      padding: 0.6rem 0.9rem; font-size: 0.82rem; font-family: 'Inter', sans-serif;
+      color: var(--ink, #1A1410); line-height: 1.65;
+    }
+    .sim__sel-mark {
+      background: var(--accent-soft, #EAE0BD); color: var(--ink, #1A1410);
+    }
+
+    /* FOCUS RING demo */
+    .sim__focus-demo {
+      padding: 0.5rem 0.9rem; display: flex; gap: 0.6rem; align-items: center;
+      flex-wrap: wrap;
+    }
+    .sim__focus-ring {
+      outline: 2px solid var(--accent, #A88947); outline-offset: 3px;
+      padding: 0.28rem 0.7rem; font-size: 0.6rem; letter-spacing: 0.18em;
+      text-transform: uppercase; font-weight: 600; font-family: 'Inter', sans-serif;
+      border: 1px solid var(--rule, #CFC3A4); color: var(--ink, #1A1410);
+    }
+
+    /* SCROLLBAR demo */
+    .sim__scrollbar {
+      margin: 0.5rem 0.9rem; display: flex; align-items: stretch; gap: 0; height: 48px;
+    }
+    .sim__sb-track {
+      width: 10px; background: var(--paper-deep, #E5DCC4);
+      border-inline-start: 1px solid var(--rule-soft, #E2D8BB); flex-shrink: 0;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+    }
+    .sim__sb-thumb {
+      width: 6px; height: 28px; border-radius: 999px;
+      background: linear-gradient(180deg, var(--accent, #A88947) 0%, var(--accent-deep, #7A6231) 100%);
+      border: 2px solid var(--paper-deep, #E5DCC4);
+    }
+    .sim__sb-label {
+      padding-inline-start: 0.5rem; font-size: 0.62rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--ink-muted, #8A7E68);
+      font-family: 'Inter', sans-serif; align-self: center;
+    }
+
+    /* FAINT META */
     .sim__faint {
-      font-size: 0.7rem;
-      color: var(--ink-faint, #B6A98C);
-      padding-inline: 1rem;
-      margin: 0;
+      font-size: 0.68rem; color: var(--ink-faint, #B6A98C); padding-inline: 0.9rem; margin: 0;
+      font-family: 'Inter', sans-serif;
     }
 
-    /* FORM STATUS. */
-    .sim__status-row {
-      display: grid;
-      gap: 0.4rem;
-      padding-inline: 1rem;
-    }
+    /* FORM STATUS */
+    .sim__status-row { display: grid; gap: 0.35rem; padding-inline: 0.9rem; }
     .sim__status {
-      padding: 0.5rem 0.7rem;
-      font-size: 0.76rem;
-      font-weight: 600;
+      padding: 0.45rem 0.65rem; font-size: 0.74rem; font-weight: 600;
+      font-family: 'Inter', sans-serif;
     }
     .sim__status--ok  { background: color-mix(in srgb, var(--ok,  #4F6B47) 12%, transparent); color: var(--ok,  #4F6B47); }
     .sim__status--err { background: color-mix(in srgb, var(--err, #A53623) 12%, transparent); color: var(--err, #A53623); }
 
-    /* ── Toast ─────────────────────────────────────────────── */
-    .toast {
-      position: fixed;
-      inset-block-end: 1.5rem;
-      inset-inline-end: 1.5rem;
-      z-index: 30;
-      padding: 0.7rem 1rem;
-      background: var(--c-fg);
-      color: var(--c-bg);
-      font-size: 0.8rem;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      font-weight: 600;
-      opacity: 0;
-      transform: translateY(8px);
-      pointer-events: none;
-      transition: opacity 0.25s, transform 0.25s;
+    /* FOOTER */
+    .sim__footer {
+      background: var(--paper-deep, #E5DCC4);
+      border-top: 1px solid var(--rule-soft, #E2D8BB);
+      padding: 0.9rem;
+      margin-top: 0.9rem;
     }
-    .toast.is-visible {
-      opacity: 1;
-      transform: translateY(0);
+    .sim__footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin-bottom: 0.6rem; }
+    .sim__footer-block { display: grid; gap: 0.15rem; }
+    .sim__footer-label {
+      font-family: 'Inter', sans-serif; font-size: 0.55rem; letter-spacing: 0.26em;
+      text-transform: uppercase; font-weight: 600; color: var(--ink-muted, #8A7E68);
+    }
+    .sim__footer-val {
+      font-family: Georgia, serif; font-size: 0.82rem; color: var(--ink, #1A1410);
+      font-weight: 400;
+    }
+    .sim__footer-val a { color: var(--ink, #1A1410); }
+    .sim__footer-val a:hover { color: var(--accent, #A88947); }
+    .sim__footer-bottom {
+      display: flex; justify-content: space-between; padding-top: 0.5rem;
+      border-top: 1px solid var(--rule-soft, #E2D8BB);
+      font-family: 'Inter', sans-serif; font-size: 0.6rem;
+      letter-spacing: 0.1em; color: var(--ink-muted, #8A7E68);
     }
 
-    /* ── Export modal ──────────────────────────────────────── */
+    /* ── Palette popup ───────────────────────────────────────── */
+    .palette-popup {
+      position: fixed; z-index: 50;
+      background: #fff; border: 1px solid var(--e-rule);
+      padding: 0.7rem; width: 220px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+    }
+    .palette-popup[hidden] { display: none; }
+    .palette-popup__title {
+      font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--e-mut); font-weight: 600; margin: 0 0 0.5rem;
+    }
+    .palette-popup__grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.28rem;
+    }
+    .palette-swatch {
+      width: 100%; aspect-ratio: 1; border: 1px solid rgba(0,0,0,0.12);
+      cursor: pointer; transition: transform 0.12s, box-shadow 0.12s;
+      padding: 0;
+    }
+    .palette-swatch:hover { transform: scale(1.18); box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1; position: relative; }
+
+    /* ── Toast ───────────────────────────────────────────────── */
+    .toast {
+      position: fixed; inset-block-end: 1.4rem; inset-inline-end: 1.4rem; z-index: 60;
+      padding: 0.6rem 0.9rem; background: var(--e-fg); color: var(--e-bg);
+      font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
+      opacity: 0; transform: translateY(8px); pointer-events: none;
+      transition: opacity 0.22s, transform 0.22s;
+    }
+    .toast.is-visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Export modal ────────────────────────────────────────── */
     .export-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.55);
-      display: grid;
-      place-items: center;
-      padding: 1.5rem;
-      z-index: 40;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.52);
+      display: grid; place-items: center; padding: 1.5rem; z-index: 55;
     }
     .export-modal[hidden] { display: none; }
     .export-modal__inner {
-      background: var(--c-bg);
-      padding: 1.5rem;
-      border: 1px solid var(--c-rule);
-      max-width: 560px;
-      width: 100%;
-      display: grid;
-      gap: 1rem;
+      background: var(--e-bg); padding: 1.4rem; border: 1px solid var(--e-rule);
+      max-width: 580px; width: 100%; display: grid; gap: 0.85rem;
     }
-    .export-modal h2 {
-      margin: 0;
-      font-size: 1rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-    }
+    .export-modal h2 { margin: 0; font-size: 0.95rem; letter-spacing: 0.2em; text-transform: uppercase; }
+    .export-modal p  { margin: 0; font-size: 0.82rem; color: var(--e-mut); }
     .export-modal textarea {
-      width: 100%;
-      min-height: 320px;
-      padding: 0.85rem;
-      font-family: ui-monospace, 'Inter', monospace;
-      font-size: 0.78rem;
-      line-height: 1.55;
-      background: #fff;
-      color: var(--c-fg);
-      border: 1px solid var(--c-rule);
-      resize: vertical;
+      width: 100%; min-height: 300px; padding: 0.8rem; font-family: ui-monospace, monospace;
+      font-size: 0.76rem; line-height: 1.55; background: #fff; color: var(--e-fg);
+      border: 1px solid var(--e-rule); resize: vertical;
     }
-    .export-modal__row {
-      display: flex;
-      gap: 0.55rem;
-      justify-content: flex-end;
+    .export-modal__tabs {
+      display: flex; gap: 0.35rem; border-bottom: 1px solid var(--e-rule); padding-bottom: 0.5rem;
     }
+    .export-tab {
+      font: inherit; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+      font-weight: 600; padding: 0.3rem 0.65rem; background: transparent;
+      color: var(--e-mut); border: 1px solid transparent; cursor: pointer;
+      transition: color 0.16s, border-color 0.16s;
+    }
+    .export-tab.is-active { color: var(--e-fg); border-color: var(--e-rule); background: #ece3d0; }
+    .export-modal__row { display: flex; gap: 0.45rem; justify-content: flex-end; }
 
-    /* Keyboard-shortcut hint chip */
     .kbd {
-      display: inline-block;
-      padding: 0.05rem 0.35rem;
-      font-family: ui-monospace, 'Inter', monospace;
-      font-size: 0.7rem;
-      background: #eee5cf;
-      border: 1px solid #d3c89e;
-      border-radius: 3px;
-      margin-inline-start: 0.4rem;
-      color: var(--c-mut);
+      display: inline-block; padding: 0.04rem 0.32rem;
+      font-family: ui-monospace, monospace; font-size: 0.68rem;
+      background: #eee5cf; border: 1px solid #d3c89e; border-radius: 3px;
+      margin-inline-start: 0.35rem; color: var(--e-mut);
     }
   </style>
 </head>
 <body>
-  <header class="editor-top">
-    {/* Row 1 — admin nav (shared across /admin, /admin/images,
-        /admin/colors). The active page is highlighted and non-clickable. */}
-    <nav class="editor-top__nav" aria-label="Admin sections">
-      <a class="editor-top__brand" href="/admin/">Zahara · Admin</a>
-      <a class="editor-top__navlink"            href="/admin/">Menu editor</a>
-      <a class="editor-top__navlink"            href="/admin/images/">Images</a>
-      <a class="editor-top__navlink is-active"  href="/admin/colors/" aria-current="page">Colors</a>
-      <span class="editor-top__spacer"></span>
-      <a class="editor-top__site" href="/" target="_blank">View site ↗</a>
-    </nav>
 
-    {/* Row 2 — palette-editor specific tools */}
-    <div class="editor-top__tools">
-      <h1>Palette editor</h1>
-      <input type="search" class="top-search" data-search
-             placeholder="Search tokens…" aria-label="Search tokens"
-             style="max-width:220px;" />
-      <select class="top-select" data-preset aria-label="Preset themes">
-        <option value="">Preset…</option>
-        <optgroup label="Light">
-          <option value="default">Default (current)</option>
-          <option value="terracotta">Terracotta (old)</option>
-          <option value="monochrome">Monochrome</option>
-          <option value="forest">Forest</option>
-          <option value="navy">Navy</option>
-          <option value="midnight">Midnight (your palette)</option>
-        </optgroup>
-        <optgroup label="Dark">
-          <option value="dark-frantzen">Dark · Frantzen</option>
-          <option value="dark-white">Dark + white</option>
-          <option value="dark-white-purple">Dark + white + purple</option>
-        </optgroup>
-      </select>
-      <span style="flex:1"></span>
-      <button class="btn-top btn-top--ghost" type="button" data-undo title="Undo (⌘Z)" disabled>↶ Undo</button>
-      <button class="btn-top btn-top--ghost" type="button" data-reset>Reset all</button>
-      <button class="btn-top" type="button" data-export>Export CSS</button>
-    </div>
-  </header>
+<header class="editor-top">
+  <nav class="editor-top__nav" aria-label="Admin sections">
+    <a class="editor-top__brand" href="/admin/">Zahara · Admin</a>
+    <a class="editor-top__navlink"           href="/admin/">Menu editor</a>
+    <a class="editor-top__navlink"           href="/admin/images/">Images</a>
+    <a class="editor-top__navlink is-active" href="/admin/colors/" aria-current="page">Colors</a>
+    <span class="editor-top__spacer"></span>
+    <a class="editor-top__site" href="/en/" target="_blank">View site ↗</a>
+  </nav>
 
-  <main class="layout">
-    <section class="side" aria-label="Token pickers">
-      <h2>Tokens</h2>
-      <p class="side__intro">
-        Every change writes to <code>:root</code>, saves to
-        <code>localStorage</code>, and broadcasts to any open site tab
-        via <code>BroadcastChannel</code>. The preview on the right
-        pulses the elements affected by whatever token you edit.
-        Click the <span class="kbd">👁</span> button on any row to
-        highlight its affected elements WITHOUT changing the value.
-        Press <span class="kbd">⌘Z</span> / <span class="kbd">Ctrl+Z</span> to undo.
-      </p>
+  <div class="editor-top__tools">
+    <h1>Palette editor</h1>
 
-      {groups.map((g) => (
-        <div class="group" data-group>
-          <div class="group__head">
-            <h3>{g.group}</h3>
-            <p set:html={g.intro} />
+    <input type="search" class="top-search" data-search
+           placeholder="Search tokens…" aria-label="Search colour tokens" />
+
+    <select class="top-select" data-preset aria-label="Load a preset theme">
+      <option value="">Load preset…</option>
+      <optgroup label="Light themes">
+        <option value="default">Default (warm cream)</option>
+        <option value="monochrome">Monochrome</option>
+        <option value="terracotta">Terracotta</option>
+        <option value="forest">Forest</option>
+        <option value="navy-light">Navy (light)</option>
+      </optgroup>
+      <optgroup label="Dark themes">
+        <option value="midnight">Midnight (dark navy)</option>
+        <option value="obsidian">Obsidian (near-black + gold)</option>
+        <option value="espresso">Espresso (dark brown)</option>
+        <option value="plum">Plum (dark purple)</option>
+        <option value="dusk-navy">Dusk Navy (cool slate)</option>
+        <option value="charcoal">Charcoal (warm gray + rust)</option>
+        <option value="dark-frantzen">Dark · Frantzen (blue)</option>
+        <option value="dark-white">Dark + white (stark)</option>
+      </optgroup>
+    </select>
+
+    <label class="top-toggle-label">
+      <input type="checkbox" data-modified-only />
+      Modified only
+    </label>
+
+    <span class="editor-top__spacer"></span>
+
+    <span class="pending-badge" data-pending-badge hidden>0 unsaved</span>
+    <button class="btn-top btn-top--ghost btn-top--discard" type="button"
+            data-discard disabled title="Discard all unsaved changes">Discard</button>
+    <button class="btn-top btn-top--save" type="button"
+            data-save disabled title="Save changes to localStorage &amp; broadcast (⌘S)">
+      Save<span class="kbd">⌘S</span>
+    </button>
+    <button class="btn-top btn-top--ghost" type="button" data-undo
+            title="Undo (⌘Z)" disabled>↶ Undo</button>
+    <button class="btn-top btn-top--ghost" type="button" data-reset>Reset all</button>
+    <button class="btn-top" type="button" data-export>Export CSS</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ── Token list (left pane) ─────────────────────────────── -->
+  <section class="side" aria-label="Colour token editors">
+    <h2>Tokens</h2>
+    <p class="side__intro">
+      Changes update the preview immediately but are <strong>not saved</strong>
+      until you click <strong>Save</strong> or press
+      <span class="kbd">⌘S</span> / <span class="kbd">Ctrl+S</span>.
+      Click <span class="kbd">▣</span> on any row to pick a colour from
+      the current palette. Click <span class="kbd">👁</span> to highlight
+      preview elements for that token without changing its value.
+    </p>
+
+    {groups.map((g) => (
+      <div class="group" data-group>
+        <div class="group__head" data-group-toggle>
+          <span class="group__toggle" aria-hidden="true">▾</span>
+          <div class="group__head-text">
+            <h3 class="group__title">{g.group}</h3>
+            <p class="group__intro" set:html={g.intro} />
           </div>
+        </div>
+        <div class="group__body">
           {g.tokens.map((t) => (
             <div class="row"
                  data-row
@@ -1277,591 +1026,992 @@ const presets: Record<string, Record<string, string>> = {
                  data-search-key={(t.label + ' ' + t.token + ' ' + (t.hint || '')).toLowerCase()}>
               <div class="row__swatch-area">
                 <span class="row__dot" data-modified-dot title="Modified from default"></span>
-                <input type="color" value={t.def} data-picker aria-label={t.label} />
+                <input type="color" value={t.def} data-picker aria-label={`${t.label} colour picker`} />
               </div>
+
               <div class="row__meta">
                 <div class="row__name">
                   {t.label}
-                  <span class="row__contrast" data-contrast aria-label="Contrast vs --paper"></span>
+                  <span class="row__contrast" data-contrast aria-label="Contrast ratio"></span>
                 </div>
                 {t.hint && <div class="row__hint">{t.hint}</div>}
                 <div class="row__token-name"><code>{t.token}</code></div>
               </div>
+
               <div class="row__controls">
-                <input type="text"
-                       class="row__hex"
-                       data-hex
-                       value={t.def}
-                       maxlength="7"
-                       inputmode="text"
-                       autocomplete="off"
-                       spellcheck="false"
-                       aria-label={`${t.label} hex value`} />
-                <button class="row__btn row__btn--show" type="button"
-                        data-show
-                        title="Highlight without changing — shows which preview elements use this token"
-                        aria-label="Highlight affected preview elements">👁</button>
+                <input type="text" class="row__hex" data-hex value={t.def}
+                       maxlength="7" inputmode="text" autocomplete="off"
+                       spellcheck="false" aria-label={`${t.label} hex value`} />
+                <button class="row__btn row__btn--show" type="button" data-show
+                        title="Highlight affected preview elements (no value change)"
+                        aria-label="Highlight preview">👁</button>
+                <button class="row__btn" type="button" data-palette-btn
+                        title="Pick from current palette" aria-label="Pick from palette">▣</button>
                 <button class="row__btn" type="button" data-copy title="Copy hex">⧉</button>
-                <button class="row__btn" type="button" data-reset-one title="Reset this token">↺</button>
+                <button class="row__btn" type="button" data-reset-one title="Reset to default">↺</button>
               </div>
             </div>
           ))}
         </div>
-      ))}
-    </section>
+      </div>
+    ))}
+  </section>
 
-    <aside class="preview-pane" aria-label="Live preview">
-      <h2>Preview</h2>
-      <p class="preview-pane__intro">
-        Each block below mirrors a real moment on the public site. When
-        you edit a token, the affected fragments pulse orange — so you
-        always see exactly what your change will move.
-      </p>
+  <!-- ── Preview pane (right pane) ──────────────────────────── -->
+  <aside class="preview-pane" aria-label="Live site preview">
+    <h2>Preview — EN site</h2>
+    <p class="preview-pane__intro">
+      Every block mirrors a real moment on the public English site.
+      Editing a token pulses the fragments that use it.
+    </p>
 
-      <div class="sim">
-        {/* PAGE wrapper itself uses --paper — pulses when you edit paper. */}
-        <div class="sim__page preview-fragment" data-uses="paper">
+    <div class="sim" role="img" aria-label="Site colour preview">
 
-          {/* HERO photo strip with floating header — all the on-photo
-              elements use --paper-on-photo (header text, hero buttons,
-              eyebrow rule), so editing --paper-on-photo lights this
-              whole strip up. The photo darken below the header is a
-              fixed-black mechanic (no token), so changing --ink no
-              longer tints it. */}
-          <div class="sim__hero">
-            <div class="sim__hero-bar">
-              <span class="sim__hero-brand preview-fragment"   data-uses="paper-on-photo">ZAHARA</span>
-              <span class="sim__hero-navs   preview-fragment"  data-uses="paper-on-photo">HOME · LOCATION · MENU · CONTACT</span>
-              <span class="sim__hero-reserve preview-fragment" data-uses="paper-on-photo">Reserve</span>
-            </div>
-            <div class="sim__hero-body">
-              <p class="sim__hero-eyebrow preview-fragment" data-uses="paper-on-photo,accent">CHEF RESTAURANT · JERUSALEM</p>
-              <h3 class="sim__hero-title preview-fragment" data-uses="paper-on-photo">A new kitchen, on Ben Sira.</h3>
-              <div class="sim__hero-btns">
-                <span class="sim__hero-btn          preview-fragment" data-uses="paper-on-photo,ink">Reserve a table</span>
-                <span class="sim__hero-btn is-ghost preview-fragment" data-uses="paper-on-photo">See the menu</span>
-              </div>
-            </div>
+      <!-- SCROLL PROGRESS BAR -->
+      <div class="sim__progress preview-fragment" data-uses="accent,gold"
+           title="Scroll progress bar — uses --accent and --gold"></div>
+
+      <!-- NON-PHOTO HEADER (header on /menu/, /contact/, /location/) -->
+      <div class="sim__nav preview-fragment" data-uses="paper,rule-soft">
+        <span class="sim__nav-brand preview-fragment" data-uses="ink">ZAHARA</span>
+        <div class="sim__nav-links">
+          <span class="preview-fragment" data-uses="ink-soft">HOME</span>
+          <span class="preview-fragment" data-uses="ink-soft">LOCATION</span>
+          <span class="preview-fragment" data-uses="ink,accent">MENU</span>
+        </div>
+        <span class="sim__nav-reserve preview-fragment" data-uses="ink-muted">Reserve</span>
+      </div>
+
+      <!-- PAGE surface -->
+      <div class="sim__page preview-fragment" data-uses="paper">
+
+        <!-- HERO with floating photo header -->
+        <div class="sim__hero">
+          <div class="sim__hero-bar">
+            <span class="sim__hero-brand preview-fragment" data-uses="paper-on-photo">ZAHARA</span>
+            <span class="sim__hero-navs preview-fragment" data-uses="paper-on-photo">HOME · LOCATION · MENU · CONTACT</span>
+            <span class="sim__hero-reserve preview-fragment" data-uses="ink-muted">Reserve</span>
           </div>
-
-          {/* INFO STRIP — sits under the hero on the home page.
-              Background = --paper-deep, labels = --ink-muted,
-              values = --ink. Editing any of those lights this strip. */}
-          <div class="sim__info-strip preview-fragment" data-uses="paper-deep">
-            <div class="sim__info-cell">
-              <span class="preview-fragment" data-uses="ink-muted">HOURS</span>
-              <strong class="preview-fragment" data-uses="ink">Mon–Thu · 18:00–22:00</strong>
-            </div>
-            <div class="sim__info-cell">
-              <span class="preview-fragment" data-uses="ink-muted">RESERVE</span>
-              <strong class="preview-fragment" data-uses="ink">077-303-4180</strong>
-            </div>
-          </div>
-
-          {/* ISSUE STAMP — magazine masthead under the hero. Same
-              --paper-deep background as the info-strip. */}
-          <div class="sim__issue preview-fragment" data-uses="paper-deep,ink-muted">
-            <span>VOLUME I · JERUSALEM · 2026</span>
-            <span class="sim__issue-rule preview-fragment" data-uses="accent"></span>
-            <span class="preview-fragment" data-uses="ink-soft">From the kitchen of Roi Achdut</span>
-          </div>
-
-          {/* EDITORIAL BODY — heading + lede + paragraphs on paper.
-              Heading = --ink, body = --ink-soft, accent rule = --accent. */}
-          <div class="sim__article">
-            <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">THE STORY</p>
-            <h3 class="sim__title preview-fragment" data-uses="ink">A new chapter, one kitchen.</h3>
-            <p class="sim__body preview-fragment" data-uses="ink-soft">
-              Roi cooks what arrived from the market that morning — sea
-              bass, blistered tomatoes, a leaf salad. The menu shifts
-              weekly. Wine list short, considered.
+          <div class="sim__hero-body">
+            <p class="sim__hero-eyebrow preview-fragment" data-uses="paper-on-photo,accent">
+              CHEF RESTAURANT · JERUSALEM
             </p>
-            <div class="sim__btn-row">
-              <button class="sim__btn          preview-fragment" type="button" data-uses="ink,paper-on-photo,accent">Reserve</button>
-              <button class="sim__btn is-ghost preview-fragment" type="button" data-uses="ink">Menu</button>
-            </div>
-          </div>
-
-          {/* Visible section divider — uses --rule. */}
-          <div class="sim__rule preview-fragment" data-uses="rule"></div>
-
-          {/* MENU CARD (cocktail card on /menu/) — fill = --paper-card,
-              edges = --paper-edge, internal dividers = --rule-soft,
-              prices = --accent. The home-page menu chapters do NOT use
-              these tokens (they're on photos) — see the menu-cinema
-              strip below. */}
-          <div class="sim__card preview-fragment" data-uses="paper-card,paper-edge">
-            <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">/MENU/ · BEGINNINGS</p>
-            <div class="sim__card-row preview-fragment" data-uses="rule-soft">
-              <strong class="preview-fragment" data-uses="ink">Bread service</strong>
-              <span class="preview-fragment" data-uses="accent">32</span>
-            </div>
-            <div class="sim__card-row preview-fragment" data-uses="rule-soft">
-              <strong class="preview-fragment" data-uses="ink">Beef tartare</strong>
-              <span class="preview-fragment" data-uses="accent">78</span>
-            </div>
-            <div class="sim__card-row preview-fragment" data-uses="rule-soft">
-              <strong class="preview-fragment" data-uses="ink">Sea-bass sashimi</strong>
-              <span class="preview-fragment" data-uses="accent">78</span>
-            </div>
-          </div>
-
-          {/* Soft divider — uses --rule-soft. */}
-          <div class="sim__rule sim__rule--soft preview-fragment" data-uses="rule-soft"></div>
-
-          {/* PULL QUOTE — soft accent tint background, body = --ink,
-              the italic emphasis word = --gold (only inside the
-              chef portrait section-on-photo). */}
-          <blockquote class="sim__quote preview-fragment" data-uses="accent-soft">
-            <span class="preview-fragment" data-uses="ink">"We don't cook plates. We cook the </span>
-            <em class="preview-fragment" data-uses="gold">evening</em>
-            <span class="preview-fragment" data-uses="ink"> for people."</span>
-          </blockquote>
-
-          {/* MENU-CINEMA chapter (home page, on a photo) — every text
-              element uses --paper-on-photo; the price uses --accent.
-              The grey film here represents the photograph; the
-              darkening is fixed-black and not themable. */}
-          <div class="sim__cinema">
-            <span class="sim__cinema-eyebrow preview-fragment" data-uses="accent,paper-on-photo">01 · SOMETHING TO START</span>
-            <h4 class="sim__cinema-title preview-fragment" data-uses="paper-on-photo">Something to start</h4>
-            <div class="sim__cinema-row">
-              <span class="preview-fragment" data-uses="paper-on-photo"><strong>Bread service</strong><br/><span class="sim__cinema-desc preview-fragment" data-uses="paper-on-photo">charred lemon aioli, eggplant &amp; miso</span></span>
-              <span class="preview-fragment" data-uses="accent">32</span>
-            </div>
-            <div class="sim__cinema-cta preview-fragment" data-uses="paper-on-photo">SEE THE FULL MENU ↗</div>
-          </div>
-
-          {/* TOC dotted leader — line = --ink-faint, caption text =
-              --ink-soft, number = --accent, title = --ink. */}
-          <div class="sim__toc">
-            <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">ON THE MENU TONIGHT</p>
-            <div class="sim__toc-row">
-              <span class="preview-fragment" data-uses="accent">01</span>
-              <span class="preview-fragment" data-uses="ink">Something to start</span>
-              <span class="sim__toc-dots preview-fragment" data-uses="ink-faint"></span>
-              <span class="preview-fragment" data-uses="ink-soft">Openings from the kitchen</span>
-            </div>
-            <div class="sim__toc-row">
-              <span class="preview-fragment" data-uses="accent">02</span>
-              <span class="preview-fragment" data-uses="ink">Almost there</span>
-              <span class="sim__toc-dots preview-fragment" data-uses="ink-faint"></span>
-              <span class="preview-fragment" data-uses="ink-soft">Fish and meat from the market</span>
-            </div>
-          </div>
-
-          {/* CATEGORY CHIPS — one per --c-* token. */}
-          <div>
-            <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">CATEGORY ACCENTS</p>
-            <div class="sim__chip-row">
-              <span class="sim__chip sim__chip--green preview-fragment" data-uses="c-green">Food</span>
-              <span class="sim__chip sim__chip--teal  preview-fragment" data-uses="c-teal">Cocktails</span>
-              <span class="sim__chip sim__chip--slate preview-fragment" data-uses="c-slate">Wine</span>
-              <span class="sim__chip sim__chip--mauve preview-fragment" data-uses="c-mauve">Desserts</span>
-              <span class="sim__chip sim__chip--gold  preview-fragment" data-uses="gold">Highlight</span>
-            </div>
-          </div>
-
-          {/* CONTACT TOGGLE & FORM — toggle indicator = --accent,
-              card surface = --paper-card, labels = --ink-muted,
-              borders = --rule, focused field bg = --paper-card. */}
-          <div class="sim__toggle preview-fragment" data-uses="paper-card,rule">
-            <span class="sim__toggle-btn is-active preview-fragment" data-uses="ink">General inquiry</span>
-            <span class="sim__toggle-btn preview-fragment" data-uses="ink-muted">Event inquiry</span>
-            <span class="sim__toggle-indicator preview-fragment" data-uses="accent"></span>
-          </div>
-
-          {/* REACH-US card (phone + email on /contact/). Card =
-              --paper-card; link underline = --accent; underline hover
-              colour = --accent-deep. */}
-          <div class="sim__reach preview-fragment" data-uses="paper-card,rule-soft">
-            <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">OTHER WAYS TO REACH US</p>
-            <div class="sim__reach-row">
-              <span class="preview-fragment" data-uses="ink-muted">PHONE</span>
-              <a class="sim__reach-link preview-fragment" data-uses="ink,accent,accent-deep">077-303-4180</a>
-            </div>
-          </div>
-
-          {/* FAINT METADATA */}
-          <p class="sim__faint preview-fragment" data-uses="ink-faint">
-            Last updated · 12 March 2026
-          </p>
-
-          {/* FORM STATUS — green / red. */}
-          <div class="sim__status-row">
-            <div class="sim__status sim__status--ok  preview-fragment" data-uses="ok">
-              ✓ Thanks. We'll get back to you within one business day.
-            </div>
-            <div class="sim__status sim__status--err preview-fragment" data-uses="err">
-              ✗ Network error. Please try again.
+            <h3 class="sim__hero-title preview-fragment" data-uses="paper-on-photo">
+              A new kitchen, on Ben Sira.
+            </h3>
+            <div class="sim__hero-btns">
+              <span class="sim__hero-btn preview-fragment" data-uses="ink-muted,paper-on-photo">Reserve a table</span>
+              <span class="sim__hero-btn ghost preview-fragment" data-uses="paper-on-photo">See the menu</span>
             </div>
           </div>
         </div>
-      </div>
-    </aside>
-  </main>
 
-  <!-- Status toast -->
-  <div class="toast" data-toast role="status" aria-live="polite"></div>
+        <!-- INFO STRIP -->
+        <div class="sim__info-strip preview-fragment" data-uses="paper-deep,rule-soft">
+          <div class="sim__info-cell">
+            <span class="preview-fragment" data-uses="ink-muted">HOURS</span>
+            <strong class="preview-fragment" data-uses="ink">Mon–Thu · 18:00–23:00</strong>
+          </div>
+          <div class="sim__info-cell">
+            <span class="preview-fragment" data-uses="ink-muted">RESERVE</span>
+            <strong class="preview-fragment" data-uses="ink">077-303-4180</strong>
+          </div>
+        </div>
 
-  <!-- Export modal -->
-  <div class="export-modal" hidden data-export-modal>
-    <div class="export-modal__inner">
-      <h2>Copy CSS</h2>
-      <p>Paste this into the <code>:root</code> block of <code>src/styles/global.css</code> to make the palette permanent.</p>
-      <textarea data-export-textarea readonly></textarea>
-      <div class="export-modal__row">
-        <button class="btn-top btn-top--ghost" type="button" data-export-close>Close</button>
-        <button class="btn-top" type="button" data-export-copy>Copy to clipboard</button>
-      </div>
+        <!-- ISSUE STAMP -->
+        <div class="sim__issue preview-fragment" data-uses="paper-deep,ink-muted,rule-soft">
+          <span>VOLUME I · JERUSALEM · 2026</span>
+          <span class="sim__issue-rule preview-fragment" data-uses="accent"></span>
+          <span class="serif preview-fragment" data-uses="ink-soft">From the kitchen of Roi Achdut</span>
+        </div>
+
+        <!-- EDITORIAL SECTION -->
+        <div class="sim__article">
+          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">THE STORY</p>
+          <h3 class="sim__title preview-fragment" data-uses="ink">A new chapter, one kitchen.</h3>
+          <p class="sim__body preview-fragment" data-uses="ink-soft">
+            Roi cooks what arrived from the market that morning — sea bass,
+            blistered tomatoes, a leaf salad. The menu shifts weekly.
+            Wine list short, considered.
+          </p>
+          <div class="sim__btn-row">
+            <button class="sim__btn preview-fragment" type="button" data-uses="paper-on-photo,ink-muted">Reserve</button>
+            <button class="sim__btn ghost preview-fragment" type="button" data-uses="ink">Menu</button>
+          </div>
+        </div>
+
+        <!-- MENU TABS (shows --ink as active-tab background) -->
+        <div class="sim__tabs preview-fragment" data-uses="paper,rule-soft">
+          <span class="sim__tab is-active preview-fragment" data-uses="ink-muted,paper-on-photo">Food</span>
+          <span class="sim__tab preview-fragment" data-uses="ink-muted">Cocktails</span>
+          <span class="sim__tab preview-fragment" data-uses="ink-muted">Wine</span>
+          <span class="sim__tab preview-fragment" data-uses="ink-muted">Desserts</span>
+          <span class="sim__tabs-indicator preview-fragment" data-uses="accent"></span>
+        </div>
+
+        <!-- STRONG RULE -->
+        <div class="sim__rule preview-fragment" data-uses="rule"></div>
+
+        <!-- COCKTAIL / MENU CARD -->
+        <div class="sim__card preview-fragment" data-uses="paper-card,paper-edge">
+          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">/MENU/ · BEGINNINGS</p>
+          <div class="sim__card-row preview-fragment" data-uses="rule-soft">
+            <strong class="preview-fragment" data-uses="ink">Bread service</strong>
+            <span class="preview-fragment" data-uses="accent">32</span>
+          </div>
+          <div class="sim__card-row preview-fragment" data-uses="rule-soft">
+            <strong class="preview-fragment" data-uses="ink">Beef tartare</strong>
+            <span class="preview-fragment" data-uses="accent">78</span>
+          </div>
+          <div class="sim__card-row preview-fragment" data-uses="rule-soft">
+            <strong class="preview-fragment" data-uses="ink">Sea-bass sashimi</strong>
+            <span class="preview-fragment" data-uses="accent">78</span>
+          </div>
+        </div>
+
+        <!-- SOFT RULE -->
+        <div class="sim__rule sim__rule--soft preview-fragment" data-uses="rule-soft"></div>
+
+        <!-- PULL QUOTE (accent-soft bg, gold italic) -->
+        <blockquote class="sim__quote preview-fragment" data-uses="accent-soft">
+          <span class="preview-fragment" data-uses="ink">"We don't cook plates. We cook the </span>
+          <em class="preview-fragment" data-uses="gold">evening</em>
+          <span class="preview-fragment" data-uses="ink"> for people."</span>
+        </blockquote>
+
+        <!-- MENU CINEMA (text on photo) -->
+        <div class="sim__cinema">
+          <span class="sim__cinema-eyebrow preview-fragment" data-uses="paper-on-photo,accent">
+            01 · SOMETHING TO START
+          </span>
+          <h4 class="sim__cinema-title preview-fragment" data-uses="paper-on-photo">
+            Something to start
+          </h4>
+          <div class="sim__cinema-row">
+            <span class="preview-fragment" data-uses="paper-on-photo">Bread service</span>
+            <span class="preview-fragment" data-uses="accent">32</span>
+          </div>
+          <div class="sim__cinema-cta preview-fragment" data-uses="paper-on-photo">
+            SEE THE FULL MENU ↗
+          </div>
+        </div>
+
+        <!-- TOC -->
+        <div class="sim__toc">
+          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">ON THE MENU TONIGHT</p>
+          <div class="sim__toc-row">
+            <span class="preview-fragment" data-uses="accent">01</span>
+            <span class="preview-fragment" data-uses="ink">Something to start</span>
+            <span class="sim__toc-dots preview-fragment" data-uses="ink-faint"></span>
+            <span class="preview-fragment" data-uses="ink-soft">Openings from the kitchen</span>
+          </div>
+          <div class="sim__toc-row">
+            <span class="preview-fragment" data-uses="accent">02</span>
+            <span class="preview-fragment" data-uses="ink">Almost there</span>
+            <span class="sim__toc-dots preview-fragment" data-uses="ink-faint"></span>
+            <span class="preview-fragment" data-uses="ink-soft">Fish and meat from the market</span>
+          </div>
+        </div>
+
+        <!-- CATEGORY CHIPS -->
+        <div style="padding:0.35rem 0">
+          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent" style="padding:0 0.9rem;margin-bottom:0.5rem">SECTION ACCENTS</p>
+          <div class="sim__chips preview-fragment" data-uses="paper">
+            <span class="sim__chip sim__chip--green preview-fragment" data-uses="c-green">Food</span>
+            <span class="sim__chip sim__chip--teal  preview-fragment" data-uses="c-teal">Cocktails</span>
+            <span class="sim__chip sim__chip--slate preview-fragment" data-uses="c-slate">Wine</span>
+            <span class="sim__chip sim__chip--mauve preview-fragment" data-uses="c-mauve">Desserts</span>
+            <span class="sim__chip sim__chip--gold  preview-fragment" data-uses="gold">Highlight</span>
+          </div>
+        </div>
+
+        <!-- CONTACT TOGGLE -->
+        <div class="sim__toggle preview-fragment" data-uses="paper-card,rule">
+          <span class="sim__toggle-btn is-active preview-fragment" data-uses="ink">General inquiry</span>
+          <span class="sim__toggle-btn preview-fragment" data-uses="ink-muted">Event inquiry</span>
+          <span class="sim__toggle-ind preview-fragment" data-uses="accent"></span>
+        </div>
+
+        <!-- REACH-US CARD -->
+        <div class="sim__reach preview-fragment" data-uses="paper-card,rule-soft" style="margin-top:0.5rem">
+          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">OTHER WAYS TO REACH US</p>
+          <div class="sim__reach-row">
+            <span class="preview-fragment" data-uses="ink-muted">PHONE</span>
+            <a class="sim__reach-link preview-fragment" data-uses="ink,accent,accent-deep">077-303-4180</a>
+          </div>
+          <div class="sim__reach-row">
+            <span class="preview-fragment" data-uses="ink-muted">EMAIL</span>
+            <a class="sim__reach-link preview-fragment" data-uses="ink,accent,accent-deep">hello@zahara.rest</a>
+          </div>
+        </div>
+
+        <!-- SELECTION + FOCUS RING demos -->
+        <div class="sim__selection preview-fragment" data-uses="accent-soft,ink">
+          Normal text and
+          <mark class="sim__sel-mark preview-fragment" data-uses="accent-soft,ink">selected text highlight</mark>
+          back to normal.
+        </div>
+        <div class="sim__focus-demo">
+          <span class="preview-fragment" style="font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;font-family:'Inter',sans-serif;color:var(--ink-muted,#8A7E68);">Focus ring →</span>
+          <span class="sim__focus-ring preview-fragment" data-uses="accent,rule,ink">focused element</span>
+        </div>
+
+        <!-- SCROLLBAR demo -->
+        <div class="sim__scrollbar">
+          <div class="sim__sb-track preview-fragment" data-uses="paper-deep,rule-soft">
+            <div class="sim__sb-thumb preview-fragment" data-uses="accent,accent-deep"></div>
+          </div>
+          <span class="sim__sb-label preview-fragment" data-uses="ink-muted">Scrollbar</span>
+        </div>
+
+        <!-- FAINT METADATA -->
+        <p class="sim__faint preview-fragment" data-uses="ink-faint">
+          Last updated · 12 March 2026 · Zahara Restaurant
+        </p>
+
+        <!-- FORM STATUS -->
+        <div class="sim__status-row">
+          <div class="sim__status sim__status--ok preview-fragment" data-uses="ok">
+            ✓ Thanks — we'll be in touch within one business day.
+          </div>
+          <div class="sim__status sim__status--err preview-fragment" data-uses="err">
+            ✗ Network error. Please try again.
+          </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="sim__footer preview-fragment" data-uses="paper-deep,rule-soft">
+          <div class="sim__footer-grid">
+            <div class="sim__footer-block">
+              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">HOURS</span>
+              <span class="sim__footer-val preview-fragment" data-uses="ink">Mon–Thu 18:00–23:00</span>
+            </div>
+            <div class="sim__footer-block">
+              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">ADDRESS</span>
+              <span class="sim__footer-val preview-fragment" data-uses="ink">Ben Sira 6, Jerusalem</span>
+            </div>
+            <div class="sim__footer-block">
+              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">PHONE</span>
+              <a class="sim__footer-val preview-fragment" data-uses="ink,accent">077-303-4180</a>
+            </div>
+            <div class="sim__footer-block">
+              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">RESERVE</span>
+              <a class="sim__footer-val preview-fragment" data-uses="ink,accent">Book a table</a>
+            </div>
+          </div>
+          <div class="sim__footer-bottom preview-fragment" data-uses="ink-muted,rule-soft">
+            <span class="preview-fragment" data-uses="ink-muted">© 2026 Zahara Restaurant</span>
+            <span class="preview-fragment" data-uses="ink-muted">Accessibility · Privacy</span>
+          </div>
+        </div>
+
+      </div><!-- /sim__page -->
+    </div><!-- /sim -->
+  </aside>
+</main>
+
+<!-- Status toast -->
+<div class="toast" data-toast role="status" aria-live="polite"></div>
+
+<!-- Palette popup (shared, repositioned by JS) -->
+<div class="palette-popup" hidden data-palette-popup role="listbox" aria-label="Pick from current palette">
+  <p class="palette-popup__title">Current palette</p>
+  <div class="palette-popup__grid" data-palette-grid></div>
+</div>
+
+<!-- Export modal -->
+<div class="export-modal" hidden data-export-modal>
+  <div class="export-modal__inner">
+    <h2>Export CSS</h2>
+    <p>Paste this <code>:root</code> block into <code>src/styles/global.css</code> to make the palette permanent.</p>
+    <div class="export-modal__tabs">
+      <button class="export-tab is-active" type="button" data-export-tab="full">Full palette</button>
+      <button class="export-tab" type="button" data-export-tab="changed">Changed only</button>
+    </div>
+    <textarea data-export-textarea readonly></textarea>
+    <div class="export-modal__row">
+      <button class="btn-top btn-top--ghost" type="button" data-export-close>Close</button>
+      <button class="btn-top" type="button" data-export-copy>Copy to clipboard</button>
     </div>
   </div>
+</div>
 
-  <script is:inline define:vars={{ defaults, presets }}>
-    (function () {
-      'use strict';
-      const KEY  = 'zahara-color-overrides';
-      const root = document.documentElement;
-      const rows = Array.from(document.querySelectorAll('[data-row]'));
-      const toast= document.querySelector('[data-toast]');
-      const undoBtn = document.querySelector('[data-undo]');
+<script is:inline define:vars={{ defaults }}>
+(function () {
+  'use strict';
 
-      let bc = null;
-      try { bc = new BroadcastChannel('zahara-colors'); } catch (_) {}
+  // ────────────────────────────────────────────────────────────────────────────
+  // PRESETS — defined here in the client script, not in the Astro frontmatter.
+  // They are purely static client-side data; no server processing is needed.
+  // ────────────────────────────────────────────────────────────────────────────
+  const PRESETS = {
 
-      // ── localStorage state ──────────────────────────────────
-      function loadOv() {
-        try { return JSON.parse(localStorage.getItem(KEY) || '{}'); }
-        catch { return {}; }
-      }
-      function saveOv(o) {
-        try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (_) {}
-      }
-      const overrides = loadOv();
+    // ── Light themes ──────────────────────────────────────────────────────────
 
-      // ── Undo history (cap 30) ───────────────────────────────
-      const history = [];
-      function pushHistory(token, fromValue, toValue) {
-        history.push({ token, from: fromValue, to: toValue });
-        if (history.length > 30) history.shift();
-        undoBtn.disabled = false;
+    default: defaults,
+
+    monochrome: {
+      '--paper': '#F4F1EB', '--paper-deep': '#E8E3D8', '--paper-edge': '#D4CCBE',
+      '--paper-card': '#FAF7F1', '--paper-on-photo': '#F2EFE7',
+      '--ink': '#15110D', '--ink-soft': '#34302A', '--ink-muted': '#807868', '--ink-faint': '#B0A793',
+      '--rule': '#C8BFAA', '--rule-soft': '#DCD3BD',
+      '--accent': '#2F2A22', '--accent-deep': '#15110D', '--accent-soft': '#D8D2C0',
+      '--gold': '#8A7E68',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623',
+    },
+
+    terracotta: {
+      '--paper': '#F4EDDF', '--paper-deep': '#ECE3D0', '--paper-edge': '#DFD4BB',
+      '--paper-card': '#FBF7EE', '--paper-on-photo': '#F8F2E5',
+      '--ink': '#1A1410', '--ink-soft': '#3D362E', '--ink-muted': '#857C6C', '--ink-faint': '#B6AC97',
+      '--rule': '#D5CBB1', '--rule-soft': '#E5DCC4',
+      '--accent': '#9C4621', '--accent-deep': '#6F2F12', '--accent-soft': '#F2DFCF',
+      '--gold': '#B68A3F',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623',
+    },
+
+    forest: {
+      '--paper': '#F0EDE3', '--paper-deep': '#E2DFD2', '--paper-edge': '#CDCBB8',
+      '--paper-card': '#F8F5EB', '--paper-on-photo': '#F2EFE3',
+      '--ink': '#16181A', '--ink-soft': '#2E3431', '--ink-muted': '#6E7A72', '--ink-faint': '#A3AC9F',
+      '--rule': '#BFC6B7', '--rule-soft': '#D6DAC8',
+      '--accent': '#3F6B4B', '--accent-deep': '#214731', '--accent-soft': '#CFDFCB',
+      '--gold': '#9D936A',
+      '--c-green': '#3F6B4B', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623',
+    },
+
+    'navy-light': {
+      '--paper': '#F2EEE5', '--paper-deep': '#E5E1D5', '--paper-edge': '#CFC9B9',
+      '--paper-card': '#FAF7F0', '--paper-on-photo': '#F3EFE5',
+      '--ink': '#11161F', '--ink-soft': '#2A2F3B', '--ink-muted': '#6F7886', '--ink-faint': '#A2A8B5',
+      '--rule': '#C2C7CF', '--rule-soft': '#DCDFE3',
+      '--accent': '#2A4A7A', '--accent-deep': '#152846', '--accent-soft': '#D0DCEC',
+      '--gold': '#7E8AA0',
+      '--c-green': '#5A786A', '--c-teal': '#2D5C66', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623',
+    },
+
+    // ── Dark themes ───────────────────────────────────────────────────────────
+    // All six dark themes use dark paper surfaces so the entire UI goes dark.
+    // paper-on-photo stays light (cream/white) so text on photo heroes stays readable.
+
+    // 1. Midnight — deep navy, steel-blue accent
+    midnight: {
+      '--paper': '#090E1A', '--paper-deep': '#101626', '--paper-edge': '#1C2638',
+      '--paper-card': '#0D1422', '--paper-on-photo': '#E0E8F2',
+      '--ink': '#DCE5F0', '--ink-soft': '#A8B4C8', '--ink-muted': '#5A6A80', '--ink-faint': '#2C384C',
+      '--rule': '#1C2A3C', '--rule-soft': '#131E2C',
+      '--accent': '#5880C8', '--accent-deep': '#3460B0', '--accent-soft': '#18264A',
+      '--gold': '#90A8CC',
+      '--c-green': '#487870', '--c-teal': '#3878A0', '--c-slate': '#3A5068', '--c-mauve': '#8070A0',
+      '--ok': '#48B07A', '--err': '#D85050',
+    },
+
+    // 2. Obsidian — near-black warm, amber-gold accent
+    obsidian: {
+      '--paper': '#0C0A08', '--paper-deep': '#161210', '--paper-edge': '#242018',
+      '--paper-card': '#181410', '--paper-on-photo': '#F2ECC8',
+      '--ink': '#EEE8C8', '--ink-soft': '#C4B090', '--ink-muted': '#7A6850', '--ink-faint': '#3C3020',
+      '--rule': '#2E2418', '--rule-soft': '#201810',
+      '--accent': '#C89840', '--accent-deep': '#8C6820', '--accent-soft': '#281E08',
+      '--gold': '#E0B858',
+      '--c-green': '#5C6E58', '--c-teal': '#486868', '--c-slate': '#3E5060', '--c-mauve': '#7E6070',
+      '--ok': '#48A060', '--err': '#C84038',
+    },
+
+    // 3. Espresso — dark roasted brown, amber accent
+    espresso: {
+      '--paper': '#0E0A07', '--paper-deep': '#1A1410', '--paper-edge': '#2A2018',
+      '--paper-card': '#180E0A', '--paper-on-photo': '#F4E8C8',
+      '--ink': '#EEE0C0', '--ink-soft': '#C8A888', '--ink-muted': '#8A6840', '--ink-faint': '#402C18',
+      '--rule': '#301E14', '--rule-soft': '#20140C',
+      '--accent': '#D09840', '--accent-deep': '#906818', '--accent-soft': '#281808',
+      '--gold': '#E8B850',
+      '--c-green': '#4E6040', '--c-teal': '#3A6050', '--c-slate': '#3A5048', '--c-mauve': '#7A4862',
+      '--ok': '#48A050', '--err': '#C84030',
+    },
+
+    // 4. Plum — dark purple/plum, violet accent
+    plum: {
+      '--paper': '#0E0818', '--paper-deep': '#160E28', '--paper-edge': '#26183E',
+      '--paper-card': '#120C20', '--paper-on-photo': '#EEE8F8',
+      '--ink': '#EAE0F8', '--ink-soft': '#C0B0D8', '--ink-muted': '#7868A0', '--ink-faint': '#3C2A50',
+      '--rule': '#261640', '--rule-soft': '#180E2C',
+      '--accent': '#9E68E0', '--accent-deep': '#6A38B8', '--accent-soft': '#1E1040',
+      '--gold': '#D09858',
+      '--c-green': '#4A6C5E', '--c-teal': '#3E6082', '--c-slate': '#384858', '--c-mauve': '#9E72B2',
+      '--ok': '#48B870', '--err': '#E04860',
+    },
+
+    // 5. Dusk Navy — cool dark slate-navy, teal accent
+    'dusk-navy': {
+      '--paper': '#0C1018', '--paper-deep': '#121820', '--paper-edge': '#1E2830',
+      '--paper-card': '#101620', '--paper-on-photo': '#DDEAF2',
+      '--ink': '#D8E6F0', '--ink-soft': '#A8B8C8', '--ink-muted': '#587080', '--ink-faint': '#283040',
+      '--rule': '#1C2830', '--rule-soft': '#141E28',
+      '--accent': '#38A090', '--accent-deep': '#207878', '--accent-soft': '#0C2028',
+      '--gold': '#78B8A0',
+      '--c-green': '#488068', '--c-teal': '#388898', '--c-slate': '#3C5870', '--c-mauve': '#7C70A0',
+      '--ok': '#48B880', '--err': '#D05048',
+    },
+
+    // 6. Charcoal — warm dark gray, rust/terracotta accent
+    charcoal: {
+      '--paper': '#111010', '--paper-deep': '#1A1818', '--paper-edge': '#282420',
+      '--paper-card': '#181414', '--paper-on-photo': '#F2ECEC',
+      '--ink': '#EEE8E8', '--ink-soft': '#C4B8B0', '--ink-muted': '#7A6C64', '--ink-faint': '#3C3028',
+      '--rule': '#28201A', '--rule-soft': '#1C1810',
+      '--accent': '#B06040', '--accent-deep': '#7A3818', '--accent-soft': '#281008',
+      '--gold': '#D09060',
+      '--c-green': '#587050', '--c-teal': '#406860', '--c-slate': '#485062', '--c-mauve': '#907082',
+      '--ok': '#50A850', '--err': '#C84838',
+    },
+
+    // ── Classic dark (kept for reference) ────────────────────────────────────
+
+    'dark-frantzen': {
+      '--paper': '#0E1014', '--paper-deep': '#14171D', '--paper-edge': '#1F232B',
+      '--paper-card': '#181B22', '--paper-on-photo': '#ECEEF2',
+      '--ink': '#F0F2F6', '--ink-soft': '#C4C8D2', '--ink-muted': '#7A8090', '--ink-faint': '#4A4E58',
+      '--rule': '#2A2E36', '--rule-soft': '#1E2128',
+      '--accent': '#5878E8', '--accent-deep': '#3854D0', '--accent-soft': '#1A2440',
+      '--gold': '#8AA4FF',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4DB378', '--err': '#E54F4F',
+    },
+
+    'dark-white': {
+      '--paper': '#0A0A0A', '--paper-deep': '#121214', '--paper-edge': '#26262A',
+      '--paper-card': '#17171A', '--paper-on-photo': '#F5F5F5',
+      '--ink': '#FFFFFF', '--ink-soft': '#D8D8D8', '--ink-muted': '#8C8C8C', '--ink-faint': '#454548',
+      '--rule': '#2A2A2D', '--rule-soft': '#1A1A1D',
+      '--accent': '#FFFFFF', '--accent-deep': '#C8C8C8', '--accent-soft': '#2A2A2D',
+      '--gold': '#BCBCBC',
+      '--c-green': '#7B9685', '--c-teal': '#558693', '--c-slate': '#5B6B71', '--c-mauve': '#A697A1',
+      '--ok': '#5BC287', '--err': '#EF5A5A',
+    },
+  };
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // STATE & STORAGE
+  // ────────────────────────────────────────────────────────────────────────────
+  const KEY  = 'zahara-color-overrides';
+  const root = document.documentElement;
+  const rows = Array.from(document.querySelectorAll('[data-row]'));
+
+  let bc = null;
+  try { bc = new BroadcastChannel('zahara-colors'); } catch (_) {}
+
+  function loadSaved() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+  }
+  function persist(o) {
+    try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (_) {}
+  }
+
+  // savedState: last-persisted state (localStorage)
+  // currentState: current :root state, may include unsaved changes
+  let savedState   = loadSaved();
+  let currentState = Object.assign({}, savedState);
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // UI REFS
+  // ────────────────────────────────────────────────────────────────────────────
+  const toastEl      = document.querySelector('[data-toast]');
+  const undoBtn      = document.querySelector('[data-undo]');
+  const saveBtn      = document.querySelector('[data-save]');
+  const discardBtn   = document.querySelector('[data-discard]');
+  const pendingBadge = document.querySelector('[data-pending-badge]');
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // INIT — apply saved overrides to :root
+  // ────────────────────────────────────────────────────────────────────────────
+  for (const [token, value] of Object.entries(currentState)) {
+    root.style.setProperty(token, value);
+  }
+  rows.forEach((row) => {
+    const token = row.dataset.token;
+    const val   = (currentState[token] || row.dataset.default).toUpperCase();
+    _syncRowUI(row, val, { skipHistory: true });
+  });
+  _refreshAllContrast();
+  _updatePendingUI();
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // UNDO HISTORY
+  // ────────────────────────────────────────────────────────────────────────────
+  const history = [];
+
+  function _pushHistory(token, from, to) {
+    history.push({ token, from, to });
+    if (history.length > 50) history.shift();
+    undoBtn.disabled = false;
+  }
+
+  function undo() {
+    const last = history.pop();
+    if (!last) { undoBtn.disabled = true; return; }
+    applyToken(last.token, last.from, { silent: true });
+    if (history.length === 0) undoBtn.disabled = true;
+  }
+
+  undoBtn.addEventListener('click', undo);
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // PENDING TRACKING
+  // ────────────────────────────────────────────────────────────────────────────
+  function _isPending(token) {
+    const cur = (currentState[token] || defaults[token] || '').toUpperCase();
+    const sav = (savedState[token]   || defaults[token] || '').toUpperCase();
+    return cur !== sav;
+  }
+
+  function _countPending() {
+    return rows.filter((r) => _isPending(r.dataset.token)).length;
+  }
+
+  function _updatePendingUI() {
+    const n = _countPending();
+    if (n > 0) {
+      pendingBadge.textContent = n + ' unsaved';
+      pendingBadge.hidden = false;
+    } else {
+      pendingBadge.hidden = true;
+    }
+    saveBtn.disabled    = n === 0;
+    discardBtn.disabled = n === 0;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // SAVE
+  // ────────────────────────────────────────────────────────────────────────────
+  function save() {
+    savedState = Object.assign({}, currentState);
+    persist(savedState);
+    if (bc) bc.postMessage({ type: 'colors-changed', overrides: savedState });
+    _updatePendingUI();
+    _refreshAllDots();
+    showToast('Saved ✓');
+  }
+
+  saveBtn.addEventListener('click', save);
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // DISCARD
+  // ────────────────────────────────────────────────────────────────────────────
+  function discard() {
+    // Reset currentState to savedState
+    currentState = Object.assign({}, savedState);
+    // Remove all :root overrides then re-apply savedState
+    rows.forEach((r) => root.style.removeProperty(r.dataset.token));
+    for (const [token, value] of Object.entries(currentState)) {
+      root.style.setProperty(token, value);
+    }
+    // Sync every row's UI
+    rows.forEach((row) => {
+      const val = (currentState[row.dataset.token] || row.dataset.default).toUpperCase();
+      _syncRowUI(row, val, { skipHistory: true });
+    });
+    history.length = 0;
+    undoBtn.disabled = true;
+    _refreshAllContrast();
+    _updatePendingUI();
+    showToast('Changes discarded');
+  }
+
+  discardBtn.addEventListener('click', () => {
+    if (Object.keys(currentState).length === 0 ||
+        !confirm('Discard all unsaved changes?')) return;
+    discard();
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // APPLY TOKEN — applies to :root immediately (preview updates), tracks
+  // the change as "pending" but does NOT write to localStorage.
+  // ────────────────────────────────────────────────────────────────────────────
+  function applyToken(token, value, opts) {
+    opts = opts || {};
+    const row = rows.find((r) => r.dataset.token === token);
+    if (!row) return;
+    const normalised = _normaliseHex(value);
+    if (!normalised) return;
+
+    const prev = (currentState[token] || row.dataset.default).toUpperCase();
+    if (!opts.silent && prev !== normalised) {
+      _pushHistory(token, prev, normalised);
+    }
+
+    // Apply to :root
+    if (normalised === row.dataset.default.toUpperCase()) {
+      root.style.removeProperty(token);
+      delete currentState[token];
+    } else {
+      root.style.setProperty(token, normalised);
+      currentState[token] = normalised;
+    }
+
+    _syncRowUI(row, normalised, opts);
+    _refreshAllContrast();
+    if (!opts.silent) _highlight(token);
+    _updatePendingUI();
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // SYNC ROW UI (picker + hex + dots)
+  // ────────────────────────────────────────────────────────────────────────────
+  function _syncRowUI(row, value, opts) {
+    opts = opts || {};
+    const picker = row.querySelector('[data-picker]');
+    const hexEl  = row.querySelector('[data-hex]');
+    const dot    = row.querySelector('[data-modified-dot]');
+
+    if (picker.value.toUpperCase() !== value) picker.value = value;
+    if (!opts.skipHexSync && document.activeElement !== hexEl) {
+      hexEl.value = value;
+    }
+    hexEl.classList.remove('is-invalid');
+
+    // Dot: orange = modified from default; blue = pending (unsaved)
+    const isModified = value !== row.dataset.default.toUpperCase();
+    const isPend     = _isPending(row.dataset.token);
+    dot.classList.toggle('is-modified', isModified && !isPend);
+    dot.classList.toggle('is-pending',  isPend);
+    dot.title = isPend ? 'Unsaved change' : (isModified ? 'Modified from default' : '');
+  }
+
+  function _refreshAllDots() {
+    rows.forEach((row) => {
+      const val = (currentState[row.dataset.token] || row.dataset.default).toUpperCase();
+      _syncRowUI(row, val, { skipHexSync: true, skipHistory: true });
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // WIRE EACH ROW
+  // ────────────────────────────────────────────────────────────────────────────
+  rows.forEach((row) => {
+    const token    = row.dataset.token;
+    const picker   = row.querySelector('[data-picker]');
+    const hexEl    = row.querySelector('[data-hex]');
+    const showBtn  = row.querySelector('[data-show]');
+    const copyBtn  = row.querySelector('[data-copy]');
+    const resetBtn = row.querySelector('[data-reset-one]');
+
+    picker.addEventListener('input', () => {
+      applyToken(token, picker.value);
+    });
+
+    let hexTimer = null;
+    hexEl.addEventListener('input', () => {
+      const v = _normaliseHex(hexEl.value);
+      if (!v) { hexEl.classList.add('is-invalid'); return; }
+      hexEl.classList.remove('is-invalid');
+      clearTimeout(hexTimer);
+      hexTimer = setTimeout(() => applyToken(token, v), 160);
+    });
+    hexEl.addEventListener('blur', () => {
+      const v = _normaliseHex(hexEl.value);
+      if (v) hexEl.value = v;
+      else   hexEl.value = (currentState[token] || row.dataset.default).toUpperCase();
+      hexEl.classList.remove('is-invalid');
+    });
+    hexEl.addEventListener('focus', () => hexEl.select());
+
+    showBtn.addEventListener('click', () => {
+      _highlight(token);
+      showBtn.classList.remove('is-pulsing');
+      requestAnimationFrame(() => showBtn.classList.add('is-pulsing'));
+      setTimeout(() => showBtn.classList.remove('is-pulsing'), 1300);
+    });
+
+    copyBtn.addEventListener('click', async () => {
+      const val = (currentState[token] || row.dataset.default).toUpperCase();
+      try { await navigator.clipboard.writeText(val); } catch (_) {}
+      showToast('Copied ' + val);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      applyToken(token, row.dataset.default);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // RESET ALL
+  // ────────────────────────────────────────────────────────────────────────────
+  document.querySelector('[data-reset]').addEventListener('click', () => {
+    if (!confirm('Reset every token to the project default? This will mark all tokens as unsaved.')) return;
+    rows.forEach((r) => {
+      root.style.removeProperty(r.dataset.token);
+      delete currentState[r.dataset.token];
+      _syncRowUI(r, r.dataset.default.toUpperCase(), { skipHistory: true });
+    });
+    history.length = 0;
+    undoBtn.disabled = true;
+    _refreshAllContrast();
+    _updatePendingUI();
+    showToast('Reset to defaults (not yet saved)');
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // PRESET
+  // ────────────────────────────────────────────────────────────────────────────
+  document.querySelector('[data-preset]').addEventListener('change', function () {
+    const name = this.value;
+    if (!name || !PRESETS[name]) return;
+    const palette = PRESETS[name];
+    Object.entries(palette).forEach(([tk, val]) => applyToken(tk, val));
+    showToast('Preview: ' + name + ' (not saved)');
+    this.value = '';
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // SEARCH / FILTER
+  // ────────────────────────────────────────────────────────────────────────────
+  const searchInput      = document.querySelector('[data-search]');
+  const modifiedOnlyChk  = document.querySelector('[data-modified-only]');
+
+  function _applyFilter() {
+    const q    = searchInput.value.trim().toLowerCase();
+    const mOnly = modifiedOnlyChk.checked;
+    rows.forEach((r) => {
+      const matchQ = !q || r.dataset.searchKey.includes(q);
+      const matchM = !mOnly || (currentState[r.dataset.token] !== undefined &&
+                                currentState[r.dataset.token].toUpperCase() !== r.dataset.default.toUpperCase());
+      r.classList.toggle('is-hidden', !(matchQ && matchM));
+    });
+    document.querySelectorAll('[data-group]').forEach((g) => {
+      const visible = g.querySelectorAll('[data-row]:not(.is-hidden)').length;
+      g.style.display = visible ? '' : 'none';
+    });
+  }
+
+  searchInput.addEventListener('input', _applyFilter);
+  modifiedOnlyChk.addEventListener('change', _applyFilter);
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // GROUP COLLAPSE / EXPAND
+  // ────────────────────────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-group-toggle]').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      toggle.closest('[data-group]').classList.toggle('is-collapsed');
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // PALETTE POPUP
+  // ────────────────────────────────────────────────────────────────────────────
+  const palettePopup = document.querySelector('[data-palette-popup]');
+  const paletteGrid  = document.querySelector('[data-palette-grid]');
+  let activePaletteRow = null;
+
+  function _openPalettePopup(btn, targetRow) {
+    activePaletteRow = targetRow;
+
+    // Populate swatches with all current token values
+    paletteGrid.innerHTML = '';
+    rows.forEach((r) => {
+      const tk  = r.dataset.token;
+      const val = (currentState[tk] || r.dataset.default).toUpperCase();
+      const label = r.querySelector('.row__name').firstChild.textContent.trim();
+      const sw = document.createElement('button');
+      sw.className = 'palette-swatch';
+      sw.style.background = val;
+      sw.title = label + '\n' + val;
+      sw.setAttribute('data-swatch-value', val);
+      sw.setAttribute('aria-label', label + ': ' + val);
+      paletteGrid.appendChild(sw);
+    });
+
+    // Position near button
+    const rect = btn.getBoundingClientRect();
+    const top  = rect.bottom + window.scrollY + 4;
+    const left = Math.min(rect.left + window.scrollX, window.innerWidth - 230);
+    palettePopup.style.top  = top  + 'px';
+    palettePopup.style.left = left + 'px';
+    palettePopup.hidden = false;
+  }
+
+  rows.forEach((row) => {
+    row.querySelector('[data-palette-btn]').addEventListener('click', function (e) {
+      if (!palettePopup.hidden && activePaletteRow === row) {
+        palettePopup.hidden = true; activePaletteRow = null; return;
       }
-      function undo() {
-        const last = history.pop();
-        if (!last) { undoBtn.disabled = true; return; }
-        // Apply the previous value without recording another history entry.
-        applyToken(last.token, last.from, { silent: true });
-        if (history.length === 0) undoBtn.disabled = true;
-      }
-      undoBtn.addEventListener('click', undo);
-      document.addEventListener('keydown', (e) => {
-        const meta = e.metaKey || e.ctrlKey;
-        if (meta && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-          e.preventDefault();
-          undo();
-        }
+      _openPalettePopup(this, row);
+      e.stopPropagation();
+    });
+  });
+
+  paletteGrid.addEventListener('click', (e) => {
+    const sw = e.target.closest('.palette-swatch');
+    if (!sw || !activePaletteRow) return;
+    applyToken(activePaletteRow.dataset.token, sw.dataset.swatchValue);
+    palettePopup.hidden = true;
+    activePaletteRow = null;
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!palettePopup.hidden && !palettePopup.contains(e.target)) {
+      palettePopup.hidden = true; activePaletteRow = null;
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // KEYBOARD SHORTCUTS
+  // ────────────────────────────────────────────────────────────────────────────
+  document.addEventListener('keydown', (e) => {
+    const meta = e.metaKey || e.ctrlKey;
+    if (meta && !e.shiftKey && e.key === 's') {
+      e.preventDefault();
+      if (_countPending() > 0) save();
+    }
+    if (meta && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      undo();
+    }
+    if (e.key === 'Escape') {
+      palettePopup.hidden = true;
+      activePaletteRow = null;
+      if (!exportModal.hidden) exportModal.hidden = true;
+    }
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // CONTRAST
+  // ────────────────────────────────────────────────────────────────────────────
+  function _relLum(hex) {
+    const m = hex.replace('#','').match(/.{2}/g);
+    if (!m) return 0;
+    const [r, g, b] = m.map((s) => {
+      let c = parseInt(s, 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function _contrastRatio(a, b) {
+    const la = _relLum(a), lb = _relLum(b);
+    const [lo, hi] = la > lb ? [lb, la] : [la, lb];
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  function _refreshAllContrast() {
+    const paper = (root.style.getPropertyValue('--paper').trim() || defaults['--paper']).toUpperCase();
+    rows.forEach((row) => {
+      const token = row.dataset.token;
+      const isText = /^--(ink|accent|gold|c-|ok|err)/.test(token);
+      const badge  = row.querySelector('[data-contrast]');
+      if (!isText) { badge.textContent = ''; badge.className = 'row__contrast'; return; }
+      const val = (root.style.getPropertyValue(token).trim() || row.dataset.default).toUpperCase();
+      const c   = _contrastRatio(val, paper);
+      let band, label;
+      if      (c >= 7)   { band = 'aaa'; label = c.toFixed(1) + ':1 AAA'; }
+      else if (c >= 4.5) { band = 'aa';  label = c.toFixed(1) + ':1 AA';  }
+      else if (c >= 3)   { band = 'aa';  label = c.toFixed(1) + ':1 AA-L';}
+      else               { band = 'lo';  label = c.toFixed(1) + ':1 lo';  }
+      badge.textContent = label;
+      badge.className   = 'row__contrast row__contrast--' + band;
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // HIGHLIGHT PREVIEW FRAGMENTS
+  // ────────────────────────────────────────────────────────────────────────────
+  let highlightTimer = null;
+
+  function _highlight(token) {
+    const short = token.replace(/^--/, '');
+    document.querySelectorAll('.preview-fragment.is-highlighted')
+      .forEach((el) => el.classList.remove('is-highlighted'));
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.preview-fragment').forEach((el) => {
+        const uses = (el.dataset.uses || '').split(',').map((s) => s.trim());
+        if (uses.includes(short)) el.classList.add('is-highlighted');
       });
+    });
+    clearTimeout(highlightTimer);
+    highlightTimer = setTimeout(() => {
+      document.querySelectorAll('.preview-fragment.is-highlighted')
+        .forEach((el) => el.classList.remove('is-highlighted'));
+    }, 1600);
+  }
 
-      // ── Toast ───────────────────────────────────────────────
-      let toastTimer = null;
-      function showToast(msg) {
-        toast.textContent = msg;
-        toast.classList.add('is-visible');
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 1600);
-      }
+  // ────────────────────────────────────────────────────────────────────────────
+  // TOAST
+  // ────────────────────────────────────────────────────────────────────────────
+  let toastTimer = null;
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), 1800);
+  }
 
-      // ── Validation / normalisation ──────────────────────────
-      function normaliseHex(v) {
-        if (!v) return null;
-        v = v.trim();
-        if (!v.startsWith('#')) v = '#' + v;
-        if (!/^#[0-9a-fA-F]{6}$/.test(v)) return null;
-        return v.toUpperCase();
-      }
+  // ────────────────────────────────────────────────────────────────────────────
+  // EXPORT MODAL
+  // ────────────────────────────────────────────────────────────────────────────
+  const exportModal    = document.querySelector('[data-export-modal]');
+  const exportTextarea = document.querySelector('[data-export-textarea]');
+  let exportMode = 'full';
 
-      // ── Contrast (WCAG) ─────────────────────────────────────
-      function relLum(hex) {
-        const m = hex.replace('#','').match(/.{2}/g);
-        if (!m) return 0;
-        const [r, g, b] = m.map((s) => {
-          let c = parseInt(s, 16) / 255;
-          return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-        });
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      }
-      function contrast(a, b) {
-        const la = relLum(a), lb = relLum(b);
-        const [lo, hi] = la > lb ? [lb, la] : [la, lb];
-        return (hi + 0.05) / (lo + 0.05);
-      }
-      function rateContrast(value, row) {
-        // For text-coloured tokens (ink*, accent*, status), measure
-        // contrast against the current paper.  For everything else,
-        // skip — there's no obvious "second colour" to compare.
-        const token = row.dataset.token;
-        const isText = /^--(ink|accent|gold|c-|ok|err)/.test(token);
-        if (!isText) return null;
-        const paper = root.style.getPropertyValue('--paper').trim() ||
-                      defaults['--paper'];
-        const c = contrast(value, paper);
-        let band, label;
-        if      (c >= 7)   { band = 'aaa'; label = c.toFixed(2) + ':1 AAA'; }
-        else if (c >= 4.5) { band = 'aa';  label = c.toFixed(2) + ':1 AA';  }
-        else if (c >= 3)   { band = 'aa';  label = c.toFixed(2) + ':1 AA-L';}
-        else               { band = 'lo';  label = c.toFixed(2) + ':1 lo';  }
-        return { band, label };
-      }
-      function refreshAllContrast() {
-        rows.forEach((row) => {
-          const value = root.style.getPropertyValue(row.dataset.token).trim()
-                     || row.dataset.default;
-          const badge = row.querySelector('[data-contrast]');
-          const c = rateContrast(value, row);
-          if (!c) { badge.textContent = ''; badge.className = 'row__contrast'; return; }
-          badge.textContent = c.label;
-          badge.className = 'row__contrast row__contrast--' + c.band;
-        });
-      }
+  function _buildCss(mode) {
+    const lines = [];
+    rows.forEach((row) => {
+      const token = row.dataset.token;
+      const value = (root.style.getPropertyValue(token).trim() || row.dataset.default).toUpperCase();
+      if (mode === 'changed' && value === row.dataset.default.toUpperCase()) return;
+      lines.push('  ' + token.padEnd(20) + ': ' + value + ';');
+    });
+    if (mode === 'changed' && lines.length === 0) return '/* No changes from default */';
+    return ':root {\n' + lines.join('\n') + '\n}';
+  }
 
-      // ── Highlight affected preview fragments ─────────────────
-      let highlightTimer = null;
-      function highlight(token) {
-        // Find every fragment whose data-uses includes this token's
-        // short name (without the `--` prefix).
-        const short = token.replace(/^--/, '');
-        document.querySelectorAll('.preview-fragment.is-highlighted')
-          .forEach((el) => el.classList.remove('is-highlighted'));
-        // Re-trigger the animation by forcing reflow.
-        requestAnimationFrame(() => {
-          document.querySelectorAll('.preview-fragment').forEach((el) => {
-            const uses = (el.dataset.uses || '').split(',').map((s) => s.trim());
-            if (uses.includes(short)) el.classList.add('is-highlighted');
-          });
-        });
-        clearTimeout(highlightTimer);
-        highlightTimer = setTimeout(() => {
-          document.querySelectorAll('.preview-fragment.is-highlighted')
-            .forEach((el) => el.classList.remove('is-highlighted'));
-        }, 1500);
-      }
+  document.querySelector('[data-export]').addEventListener('click', () => {
+    exportTextarea.value = _buildCss(exportMode);
+    exportModal.hidden = false;
+    exportTextarea.select();
+  });
 
-      // ── Apply a single token (UI + state + broadcast + history)
-      function applyToken(token, value, opts = {}) {
-        const row = rows.find((r) => r.dataset.token === token);
-        if (!row) return;
-        const prev = root.style.getPropertyValue(token).trim() || row.dataset.default;
-        const normalised = normaliseHex(value);
-        if (!normalised) return;
+  document.querySelectorAll('[data-export-tab]').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      exportMode = tab.dataset.exportTab;
+      document.querySelectorAll('[data-export-tab]').forEach((t) =>
+        t.classList.toggle('is-active', t === tab));
+      exportTextarea.value = _buildCss(exportMode);
+    });
+  });
 
-        if (!opts.silent && prev !== normalised) {
-          pushHistory(token, prev, normalised);
-        }
+  document.querySelector('[data-export-close]').addEventListener('click', () => {
+    exportModal.hidden = true;
+  });
 
-        // Apply to :root. If the new value equals the project default,
-        // REMOVE the inline override instead of setting it — that way
-        // the editor itself reverts to the global.css :root declaration,
-        // matching the behaviour the broadcast listener gives other tabs.
-        if (normalised === row.dataset.default) {
-          root.style.removeProperty(token);
-          delete overrides[token];
-        } else {
-          root.style.setProperty(token, normalised);
-          overrides[token] = normalised;
-        }
-        saveOv(overrides);
+  document.querySelector('[data-export-copy]').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(exportTextarea.value); }
+    catch (_) { exportTextarea.select(); exportTextarea.setSelectionRange(0, 99999); }
+    const btn = document.querySelector('[data-export-copy]');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 1400);
+  });
 
-        // Sync UI inputs (picker + hex)
-        const picker = row.querySelector('[data-picker]');
-        const hex    = row.querySelector('[data-hex]');
-        if (picker.value.toUpperCase() !== normalised) picker.value = normalised;
-        if (document.activeElement !== hex && hex.value.toUpperCase() !== normalised) {
-          hex.value = normalised;
-        }
-        hex.classList.remove('is-invalid');
+  exportModal.addEventListener('click', (e) => {
+    if (e.target === exportModal) exportModal.hidden = true;
+  });
 
-        // Modified dot
-        const isModified = normalised !== row.dataset.default;
-        row.querySelector('[data-modified-dot]').classList.toggle('is-modified', isModified);
+  // ────────────────────────────────────────────────────────────────────────────
+  // HELPERS
+  // ────────────────────────────────────────────────────────────────────────────
+  function _normaliseHex(v) {
+    if (!v) return null;
+    v = v.trim();
+    if (!v.startsWith('#')) v = '#' + v;
+    if (v.length === 4) v = '#' + v[1]+v[1] + v[2]+v[2] + v[3]+v[3];
+    if (!/^#[0-9a-fA-F]{6}$/.test(v)) return null;
+    return v.toUpperCase();
+  }
 
-        // Refresh contrast labels (paper changes affect every text token)
-        refreshAllContrast();
-
-        // Visual highlight on the preview
-        if (!opts.silent) highlight(token);
-
-        if (bc) bc.postMessage({ type: 'colors-changed', overrides });
-        if (!opts.silent) showToast('Saved');
-      }
-
-      // ── Wire each row ──────────────────────────────────────
-      rows.forEach((row) => {
-        const token  = row.dataset.token;
-        const def    = row.dataset.default;
-        const picker = row.querySelector('[data-picker]');
-        const hex    = row.querySelector('[data-hex]');
-        const show   = row.querySelector('[data-show]');
-        const copy   = row.querySelector('[data-copy]');
-        const resetOne = row.querySelector('[data-reset-one]');
-
-        // Init from existing overrides. Only ACTUAL overrides (non-default
-        // values) get an inline style — defaults inherit from global.css
-        // :root, matching applyToken's reset-to-default behaviour.
-        const initial = overrides[token] || def;
-        picker.value = initial;
-        hex.value    = initial.toUpperCase();
-        if (initial.toUpperCase() !== def.toUpperCase()) {
-          root.style.setProperty(token, initial);
-          row.querySelector('[data-modified-dot]').classList.add('is-modified');
-        } else {
-          root.style.removeProperty(token);
-        }
-
-        // Picker → live update
-        picker.addEventListener('input', () => {
-          applyToken(token, picker.value);
-        });
-
-        // Hex text input — debounced live update, validates as the
-        // user types. Paste works because it's a normal text input.
-        let hexTimer = null;
-        hex.addEventListener('input', () => {
-          const v = normaliseHex(hex.value);
-          if (!v) {
-            hex.classList.add('is-invalid');
-            return;
-          }
-          hex.classList.remove('is-invalid');
-          clearTimeout(hexTimer);
-          hexTimer = setTimeout(() => applyToken(token, v), 180);
-        });
-        // On blur, fully normalise the displayed value
-        hex.addEventListener('blur', () => {
-          const v = normaliseHex(hex.value);
-          if (v) hex.value = v;
-          else   hex.value = root.style.getPropertyValue(token).trim() || def;
-          hex.classList.remove('is-invalid');
-        });
-        // Select all on focus (easier to paste over)
-        hex.addEventListener('focus', () => hex.select());
-
-        // "Show" — highlights the preview elements that use this token
-        // WITHOUT changing any value. Useful for exploring what an
-        // edit would affect before committing to a colour change.
-        show.addEventListener('click', () => {
-          highlight(token);
-          show.classList.remove('is-pulsing');
-          // Re-trigger animation on the button itself for instant feedback.
-          requestAnimationFrame(() => show.classList.add('is-pulsing'));
-          setTimeout(() => show.classList.remove('is-pulsing'), 1300);
-        });
-
-        // Copy hex to clipboard
-        copy.addEventListener('click', async () => {
-          try { await navigator.clipboard.writeText(hex.value); }
-          catch { /* clipboard might be blocked */ }
-          showToast('Copied ' + hex.value);
-        });
-
-        // Reset this token to default
-        resetOne.addEventListener('click', () => {
-          applyToken(token, def);
-        });
-      });
-
-      refreshAllContrast();
-
-      // ── Search / filter ─────────────────────────────────────
-      const searchInput = document.querySelector('[data-search]');
-      searchInput.addEventListener('input', () => {
-        const q = searchInput.value.trim().toLowerCase();
-        rows.forEach((r) => {
-          const match = !q || r.dataset.searchKey.includes(q);
-          r.classList.toggle('is-hidden', !match);
-        });
-        // Hide groups that became empty
-        document.querySelectorAll('[data-group]').forEach((g) => {
-          const visible = g.querySelectorAll('[data-row]:not(.is-hidden)').length;
-          g.style.display = visible ? '' : 'none';
-        });
-      });
-
-      // ── Preset themes ───────────────────────────────────────
-      const presetSelect = document.querySelector('[data-preset]');
-      presetSelect.addEventListener('change', () => {
-        const name = presetSelect.value;
-        if (!name || !presets[name]) return;
-        const palette = presets[name];
-        // Apply all tokens (records each in history)
-        for (const [tk, value] of Object.entries(palette)) {
-          applyToken(tk, value);
-        }
-        showToast('Applied: ' + name);
-        presetSelect.value = '';
-      });
-
-      // ── Reset all ───────────────────────────────────────────
-      document.querySelector('[data-reset]').addEventListener('click', () => {
-        if (!confirm('Reset every token back to the project default?')) return;
-        // Remove every inline custom-property override; don't re-set the
-        // defaults inline (those live in :root in global.css).
-        for (const t of Object.keys(overrides)) {
-          delete overrides[t];
-          root.style.removeProperty(t);
-        }
-        rows.forEach((row) => {
-          const def = row.dataset.default;
-          row.querySelector('[data-picker]').value = def;
-          row.querySelector('[data-hex]').value    = def.toUpperCase();
-          row.querySelector('[data-hex]').classList.remove('is-invalid');
-          row.querySelector('[data-modified-dot]').classList.remove('is-modified');
-          // Make sure no stale inline style lingers from earlier sessions.
-          root.style.removeProperty(row.dataset.token);
-        });
-        saveOv({});
-        history.length = 0;
-        undoBtn.disabled = true;
-        refreshAllContrast();
-        if (bc) bc.postMessage({ type: 'reset' });
-        showToast('Reset');
-      });
-
-      // ── Export modal ────────────────────────────────────────
-      const modal    = document.querySelector('[data-export-modal]');
-      const textarea = document.querySelector('[data-export-textarea]');
-      function buildCss() {
-        const lines = [];
-        rows.forEach((row) => {
-          const token = row.dataset.token;
-          const value = (root.style.getPropertyValue(token).trim()
-                       || row.dataset.default).toUpperCase();
-          lines.push('  ' + token.padEnd(18) + ': ' + value + ';');
-        });
-        return ':root {\n' + lines.join('\n') + '\n}';
-      }
-      document.querySelector('[data-export]').addEventListener('click', () => {
-        textarea.value = buildCss();
-        modal.hidden = false;
-        textarea.select();
-      });
-      document.querySelector('[data-export-close]').addEventListener('click', () => {
-        modal.hidden = true;
-      });
-      document.querySelector('[data-export-copy]').addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(textarea.value); }
-        catch { textarea.select(); document.execCommand('copy'); }
-        const btn = document.querySelector('[data-export-copy]');
-        const original = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = original; }, 1400);
-      });
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.hidden = true;
-      });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !modal.hidden) modal.hidden = true;
-      });
-    })();
-  </script>
+})();
+</script>
 </body>
 </html>

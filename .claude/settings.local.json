@@ -5,7 +5,9 @@
       "Bash(npm install *)",
       "Bash(find /Users/shr3kt/Downloads -name \"*.docx\" -maxdepth 3 2>/dev/null; ls /Users/shr3kt/Downloads/restaurant-site-2/src/data/)",
       "Read(//Users/shr3kt/Downloads/**)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(npx astro *)",
+      "PowerShell(cd \"c:\\\\Users\\\\gotsh\\\\Documents\\\\Zahara\\\\restaurant-site-2\"; \\(Get-Item src/pages/admin/colors.astro\\).Length)"
     ]
   }
 }

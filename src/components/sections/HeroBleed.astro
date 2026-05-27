@@ -39,7 +39,7 @@ const scrollLabel = lang === 'he' ? 'גלול' : 'Scroll';
       {t.heroHeadline}
       <span class="hero-bleed__title-mark">{t.heroTitleMark}</span>
     </h1>
-    <p class="hero-bleed__lede fade-up" set:html={t.heroLede} />
+    <!-- <p class="hero-bleed__lede fade-up" set:html={t.heroLede} /> -->
     <div class="btn-row fade-up">
       <a class="btn"          href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.heroCtaReserve}</a>
       <a class="btn btn--ghost" href={path('menu', lang)}>{t.heroCtaMenu}</a>

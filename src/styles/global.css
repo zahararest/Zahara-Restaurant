@@ -654,13 +654,13 @@ body.nav-open { overflow: hidden; }
 
 .hero-bleed .btn {
   background: var(--paper-on-photo);
-  color: var(--ink);
-  border-color: var(--paper-on-photo);
+  color: var(--ink-muted);
+  border-color: var(--ink-muted);
 }
 .hero-bleed .btn:hover {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--paper-on-photo);
+  border-color: var(--accent);
 }
 .hero-bleed .btn--ghost {
   background: transparent;
@@ -669,7 +669,7 @@ body.nav-open { overflow: hidden; }
 }
 .hero-bleed .btn--ghost:hover {
   background: var(--paper-on-photo);
-  color: var(--ink);
+  color: var(--ink-muted);
 }
 
 @media (max-width: 600px) {
@@ -1144,8 +1144,8 @@ html[lang="he"] .menu-hero__label { font-family: var(--font-display-he); }
 
 .menu-tab.is-active {
   color: var(--paper-on-photo);
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--ink-muted);
+  border-color: var(--ink-muted);
 }
 
 .menu-panel { display: none; }
