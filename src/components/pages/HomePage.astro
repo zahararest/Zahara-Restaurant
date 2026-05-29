@@ -33,8 +33,15 @@ import { pick, home as copy } from '../../data/i18n';
 import { PHOTOS, MENU_CATEGORY_PHOTOS } from '../../data/photos';
 import type { PhotoEntry } from '../../data/photos';
 import { path } from '../../lib/paths';
+import { resized, resizedSrcset } from '../../lib/photo';
 import { menuHe } from '../../data/menu-he';
 import type { Lang } from '../../data/i18n';
+
+// Chapter-photo widths. The browser picks one based on viewport size
+// and DPR; we never need the full 6000px original — even 2400 is well
+// over what a 4K display shows. 800 covers mobile, 1200 most laptops,
+// 1800 retina, 2400 4K.
+const CHAPTER_WIDTHS = [800, 1200, 1800, 2400] as const;
 
 export interface Props { lang: Lang }
 
@@ -170,6 +177,28 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
 ---
 
 <BaseLayout title={title} lang={lang} transparentHeader>
+  {/* Preload every cinematic-chapter photo in <head>, but using the
+      Cloudflare-resized version. Originals are 5–6 MB JPGs; serving
+      them through /cdn-cgi/image/ (Cloudflare Image Resizing) returns
+      ~300 KB WebP/AVIF versions at the size the browser actually needs,
+      which fixes the "photo goes black on scroll-back" memory eviction
+      that even eager+sync decoding couldn't beat for the originals. */}
+  <Fragment slot="head">
+    {chapters.map((c) => (
+      <link
+        rel="preload"
+        as="image"
+        href={resized(c.photo.src, 1800)}
+        imagesrcset={resizedSrcset(c.photo.src, CHAPTER_WIDTHS)}
+        imagesizes="100vw"
+      />
+    ))}
+    {/* Mood backdrops behind section-on-photo are heavily darkened, so
+        they don't need huge resolutions — 1600 is plenty. */}
+    <link rel="preload" as="image" href={resized(PHOTOS.moodDining.src, 1600)} />
+    <link rel="preload" as="image" href={resized(PHOTOS.moodChef.src,   1600)} />
+  </Fragment>
+
   <div data-section-name={sec.hero}>
     <HeroBleed lang={lang} photo={PHOTOS.hero} />
     <InfoStrip lang={lang} />
@@ -188,7 +217,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
   <div data-section-name={sec.story}>
     {/* Editorial story sits on a moody dining-room photo, grayscaled
         and darkened so the body text reads in paper-cream over it. */}
-    <div class="section-on-photo" style={`--bg-photo: url(${PHOTOS.moodDining.src})`}>
+    <div class="section-on-photo" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
       <Editorial
         eyebrow={t.storyEyebrow}
         heading={t.storyHeading}
@@ -208,7 +237,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     />
     {/* Pull quote sits on a moody chef-portrait photo. */}
     <div class="section-on-photo section-on-photo--quote"
-         style={`--bg-photo: url(${PHOTOS.moodChef.src})`}>
+         style={`--bg-photo: url(${resized(PHOTOS.moodChef.src, 1600)})`}>
       <PullQuote quote={t.pullQuote} attribution={t.pullQuoteAttr} />
     </div>
   </div>
@@ -249,17 +278,25 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
           data-chapter-id={c.id}
           data-chapter-pos={i === 0 ? 'first' : i === chapters.length - 1 ? 'last' : 'mid'}
         >
-          <div
-            class="menu-cinema__media parallax"
-            data-parallax="0.12"
-            aria-hidden="true"
-          >
+          {/* Plain media container — no `.parallax` data attribute.
+              The scroll-linked parallax transform was the third source
+              of GPU-layer churn (the runtime writes --parallax-y every
+              frame), and the cinematic feel is already carried by the
+              one-shot settle-in scale. Photos stay rock-steady now.
+              Image source is the Cloudflare-resized URL with a srcset
+              so the browser pulls the right resolution for the device,
+              keeping the decoded bitmap small enough that the OS won't
+              evict it under memory pressure. */}
+          <div class="menu-cinema__media" aria-hidden="true">
             <img
               class="menu-cinema__img"
-              src={c.photo.src}
+              src={resized(c.photo.src, 1800)}
+              srcset={resizedSrcset(c.photo.src, CHAPTER_WIDTHS)}
+              sizes="100vw"
               alt={c.photo.alt[lang]}
-              loading={i === 0 ? 'eager' : 'lazy'}
-              decoding="async"
+              loading="eager"
+              fetchpriority={i === 0 ? 'high' : 'low'}
+              decoding="sync"
             />
           </div>
           <div class="menu-cinema__overlay" aria-hidden="true"></div>

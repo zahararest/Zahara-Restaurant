@@ -2,6 +2,7 @@
 import { pick, home as copy }    from '../../data/i18n';
 import { RESTAURANT }              from '../../data/restaurant';
 import { path }                    from '../../lib/paths';
+import { resized, resizedSrcset }  from '../../lib/photo';
 import type { Lang }               from '../../data/i18n';
 import type { PhotoEntry }         from '../../data/photos';
 
@@ -14,13 +15,17 @@ const { lang, photo } = Astro.props;
 const t = pick(copy, lang);
 
 const scrollLabel = lang === 'he' ? 'גלול' : 'Scroll';
+
+const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
 ---
 
 <section class="hero-bleed" aria-label="Zahara">
   <div class="hero-bleed__media" data-hero-parallax aria-hidden="true">
     <img
       class="hero-bleed__img ken-burns"
-      src={photo.src}
+      src={resized(photo.src, 1800)}
+      srcset={resizedSrcset(photo.src, HERO_WIDTHS)}
+      sizes="100vw"
       alt={photo.alt[lang]}
       loading="eager"
       fetchpriority="high"

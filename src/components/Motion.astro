@@ -321,6 +321,43 @@
       num.textContent   = pad(1);
       label.textContent = sections[0].dataset.sectionName || '';
 
+      // ── Film-strip vertical rail (inline-end side) ──
+      // One <a> tick per section, with a label that fades in when the
+      // section is active (or on hover). Pure CSS for the active state;
+      // we just toggle .is-active to match the HUD.
+      let rail = document.querySelector('.scroll-rail');
+      let railTicks = [];
+      if (!rail) {
+        rail = document.createElement('nav');
+        rail.className = 'scroll-rail';
+        rail.setAttribute('aria-label',
+          document.documentElement.lang === 'he' ? 'ניווט בעמוד' : 'Page navigation');
+        sections.forEach((sec, i) => {
+          const a = document.createElement('a');
+          a.className = 'scroll-rail__tick';
+          a.href = '#';
+          a.dataset.idx = String(i);
+          a.innerHTML =
+            '<span aria-hidden="true"></span>' +
+            '<span class="scroll-rail__label"></span>';
+          a.querySelector('.scroll-rail__label').textContent =
+            sec.dataset.sectionName || '';
+          // Smooth-scroll to the section on click.
+          a.addEventListener('click', (e) => {
+            e.preventDefault();
+            sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+          rail.appendChild(a);
+        });
+        document.body.appendChild(rail);
+        railTicks = Array.from(rail.querySelectorAll('.scroll-rail__tick'));
+        railTicks[0]?.classList.add('is-active');
+      }
+
+      const setRailActive = (i) => {
+        railTicks.forEach((t, idx) => t.classList.toggle('is-active', idx === i));
+      };
+
       // One IntersectionObserver: a section becomes "active" once its
       // top passes 35% from viewport top going down. Walking back up
       // past that line restores the previous section.
@@ -328,7 +365,7 @@
         for (const e of entries) {
           if (!e.isIntersecting) continue;
           const i = sections.indexOf(e.target);
-          if (i >= 0) setActive(i);
+          if (i >= 0) { setActive(i); setRailActive(i); }
         }
       }, { rootMargin: '-35% 0px -55% 0px', threshold: 0 });
 

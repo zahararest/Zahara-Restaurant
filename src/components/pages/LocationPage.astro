@@ -29,12 +29,12 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
         data-word-reveal-delay="0.08"
         data-word-reveal-step="0.07"
       >{t.heading}</h1>
-      <p style="max-width: 36rem;">{t.lede}</p>
+      <p class="lede-prose">{t.lede}</p>
     </div>
   </section>
 
   <section class="section-tight wrap">
-    <div class="img-mask reveal-on-scroll">
+    <div class="reveal-on-scroll">
       <iframe
         class="map-frame"
         src={mapEmbed}

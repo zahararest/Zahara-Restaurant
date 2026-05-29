@@ -21,12 +21,15 @@ export function pick<T extends Record<string, { he: string; en: string }>>(
 // ── Header ──────────────────────────────────────────────────────────────────
 
 export const header = {
-  home:       { he: 'בית',      en: 'Home'      },
-  location:   { he: 'מיקום',    en: 'Location'  },
-  menu:       { he: 'תפריט',    en: 'Menu'      },
-  contact:    { he: 'צור קשר',  en: 'Contact'   },
-  reserve:    { he: 'הזמנה',    en: 'Reserve'   },
-  langToggle: { he: 'EN',       en: 'עברית'     },
+  home:        { he: 'בית',            en: 'Home'      },
+  location:    { he: 'מיקום',          en: 'Location'  },
+  menu:        { he: 'תפריט',          en: 'Menu'      },
+  contact:     { he: 'צור קשר',        en: 'Contact'   },
+  reserve:     { he: 'הזמנה',          en: 'Reserve'   },
+  langToggle:  { he: 'EN',             en: 'עברית'     },
+  themeToggle: { he: 'שינוי ערכת נושא', en: 'Toggle theme' },
+  themeLight:  { he: 'בהיר',           en: 'Light'        },
+  themeDark:   { he: 'כהה',            en: 'Dark'         },
 };
 
 // ── Footer ───────────────────────────────────────────────────────────────────
@@ -154,14 +157,6 @@ export const home = {
   },
 
   eventsCta: { he: 'לפנייה לאירועים ↗', en: 'Inquire about events ↗' },
-
-  menuSectionEyebrow: { he: 'תפריט · מתעדכן יומי', en: 'Menu · Updated daily' },
-  menuSectionTitle:   { he: 'הצלחת של היום.',       en: "Today's plate."       },
-  menuSectionLede: {
-    he: 'התפריט משתנה עם מה שהגיע מהשוק בבוקר — מנות דגים, בשר וירקות שמתחלפות בכל יום.',
-    en: 'The menu shifts with whatever the morning market gave us — fish, meat, vegetables, all changing daily.',
-  },
-  menuSectionCta: { he: 'לתפריט המלא', en: 'View the full menu' },
 
   // ── Editorial signature ─────────────────────────────────────────────────────
   // A single magazine-style "masthead" line that sits below the hero. Encodes

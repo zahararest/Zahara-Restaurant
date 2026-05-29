@@ -3,6 +3,7 @@
 // but uses the same overlay treatment so a transparent header sits nicely
 // on top of it.
 
+import { resized, resizedSrcset }  from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -16,13 +17,16 @@ export interface Props {
 }
 
 const { lang, photo, eyebrow, heading, lede } = Astro.props;
+const INTRO_WIDTHS = [800, 1200, 1800, 2400] as const;
 ---
 
 <section class="intro-photo" aria-label={eyebrow}>
   <div class="intro-photo__media" data-hero-parallax aria-hidden="true">
     <img
       class="intro-photo__img ken-burns"
-      src={photo.src}
+      src={resized(photo.src, 1800)}
+      srcset={resizedSrcset(photo.src, INTRO_WIDTHS)}
+      sizes="100vw"
       alt={photo.alt[lang]}
       loading="eager"
       fetchpriority="high"

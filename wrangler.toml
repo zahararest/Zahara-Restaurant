@@ -9,6 +9,20 @@ pages_build_output_dir = "./dist"
 binding = "MENU_DATA"
 id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
 
+# KV namespace for the site palette saved from /admin/colors/. The colour
+# editor POSTs to /admin/colors/save which writes JSON here; functions/
+# _middleware.ts reads it and injects a <style> tag into every HTML
+# response so the palette persists across browsers and devices.
+#
+# Optional: if you'd rather not create a second namespace, delete this
+# block — the code falls back to storing the palette in MENU_DATA under
+# the reserved key `__palette__`.
+#
+# Create with: wrangler kv namespace create PALETTE_DATA
+[[kv_namespaces]]
+binding = "PALETTE_DATA"
+id = "REPLACE_WITH_YOUR_PALETTE_KV_NAMESPACE_ID"
+
 # R2 bucket for admin-uploaded image overrides. When a file exists at
 # `images/{name}` it overrides the default in /public/photos/. The
 # `functions/photos/[file].ts` middleware checks R2 first, then falls

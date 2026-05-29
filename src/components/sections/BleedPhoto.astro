@@ -1,4 +1,5 @@
 ---
+import { resized, resizedSrcset } from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -8,12 +9,22 @@ export interface Props {
   caption?: string;
   /** Override the default tall hero height. Pass any CSS height. */
   height?:  string;
+  /** Promote to eager loading for above-the-fold bleed photos. */
+  eager?:   boolean;
 }
 
-const { lang, photo, caption, height } = Astro.props;
-const classList = caption ? 'bleed-photo bleed-photo--caption img-mask' : 'bleed-photo img-mask';
+const { lang, photo, caption, height, eager = false } = Astro.props;
+const classList = caption ? 'bleed-photo bleed-photo--caption' : 'bleed-photo';
+const BLEED_WIDTHS = [800, 1200, 1800, 2400] as const;
 ---
 
 <figure class={classList} data-caption={caption} style={height ? `height: ${height};` : undefined}>
-  <img src={photo.src} alt={photo.alt[lang]} loading="lazy" decoding="async" />
+  <img
+    src={resized(photo.src, 1800)}
+    srcset={resizedSrcset(photo.src, BLEED_WIDTHS)}
+    sizes="100vw"
+    alt={photo.alt[lang]}
+    loading={eager ? 'eager' : 'lazy'}
+    decoding="async"
+  />
 </figure>

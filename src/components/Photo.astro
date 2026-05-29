@@ -1,5 +1,10 @@
 ---
 // Photo component for local images served from /public/photos.
+// Routes every image through the Cloudflare Image Resizing layer (see
+// src/lib/photo.ts) so we never download a 6 MB original to a phone
+// for an 800-pixel-wide slot.
+
+import { resized, resizedSrcset } from '../lib/photo';
 
 interface Props {
   src?: string;         // e.g. "/photos/MOYAL-00009.jpg"
@@ -21,13 +26,21 @@ const {
 
 const placeholderSrc =
   'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 450"%3E%3Crect width="600" height="450" fill="%23f2f0ec"/%3E%3Cpath d="M170 150h260l-15-35h-230l-15 35z" fill="%23d8d2c6"/%3E%3Ccircle cx="300" cy="240" r="80" fill="%23e7e1d9"/%3E%3Cpath d="M445 165l30 15v125l-30 15" stroke="%23c8c2b2" stroke-width="25" fill="none" stroke-linecap="round"/%3E%3Ctext x="300" y="390" text-anchor="middle" font-family="system-ui, sans-serif" font-size="48" fill="%239b9588"%3ENo image%3C/text%3E%3C/svg%3E';
-const imageSrc = src || placeholderSrc;
+
+// Only run real photos through the resize layer; pass placeholder SVGs
+// (data: URIs) straight through.
+const isReal     = !!src && src.startsWith('/');
+const imageSrc   = isReal ? resized(src!, 1200) : (src || placeholderSrc);
+const imageSrcset = isReal
+  ? resizedSrcset(src!, [600, 900, 1200, 1800])
+  : undefined;
 const imageErrorHandler = `this.onerror=null; this.src='${placeholderSrc}';`;
 ---
 
 <figure class={`photo ${className}`} style={`aspect-ratio: ${aspect};`}>
   <img
     src={imageSrc}
+    srcset={imageSrcset}
     alt={alt}
     loading={loading}
     decoding="async"

@@ -103,63 +103,86 @@ const schema = {
       rel="stylesheet"
     />
 
-    {/* Live colour overrides — reads localStorage and applies any
-        user-set palette overrides (saved by /admin/colors/) to the
-        :root before first paint, and listens for cross-tab updates
-        via BroadcastChannel('zahara-colors') so editing in the admin
-        tab updates the live site tab in real time. */}
+    {/* Theme + palette pre-paint — runs SYNCHRONOUSLY before <body>
+        renders so the page paints once in the visitor's chosen theme
+        AND with any palette overrides they've saved on /admin/colors/.
+        Without the localStorage palette read here, admin/colors changes
+        only applied to whichever public tab was open at the moment
+        the admin saved (via BroadcastChannel); navigating to a different
+        page reset to defaults. Reading localStorage on every load is
+        what actually makes the colour editor feel "global". */}
     <script is:inline>
       (function () {
-        const root = document.documentElement;
-        // Track which color-token props we've set so we can REMOVE
-        // properties the admin no longer overrides. Without this, a
-        // token reset on /admin/colors/ never propagates: the broadcast
-        // payload simply drops the key, and the listener (which only
-        // ADDS) leaves the previous custom value frozen on the page.
-        // Other inline props on <html> (like --a11y-font-scale) are
-        // left alone — we only touch what we ourselves applied.
-        const applied = new Set();
+        var root = document.documentElement;
 
+        // ── 1. Theme (two states only: light + dark) ──────────────
+        try {
+          var saved = localStorage.getItem('zahara-theme');
+          root.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
+        } catch (_) {
+          root.setAttribute('data-theme', 'light');
+        }
+
+        // ── 2. Palette overrides ──────────────────────────────────
+        // Layer order on a deployed site:
+        //   :root defaults (light tokens)
+        //   ← server middleware <style> (admin's saved palette, if any)
+        //   ← these inline overrides from localStorage (mirrors above)
+        //   ← html[data-theme="dark"] (specificity beats all of the above)
+        // We track which props we set so a subsequent reset can clear
+        // exactly those without touching, e.g., --a11y-font-scale.
+        var applied = new Set();
         function applyOverrides(ov) {
           if (!ov) return;
-          // Remove props we previously set that aren't in the new state.
-          for (const key of Array.from(applied)) {
+          for (var key of Array.from(applied)) {
             if (!(key in ov)) {
               root.style.removeProperty(key);
               applied.delete(key);
             }
           }
-          // Set / update everything in the new state.
-          for (const [k, v] of Object.entries(ov)) {
-            if (typeof k === 'string' && k.startsWith('--') && typeof v === 'string') {
+          for (var k in ov) {
+            var v = ov[k];
+            if (typeof k === 'string' && k.indexOf('--') === 0 && typeof v === 'string') {
               root.style.setProperty(k, v);
               applied.add(k);
             }
           }
         }
         function clearAll() {
-          for (const key of Array.from(applied)) {
-            root.style.removeProperty(key);
-          }
+          for (var key of Array.from(applied)) root.style.removeProperty(key);
           applied.clear();
         }
-
         try {
-          const ov = JSON.parse(localStorage.getItem('zahara-color-overrides') || '{}');
-          applyOverrides(ov);
-        } catch (_) { /* localStorage blocked — no overrides */ }
+          var paletteRaw = localStorage.getItem('zahara-color-overrides');
+          if (paletteRaw) applyOverrides(JSON.parse(paletteRaw));
+        } catch (_) { /* localStorage blocked or bad JSON — fine */ }
 
+        // ── 3. Live cross-tab updates ─────────────────────────────
         try {
-          const bc = new BroadcastChannel('zahara-colors');
-          bc.addEventListener('message', (ev) => {
-            const d = ev && ev.data;
+          var bc = new BroadcastChannel('zahara-colors');
+          bc.addEventListener('message', function (ev) {
+            var d = ev && ev.data;
             if (!d) return;
             if (d.type === 'reset') { clearAll(); return; }
             if (d.type === 'colors-changed') applyOverrides(d.overrides || {});
           });
         } catch (_) { /* BroadcastChannel unsupported — refresh to see */ }
+
+        // ── 4. Cross-tab THEME sync via storage events ───────────
+        try {
+          window.addEventListener('storage', function (e) {
+            if (e.key === 'zahara-theme') {
+              root.setAttribute('data-theme', e.newValue === 'dark' ? 'dark' : 'light');
+            }
+          });
+        } catch (_) {}
       })();
     </script>
+
+    {/* Per-page head injection — pages that want to preload images
+        (e.g. the home page's cinematic menu chapter photos) can drop
+        <link rel="preload"> tags via the named "head" slot. */}
+    <slot name="head" />
   </head>
   <body>
     <a class="skip-link" href="#main">

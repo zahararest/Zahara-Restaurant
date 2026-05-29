@@ -1,0 +1,123 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Button system
+   ──────────────────────────────────────────────────────────────────────────
+   Two variants used everywhere on the site:
+
+     .btn          — solid primary action. Filled with --ink, text in --paper.
+                     The token pair flips cleanly when dark mode is on, so
+                     the button reads in both themes with the same rule.
+
+     .btn--ghost   — secondary action. Transparent with an --ink border
+                     and --ink text. Works on any paper-coloured surface
+                     (light or dark mode).
+
+   .header-reserve uses the ghost token block so the header reserve link
+   matches every other ghost button on the site. Hero CTAs ride the same
+   primary rules — no special hero override now, because the dark photo
+   overlay below the hero is strong enough that the primary button's
+   --ink fill stands out on it in either theme.
+   ────────────────────────────────────────────────────────────────────────── */
+
+:is(.btn, .header-reserve) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--button-gap);
+  padding: var(--button-padding);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  letter-spacing: var(--button-letter-spacing);
+  text-transform: var(--button-text-transform);
+  border: var(--button-border-width) solid var(--button-border);
+  border-radius: var(--button-border-radius);
+  background: var(--button-background);
+  color: var(--button-color);
+  transition: var(--button-transition);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: var(--button-font-weight, 500);
+  line-height: 1;
+  text-decoration: none;
+}
+:is(.btn, .header-reserve):hover {
+  background: var(--button-hover-background);
+  border-color: var(--button-hover-border);
+  color: var(--button-hover-color);
+}
+
+/* WCAG 2.4.7 — Focus Visible (Level AA). Every keyboard-reachable
+   button must have a clear non-color focus indicator. Outline + offset
+   so the ring sits outside the existing border in any theme. */
+:is(.btn, .header-reserve):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Ghost — secondary action. Token-driven, so dark mode inverts cleanly. */
+.btn--ghost {
+  background: var(--button-ghost-background);
+  color: var(--button-ghost-color);
+  border-color: var(--button-ghost-border);
+}
+.btn--ghost:hover {
+  background: var(--button-ghost-hover-background);
+  color: var(--button-ghost-hover-color);
+  border-color: var(--button-ghost-hover-border);
+}
+
+/* Full-width button — used by the directions row on /location/ and the
+   mobile-nav CTA stack. */
+.btn--block { width: 100%; justify-content: center; }
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block-start: var(--space-m);
+}
+
+.text-link {
+  font-size: var(--step--1);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+  border-block-end: 1px solid var(--ink);
+  padding-block-end: 2px;
+  font-weight: 500;
+  transition: color 0.2s ease, border-color 0.2s ease;
+  display: inline-block;
+}
+.text-link:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Header reserve link — same ghost rules as the rest of the site so the
+   header's secondary action matches the rest of the system, plus a
+   tighter padding to fit the meta row. */
+.header-reserve {
+  background: var(--button-ghost-background);
+  color: var(--button-ghost-color);
+  border-color: var(--button-ghost-border);
+  letter-spacing: 0.22em;
+  padding: 0.55rem 1.4rem;
+}
+.header-reserve:hover {
+  background: var(--button-ghost-hover-background);
+  color: var(--button-ghost-hover-color);
+  border-color: var(--button-ghost-hover-border);
+}
+html[lang="he"] .header-reserve {
+  text-transform: none;
+  letter-spacing: 0.08em;
+  padding: 0.55rem 1.6rem;
+}
+
+/* When the header sits OVER a photo (hero pages) the ghost colours flip
+   to paper-on-photo so the reserve link reads against the dark overlay
+   regardless of theme. */
+.site-header.is-on-photo .header-reserve {
+  color: var(--paper-on-photo);
+  border-color: var(--paper-on-photo);
+}
+.site-header.is-on-photo .header-reserve:hover {
+  background: var(--paper-on-photo);
+  color: var(--ink);
+  border-color: var(--paper-on-photo);
+}

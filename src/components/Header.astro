@@ -57,6 +57,19 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       <a class="header-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">
         {t.reserve}
       </a>
+      {/* Theme toggle — three-state cycle: auto → light → dark → auto.
+          The label + icon update in the boot script so first paint
+          already shows the correct state. */}
+      <button
+        class="theme-toggle"
+        type="button"
+        data-theme-toggle
+        aria-label={t.themeToggle}
+        title={t.themeToggle}
+      >
+        <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">●</span>
+        <span class="visually-hidden" data-theme-state></span>
+      </button>
       <a href={otherLangHref} class="lang-toggle" aria-label={lang === 'he' ? 'English' : 'עברית'}>
         {t.langToggle}
       </a>
@@ -128,4 +141,53 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && drawer?.classList.contains('is-open')) closeNav();
   });
+
+  // ── Theme toggle (two states: light ↔ dark) ──────────────────────────
+  // Per-browser; saved in localStorage as `zahara-theme`. The pre-paint
+  // script in BaseLayout already set <html data-theme="light|dark">; this
+  // handler just renders the right icon and flips on click. Cross-tab
+  // sync is handled by the storage listener in BaseLayout, so we don't
+  // duplicate it here.
+  (function setupThemeToggle() {
+    const root = document.documentElement;
+    const btn  = document.querySelector<HTMLButtonElement>('[data-theme-toggle]');
+    if (!btn) return;
+    const iconEl  = btn.querySelector<HTMLElement>('[data-theme-icon]');
+    const stateEl = btn.querySelector<HTMLElement>('[data-theme-state]');
+    const isHe    = root.getAttribute('lang') === 'he';
+    const NAMES: Record<'light' | 'dark', string>   = isHe
+      ? { light: 'בהיר', dark: 'כהה' }
+      : { light: 'Light', dark: 'Dark' };
+    // Sun for light (click to go dark), moon for dark (click to go light).
+    const ICONS: Record<'light' | 'dark', string>   = { light: '☀', dark: '☾' };
+
+    type Theme = 'light' | 'dark';
+
+    function render(theme: Theme) {
+      if (iconEl)  iconEl.textContent  = ICONS[theme];
+      if (stateEl) stateEl.textContent = NAMES[theme];
+      btn!.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+      btn!.dataset.themeCurrent = theme;
+    }
+    function current(): Theme {
+      return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+    function apply(theme: Theme) {
+      root.setAttribute('data-theme', theme);
+      try { localStorage.setItem('zahara-theme', theme); } catch (_) {}
+      render(theme);
+    }
+
+    render(current());
+    btn.addEventListener('click', () => {
+      apply(current() === 'dark' ? 'light' : 'dark');
+    });
+    // Cross-tab UI sync (the storage event already triggered the <html>
+    // attribute swap in BaseLayout — we just re-render the icon here).
+    try {
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'zahara-theme') render(current());
+      });
+    } catch (_) {}
+  })();
 </script>
