@@ -125,6 +125,33 @@
     .top-toggle-label input { accent-color: var(--e-acc); margin: 0; }
     .top-toggle-label:hover { color: var(--e-fg); }
 
+    /* Light / Dark palette mode switch — chooses which palette the editor
+       edits. The preview pane reflects the active mode. */
+    .mode-toggle {
+      display: inline-flex;
+      border: var(--ui-border);
+      background: #fff;
+      overflow: hidden;
+    }
+    .mode-toggle__btn {
+      font: inherit;
+      font-size: var(--ui-small);
+      font-weight: 600;
+      letter-spacing: var(--ui-letter-tight);
+      text-transform: uppercase;
+      color: var(--e-mut);
+      background: transparent;
+      border: 0;
+      padding: 0.45rem 0.7rem;
+      cursor: pointer;
+      transition: color var(--ui-transition), background var(--ui-transition);
+      white-space: nowrap;
+    }
+    .mode-toggle__btn + .mode-toggle__btn { border-inline-start: 1px solid var(--e-rule); }
+    .mode-toggle__btn:hover { color: var(--e-fg); }
+    .mode-toggle__btn.is-active { color: #fff; background: var(--e-fg); }
+    .mode-toggle__btn:focus-visible { outline: 2px solid var(--e-acc); outline-offset: -2px; }
+
     /* Pending badge */
     .pending-badge {
       font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
@@ -402,13 +429,14 @@
     }
     .sim__hero-btn {
       padding: 0.38rem 0.85rem;
-      background: var(--ink, #F4ECCF);
-      color: var(--ink-muted, #1A1410);
-      border: 1px solid var(--paper-on-photo, #F4ECCF);
+      background: var(--ink, #1A1410);
+      color: var(--paper, #F0E8D2);
+      border: 1px solid var(--ink, #1A1410);
     }
     .sim__hero-btn.ghost {
       background: transparent;
       color: var(--paper-on-photo, #F4ECCF);
+      border-color: var(--paper-on-photo, #F4ECCF);
     }
 
     /* INFO STRIP */
@@ -421,7 +449,7 @@
     .sim__info-cell { display: grid; gap: 0.12rem; }
     .sim__info-cell > span {
       font-size: 0.57rem; letter-spacing: 0.26em; text-transform: uppercase;
-      font-weight: 600; color: var(--ink-muted, #8A7E68); font-family: 'Inter', sans-serif;
+      font-weight: 600; color: var(--ink-muted, #6F5E48); font-family: 'Inter', sans-serif;
     }
     .sim__info-cell > strong { font-size: 0.78rem; color: var(--ink, #1A1410); font-weight: 500; }
 
@@ -431,7 +459,7 @@
       padding: 0.55rem 0.85rem;
       display: flex; gap: 0.55rem; align-items: center; justify-content: center;
       font-size: 0.57rem; letter-spacing: 0.26em; text-transform: uppercase;
-      font-weight: 600; color: var(--ink-muted, #8A7E68);
+      font-weight: 600; color: var(--ink-muted, #6F5E48);
       border-block: 1px solid var(--rule-soft, #E2D8BB); flex-wrap: wrap;
       font-family: 'Inter', sans-serif;
     }
@@ -445,7 +473,7 @@
     .sim__article { padding: 0.9rem 0.9rem 0.7rem; display: grid; gap: 0.5rem; }
     .sim__eyebrow {
       font-size: 0.58rem; letter-spacing: 0.28em; text-transform: uppercase;
-      color: var(--ink-muted, #8A7E68); font-weight: 600;
+      color: var(--ink-muted, #6F5E48); font-weight: 600;
       display: inline-flex; align-items: center; gap: 0.5rem; margin: 0;
       font-family: 'Inter', sans-serif;
     }
@@ -464,11 +492,11 @@
     .sim__btn {
       font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em;
       text-transform: uppercase; font-weight: 500; padding: 0.42rem 0.9rem;
-      background: var(--paper-on-photo, #1A1410); color: var(--ink-muted, #F4ECCF);
+      background: var(--ink, #1A1410); color: var(--paper, #F0E8D2);
       border: 1px solid var(--ink, #1A1410); cursor: default;
     }
     .sim__btn.ghost {
-      background: transparent; color: var(--ink, #1A1410);
+      background: transparent; color: var(--ink, #1A1410); border-color: var(--ink, #1A1410);
     }
 
     /* MENU TABS (shows --ink as active-tab bg) */
@@ -481,11 +509,11 @@
       font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em;
       text-transform: uppercase; font-weight: 500; padding: 0.35rem 0.8rem;
       border: 1px solid transparent; border-radius: 999px;
-      color: var(--ink-muted, #8A7E68);
+      color: var(--ink-muted, #6F5E48);
     }
     .sim__tab.is-active {
-      background: var(--ink-muted, #1A1410); color: var(--paper-on-photo, #F4ECCF);
-      border-color: var(--ink-muted, #1A1410);
+      background: var(--ink, #1A1410); color: var(--paper-on-photo, #F4ECCF);
+      border-color: var(--ink, #1A1410);
     }
     .sim__tab:not(.is-active):hover { border-color: var(--rule, #CFC3A4); color: var(--ink, #1A1410); }
     .sim__tabs-indicator {
@@ -498,19 +526,43 @@
     .sim__rule { height: 1px; background: var(--rule, #CFC3A4); width: calc(100% - 1.8rem); margin-inline: 0.9rem; }
     .sim__rule--soft { background: var(--rule-soft, #E2D8BB); }
 
-    /* MENU CARD */
-    .sim__card {
-      background: var(--paper-card, #F7F0DB); border: 1px solid var(--paper-edge, #D8CCAE);
-      padding: 0.8rem 0.9rem; margin-inline: 0.9rem; display: grid; gap: 0.35rem;
+    /* MENU SECTION CARD — mirrors .menu-section-group on the /menu/ page:
+       paper-card → paper gradient, centred serif heading with an accent
+       underline, ink names, ink-soft descriptions, accent prices, and a
+       soft gold corner ornament. */
+    .sim__menucard {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      background: linear-gradient(180deg, var(--paper-card, #F7F0DB) 0%, var(--paper, #F0E8D2) 100%);
+      border: 1px solid var(--rule-soft, #E2D8BB);
+      padding: 1.1rem 1rem 0.9rem; margin-inline: 0.9rem;
+      display: grid; gap: 0.4rem;
     }
-    .sim__card-row {
-      display: grid; grid-template-columns: 1fr auto; gap: 0.7rem;
-      align-items: baseline; padding-block: 0.3rem;
+    .sim__menucard::after {
+      content: ''; position: absolute; inset-block-end: 0; inset-inline-end: 0;
+      width: 4rem; height: 4rem; z-index: -1; pointer-events: none;
+      background: radial-gradient(circle at bottom right, color-mix(in srgb, var(--gold, #B69A52) 16%, transparent), transparent 70%);
+    }
+    .sim__menucard-title {
+      font-family: Georgia, serif; font-size: 1.15rem; font-weight: 500;
+      text-align: center; color: var(--ink, #1A1410); margin: 0.1rem 0 0.6rem;
+      letter-spacing: -0.01em;
+    }
+    .sim__menucard-title::after {
+      content: ''; display: block; width: 2rem; height: 1px;
+      background: var(--accent, #A88947); margin: 0.55rem auto 0;
+    }
+    .sim__menucard-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 0.7rem;
+      align-items: baseline; padding-block: 0.35rem;
       border-bottom: 1px solid var(--rule-soft, #E2D8BB);
     }
-    .sim__card-row:last-child { border-bottom: 0; }
-    .sim__card-row strong { font-weight: 600; color: var(--ink, #1A1410); font-family: 'Inter', sans-serif; font-size: 0.82rem; }
-    .sim__card-row span:last-child { color: var(--accent, #A88947); font-weight: 600; font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+    .sim__menucard-row:last-child { border-bottom: 0; }
+    .sim__menucard-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+    .sim__menucard-row strong { font-weight: 600; color: var(--ink, #1A1410); font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+    .sim__menucard-desc { color: var(--ink-soft, #3D362E); font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 300; line-height: 1.4; }
+    .sim__menucard-row > span:last-child { color: var(--accent, #A88947); font-weight: 600; font-family: 'Inter', sans-serif; font-size: 0.82rem; }
 
     /* PULL QUOTE */
     .sim__quote {
@@ -584,7 +636,7 @@
     .sim__toggle-btn {
       padding: 0.5rem 0.8rem; font-family: 'Inter', sans-serif; font-size: 0.62rem;
       letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600; text-align: center;
-      color: var(--ink-muted, #8A7E68);
+      color: var(--ink-muted, #6F5E48);
     }
     .sim__toggle-btn.is-active { color: var(--ink, #1A1410); }
     .sim__toggle-ind {
@@ -603,7 +655,7 @@
     }
     .sim__reach-row > span {
       font-family: 'Inter', sans-serif; font-size: 0.57rem; letter-spacing: 0.2em;
-      text-transform: uppercase; color: var(--ink-muted, #8A7E68); font-weight: 600;
+      text-transform: uppercase; color: var(--ink-muted, #6F5E48); font-weight: 600;
     }
     .sim__reach-link {
       color: var(--ink, #1A1410); text-decoration: underline;
@@ -648,7 +700,7 @@
     }
     .sim__sb-label {
       padding-inline-start: 0.5rem; font-size: 0.62rem; letter-spacing: 0.14em;
-      text-transform: uppercase; color: var(--ink-muted, #8A7E68);
+      text-transform: uppercase; color: var(--ink-muted, #6F5E48);
       font-family: 'Inter', sans-serif; align-self: center;
     }
 
@@ -687,7 +739,7 @@
       letter-spacing: 0.26em;
       text-transform: uppercase;
       font-weight: 600;
-      color: var(--ink-muted, #8A7E68);
+      color: var(--ink-muted, #6F5E48);
       opacity: 0.6;
     }
     .sim__rail-tick.is-active { color: var(--ink, #1A1410); opacity: 1; }
@@ -696,7 +748,7 @@
       height: 1px;
       width: 0.45rem;
       justify-self: end;
-      background: var(--ink-muted, #8A7E68);
+      background: var(--ink-muted, #6F5E48);
       transition: width 0.3s ease, background 0.3s ease;
     }
     .sim__rail-tick.is-active .sim__rail-mark {
@@ -724,7 +776,7 @@
       display: grid;
       place-items: center;
       background: var(--ink, #1A1410);
-      color: var(--paper-on-photo, #F4ECCF);
+      color: var(--paper, #F0E8D2);
       border: 1px solid var(--ink, #1A1410);
       border-radius: 50%;
       font-size: 0.95rem;
@@ -736,7 +788,7 @@
       letter-spacing: 0.24em;
       text-transform: uppercase;
       font-weight: 600;
-      color: var(--ink-muted, #8A7E68);
+      color: var(--ink-muted, #6F5E48);
     }
 
     /* FORM STATUS */
@@ -759,7 +811,7 @@
     .sim__footer-block { display: grid; gap: 0.15rem; }
     .sim__footer-label {
       font-family: 'Inter', sans-serif; font-size: 0.55rem; letter-spacing: 0.26em;
-      text-transform: uppercase; font-weight: 600; color: var(--ink-muted, #8A7E68);
+      text-transform: uppercase; font-weight: 600; color: var(--ink-muted, #6F5E48);
     }
     .sim__footer-val {
       font-family: Georgia, serif; font-size: 0.82rem; color: var(--ink, #1A1410);
@@ -771,7 +823,7 @@
       display: flex; justify-content: space-between; padding-top: 0.5rem;
       border-top: 1px solid var(--rule-soft, #E2D8BB);
       font-family: 'Inter', sans-serif; font-size: 0.6rem;
-      letter-spacing: 0.1em; color: var(--ink-muted, #8A7E68);
+      letter-spacing: 0.1em; color: var(--ink-muted, #6F5E48);
     }
 
     /* ── Palette popup ───────────────────────────────────────── */

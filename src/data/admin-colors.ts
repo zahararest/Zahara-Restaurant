@@ -21,7 +21,7 @@ export const groups: Group[] = [
         token:     '--paper',
         shortName: 'paper',
         label:     'Paper — page background',
-        hint:      'Full page background on every page (home, menu, contact, location). Also the mobile nav drawer, gallery background, and the scrollbar track tint.',
+        hint:      'Full page background on every page (home, menu, contact, location). Also the mobile nav drawer, gallery background, and the scrollbar track tint. It is ALSO the rest-state text/glyph colour of solid dark buttons (.btn, Reserve, scroll-to-top, accessibility toggle) — the inverse of --ink.',
         def:       '#F0E8D2',
       },
       {
@@ -49,7 +49,7 @@ export const groups: Group[] = [
         token:     '--paper-on-photo',
         shortName: 'paper-on-photo',
         label:     'Paper on photo — text over photography',
-        hint:      '⚠ Wide-impact token. ALL text and UI over photographs: floating header text (brand, nav, reserve) when on a hero page, hero eyebrow/title/CTA buttons, intro-photo page titles, menu-cinema chapter text + prices, skip-link background, and — crucially — the TEXT colour inside solid dark buttons (Reserve, active menu tab). Changing this shifts both on-photo reading text and dark-button label colour.',
+        hint:      '⚠ Wide-impact token. ALL text and UI over photographs: floating header text (brand, nav, reserve) when on a hero page, hero eyebrow/title/CTA buttons, intro-photo page titles, home cinematic-strip text + prices, skip-link background. Also the active menu-tab label (which sits on an --ink fill) and the HOVER text/glyph colour of solid dark buttons + the scroll-to-top / accessibility buttons. Changing it shifts on-photo reading text and those hover/active labels.',
         def:       '#F4ECCF',
       },
     ],
@@ -62,7 +62,7 @@ export const groups: Group[] = [
         token:     '--ink',
         shortName: 'ink',
         label:     'Ink — text & dark-button background',
-        hint:      '⚠ Dual-role token. (1) All headlines, primary body text on paper. (2) Background of all solid dark buttons (Reserve, body CTAs, active menu tabs). (3) Form input text + select arrows. (4) Footer text. Changing from near-black affects both reading text AND button fills simultaneously.',
+        hint:      '⚠ Dual-role token. (1) All headlines, primary body text on paper. (2) Fill of all solid dark buttons (Reserve, body CTAs, active menu tabs, scroll-to-top + accessibility corner buttons). (3) Form input text + select arrows. (4) Footer text. Changing from near-black affects both reading text AND button fills simultaneously.',
         def:       '#1A1410',
       },
       {
@@ -76,8 +76,8 @@ export const groups: Group[] = [
         token:     '--ink-muted',
         shortName: 'ink-muted',
         label:     'Ink muted — labels & secondary',
-        hint:      'All eyebrow labels, form field labels, footer section heads, info-strip cell labels, footer copyright/meta, menu metadata bar, inactive menu-tab text, wine legend, section-HUD label, the contact toggle inactive button.',
-        def:       '#8A7E68',
+        hint:      'All eyebrow labels, form field labels, footer section heads, info-strip cell labels, footer copyright/meta, menu metadata bar, inactive menu-tab text, wine legend, section-HUD label, the contact toggle inactive button. Darkened to clear WCAG AA on both --paper and --paper-deep.',
+        def:       '#6F5E48',
       },
       {
         token:     '--ink-faint',
@@ -200,3 +200,31 @@ export const groups: Group[] = [
 
 const allTokens = groups.flatMap((g) => g.tokens);
 export const defaults = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
+
+// Dark-theme defaults. MUST stay in sync with the `html[data-theme="dark"]`
+// block in src/styles/tokens.css — that CSS block is the no-JS / no-saved-dark
+// fallback, while this map is what the colour editor shows as the dark mode
+// "default" (and what it diffs saved dark overrides against).
+export const darkDefaults: Record<string, string> = {
+  '--paper':          '#0F0B07',
+  '--paper-deep':     '#181410',
+  '--paper-edge':     '#2A2218',
+  '--paper-card':     '#1A1612',
+  '--paper-on-photo': '#F4ECCF',
+  '--ink':            '#F0E8D2',
+  '--ink-soft':       '#C4B89A',
+  '--ink-muted':      '#908878',
+  '--ink-faint':      '#4A4438',
+  '--rule':           '#322818',
+  '--rule-soft':      '#1E1A14',
+  '--accent':         '#C8A050',
+  '--accent-deep':    '#A8853A',
+  '--accent-soft':    '#2A2018',
+  '--gold':           '#D0B468',
+  '--c-green':        '#6A8878',
+  '--c-teal':         '#4E7D87',
+  '--c-slate':        '#4E6369',
+  '--c-mauve':        '#AD9499',
+  '--ok':             '#5BA670',
+  '--err':            '#E07060',
+};

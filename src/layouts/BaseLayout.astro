@@ -106,11 +106,15 @@ const schema = {
     {/* Theme + palette pre-paint — runs SYNCHRONOUSLY before <body>
         renders so the page paints once in the visitor's chosen theme
         AND with any palette overrides they've saved on /admin/colors/.
-        Without the localStorage palette read here, admin/colors changes
-        only applied to whichever public tab was open at the moment
-        the admin saved (via BroadcastChannel); navigating to a different
-        page reset to defaults. Reading localStorage on every load is
-        what actually makes the colour editor feel "global". */}
+
+        The palette is injected as a real <style> element holding two
+        blocks — `:root{…light…}` and `html[data-theme="dark"]{…dark…}` —
+        NOT as inline styles on <html>. This is deliberate: inline styles
+        beat every selector, so the previous inline approach made dark
+        mode impossible to apply over a saved light palette. With a
+        <style> block the cascade is honest:
+          :root defaults  <  injected :root light  <  html[data-theme=dark]
+        so toggling the theme actually changes the page. */}
     <script is:inline>
       (function () {
         var root = document.documentElement;
@@ -123,35 +127,49 @@ const schema = {
           root.setAttribute('data-theme', 'light');
         }
 
-        // ── 2. Palette overrides ──────────────────────────────────
-        // Layer order on a deployed site:
-        //   :root defaults (light tokens)
-        //   ← server middleware <style> (admin's saved palette, if any)
-        //   ← these inline overrides from localStorage (mirrors above)
-        //   ← html[data-theme="dark"] (specificity beats all of the above)
-        // We track which props we set so a subsequent reset can clear
-        // exactly those without touching, e.g., --a11y-font-scale.
-        var applied = new Set();
-        function applyOverrides(ov) {
-          if (!ov) return;
-          for (var key of Array.from(applied)) {
-            if (!(key in ov)) {
-              root.style.removeProperty(key);
-              applied.delete(key);
+        // ── 2. Palette overrides (light + dark) ───────────────────
+        // Normalise any stored value into { light:{}, dark:{} } — older
+        // installs saved a flat { "--token":"#hex" } map (light only).
+        function normalisePair(raw) {
+          var pair = { light: {}, dark: {} };
+          if (!raw || typeof raw !== 'object') return pair;
+          var looksFlat = false, k;
+          for (k in raw) { if (k.indexOf('--') === 0) { looksFlat = true; break; } }
+          var src = looksFlat ? { light: raw } : raw;
+          ['light', 'dark'].forEach(function (mode) {
+            var m = src[mode];
+            if (m && typeof m === 'object') {
+              for (var t in m) {
+                if (t.indexOf('--') === 0 && typeof m[t] === 'string') pair[mode][t] = m[t];
+              }
             }
-          }
-          for (var k in ov) {
-            var v = ov[k];
-            if (typeof k === 'string' && k.indexOf('--') === 0 && typeof v === 'string') {
-              root.style.setProperty(k, v);
-              applied.add(k);
-            }
-          }
+          });
+          return pair;
         }
-        function clearAll() {
-          for (var key of Array.from(applied)) root.style.removeProperty(key);
-          applied.clear();
+        function bodyOf(map) {
+          var out = '';
+          for (var k in map) out += k + ':' + map[k] + ';';
+          return out;
         }
+        function cssFor(pair) {
+          var css = '';
+          var l = bodyOf(pair.light), d = bodyOf(pair.dark);
+          if (l) css += ':root{' + l + '}';
+          if (d) css += 'html[data-theme="dark"]{' + d + '}';
+          return css;
+        }
+        var styleEl = null;
+        function applyOverrides(raw) {
+          var css = cssFor(normalisePair(raw));
+          if (!css) { if (styleEl) styleEl.textContent = ''; return; }
+          if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'zahara-palette-overrides';
+            document.head.appendChild(styleEl);
+          }
+          styleEl.textContent = css;
+        }
+        function clearAll() { if (styleEl) styleEl.textContent = ''; }
         try {
           var paletteRaw = localStorage.getItem('zahara-color-overrides');
           if (paletteRaw) applyOverrides(JSON.parse(paletteRaw));

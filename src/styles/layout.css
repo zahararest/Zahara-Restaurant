@@ -244,40 +244,23 @@ html[lang="he"] .nav {
 .mobile-nav a:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Menu page — cinematic treatment (dark backdrop only, no photo).
+   Menu page — paper-card editorial treatment.
    ──────────────────────────────────────────────────────────────────────────
-   Mirrors the sim__cinema preview's text + accent treatment from
-   /admin/colors/ and the cinematic chapter strips on the home page.
-   The backdrop is a solid --ink with a soft --shadow gradient on top so
-   prices and titles still have the same depth as the home cinema strips,
-   without the visual weight of a full background photo.
-
-   Full-bleed: escapes the parent .wrap so the dark surface spans the
-   viewport. Token-driven, so the admin palette + dark mode still flow.
+   Each menu section is a soft "paper card" (a --paper-card → --paper
+   gradient with a 1px rule border, soft shadow, accent glow and a gold
+   corner ornament) so the menu reads like the home page's warm, layered
+   surfaces. The only photograph is the swapping category hero banner.
+   Fully token-driven, so the admin palette + dark mode flow through.
    ────────────────────────────────────────────────────────────────────────── */
 
 .menu-embed {
   position: relative;
   isolation: isolate;
-  /* Use --shadow (always near-black, NOT overridden by dark mode) so the
-     dark backdrop survives both themes. --ink would flip to cream in
-     dark mode and the paper-on-photo text on top would disappear. */
-  background: var(--shadow);
-  color: var(--paper-on-photo);
+  /* Paper-card editorial menu: the embed itself is transparent so the
+     page's --paper shows through and the section cards layer on top of it.
+     Only the category hero banner (.menu-hero) carries a photograph. */
+  color: var(--ink);
   padding-block: var(--space-l) var(--space-2xl);
-  margin-inline: calc((100vw - 100%) / -2);
-  padding-inline: clamp(1.25rem, 6vw, 4rem);
-}
-.menu-embed::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--shadow) 32%, transparent) 0%,
-    color-mix(in srgb, var(--shadow) 18%, transparent) 35%,
-    color-mix(in srgb, var(--shadow) 45%, transparent) 100%);
-  pointer-events: none;
 }
 
 .menu-hero {
@@ -352,7 +335,7 @@ html[lang="he"] .nav {
   justify-content: center;
   padding-block: var(--space-s) var(--space-m);
   margin-block-end: var(--space-m);
-  border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
+  border-block-end: 1px solid var(--rule-soft);
 }
 
 .menu-tabs__indicator {
@@ -363,8 +346,10 @@ html[lang="he"] .nav {
   width: 0;
   background: linear-gradient(90deg, transparent, var(--accent) 20%, var(--accent) 80%, transparent);
   pointer-events: none;
-  transition: transform 0.55s var(--ease-out), width 0.55s var(--ease-out);
-  will-change: transform, width;
+  /* Positioned with a LOGICAL inset by Motion's positionTabIndicator so it
+     lands correctly in both LTR and RTL (the site default is Hebrew). */
+  transition: inset-inline-start 0.55s var(--ease-out), width 0.55s var(--ease-out);
+  will-change: inset-inline-start, width;
 }
 @media (prefers-reduced-motion: reduce) {
   .menu-tabs__indicator { transition: none; }
@@ -377,23 +362,25 @@ html[lang="he"] .nav {
   font-size: var(--step--1);
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--paper-on-photo) 65%, transparent);
+  color: var(--ink-muted);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 999px;
   cursor: pointer;
-  transition: color 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+  transition: color 0.25s ease, background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
   font-weight: 500;
   white-space: nowrap;
 }
 .menu-tab:hover {
-  color: var(--paper-on-photo);
-  border-color: color-mix(in srgb, var(--paper-on-photo) 30%, transparent);
+  color: var(--ink);
+  border-color: var(--rule);
+  transform: translateY(-1px);
 }
 .menu-tab.is-active {
-  color: var(--ink);
-  background: var(--paper-on-photo);
-  border-color: var(--paper-on-photo);
+  color: var(--paper-on-photo);
+  background: var(--ink);
+  border-color: var(--ink);
+  transform: translateY(0);
 }
 
 .menu-panel { display: none; }
@@ -404,19 +391,58 @@ html[lang="he"] .nav {
   font-size: var(--step--2);
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+  color: var(--ink-muted);
   margin-block-end: var(--space-l);
   min-height: 1em;
   font-weight: 500;
 }
 .menu-meta__date { color: var(--accent); font-weight: 600; }
 
-.menu-inline { padding-block-end: var(--space-l); }
-
-.menu-section-group { padding-block: var(--space-xl); }
-.menu-section-group + .menu-section-group {
-  border-block-start: 1px solid color-mix(in srgb, var(--paper-on-photo) 14%, transparent);
+.menu-inline {
+  position: relative;
+  display: grid;
+  gap: var(--space-l);
+  padding-block-end: var(--space-l);
 }
+
+/* Each menu section is a soft "paper card". */
+.menu-section-group {
+  position: relative;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3rem);
+  background: linear-gradient(180deg, var(--paper-card) 0%, var(--paper) 100%);
+  border: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Soft accent glow tucked behind each card. */
+.menu-section-group::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -40%;
+  inset-inline-start: -10%;
+  width: 60%;
+  aspect-ratio: 1;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Decorative gold corner ornament. */
+.menu-section-group::after {
+  content: '';
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  width: 8rem;
+  height: 8rem;
+  background: radial-gradient(circle at bottom right, color-mix(in srgb, var(--gold) 10%, transparent), transparent 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.menu-section-group + .menu-section-group { margin-block-start: 0; }
 
 .menu-section-heading {
   font-family: var(--font-display);
@@ -424,11 +450,31 @@ html[lang="he"] .nav {
   font-weight: 400;
   text-align: center;
   margin: 0 0 var(--space-l);
-  color: var(--paper-on-photo);
+  color: var(--ink);
   letter-spacing: -0.015em;
   line-height: 1.1;
-  text-shadow: 0 2px 28px color-mix(in srgb, var(--shadow) 45%, transparent);
 }
+
+/* Diamond flourish above every card after the first — fades and spreads
+   outward as the card scrolls into view. Lives on the heading's ::before
+   to avoid clashing with the card's accent-glow ::before. */
+.menu-section-group + .menu-section-group .menu-section-heading::before {
+  content: '\25C6 \25C7 \25C6';
+  display: block;
+  color: var(--accent);
+  font-size: 0.55rem;
+  letter-spacing: 0.9em;
+  margin-block-end: var(--space-m);
+  opacity: 0;
+  transition: opacity 0.9s var(--ease-out) 0.2s, letter-spacing 1s var(--ease-out) 0.2s;
+}
+.menu-section-group.is-in-view + .menu-section-group .menu-section-heading::before,
+.menu-section-group + .menu-section-group.is-in-view .menu-section-heading::before {
+  opacity: 0.55;
+  letter-spacing: 1.2em;
+}
+
+/* Heading underline draws in when the card enters view. */
 .menu-section-heading::after {
   content: '';
   display: block;
@@ -436,19 +482,19 @@ html[lang="he"] .nav {
   height: 1px;
   background: var(--accent);
   margin: 1rem auto 0;
+  transform-origin: center;
+  transition: transform 1s var(--ease-out) 0.25s;
 }
+.menu-section-group.reveal--off .menu-section-heading::after { transform: scaleX(0); }
+.menu-section-group.is-in-view .menu-section-heading::after  { transform: scaleX(1); }
 
 .menu-items-list {
   list-style: none;
   margin: 0 auto;
-  padding: clamp(1.5rem, 3vw, 2rem);
+  padding: 0;
   max-width: var(--readable-max);
   display: grid;
   gap: var(--space-m);
-  /* Transparent — items sit directly on the cinematic photo backdrop
-     rather than inside a paper-card sub-container. */
-  background: transparent;
-  border: 0;
 }
 
 .menu-item-row {
@@ -457,7 +503,12 @@ html[lang="he"] .nav {
   gap: 0.6rem 1.5rem;
   align-items: baseline;
   line-height: 1.55;
+  padding-block-end: 0.85rem;
+  border-block-end: 1px solid var(--rule-soft);
+  transition: opacity 0.7s var(--ease-out), transform 0.8s var(--ease-out);
+  will-change: opacity, transform;
 }
+.menu-item-row:last-child { border-block-end: 0; padding-block-end: 0; }
 
 .menu-item__main {
   display: flex;
@@ -466,31 +517,45 @@ html[lang="he"] .nav {
   min-width: 0;
 }
 
-.menu-item-row {
-  padding-block-end: 0.85rem;
-  border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 14%, transparent);
+/* Per-item stagger — each row slides in from the leading edge. */
+.menu-section-group.reveal--off .menu-items-list .menu-item-row {
+  opacity: 0;
+  transform: translateX(-20px);
 }
-.menu-item-row:last-child { border-block-end: 0; padding-block-end: 0; }
+html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row {
+  transform: translateX(20px);
+}
+.menu-section-group.is-in-view .menu-items-list .menu-item-row {
+  opacity: 1;
+  transform: translateX(0);
+}
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(1) { transition-delay: 0.10s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(2) { transition-delay: 0.18s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(3) { transition-delay: 0.26s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(4) { transition-delay: 0.34s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(5) { transition-delay: 0.42s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(6) { transition-delay: 0.50s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(7) { transition-delay: 0.58s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(8) { transition-delay: 0.66s; }
+.menu-section-group.is-in-view .menu-items-list .menu-item-row:nth-child(n+9) { transition-delay: 0.74s; }
 
 .menu-item__name {
   font-weight: 600;
   font-size: var(--step-0);
-  color: var(--paper-on-photo);
+  color: var(--ink);
   letter-spacing: 0.005em;
   line-height: 1.3;
-  text-shadow: 0 1px 16px color-mix(in srgb, var(--shadow) 50%, transparent);
 }
 
 .menu-item__desc {
-  color: color-mix(in srgb, var(--paper-on-photo) 78%, transparent);
+  color: var(--ink-soft);
   font-size: var(--step--1);
   font-weight: 300;
   line-height: 1.55;
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--shadow) 45%, transparent);
 }
 
 .menu-item__price {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--accent);
   font-size: var(--step-0);
   font-variant-numeric: tabular-nums;
@@ -501,7 +566,6 @@ html[lang="he"] .nav {
   display: inline-flex;
   align-items: baseline;
   gap: 0.35rem;
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--shadow) 55%, transparent);
 }
 
 .menu-item__price--double {
@@ -515,11 +579,11 @@ html[lang="he"] .nav {
 }
 .menu-item__price-glass {
   font-weight: 500;
-  color: color-mix(in srgb, var(--paper-on-photo) 68%, transparent);
+  color: var(--ink-muted);
   font-size: var(--step--1);
 }
 .menu-item__price-sep {
-  color: color-mix(in srgb, var(--paper-on-photo) 45%, transparent);
+  color: var(--ink-faint);
   font-weight: 300;
 }
 
@@ -527,39 +591,46 @@ html[lang="he"] .nav {
   display: grid;
   place-items: center;
   min-height: 18rem;
-  color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+  color: var(--ink-muted);
   font-size: var(--step--1);
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 .menu-coming-soon p { margin: 0; }
 
-/* Cocktail cards inside the cinema-styled menu — translucent dark
-   tiles with paper-on-photo text. */
-.menu-embed .cocktail-card {
-  background: color-mix(in srgb, var(--shadow) 30%, transparent);
-  border: 1px solid color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+/* Cocktail cards stagger into view inside their section card. The paper
+   .cocktail-card base (components.css) already carries the surface + text
+   colours, so the menu only needs the entrance choreography here. */
+.cocktail-grid .cocktail-card {
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out),
+    box-shadow 0.4s var(--ease-out),
+    border-color 0.3s ease;
 }
-.menu-embed .cocktail-card__head {
-  border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
+.menu-section-group.reveal--off .cocktail-grid .cocktail-card {
+  opacity: 0;
+  transform: translateY(18px);
 }
-.menu-embed .cocktail-card__name { color: var(--paper-on-photo); }
-.menu-embed .cocktail-card__line {
-  color: color-mix(in srgb, var(--paper-on-photo) 80%, transparent);
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card {
+  opacity: 1;
+  transform: translateY(0);
 }
-.menu-embed .cocktail-card__line--he {
-  color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
-}
-/* Wine-list legend reads against the dark backdrop too. */
-.menu-embed .wine-legend {
-  background: color-mix(in srgb, var(--shadow) 30%, transparent);
-  border: 1px solid color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
-  color: color-mix(in srgb, var(--paper-on-photo) 75%, transparent);
-}
-.menu-embed .wine-legend__dot--glass {
-  border-color: var(--accent);
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(1) { transition-delay: 0.10s; }
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(2) { transition-delay: 0.20s; }
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(3) { transition-delay: 0.30s; }
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(4) { transition-delay: 0.40s; }
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(5) { transition-delay: 0.50s; }
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(6) { transition-delay: 0.60s; }
+.menu-section-group.is-in-view .cocktail-grid .cocktail-card:nth-child(n+7) { transition-delay: 0.70s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-section-group + .menu-section-group .menu-section-heading::before { opacity: 0.55; transition: none; }
+  .menu-section-heading::after,
+  .menu-items-list .menu-item-row,
+  .cocktail-grid .cocktail-card { transition: none; }
+  .menu-section-group.reveal--off .menu-items-list .menu-item-row,
+  .menu-section-group.reveal--off .cocktail-grid .cocktail-card { opacity: 1; transform: none; }
 }
 
 @media (max-width: 860px) {

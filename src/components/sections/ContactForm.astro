@@ -188,8 +188,15 @@ const eventTypes: { value: string; label: string }[] = [
     if (!wrap || !indicator || !active) return;
     const wrapRect = wrap.getBoundingClientRect();
     const btnRect  = active.getBoundingClientRect();
-    indicator.style.width     = btnRect.width + 'px';
-    indicator.style.transform = `translateX(${btnRect.left - wrapRect.left}px)`;
+    // Logical inset so the underline lands under the active button in both
+    // LTR and RTL (the site default is Hebrew). In RTL inset-inline-start
+    // anchors to the right edge, so measure the offset from the right.
+    const rtl = getComputedStyle(wrap).direction === 'rtl';
+    const inlineStart = rtl
+      ? (wrapRect.right - btnRect.right)
+      : (btnRect.left   - wrapRect.left);
+    indicator.style.width            = btnRect.width + 'px';
+    indicator.style.insetInlineStart = inlineStart + 'px';
   }
   window.addEventListener('resize', positionIndicator, { passive: true });
   if (document.fonts?.ready) document.fonts.ready.then(positionIndicator).catch(() => {});

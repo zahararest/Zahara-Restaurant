@@ -18,7 +18,7 @@
 //   reverts all unsaved changes.
 
 import '../../styles/admin-colors.css';
-import { groups, defaults } from '../../data/admin-colors';
+import { groups, defaults, darkDefaults } from '../../data/admin-colors';
 
 const TITLE = 'Color editor · Zahara';
 // Presets live in the <script> below — no define:vars needed for them.
@@ -75,6 +75,11 @@ const TITLE = 'Color editor · Zahara';
       </optgroup>
     </select>
 
+    <div class="mode-toggle" role="group" aria-label="Edit light or dark palette">
+      <button type="button" class="mode-toggle__btn is-active" data-mode-btn="light" aria-pressed="true">☀ Light</button>
+      <button type="button" class="mode-toggle__btn" data-mode-btn="dark" aria-pressed="false">☾ Dark</button>
+    </div>
+
     <label class="top-toggle-label">
       <input type="checkbox" data-modified-only />
       Modified only
@@ -125,6 +130,7 @@ const TITLE = 'Color editor · Zahara';
                  data-token={t.token}
                  data-short={t.shortName}
                  data-default={t.def}
+                 data-default-dark={darkDefaults[t.token] || t.def}
                  data-search-key={(t.label + ' ' + t.token + ' ' + (t.hint || '')).toLowerCase()}>
               <div class="row__swatch-area">
                 <span class="row__dot" data-modified-dot title="Modified from default"></span>
@@ -181,7 +187,7 @@ const TITLE = 'Color editor · Zahara';
           <span class="preview-fragment" data-uses="ink-soft">LOCATION</span>
           <span class="preview-fragment" data-uses="ink,accent">MENU</span>
         </div>
-        <span class="sim__nav-reserve preview-fragment" data-uses="ink-muted">Reserve</span>
+        <span class="sim__nav-reserve preview-fragment" data-uses="ink">Reserve</span>
       </div>
 
       <!-- PAGE surface -->
@@ -192,7 +198,7 @@ const TITLE = 'Color editor · Zahara';
           <div class="sim__hero-bar">
             <span class="sim__hero-brand preview-fragment" data-uses="paper-on-photo">ZAHARA</span>
             <span class="sim__hero-navs preview-fragment" data-uses="paper-on-photo">HOME · LOCATION · MENU · CONTACT</span>
-            <span class="sim__hero-reserve preview-fragment" data-uses="ink-muted">Reserve</span>
+            <span class="sim__hero-reserve preview-fragment" data-uses="paper-on-photo">Reserve</span>
           </div>
           <div class="sim__hero-body">
             <p class="sim__hero-eyebrow preview-fragment" data-uses="paper-on-photo,accent">
@@ -202,7 +208,7 @@ const TITLE = 'Color editor · Zahara';
               A new kitchen, on Ben Sira.
             </h3>
             <div class="sim__hero-btns">
-              <span class="sim__hero-btn preview-fragment" data-uses="ink-muted,paper-on-photo">Reserve a table</span>
+              <span class="sim__hero-btn preview-fragment" data-uses="ink,paper">Reserve a table</span>
               <span class="sim__hero-btn ghost preview-fragment" data-uses="paper-on-photo">See the menu</span>
             </div>
           </div>
@@ -237,14 +243,14 @@ const TITLE = 'Color editor · Zahara';
             Wine list short, considered.
           </p>
           <div class="sim__btn-row">
-            <button class="sim__btn preview-fragment" type="button" data-uses="paper-on-photo,ink-muted">Reserve</button>
+            <button class="sim__btn preview-fragment" type="button" data-uses="ink,paper">Reserve</button>
             <button class="sim__btn ghost preview-fragment" type="button" data-uses="ink">Menu</button>
           </div>
         </div>
 
         <!-- MENU TABS (shows --ink as active-tab background) -->
         <div class="sim__tabs preview-fragment" data-uses="paper,rule-soft">
-          <span class="sim__tab is-active preview-fragment" data-uses="ink-muted,paper-on-photo">Food</span>
+          <span class="sim__tab is-active preview-fragment" data-uses="ink,paper-on-photo">Food</span>
           <span class="sim__tab preview-fragment" data-uses="ink-muted">Cocktails</span>
           <span class="sim__tab preview-fragment" data-uses="ink-muted">Wine</span>
           <span class="sim__tab preview-fragment" data-uses="ink-muted">Desserts</span>
@@ -254,19 +260,30 @@ const TITLE = 'Color editor · Zahara';
         <!-- STRONG RULE -->
         <div class="sim__rule preview-fragment" data-uses="rule"></div>
 
-        <!-- COCKTAIL / MENU CARD -->
-        <div class="sim__card preview-fragment" data-uses="paper-card,paper-edge">
-          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">/MENU/ · BEGINNINGS</p>
-          <div class="sim__card-row preview-fragment" data-uses="rule-soft">
-            <strong class="preview-fragment" data-uses="ink">Bread service</strong>
+        <!-- MENU SECTION CARD — how the /menu/ page renders each section:
+             a paper-card gradient with a serif heading + accent underline,
+             ink item names, ink-soft descriptions, accent prices and a soft
+             gold corner ornament. -->
+        <div class="sim__menucard preview-fragment" data-uses="paper-card,paper,rule-soft,gold,accent">
+          <h4 class="sim__menucard-title preview-fragment" data-uses="ink,accent">Something to start</h4>
+          <div class="sim__menucard-row preview-fragment" data-uses="rule-soft">
+            <div class="sim__menucard-main">
+              <strong class="preview-fragment" data-uses="ink">Bread service</strong>
+              <span class="sim__menucard-desc preview-fragment" data-uses="ink-soft">sourdough, cultured butter, olive oil</span>
+            </div>
             <span class="preview-fragment" data-uses="accent">32</span>
           </div>
-          <div class="sim__card-row preview-fragment" data-uses="rule-soft">
-            <strong class="preview-fragment" data-uses="ink">Beef tartare</strong>
+          <div class="sim__menucard-row preview-fragment" data-uses="rule-soft">
+            <div class="sim__menucard-main">
+              <strong class="preview-fragment" data-uses="ink">Beef tartare</strong>
+              <span class="sim__menucard-desc preview-fragment" data-uses="ink-soft">smoked egg yolk, capers, toast</span>
+            </div>
             <span class="preview-fragment" data-uses="accent">78</span>
           </div>
-          <div class="sim__card-row preview-fragment" data-uses="rule-soft">
-            <strong class="preview-fragment" data-uses="ink">Sea-bass sashimi</strong>
+          <div class="sim__menucard-row preview-fragment" data-uses="rule-soft">
+            <div class="sim__menucard-main">
+              <strong class="preview-fragment" data-uses="ink">Sea-bass sashimi</strong>
+            </div>
             <span class="preview-fragment" data-uses="accent">78</span>
           </div>
         </div>
@@ -281,10 +298,11 @@ const TITLE = 'Color editor · Zahara';
           <span class="preview-fragment" data-uses="ink"> for people."</span>
         </blockquote>
 
-        <!-- MENU CINEMA (text on photo) -->
+        <!-- HOME CINEMATIC STRIP (text on photo) — the home page menu teaser.
+             The /menu/ page itself uses the paper-card section above. -->
         <div class="sim__cinema">
           <span class="sim__cinema-eyebrow preview-fragment" data-uses="paper-on-photo,accent">
-            01 · SOMETHING TO START
+            HOME · CINEMATIC STRIP
           </span>
           <h4 class="sim__cinema-title preview-fragment" data-uses="paper-on-photo">
             Something to start
@@ -348,7 +366,7 @@ const TITLE = 'Color editor · Zahara';
         </div>
 
         <!-- SELECTION + FOCUS RING demos -->
-        <div class="sim__selection preview-fragment" data-uses="accent-soft,ink">
+        <div class="sim__selection preview-fragment" data-uses="ink">
           Normal text and
           <mark class="sim__sel-mark preview-fragment" data-uses="accent-soft,ink">selected text highlight</mark>
           back to normal.
@@ -407,11 +425,11 @@ const TITLE = 'Color editor · Zahara';
               ink-on-paper-on-photo treatment. */}
           <div class="sim__corner-row">
             <div class="sim__corner-cell">
-              <span class="sim__corner-btn preview-fragment" data-uses="ink,paper-on-photo">♿</span>
+              <span class="sim__corner-btn preview-fragment" data-uses="ink,paper">♿</span>
               <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">A11Y TOGGLE</span>
             </div>
             <div class="sim__corner-cell">
-              <span class="sim__corner-btn preview-fragment" data-uses="ink,paper-on-photo">↑</span>
+              <span class="sim__corner-btn preview-fragment" data-uses="ink,paper">↑</span>
               <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">SCROLL-TO-TOP</span>
             </div>
           </div>
@@ -484,7 +502,7 @@ const TITLE = 'Color editor · Zahara';
   </div>
 </div>
 
-<script is:inline define:vars={{ defaults }}>
+<script is:inline define:vars={{ defaults, darkDefaults }}>
 (function () {
   'use strict';
 
@@ -657,21 +675,59 @@ const TITLE = 'Color editor · Zahara';
   const root       = document.documentElement;
   const rows       = Array.from(document.querySelectorAll('[data-row]'));
 
+  // Which palette we're editing: 'light' or 'dark'. The preview pane reflects
+  // this mode; Save persists BOTH. State shape everywhere is a pair:
+  //   { light: { '--token': '#hex', … }, dark: { … } }
+  let activeMode = 'light';
+
   let bc = null;
   try { bc = new BroadcastChannel('zahara-colors'); } catch (_) {}
 
+  // ── Pair helpers ────────────────────────────────────────────────────────────
+  function emptyPair() { return { light: {}, dark: {} }; }
+  function clonePair(p) { return { light: Object.assign({}, p.light), dark: Object.assign({}, p.dark) }; }
+
+  // Normalise any stored / fetched value into the pair shape, migrating an
+  // old flat { '--token':'#hex' } record (light only).
+  function toPair(raw) {
+    const pair = emptyPair();
+    if (!raw || typeof raw !== 'object') return pair;
+    const looksFlat = Object.keys(raw).some((k) => k.indexOf('--') === 0);
+    const src = looksFlat ? { light: raw } : raw;
+    ['light', 'dark'].forEach((mode) => {
+      const m = src[mode];
+      if (m && typeof m === 'object') {
+        for (const t in m) {
+          if (t.indexOf('--') === 0 && typeof m[t] === 'string') pair[mode][t] = String(m[t]).toUpperCase();
+        }
+      }
+    });
+    return pair;
+  }
+
+  function defaultFor(mode, token) {
+    return ((mode === 'dark' ? darkDefaults[token] : defaults[token]) || defaults[token] || '').toUpperCase();
+  }
+  function rowDefault(row) {
+    return (activeMode === 'dark' ? row.dataset.defaultDark : row.dataset.default).toUpperCase();
+  }
+  function curMap() { return currentState[activeMode]; }
+  function resolved(mode, token) {
+    return (currentState[mode][token] || defaultFor(mode, token)).toUpperCase();
+  }
+
   function loadCache() {
-    try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
+    try { return toPair(JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return emptyPair(); }
   }
   function writeCache(o) {
     try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (_) {}
   }
 
   // savedState: last value confirmed against the SERVER.
-  // currentState: live :root state including unsaved edits.
+  // currentState: live state including unsaved edits.
   // Start optimistically from the cache; reconcile with the server below.
   let savedState   = loadCache();
-  let currentState = Object.assign({}, savedState);
+  let currentState = clonePair(savedState);
   let serverSyncedAt = 0;  // becomes >0 once /api/palette has returned
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -683,31 +739,35 @@ const TITLE = 'Color editor · Zahara';
   const discardBtn   = document.querySelector('[data-discard]');
   const pendingBadge = document.querySelector('[data-pending-badge]');
 
+  // ── Render the active mode onto :root + the rows ──────────────────────────────
+  // We ALWAYS set an explicit value for every token (never removeProperty):
+  // the admin page carries no data-theme attribute, so relying on the cascade
+  // would fall back to the LIGHT default even while editing dark.
+  function renderMode() {
+    rows.forEach((row) => {
+      const val = resolved(activeMode, row.dataset.token);
+      root.style.setProperty(row.dataset.token, val);
+      _syncRowUI(row, val, { skipHistory: true });
+    });
+    _refreshAllContrast();
+    _updatePendingUI();
+  }
+
   // ────────────────────────────────────────────────────────────────────────────
-  // INIT — apply cached state immediately (zero flash), then reconcile
+  // INIT — render cached state immediately (zero flash), then reconcile
   // against the canonical server state.
   // ────────────────────────────────────────────────────────────────────────────
-  for (const [token, value] of Object.entries(currentState)) {
-    root.style.setProperty(token, value);
-  }
-  rows.forEach((row) => {
-    const token = row.dataset.token;
-    const val   = (currentState[token] || row.dataset.default).toUpperCase();
-    _syncRowUI(row, val, { skipHistory: true });
-  });
-  _refreshAllContrast();
-  _updatePendingUI();
+  renderMode();
 
   // Fire-and-forget reconciliation. We deliberately don't `await` this at
   // the top level — the editor renders from cache immediately, and the
   // server response slides values into place a moment later.
   (async function reconcileWithServer() {
-    let serverPalette;
+    let serverPair;
     try {
       const res = await fetch(SERVER_GET, { cache: 'no-store', credentials: 'same-origin' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      serverPalette = await res.json();
-      if (!serverPalette || typeof serverPalette !== 'object') serverPalette = {};
+      serverPair = toPair(await res.json());
     } catch (err) {
       console.warn('[colors] /api/palette failed — staying on cached state', err);
       return;
@@ -715,28 +775,18 @@ const TITLE = 'Color editor · Zahara';
     serverSyncedAt = Date.now();
 
     // Server is canonical for savedState. Pending edits stay pending.
-    savedState = serverPalette;
+    savedState = serverPair;
     writeCache(savedState);
 
-    // If the user hasn't started editing yet, also bring currentState in
-    // line with the server so the picker UI matches what's actually saved.
-    // We detect "hasn't started editing" by checking that no history entry
-    // has been pushed.
+    // If the user hasn't started editing yet, bring currentState in line with
+    // the server so the picker UI matches what's actually saved.
     if (history.length === 0) {
-      currentState = Object.assign({}, savedState);
-      // Re-apply :root: clear our own previous inline writes first.
-      rows.forEach((r) => root.style.removeProperty(r.dataset.token));
-      for (const [token, value] of Object.entries(currentState)) {
-        root.style.setProperty(token, value);
-      }
-      rows.forEach((row) => {
-        const token = row.dataset.token;
-        const val   = (currentState[token] || row.dataset.default).toUpperCase();
-        _syncRowUI(row, val, { skipHistory: true });
-      });
+      currentState = clonePair(savedState);
+      renderMode();
+    } else {
+      _refreshAllDots();
+      _updatePendingUI();
     }
-    _refreshAllContrast();
-    _updatePendingUI();
   })();
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -745,7 +795,7 @@ const TITLE = 'Color editor · Zahara';
   const history = [];
 
   function _pushHistory(token, from, to) {
-    history.push({ token, from, to });
+    history.push({ mode: activeMode, token, from, to });
     if (history.length > 50) history.shift();
     undoBtn.disabled = false;
   }
@@ -753,6 +803,7 @@ const TITLE = 'Color editor · Zahara';
   function undo() {
     const last = history.pop();
     if (!last) { undoBtn.disabled = true; return; }
+    if (last.mode !== activeMode) setMode(last.mode);
     applyToken(last.token, last.from, { silent: true });
     if (history.length === 0) undoBtn.disabled = true;
   }
@@ -762,14 +813,19 @@ const TITLE = 'Color editor · Zahara';
   // ────────────────────────────────────────────────────────────────────────────
   // PENDING TRACKING
   // ────────────────────────────────────────────────────────────────────────────
-  function _isPending(token) {
-    const cur = (currentState[token] || defaults[token] || '').toUpperCase();
-    const sav = (savedState[token]   || defaults[token] || '').toUpperCase();
+  function isPendingIn(mode, token) {
+    const cur = (currentState[mode][token] || defaultFor(mode, token)).toUpperCase();
+    const sav = (savedState[mode][token]   || defaultFor(mode, token)).toUpperCase();
     return cur !== sav;
   }
+  function _isPending(token) { return isPendingIn(activeMode, token); }
 
+  // Counts rows that differ from saved in EITHER mode, so the Save button
+  // and "N unsaved" badge reflect edits made across both palettes.
   function _countPending() {
-    return rows.filter((r) => _isPending(r.dataset.token)).length;
+    return rows.filter((r) =>
+      isPendingIn('light', r.dataset.token) || isPendingIn('dark', r.dataset.token)
+    ).length;
   }
 
   function _updatePendingUI() {
@@ -811,7 +867,7 @@ const TITLE = 'Color editor · Zahara';
         try { msg = (await res.json()).error || msg; } catch (_) {}
         throw new Error(msg);
       }
-      savedState = Object.assign({}, currentState);
+      savedState = clonePair(currentState);
       writeCache(savedState);
       if (bc) bc.postMessage({ type: 'colors-changed', overrides: savedState });
       showToast('Saved to server ✓');
@@ -832,28 +888,16 @@ const TITLE = 'Color editor · Zahara';
   // DISCARD
   // ────────────────────────────────────────────────────────────────────────────
   function discard() {
-    // Reset currentState to savedState
-    currentState = Object.assign({}, savedState);
-    // Remove all :root overrides then re-apply savedState
-    rows.forEach((r) => root.style.removeProperty(r.dataset.token));
-    for (const [token, value] of Object.entries(currentState)) {
-      root.style.setProperty(token, value);
-    }
-    // Sync every row's UI
-    rows.forEach((row) => {
-      const val = (currentState[row.dataset.token] || row.dataset.default).toUpperCase();
-      _syncRowUI(row, val, { skipHistory: true });
-    });
+    // Revert both palettes to the last saved state and repaint the active mode.
+    currentState = clonePair(savedState);
+    renderMode();
     history.length = 0;
     undoBtn.disabled = true;
-    _refreshAllContrast();
-    _updatePendingUI();
     showToast('Changes discarded');
   }
 
   discardBtn.addEventListener('click', () => {
-    if (Object.keys(currentState).length === 0 ||
-        !confirm('Discard all unsaved changes?')) return;
+    if (_countPending() === 0 || !confirm('Discard all unsaved changes?')) return;
     discard();
   });
 
@@ -868,19 +912,18 @@ const TITLE = 'Color editor · Zahara';
     const normalised = _normaliseHex(value);
     if (!normalised) return;
 
-    const prev = (currentState[token] || row.dataset.default).toUpperCase();
+    const modeDefault = rowDefault(row);
+    const prev = (curMap()[token] || modeDefault).toUpperCase();
     if (!opts.silent && prev !== normalised) {
       _pushHistory(token, prev, normalised);
     }
 
-    // Apply to :root
-    if (normalised === row.dataset.default.toUpperCase()) {
-      root.style.removeProperty(token);
-      delete currentState[token];
-    } else {
-      root.style.setProperty(token, normalised);
-      currentState[token] = normalised;
-    }
+    // Track override-vs-default in state, but ALWAYS paint :root explicitly
+    // (the admin page has no data-theme, so removeProperty would fall back to
+    // the light default even in dark mode).
+    if (normalised === modeDefault) delete curMap()[token];
+    else                            curMap()[token] = normalised;
+    root.style.setProperty(token, normalised);
 
     _syncRowUI(row, normalised, opts);
     _refreshAllContrast();
@@ -903,8 +946,8 @@ const TITLE = 'Color editor · Zahara';
     }
     hexEl.classList.remove('is-invalid');
 
-    // Dot: orange = modified from default; blue = pending (unsaved)
-    const isModified = value !== row.dataset.default.toUpperCase();
+    // Dot: orange = modified from the active mode's default; blue = unsaved.
+    const isModified = value !== rowDefault(row);
     const isPend     = _isPending(row.dataset.token);
     dot.classList.toggle('is-modified', isModified && !isPend);
     dot.classList.toggle('is-pending',  isPend);
@@ -913,7 +956,7 @@ const TITLE = 'Color editor · Zahara';
 
   function _refreshAllDots() {
     rows.forEach((row) => {
-      const val = (currentState[row.dataset.token] || row.dataset.default).toUpperCase();
+      const val = resolved(activeMode, row.dataset.token);
       _syncRowUI(row, val, { skipHexSync: true, skipHistory: true });
     });
   }
@@ -944,7 +987,7 @@ const TITLE = 'Color editor · Zahara';
     hexEl.addEventListener('blur', () => {
       const v = _normaliseHex(hexEl.value);
       if (v) hexEl.value = v;
-      else   hexEl.value = (currentState[token] || row.dataset.default).toUpperCase();
+      else   hexEl.value = resolved(activeMode, token);
       hexEl.classList.remove('is-invalid');
     });
     hexEl.addEventListener('focus', () => hexEl.select());
@@ -957,31 +1000,44 @@ const TITLE = 'Color editor · Zahara';
     });
 
     copyBtn.addEventListener('click', async () => {
-      const val = (currentState[token] || row.dataset.default).toUpperCase();
+      const val = resolved(activeMode, token);
       try { await navigator.clipboard.writeText(val); } catch (_) {}
       showToast('Copied ' + val);
     });
 
     resetBtn.addEventListener('click', () => {
-      applyToken(token, row.dataset.default);
+      applyToken(token, rowDefault(row));
     });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // RESET ALL
+  // MODE TOGGLE (light / dark)
+  // ────────────────────────────────────────────────────────────────────────────
+  function setMode(mode) {
+    if (mode !== 'light' && mode !== 'dark') return;
+    activeMode = mode;
+    document.querySelectorAll('[data-mode-btn]').forEach((b) => {
+      const on = b.dataset.modeBtn === mode;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    renderMode();   // repaint :root + rows + contrast for the new mode
+    _applyFilter(); // "modified only" is mode-sensitive
+  }
+  document.querySelectorAll('[data-mode-btn]').forEach((b) => {
+    b.addEventListener('click', () => setMode(b.dataset.modeBtn));
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // RESET ALL — resets the ACTIVE mode's tokens to their defaults.
   // ────────────────────────────────────────────────────────────────────────────
   document.querySelector('[data-reset]').addEventListener('click', () => {
-    if (!confirm('Reset every token to the project default? This will mark all tokens as unsaved.')) return;
-    rows.forEach((r) => {
-      root.style.removeProperty(r.dataset.token);
-      delete currentState[r.dataset.token];
-      _syncRowUI(r, r.dataset.default.toUpperCase(), { skipHistory: true });
-    });
+    if (!confirm('Reset every token in ' + activeMode + ' mode to its default? This marks them as unsaved.')) return;
+    rows.forEach((r) => { delete curMap()[r.dataset.token]; });
+    renderMode();
     history.length = 0;
     undoBtn.disabled = true;
-    _refreshAllContrast();
-    _updatePendingUI();
-    showToast('Reset to defaults (not yet saved)');
+    showToast('Reset ' + activeMode + ' to defaults (not yet saved)');
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -992,7 +1048,7 @@ const TITLE = 'Color editor · Zahara';
     if (!name || !PRESETS[name]) return;
     const palette = PRESETS[name];
     Object.entries(palette).forEach(([tk, val]) => applyToken(tk, val));
-    showToast('Preview: ' + name + ' (not saved)');
+    showToast('Preview: ' + name + ' → ' + activeMode + ' (not saved)');
     this.value = '';
   });
 
@@ -1007,8 +1063,8 @@ const TITLE = 'Color editor · Zahara';
     const mOnly = modifiedOnlyChk.checked;
     rows.forEach((r) => {
       const matchQ = !q || r.dataset.searchKey.includes(q);
-      const matchM = !mOnly || (currentState[r.dataset.token] !== undefined &&
-                                currentState[r.dataset.token].toUpperCase() !== r.dataset.default.toUpperCase());
+      const matchM = !mOnly || (curMap()[r.dataset.token] !== undefined &&
+                                curMap()[r.dataset.token].toUpperCase() !== rowDefault(r));
       r.classList.toggle('is-hidden', !(matchQ && matchM));
     });
     document.querySelectorAll('[data-group]').forEach((g) => {
@@ -1043,7 +1099,7 @@ const TITLE = 'Color editor · Zahara';
     paletteGrid.innerHTML = '';
     rows.forEach((r) => {
       const tk  = r.dataset.token;
-      const val = (currentState[tk] || r.dataset.default).toUpperCase();
+      const val = resolved(activeMode, tk);
       const label = r.querySelector('.row__name').firstChild.textContent.trim();
       const sw = document.createElement('button');
       sw.className = 'palette-swatch';
@@ -1126,13 +1182,13 @@ const TITLE = 'Color editor · Zahara';
   }
 
   function _refreshAllContrast() {
-    const paper = (root.style.getPropertyValue('--paper').trim() || defaults['--paper']).toUpperCase();
+    const paper = resolved(activeMode, '--paper');
     rows.forEach((row) => {
       const token = row.dataset.token;
       const isText = /^--(ink|accent|gold|c-|ok|err)/.test(token);
       const badge  = row.querySelector('[data-contrast]');
       if (!isText) { badge.textContent = ''; badge.className = 'row__contrast'; return; }
-      const val = (root.style.getPropertyValue(token).trim() || row.dataset.default).toUpperCase();
+      const val = resolved(activeMode, token);
       const c   = _contrastRatio(val, paper);
       let band, label;
       if      (c >= 7)   { band = 'aaa'; label = c.toFixed(1) + ':1 AAA'; }
@@ -1184,16 +1240,19 @@ const TITLE = 'Color editor · Zahara';
   const exportTextarea = document.querySelector('[data-export-textarea]');
   let exportMode = 'full';
 
-  function _buildCss(mode) {
+  function _buildCss(which) {
+    // Exports the ACTIVE mode, wrapped in the selector it ships under:
+    //   light → :root { … }    dark → html[data-theme="dark"] { … }
+    const sel = activeMode === 'dark' ? 'html[data-theme="dark"]' : ':root';
     const lines = [];
     rows.forEach((row) => {
       const token = row.dataset.token;
-      const value = (root.style.getPropertyValue(token).trim() || row.dataset.default).toUpperCase();
-      if (mode === 'changed' && value === row.dataset.default.toUpperCase()) return;
+      const value = resolved(activeMode, token);
+      if (which === 'changed' && value === rowDefault(row)) return;
       lines.push('  ' + token.padEnd(20) + ': ' + value + ';');
     });
-    if (mode === 'changed' && lines.length === 0) return '/* No changes from default */';
-    return ':root {\n' + lines.join('\n') + '\n}';
+    if (which === 'changed' && lines.length === 0) return '/* No changes from default */';
+    return sel + ' {\n' + lines.join('\n') + '\n}';
   }
 
   document.querySelector('[data-export]').addEventListener('click', () => {

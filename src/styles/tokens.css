@@ -1,5 +1,45 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ZAHARA COLOUR SYSTEM — the rules
+   ══════════════════════════════════════════════════════════════════════════
+   Every colour on the site (and the /admin/colors/ preview) resolves to a
+   token defined here. See COLORS.md for the full reference. The rules:
+
+   1. ONE source of truth. No raw hex in component CSS — always var(--token).
+      The only sanctioned exceptions are the `html.a11y-contrast` block
+      (a legal max-contrast override) and `var(--token, #fallback)` fallbacks
+      inside the admin preview.
+
+   2. THREE layers:
+        • Surfaces  — --paper / --paper-deep / --paper-edge / --paper-card,
+                      plus --paper-on-photo (text/UI over photography).
+        • Ink       — --ink → --ink-soft → --ink-muted → --ink-faint
+                      (solid heading text down to decorative detail).
+        • Accent    — ONE accent (--accent + --accent-deep/-soft). Used only
+                      for editorial markers: eyebrow rule, prices, hover
+                      underlines, the sliding tab indicator. Nothing else.
+      Supporting: --rule/-soft (dividers), --gold (secondary highlight), the
+      four category accents (--c-*), and --ok/--err (status only).
+
+   3. CONTRAST PAIRINGS (keep AA):
+        --ink / --ink-soft / --ink-muted   on --paper, --paper-deep, --paper-card
+        --paper (rest) and --paper-on-photo (hover/active) on --ink button fills
+        --paper-on-photo                    on photographs and dark overlays
+      The /admin/colors/ editor shows a live contrast badge per text token.
+
+   4. BUTTONS are token-driven (--button-*). Solid = --ink fill / --paper glyph,
+      accent fill / --paper-on-photo glyph on hover. .scroll-top, .a11y-toggle
+      and every .btn share this contract, so they all follow the rules at once.
+
+   5. TWO THEMES, same token names. Light is :root; dark is the parallel
+      html[data-theme="dark"] block below. The /admin/colors/ editor can tune
+      BOTH; saved overrides ship as :root{…} + html[data-theme="dark"]{…}.
+   ══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* ── Palette — sampled from the printed-menu reference image. */
+  /* ── Surfaces — cream/paper tones, sampled from the printed-menu reference.
+        --paper is the page background everywhere; the rest are progressively
+        raised surfaces. --paper-on-photo is text/UI sitting over photography
+        (stays light in BOTH themes). */
   --paper:          #F0E8D2;
   --paper-deep:     #E5DCC4;
   --paper-edge:     #D8CCAE;

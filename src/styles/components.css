@@ -905,7 +905,7 @@ html[lang="he"] .menu-cinema__eyebrow {
   color: var(--paper-on-photo);
   letter-spacing: -0.005em;
   line-height: 1.25;
-  text-shadow: 0 1px 18px color-mix(in srgb, var(--shadow) 55%, transparent);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--shadow) 70%, transparent);
 }
 .menu-cinema__item-desc {
   font-family: var(--font-body);
@@ -913,7 +913,7 @@ html[lang="he"] .menu-cinema__eyebrow {
   font-weight: 300;
   line-height: 1.5;
   color: color-mix(in srgb, var(--paper-on-photo) 78%, transparent);
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--shadow) 45%, transparent);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--shadow) 60%, transparent);
 }
 html[lang="he"] .menu-cinema__item-desc { font-family: var(--font-body-he); }
 .menu-cinema__item-price {
@@ -924,7 +924,7 @@ html[lang="he"] .menu-cinema__item-desc { font-family: var(--font-body-he); }
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--shadow) 55%, transparent);
+  text-shadow: 0 1px 3px color-mix(in srgb, var(--shadow) 70%, transparent);
 }
 
 .menu-cinema__foot {
@@ -1087,11 +1087,9 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
    ────────────────────────────────────────────────────────────────────────── */
 
 /* ── Accessibility toggle (Israeli regulations require it) ────────────
-   Uses --paper for the glyph colour so it inverts correctly in dark
-   mode. Using --paper-on-photo here would have made the ♿ glyph cream
-   on a cream button when dark mode flipped --ink to its dark-mode
-   value — invisible. --paper flips opposite to --ink, so the glyph
-   stays readable in either theme. */
+   Consumes the shared primary-button tokens (--button-*), same as
+   .scroll-top, so the glyph stays readable in both themes: --paper glyph
+   flips opposite to the --ink fill, and hover uses --paper-on-photo. */
 .a11y-toggle {
   position: fixed;
   inset-block-end: 1.5rem;
@@ -1101,9 +1099,9 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   height: 48px;
   display: grid;
   place-items: center;
-  background: var(--ink);
-  color: var(--paper);
-  border: 1px solid var(--ink);
+  background: var(--button-background);
+  color: var(--button-color);
+  border: var(--button-border-width) solid var(--button-border);
   border-radius: 50%;
   font-size: 1.4rem;
   line-height: 1;
@@ -1111,7 +1109,11 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   box-shadow: 0 12px 32px -16px color-mix(in srgb, var(--shadow) 55%, transparent);
   transition: background 0.2s ease, border-color 0.2s ease;
 }
-.a11y-toggle:hover         { background: var(--accent); border-color: var(--accent); color: var(--paper-on-photo); }
+.a11y-toggle:hover {
+  background: var(--button-hover-background);
+  color: var(--button-hover-color);
+  border-color: var(--button-hover-border);
+}
 .a11y-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* ── Accessibility panel ───────────────────────────────────────────── */
@@ -1263,8 +1265,10 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
 }
 
 /* ── Scroll-to-top button ─────────────────────────────────────────────
-   Same dark-mode contract as .a11y-toggle: --paper for the arrow so
-   it doesn't disappear when --ink flips to cream in dark mode. */
+   Consumes the shared primary-button tokens (--button-*) so its colours
+   follow the same rules as every .btn on the site: --ink fill / --paper
+   glyph at rest, accent fill / --paper-on-photo glyph on hover. Token
+   pairs flip cleanly in dark mode. */
 .scroll-top {
   position: fixed;
   inset-block-end: 1.5rem;
@@ -1274,9 +1278,9 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   height: 48px;
   display: grid;
   place-items: center;
-  background: var(--ink);
-  color: var(--paper);
-  border: 1px solid var(--ink);
+  background: var(--button-background);
+  color: var(--button-color);
+  border: var(--button-border-width) solid var(--button-border);
   border-radius: 50%;
   font-family: var(--font-display);
   font-size: 1.2rem;
@@ -1297,7 +1301,11 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   transform: translateY(0);
   pointer-events: auto;
 }
-.scroll-top:hover         { background: var(--accent); border-color: var(--accent); }
+.scroll-top:hover {
+  background: var(--button-hover-background);
+  color: var(--button-hover-color);
+  border-color: var(--button-hover-border);
+}
 .scroll-top:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .scroll-top { transition: opacity 0.01ms linear; transform: none; }
@@ -1604,9 +1612,9 @@ html[dir="rtl"] .scroll-rail__label { transform: translateX(0.5rem); }
   inset-block-end: -1px;
   inset-inline-start: 0;
   height: 2px;
-  width: 50%;            /* JS rewrites width + transform on mode change */
+  width: 50%;            /* JS rewrites width + inset-inline-start on mode change */
   background: var(--accent);
-  transition: transform 0.4s var(--ease-out), width 0.4s var(--ease-out);
+  transition: inset-inline-start 0.4s var(--ease-out), width 0.4s var(--ease-out);
   pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {

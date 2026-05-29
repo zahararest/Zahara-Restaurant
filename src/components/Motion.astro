@@ -203,8 +203,15 @@
       if (!tabsBar || !indicator || !active) return;
       const barRect    = tabsBar.getBoundingClientRect();
       const tabRect    = active.getBoundingClientRect();
-      indicator.style.width     = tabRect.width + 'px';
-      indicator.style.transform = `translateX(${tabRect.left - barRect.left}px)`;
+      // Position with a LOGICAL inset so it lands correctly in both LTR and
+      // RTL (the site default is Hebrew). In RTL inset-inline-start anchors
+      // to the right edge, so the offset is measured from the right.
+      const rtl = getComputedStyle(tabsBar).direction === 'rtl';
+      const inlineStart = rtl
+        ? (barRect.right - tabRect.right)
+        : (tabRect.left  - barRect.left);
+      indicator.style.width           = tabRect.width + 'px';
+      indicator.style.insetInlineStart = inlineStart + 'px';
     }
     function watchTabIndicator() {
       const tabsBar = document.querySelector('.menu-tabs');
