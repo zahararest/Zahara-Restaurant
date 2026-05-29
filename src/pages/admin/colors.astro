@@ -234,7 +234,6 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   <style>
-    /* ── Editor UI tokens (isolated from the site palette) ── */
     :root {
       --e-bg:     #fafaf7;
       --e-fg:     #1a1410;
@@ -244,7 +243,16 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
       --e-mod:    #d97706;
       --e-pend:   #2563eb;
       --e-save:   #1a6b44;
-      --e-disc:   #8B2020;
+      --e-disc:   #8b2020;
+
+      --ui-gap:            0.45rem;
+      --ui-small:          0.75rem;
+      --ui-small-lg:       0.82rem;
+      --ui-letter:         0.16em;
+      --ui-letter-tight:   0.12em;
+      --ui-weight:         600;
+      --ui-transition:     0.18s ease;
+      --ui-border:         1px solid var(--e-rule);
     }
     *, *::before, *::after { box-sizing: border-box; }
     body {
@@ -255,6 +263,7 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
       font-size: 14px;
       line-height: 1.55;
     }
+
     code { font-family: ui-monospace, monospace; font-size: 0.85em; }
 
     /* ── Top bar ─────────────────────────────────────────────── */
@@ -306,23 +315,34 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
       white-space: nowrap;
     }
     .top-search {
-      flex: 1; max-width: 200px; padding: 0.45rem 0.7rem; font: inherit;
-      font-size: 0.82rem; background: #fff; color: var(--e-fg);
-      border: 1px solid var(--e-rule);
+      flex: 1;
+      max-width: 200px;
+      padding: 0.45rem 0.7rem;
+      font: inherit;
+      font-size: var(--ui-small-lg);
+      background: #fff;
+      color: var(--e-fg);
+      border: var(--ui-border);
     }
     .top-search:focus { outline: 2px solid var(--e-acc); outline-offset: -2px; }
     .top-select {
-      font: inherit; font-size: 0.75rem; letter-spacing: 0.12em;
-      text-transform: uppercase; font-weight: 600; padding: 0.45rem 0.75rem;
-      background: #fff; color: var(--e-fg); border: 1px solid var(--e-rule);
-      cursor: pointer; max-width: 190px;
+      letter-spacing: 0.12em;
+      padding: 0.45rem 0.75rem;
+      background: #fff;
+      color: var(--e-fg);
+      border: var(--ui-border);
+      max-width: 190px;
     }
     .top-toggle-label {
-      display: flex; align-items: center; gap: 0.35rem; cursor: pointer;
-      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em;
-      text-transform: uppercase; color: var(--e-mut); user-select: none;
-      padding: 0.45rem 0.6rem; border: 1px solid var(--e-rule);
-      background: #fff; white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      color: var(--e-mut);
+      padding: 0.45rem 0.6rem;
+      border: var(--ui-border);
+      background: #fff;
     }
     .top-toggle-label input { accent-color: var(--e-acc); margin: 0; }
     .top-toggle-label:hover { color: var(--e-fg); }
@@ -573,14 +593,26 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
       line-height: 1.05; margin: 0;
     }
     .sim__hero-btns { display: flex; gap: 0.35rem; }
+    .sim__hero-btn,
+    .sim__btn,
+    .sim__tab,
+    .sim__cinema-cta,
+    .sim__toggle-btn {
+      font-family: 'Inter', sans-serif;
+      font-size: 0.57rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
     .sim__hero-btn {
       padding: 0.38rem 0.85rem;
-      background: var(--ink, #F4ECCF); color: var(--ink-muted, #1A1410);
-      font-size: 0.57rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
-      border: 1px solid var(--paper-on-photo, #F4ECCF); font-family: 'Inter', sans-serif;
+      background: var(--ink, #F4ECCF);
+      color: var(--ink-muted, #1A1410);
+      border: 1px solid var(--paper-on-photo, #F4ECCF);
     }
     .sim__hero-btn.ghost {
-      background: transparent; color: var(--paper-on-photo, #F4ECCF);
+      background: transparent;
+      color: var(--paper-on-photo, #F4ECCF);
     }
 
     /* INFO STRIP */
@@ -1497,25 +1529,34 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
 
   // ────────────────────────────────────────────────────────────────────────────
   // STATE & STORAGE
+  //
+  // Source of truth is the server (KV via /api/palette). localStorage is a
+  // FAST CACHE so the editor doesn't blank-flash while the network round-trip
+  // happens — we hydrate from cache instantly, then reconcile against the
+  // server response a moment later.
   // ────────────────────────────────────────────────────────────────────────────
-  const KEY  = 'zahara-color-overrides';
-  const root = document.documentElement;
-  const rows = Array.from(document.querySelectorAll('[data-row]'));
+  const KEY        = 'zahara-color-overrides';
+  const SERVER_GET = '/api/palette';
+  const SERVER_PUT = '/admin/colors/save';
+  const root       = document.documentElement;
+  const rows       = Array.from(document.querySelectorAll('[data-row]'));
 
   let bc = null;
   try { bc = new BroadcastChannel('zahara-colors'); } catch (_) {}
 
-  function loadSaved() {
+  function loadCache() {
     try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; }
   }
-  function persist(o) {
+  function writeCache(o) {
     try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (_) {}
   }
 
-  // savedState: last-persisted state (localStorage)
-  // currentState: current :root state, may include unsaved changes
-  let savedState   = loadSaved();
+  // savedState: last value confirmed against the SERVER.
+  // currentState: live :root state including unsaved edits.
+  // Start optimistically from the cache; reconcile with the server below.
+  let savedState   = loadCache();
   let currentState = Object.assign({}, savedState);
+  let serverSyncedAt = 0;  // becomes >0 once /api/palette has returned
 
   // ────────────────────────────────────────────────────────────────────────────
   // UI REFS
@@ -1527,7 +1568,8 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
   const pendingBadge = document.querySelector('[data-pending-badge]');
 
   // ────────────────────────────────────────────────────────────────────────────
-  // INIT — apply saved overrides to :root
+  // INIT — apply cached state immediately (zero flash), then reconcile
+  // against the canonical server state.
   // ────────────────────────────────────────────────────────────────────────────
   for (const [token, value] of Object.entries(currentState)) {
     root.style.setProperty(token, value);
@@ -1539,6 +1581,47 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
   });
   _refreshAllContrast();
   _updatePendingUI();
+
+  // Fire-and-forget reconciliation. We deliberately don't `await` this at
+  // the top level — the editor renders from cache immediately, and the
+  // server response slides values into place a moment later.
+  (async function reconcileWithServer() {
+    let serverPalette;
+    try {
+      const res = await fetch(SERVER_GET, { cache: 'no-store', credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      serverPalette = await res.json();
+      if (!serverPalette || typeof serverPalette !== 'object') serverPalette = {};
+    } catch (err) {
+      console.warn('[colors] /api/palette failed — staying on cached state', err);
+      return;
+    }
+    serverSyncedAt = Date.now();
+
+    // Server is canonical for savedState. Pending edits stay pending.
+    savedState = serverPalette;
+    writeCache(savedState);
+
+    // If the user hasn't started editing yet, also bring currentState in
+    // line with the server so the picker UI matches what's actually saved.
+    // We detect "hasn't started editing" by checking that no history entry
+    // has been pushed.
+    if (history.length === 0) {
+      currentState = Object.assign({}, savedState);
+      // Re-apply :root: clear our own previous inline writes first.
+      rows.forEach((r) => root.style.removeProperty(r.dataset.token));
+      for (const [token, value] of Object.entries(currentState)) {
+        root.style.setProperty(token, value);
+      }
+      rows.forEach((row) => {
+        const token = row.dataset.token;
+        const val   = (currentState[token] || row.dataset.default).toUpperCase();
+        _syncRowUI(row, val, { skipHistory: true });
+      });
+    }
+    _refreshAllContrast();
+    _updatePendingUI();
+  })();
 
   // ────────────────────────────────────────────────────────────────────────────
   // UNDO HISTORY
@@ -1586,15 +1669,45 @@ const defaults  = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
   }
 
   // ────────────────────────────────────────────────────────────────────────────
-  // SAVE
+  // SAVE — POST currentState to the server. Server is canonical; only on a
+  // 2xx do we update savedState (so a network failure leaves the editor
+  // still showing "N unsaved" and the user can retry).
   // ────────────────────────────────────────────────────────────────────────────
-  function save() {
-    savedState = Object.assign({}, currentState);
-    persist(savedState);
-    if (bc) bc.postMessage({ type: 'colors-changed', overrides: savedState });
-    _updatePendingUI();
-    _refreshAllDots();
-    showToast('Saved ✓');
+  let saving = false;
+
+  async function save() {
+    if (saving) return;
+    if (_countPending() === 0) return;
+    saving = true;
+    const label = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    try {
+      const res = await fetch(SERVER_PUT, {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body:        JSON.stringify(currentState),
+      });
+      if (!res.ok) {
+        let msg = 'HTTP ' + res.status;
+        try { msg = (await res.json()).error || msg; } catch (_) {}
+        throw new Error(msg);
+      }
+      savedState = Object.assign({}, currentState);
+      writeCache(savedState);
+      if (bc) bc.postMessage({ type: 'colors-changed', overrides: savedState });
+      showToast('Saved to server ✓');
+    } catch (err) {
+      console.error('[colors] save failed', err);
+      showToast('Save failed: ' + err.message);
+    } finally {
+      saving = false;
+      saveBtn.textContent = label;
+      _updatePendingUI();
+      _refreshAllDots();
+    }
   }
 
   saveBtn.addEventListener('click', save);
