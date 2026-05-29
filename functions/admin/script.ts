@@ -82,7 +82,11 @@ function readFormData(slug) {
       const name  = (row.querySelector('.item-input.name')?.value  ?? '').trim();
       const desc  = (row.querySelector('.item-input.desc')?.value  ?? '').trim();
       const price = (row.querySelector('.item-input.price')?.value ?? '').trim();
-      if (name) items.push({ name, description: desc, price });
+      if (name) {
+        const item = { name, description: desc, price };
+        if (row.classList.contains('is-featured')) item.featured = true;
+        items.push(item);
+      }
     }
     sections.push({ title, items });
   }
@@ -196,6 +200,11 @@ function renderPanel() {
   const saveBtn    = el('button', { class: 'btn-save', onclick: () => saveCurrent(saveStatus) }, 'Save changes');
   panel.appendChild(el('div', { class: 'save-bar' }, saveBtn, saveStatus));
 
+  // Featured-items hint
+  panel.appendChild(el('p', { class: 'featured-hint' },
+    '★ Star up to ' + MAX_FEATURED + ' items per category to choose what appears on the home page. ' +
+    'With nothing starred, the first items show (as before).'));
+
   // Sections
   const sectionsEl = el('div', { class: 'sections', id: 'sections-' + slug });
   if (data.sections.length === 0) {
@@ -253,10 +262,21 @@ function placeholdersFor(menuId, dir) {
   };
 }
 
+// Up to this many items per category can be featured on the home page.
+const MAX_FEATURED = 5;
+
 function buildSectionBlock(slug, section, si) {
   const items     = section.items || [];
   const itemsList = el('div', { class: 'items-list' });
   const ph        = placeholdersFor(state.menuId, currentDir());
+
+  // Hoisted so the row-level star/delete handlers can call it; the
+  // featuredCountEl it reads is created further down, before any call.
+  function updateFeaturedCount() {
+    const n = itemsList.querySelectorAll('.item-row.is-featured').length;
+    featuredCountEl.textContent = '★ ' + n + '/' + MAX_FEATURED;
+    featuredCountEl.classList.toggle('is-max', n >= MAX_FEATURED);
+  }
 
   function addItemRow(item) {
     item = item || { name: '', description: '', price: '' };
@@ -275,13 +295,40 @@ function buildSectionBlock(slug, section, si) {
       value:       item.price || '',
       placeholder: ph.price,
     });
+
+    // Star toggle — marks this item to appear on the home page (max 5 per
+    // category). Trying to star a 6th item flashes the button instead.
+    const starBtn = el('button', {
+      class: 'btn-star', type: 'button', 'aria-pressed': 'false',
+      title: 'Feature on the home page (max ' + MAX_FEATURED + ' per category)',
+    }, '☆');
+    function setStar(on) {
+      row.classList.toggle('is-featured', on);
+      starBtn.textContent = on ? '★' : '☆';
+      starBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    starBtn.addEventListener('click', () => {
+      if (!row.classList.contains('is-featured')) {
+        if (itemsList.querySelectorAll('.item-row.is-featured').length >= MAX_FEATURED) {
+          starBtn.classList.add('is-blocked');
+          setTimeout(() => starBtn.classList.remove('is-blocked'), 500);
+          return;
+        }
+        setStar(true);
+      } else {
+        setStar(false);
+      }
+      updateFeaturedCount();
+    });
+
     const delBtn = el('button', {
       class:   'btn-icon',
       title:   'Delete item',
-      onclick: () => { row.remove(); updateSectionCount(block); },
+      onclick: () => { row.remove(); updateSectionCount(block); updateFeaturedCount(); },
     }, '✕');
 
-    const row = el('div', { class: 'item-row' }, nameI, descI, priceI, delBtn);
+    const row = el('div', { class: 'item-row' }, starBtn, nameI, descI, priceI, delBtn);
+    if (item.featured) setStar(true);
     itemsList.appendChild(row);
     requestAnimationFrame(() => { autosize(nameI); autosize(descI); });
     return row;
@@ -304,11 +351,12 @@ function buildSectionBlock(slug, section, si) {
     value:       section.title || '',
     placeholder: currentDir() === 'rtl' ? 'שם הקטגוריה' : 'Category name',
   });
-  const count     = el('span',   { class: 'section-count' }, items.length + ' items');
+  const count          = el('span', { class: 'section-count' }, items.length + ' items');
+  const featuredCountEl = el('span', { class: 'section-featured', title: 'Items featured on the home page' }, '★ 0/' + MAX_FEATURED);
   const toggleBtn = el('button', { class: 'section-toggle', title: 'Collapse / expand', type: 'button' }, '▾');
   const delSec    = el('button', { class: 'btn-icon', title: 'Delete category',
     onclick: () => block.remove() }, '🗑');
-  const sHead     = el('div', { class: 'section-head-row' }, toggleBtn, titleInput, count, delSec);
+  const sHead     = el('div', { class: 'section-head-row' }, toggleBtn, titleInput, count, featuredCountEl, delSec);
 
   const isCollapsed = state.collapsed[slug] && state.collapsed[slug].has(si);
   const block = el('div', {
@@ -324,6 +372,7 @@ function buildSectionBlock(slug, section, si) {
     else                                          state.collapsed[slug].delete(idx);
   });
 
+  updateFeaturedCount();
   return block;
 }
 

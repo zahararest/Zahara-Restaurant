@@ -364,6 +364,22 @@ html[dir="rtl"] .section-block.is-collapsed .section-toggle { transform: rotate(
   text-transform: uppercase;
   font-weight: 600;
 }
+.section-featured {
+  font-size: .66rem;
+  color: var(--muted);
+  letter-spacing: .08em;
+  padding-inline: .4rem;
+  white-space: nowrap;
+}
+.section-featured.is-max { color: var(--accent); font-weight: 700; }
+.featured-hint {
+  margin: 0 0 1.1rem;
+  font-size: .76rem;
+  color: var(--soft);
+  padding: .55rem .75rem;
+  background: var(--accent-soft);
+  border-inline-start: 2px solid var(--accent);
+}
 .btn-icon {
   border: none;
   background: none;
@@ -384,11 +400,34 @@ html[dir="rtl"] .section-block.is-collapsed .section-toggle { transform: rotate(
 .items-list { padding: .4rem .75rem; }
 .item-row {
   display: grid;
-  grid-template-columns: minmax(8rem, 1.3fr) minmax(14rem, 3fr) minmax(4.5rem, 6rem) auto;
+  grid-template-columns: auto minmax(8rem, 1.3fr) minmax(14rem, 3fr) minmax(4.5rem, 6rem) auto;
   gap: .6rem;
   align-items: start;
   padding: .55rem 0;
   border-bottom: 1px solid var(--line-soft);
+}
+.item-row.is-featured { background: color-mix(in srgb, var(--accent-soft) 50%, transparent); }
+
+/* Star toggle — feature an item on the home page. */
+.btn-star {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: .4rem .35rem;
+  align-self: start;
+  margin-top: .15rem;
+  transition: color .15s, transform .12s;
+}
+.btn-star:hover                  { color: var(--accent); }
+.btn-star[aria-pressed="true"]   { color: var(--accent); }
+.btn-star.is-blocked             { animation: starShake .5s ease; color: var(--err); }
+@keyframes starShake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-2px); }
+  75%      { transform: translateX(2px); }
 }
 .item-row:last-child { border-bottom: none; }
 .item-input {
@@ -415,12 +454,13 @@ textarea.item-input { resize: none; overflow: hidden; min-height: 2.4rem; }
 }
 @media (max-width: 720px) {
   .item-row {
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "name del" "desc desc" "price price";
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "star name del" "desc desc desc" "price price price";
   }
   .item-input.name  { grid-area: name; }
   .item-input.desc  { grid-area: desc; }
   .item-input.price { grid-area: price; text-align: start; max-width: 8rem; }
+  .item-row > .btn-star { grid-area: star; }
   .item-row > .btn-icon { grid-area: del; }
 }
 

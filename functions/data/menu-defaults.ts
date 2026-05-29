@@ -3,7 +3,15 @@
 // One record per slug; the shape mirrors what /admin/save writes.
 // Keep alphabetical-ish grouping (HE / EN pairs together).
 
-export interface MenuItem    { name: string; description: string; price: string; }
+export interface MenuItem    {
+  name: string;
+  description: string;
+  price: string;
+  /** When true, this item is chosen to appear on the home page cinematic
+   *  strip (up to 5 per category). When no items in a category are featured,
+   *  the home page falls back to showing the first N as before. */
+  featured?: boolean;
+}
 export interface MenuSection { title: string; items: MenuItem[]; }
 
 export const DEFAULT_SECTIONS: Record<string, MenuSection[]> = {

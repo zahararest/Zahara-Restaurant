@@ -385,8 +385,11 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     if (!cfg.apiSlug) return;
     const host = document.querySelector(`[data-cinema-items][data-chapter-id="${cfg.id}"]`);
     if (!host) return;
-    // Skip hydration if the host already has real (non-placeholder) items.
-    if (!host.querySelector('.menu-cinema__item--placeholder')) return;
+    // HE food chapters are server-rendered with real items already; the rest
+    // start as placeholders. We always fetch (to pick up admin-chosen
+    // "featured" items), but only overwrite real server items when there's
+    // actually something to show — never blank them on an empty/failed fetch.
+    const hadRealItems = !host.querySelector('.menu-cinema__item--placeholder');
 
     try {
       const res = await fetch(`/api/menu/${cfg.apiSlug}`, { cache: 'no-store' });
@@ -394,8 +397,8 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
       const data = await res.json();
       const sections = Array.isArray(data) ? data : (data?.sections ?? []);
 
-      // Find the target items: either a specific section by Hebrew title
-      // (food chapters) or flatten across all sections (cocktails, dessert).
+      // Find the target items: either a specific section by title (food
+      // chapters) or flatten across all sections (cocktails, dessert).
       let items = [];
       if (cfg.sectionTitle) {
         const sec = sections.find((s) => s.title === cfg.sectionTitle);
@@ -403,9 +406,16 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
       } else {
         items = sections.flatMap((s) => s?.items ?? []);
       }
-      items = items.slice(0, cfg.take);
 
-      if (items.length === 0) {
+      // Admin-chosen items win; otherwise fall back to the first N.
+      const featured = items.filter((it) => it && it.featured);
+      let chosen;
+      if (featured.length)     chosen = featured.slice(0, cfg.take);
+      else if (!hadRealItems)  chosen = items.slice(0, cfg.take);
+      else                     return; // server-rendered items, no featured → leave as-is
+
+      if (chosen.length === 0) {
+        if (hadRealItems) return; // keep the server items rather than blanking
         host.innerHTML = `<li class="menu-cinema__item menu-cinema__item--empty">
           <div class="menu-cinema__item-main">
             <em class="menu-cinema__item-name">${lang === 'he' ? 'יתעדכן בקרוב' : 'Updates coming soon'}</em>
@@ -414,7 +424,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
         return;
       }
 
-      host.innerHTML = items.map((it) => `
+      host.innerHTML = chosen.map((it) => `
         <li class="menu-cinema__item">
           <div class="menu-cinema__item-main">
             <strong class="menu-cinema__item-name">${esc(it.name)}</strong>
@@ -423,7 +433,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
           <span class="menu-cinema__item-price">${esc(it.price)}</span>
         </li>`).join('');
     } catch (err) {
-      // Silently leave the placeholders; better than a broken page.
+      // Silently leave whatever's there; better than a broken page.
       console.warn('[Home menu] hydration failed for', cfg.id, err);
     }
   }
