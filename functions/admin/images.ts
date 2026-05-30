@@ -508,11 +508,52 @@ const SCRIPT = `
       let panX = 0, panY = 0;     // -0.5 … 0.5 crop offset
       const PREVIEW_MAX = 520;    // px — preview canvas longest edge
 
-      function filterString() {
-        return 'grayscale(' + inputs.grayscale.value + '%) ' +
-               'brightness(' + inputs.brightness.value + '%) ' +
-               'contrast(' + inputs.contrast.value + '%) ' +
-               'saturate(' + inputs.saturate.value + '%)';
+      // Current adjustment values, read straight off the sliders.
+      function currentOpts() {
+        return {
+          grayscale:  +inputs.grayscale.value,
+          brightness: +inputs.brightness.value,
+          contrast:   +inputs.contrast.value,
+          saturate:   +inputs.saturate.value,
+        };
+      }
+      function needsAdjust(o) {
+        return o.grayscale !== 0 || o.brightness !== 100 ||
+               o.contrast !== 100 || o.saturate !== 100;
+      }
+
+      // Per-pixel adjustment. Done in plain JS (not ctx.filter, which
+      // older Safari ignores) so it works in every browser and is baked
+      // into the uploaded file. Mutates the RGBA array in place.
+      function adjustPixels(data, o) {
+        const br = o.brightness / 100;
+        const ct = o.contrast   / 100;
+        const sat = o.saturate  / 100;
+        const gr = o.grayscale  / 100;
+        for (let i = 0; i < data.length; i += 4) {
+          let r = data[i], g = data[i + 1], b = data[i + 2];
+          // brightness
+          r *= br; g *= br; b *= br;
+          // contrast around mid-grey
+          r = ((r / 255 - 0.5) * ct + 0.5) * 255;
+          g = ((g / 255 - 0.5) * ct + 0.5) * 255;
+          b = ((b / 255 - 0.5) * ct + 0.5) * 255;
+          // saturation: pull toward / push from luma
+          let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          r = lum + (r - lum) * sat;
+          g = lum + (g - lum) * sat;
+          b = lum + (b - lum) * sat;
+          // black & white: mix toward luma
+          if (gr > 0) {
+            lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            r += (lum - r) * gr;
+            g += (lum - g) * gr;
+            b += (lum - b) * gr;
+          }
+          data[i]     = r < 0 ? 0 : r > 255 ? 255 : r;
+          data[i + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+          data[i + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
+        }
       }
 
       // Compute the source-crop rect for the current zoom + pan.
@@ -544,26 +585,38 @@ const SCRIPT = `
         canvas.width = pw; canvas.height = ph;
         const { sx, sy, sw, sh } = cropRect();
         ctx.clearRect(0, 0, pw, ph);
-        ctx.filter = filterString();
         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pw, ph);
-        ctx.filter = 'none';
+        const o = currentOpts();
+        if (needsAdjust(o)) {
+          try {
+            const id = ctx.getImageData(0, 0, pw, ph);
+            adjustPixels(id.data, o);
+            ctx.putImageData(id, 0, 0);
+          } catch (err) {
+            setStatus('Cannot adjust this image (security restriction): ' + err.message, true);
+          }
+        }
         syncLabels();
       }
 
       // Build the full-resolution output and hand back a Blob.
       function exportBlob() {
-        const targetW = inputs.width.value === 'orig'
-          ? Math.round(cropRect().sw)
-          : Math.min(parseInt(inputs.width.value, 10), Math.round(cropRect().sw));
         const { sx, sy, sw, sh } = cropRect();
+        const targetW = inputs.width.value === 'orig'
+          ? Math.round(sw)
+          : Math.min(parseInt(inputs.width.value, 10), Math.round(sw));
         const outW = Math.max(1, Math.round(targetW));
         const outH = Math.max(1, Math.round(outW * sh / sw));
         const off = document.createElement('canvas');
         off.width = outW; off.height = outH;
         const octx = off.getContext('2d');
-        octx.filter = filterString();
         octx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
-        octx.filter = 'none';
+        const o = currentOpts();
+        if (needsAdjust(o)) {
+          const id = octx.getImageData(0, 0, outW, outH);
+          adjustPixels(id.data, o);
+          octx.putImageData(id, 0, 0);
+        }
         const q = parseFloat(inputs.quality.value);
         return new Promise((resolve, reject) => {
           off.toBlob((b) => b ? resolve({ blob: b, w: outW, h: outH }) : reject(new Error('Export failed')), 'image/jpeg', q);
@@ -604,7 +657,10 @@ const SCRIPT = `
           setStatus('', false);
           drawPreview();
         };
-        im.onerror = () => setStatus('Could not load the image', true);
+        im.onerror = () => setStatus(
+          'Could not load the current photo. Choose a file first, then press Edit & adjust.',
+          true,
+        );
         if (typeof opts.source === 'string') {
           im.src = opts.source;
         } else {
