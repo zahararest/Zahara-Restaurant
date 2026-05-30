@@ -18,19 +18,21 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
 ---
 
 <section class="gallery-scene" aria-label={eyebrow}>
-  <div class="wrap gallery-scene__head">
-    <div class="reveal-on-scroll">
-      <p class="eyebrow eyebrow--center">{eyebrow}</p>
-      <h2
-        class="display"
-        data-word-reveal
-        data-word-reveal-delay="0.06"
-        data-word-reveal-step="0.06"
-      >{heading}</h2>
-    </div>
-  </div>
-
   <div class="gallery-film" data-gallery aria-roledescription="carousel">
+
+    {/* Heading overlaid on the photo so the gallery fills exactly one frame */}
+    <div class="gallery-scene__head">
+      <div class="reveal-on-scroll">
+        <p class="eyebrow eyebrow--center eyebrow--on-photo">{eyebrow}</p>
+        <h2
+          class="display"
+          data-word-reveal
+          data-word-reveal-delay="0.06"
+          data-word-reveal-step="0.06"
+        >{heading}</h2>
+      </div>
+    </div>
+
     {/* Slides */}
     {photos.map((p, i) => (
       <div
@@ -150,23 +152,37 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
 </script>
 
 <style>
-  .gallery-scene { overflow: hidden; }
+  .gallery-scene { position: relative; overflow: hidden; }
 
+  /* Heading overlaid on the photo, top-centred, with a scrim for legibility */
   .gallery-scene__head {
-    padding-block-end: var(--space-l);
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: 4;
+    padding: calc(var(--header-h) + var(--space-l)) clamp(1.25rem, 4vw, 3rem) var(--space-xl);
+    text-align: center;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--shadow) 50%, transparent) 0%,
+      color-mix(in srgb, var(--shadow) 18%, transparent) 55%,
+      transparent 100%);
+  }
+  .gallery-scene__head .display {
+    color: var(--paper-on-photo);
+    margin: 0.4rem 0 0;
+    text-shadow: 0 2px 24px color-mix(in srgb, var(--shadow) 35%, transparent);
   }
 
-  /* ── Full-bleed film strip ─────────────────────────────────────── */
+  /* ── Full-bleed film strip — fills the viewport frame ──────────── */
   .gallery-film {
     position: relative;
     width: 100%;
-    height: clamp(420px, 72vh, 820px);
+    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     background: var(--ink);
     cursor: default;
-  }
-  @media (max-width: 600px) {
-    .gallery-film { height: clamp(260px, 68vw, 440px); }
   }
 
   /* ── Slides ────────────────────────────────────────────────────── */

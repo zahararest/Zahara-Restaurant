@@ -34,7 +34,9 @@ const t = {
 };
 ---
 
-<!-- Toggle button — fixed bottom-start corner, RTL-aware. Uses ♿ glyph. -->
+<!-- Toggle button — fixed bottom-start corner, RTL-aware.
+     Line-art accessibility figure (SVG) instead of the ♿ emoji, so it
+     matches the site's editorial ink/paper aesthetic. -->
 <button
   class="a11y-toggle"
   type="button"
@@ -43,7 +45,15 @@ const t = {
   aria-expanded="false"
   aria-controls="a11y-panel"
 >
-  <span aria-hidden="true">♿</span>
+  <svg class="a11y-toggle__icon" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+       stroke-linejoin="round" aria-hidden="true" focusable="false">
+    <circle cx="12" cy="3.5" r="1.6" fill="currentColor" stroke="none" />
+    <path d="M4.5 8.5 H19.5" />
+    <path d="M12 7 V14" />
+    <path d="M12 14 L8.5 20.5" />
+    <path d="M12 14 L15.5 20.5" />
+  </svg>
 </button>
 
 <!-- The adjustments panel. Hidden by default; toggled by the button. -->

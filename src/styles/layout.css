@@ -29,9 +29,17 @@
   box-shadow: none;
 }
 
-.site-header:not(.is-on-photo).is-scrolled {
-  background: color-mix(in srgb, var(--paper) 82%, transparent);
+/* Inner pages (no photo hero — contact, location, accessibility, privacy):
+   the header has no dark photo to sit on, so give it a clear paper bar with
+   a hairline rule from first paint. Without this it was nearly transparent
+   and read as "barely there", and the burger looked unanchored. */
+.site-header:not(.is-on-photo) {
+  background-color: color-mix(in srgb, var(--paper) 90%, transparent);
   border-block-end-color: var(--rule-soft);
+}
+.site-header:not(.is-on-photo).is-scrolled {
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  border-block-end-color: var(--rule);
 }
 
 .site-header__inner {
@@ -82,10 +90,8 @@ html[lang="en"] .brand {
   background: var(--paper-on-photo);
   color: var(--ink);
 }
-.site-header.is-on-photo .header-rooftop__badge {
-  background: color-mix(in srgb, var(--paper-on-photo) 25%, transparent);
-  color: var(--paper-on-photo);
-}
+/* Rooftop badge keeps its accent fill on photo too (buttons.css) — the
+   header scrim keeps it legible, so no on-photo override here. */
 
 .nav {
   display: flex;
@@ -233,9 +239,10 @@ html[lang="he"] .nav {
 }
 .burger span {
   display: block;
-  width: 28px;
-  height: 1.5px;
+  width: 26px;
+  height: 2px;
   background: var(--ink);
+  border-radius: 2px;
   transition: transform 0.28s var(--ease-out), opacity 0.2s ease, background 0.28s ease;
   transform-origin: center;
   pointer-events: none;
@@ -278,12 +285,14 @@ body.nav-open { overflow: hidden; }
   display: grid;
   gap: 0;
 }
-/* Large editorial nav links — minimum 56px touch target */
-.mobile-nav a {
+/* Large editorial nav links — minimum 56px touch target.
+   Scoped to the nav list ONLY (.mobile-nav ul a) so it never bleeds onto
+   the CTA buttons below, which must keep their own .btn token colours
+   (otherwise the Reserve button became dark text on a dark fill). */
+.mobile-nav ul a {
   font-family: var(--font-display);
   font-size: clamp(var(--step-2), 7vw, var(--step-4));
   color: var(--ink);
-  display: block;
   padding-block: clamp(0.7rem, 2vw, 1rem);
   border-block-end: 1px solid var(--rule-soft);
   transition: color 0.2s ease, padding-inline-start 0.2s ease;
@@ -293,12 +302,12 @@ body.nav-open { overflow: hidden; }
   align-items: center;
 }
 .mobile-nav ul li:last-child a { border-block-end: 0; }
-.mobile-nav a:hover,
-.mobile-nav a[aria-current="page"] {
+.mobile-nav ul a:hover,
+.mobile-nav ul a[aria-current="page"] {
   color: var(--accent);
   padding-inline-start: 0.4em;
 }
-.mobile-nav a[aria-current="page"] { color: var(--ink); }
+.mobile-nav ul a[aria-current="page"] { color: var(--ink); }
 
 /* ──────────────────────────────────────────────────────────────────────────
    Menu page — paper-card editorial treatment.
@@ -746,11 +755,30 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
 }
 
 @media (max-width: 600px) {
-  .hero-bleed { height: clamp(520px, 88vh, 740px); }
-  .hero-bleed__title { font-size: clamp(2.4rem, 11vw, 4rem); }
+  /* Hero stays full-frame on phones (dynamic vh handles browser chrome),
+     but the CONTENT is decluttered: tighter title, less bottom padding,
+     buttons that share a row, and a smaller scroll cue. */
+  .hero-bleed { height: 100vh; height: 100dvh; }
+  .hero-bleed__inner {
+    padding-block: calc(var(--header-h) + var(--space-m)) var(--space-l);
+    gap: 0;
+  }
+  .hero-bleed__title {
+    font-size: clamp(2.3rem, 10vw, 3.4rem);
+    margin-block: 0.3rem 1.1rem;
+    max-width: 16ch;
+  }
+  .hero-bleed .eyebrow { font-size: var(--step--2); }
   .hero-bleed__lede  { font-size: var(--step-0); max-width: 90vw; }
-  .intro-photo { height: clamp(320px, 60vh, 480px); }
+  .hero-bleed .btn-row { gap: 0.6rem; flex-wrap: wrap; }
+  .hero-bleed .btn-row .btn { flex: 1 1 auto; justify-content: center; }
+  .scroll-cue { display: none; }
+
+  .intro-photo { height: clamp(360px, 62vh, 520px); }
   .intro-photo__title { font-size: clamp(2rem, 9vw, 3rem); }
+
+  /* Photo-block content sits naturally on mobile (not forced full-frame) */
+  .photo-block { min-height: 0; }
 
   /* Prevent horizontal overflow from wide text */
   .section-on-photo .editorial__paragraphs { font-size: var(--step-0); }

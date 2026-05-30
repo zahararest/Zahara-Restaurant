@@ -63,11 +63,11 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
           </a>
         )
         : (
-          <span class="header-rooftop header-rooftop--soon"
-                aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
+          <a class="header-rooftop header-rooftop--soon" href={path('home', lang)}
+             aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
             {t.rooftop}
             <span class="header-rooftop__badge" aria-hidden="true">{t.rooftopSoon}</span>
-          </span>
+          </a>
         )
       }
       <a class="header-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">
@@ -102,7 +102,7 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     <div class="mobile-nav__cta">
       {rooftopUrl
         ? <a class="btn btn--ghost" href={rooftopUrl} target="_blank" rel="noopener">{t.rooftop}</a>
-        : <span class="mobile-nav__rooftop-soon">{t.rooftop} · {t.rooftopSoon}</span>
+        : <a class="btn btn--ghost mobile-nav__rooftop-soon" href={path('home', lang)}>{t.rooftop} · {t.rooftopSoon}</a>
       }
       <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
       <a class="text-link" href={otherLangHref}>{t.langToggle}</a>
