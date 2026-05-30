@@ -100,6 +100,13 @@
   font-weight: 400;
 }
 
+/* Give the first word a little inline padding so the initial glyph
+   doesn't get semantically clipped by the per-word mask when animating. */
+.hero-bleed__title .word-mask:first-child {
+  padding-inline-start: 0.12em;
+  padding-inline-end: 0.06em;
+}
+
 .hero-bleed__lede,
 .intro-photo__lede {
   max-width: 32rem;
@@ -2000,43 +2007,59 @@ html[dir="rtl"] .menu-tl__rail-list {
   .menu-tl__rail-tick { display: none; }
 }
 
-/* ── Interactive menu: full-section warm background ────────────── */
-[data-menu-view="interactive"] {
-  background: linear-gradient(180deg, var(--paper-deep) 0%, var(--paper) 30%);
-  padding-block-end: var(--space-2xl);
-}
+.menu-tl__content { display: grid; gap: clamp(2rem, 5vw, 3.5rem); }
 
-.menu-tl__content { display: grid; gap: 0; }
-
-/* ── Chapters: editorial spread style ──────────────────────────── */
+/* ── Chapter card gradient backgrounds ────────────────────────── */
 .menu-tl__chapter {
   scroll-margin-top: calc(var(--header-h) + 1rem);
-  padding-block: clamp(3rem, 7vw, 5rem);
-  border-block-end: 1px solid var(--rule-soft);
+  padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1.25rem, 3vw, 2rem);
+  border-radius: 4px;
+  border: 1px solid var(--rule-soft);
   position: relative;
+  overflow: hidden;
 }
-.menu-tl__chapter:last-child { border-block-end: 0; }
-
-/* 3-px accent stripe at the top of each chapter (skipped on first) */
+/* Odd chapters: warm paper-card top-left to paper-deep bottom-right */
+.menu-tl__chapter:nth-child(odd) {
+  background: linear-gradient(135deg,
+    var(--paper-card) 0%,
+    var(--paper) 45%,
+    var(--paper-deep) 100%);
+}
+/* Even chapters: deeper warm tone, slightly different angle for variety */
+.menu-tl__chapter:nth-child(even) {
+  background: linear-gradient(160deg,
+    var(--paper-deep) 0%,
+    var(--paper) 40%,
+    var(--paper-card) 80%,
+    var(--paper-edge) 100%);
+}
+/* Warm gold glow in the top-right corner */
 .menu-tl__chapter::before {
   content: '';
   position: absolute;
   inset-block-start: 0;
-  inset-inline: 0;
+  inset-inline-end: 0;
+  width: 40%;
+  height: 40%;
+  background: radial-gradient(ellipse at top right,
+    color-mix(in srgb, var(--gold) 8%, transparent) 0%,
+    transparent 70%);
+  pointer-events: none;
+}
+/* Accent stripe on the top edge of every chapter after the first */
+.menu-tl__chapter:not(:first-child)::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -1px;
+  inset-inline: -1px;
   height: 3px;
-  background: linear-gradient(to right, var(--accent) 0%, var(--accent-soft) 60%, transparent 100%);
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(to right, var(--accent) 0%, var(--accent-soft) 55%, transparent 90%);
 }
-html[dir="rtl"] .menu-tl__chapter::before {
-  background: linear-gradient(to left, var(--accent) 0%, var(--accent-soft) 60%, transparent 100%);
+html[dir="rtl"] .menu-tl__chapter:not(:first-child)::after {
+  background: linear-gradient(to left, var(--accent) 0%, var(--accent-soft) 55%, transparent 90%);
 }
-.menu-tl__chapter:first-child::before { display: none; }
-
-/* Chapter heading row: strong accent number + large display title */
-.menu-tl__head {
-  margin-block-end: clamp(2rem, 4vw, 3.5rem);
-  padding-block-end: clamp(1rem, 2vw, 1.5rem);
-  border-block-end: 1px solid var(--rule-soft);
-}
+.menu-tl__head { margin-block-end: clamp(2rem, 4vw, 3rem); }
 .menu-tl__eyebrow {
   font-family: var(--font-body);
   font-size: var(--step--1);
@@ -2044,61 +2067,48 @@ html[dir="rtl"] .menu-tl__chapter::before {
   text-transform: uppercase;
   color: var(--ink-muted);
   font-weight: 500;
-  margin: 0 0 0.8rem;
+  margin: 0 0 0.6rem;
   display: inline-flex;
   align-items: baseline;
   gap: 0.55rem;
 }
-.menu-tl__num {
-  font-family: var(--font-display);
-  font-size: 1.05em;
-  font-weight: 500;
-  color: var(--accent);
-  letter-spacing: 0.04em;
-}
-.menu-tl__sep { color: var(--accent); opacity: 0.4; }
+.menu-tl__num { font-family: var(--font-display); font-size: 1.05em; font-weight: 500; color: var(--accent); }
+.menu-tl__sep { color: var(--accent); opacity: 0.5; }
 .menu-tl__title {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: clamp(2.8rem, 6vw, 5rem);
-  line-height: 0.95;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  line-height: 1;
+  letter-spacing: -0.025em;
   margin: 0;
   color: var(--ink);
 }
 .menu-tl__meta {
-  margin: 1rem 0 0;
+  margin: 0.9rem 0 0;
   font-size: var(--step--2);
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--ink-muted);
   min-height: 1em;
 }
-
-/* ── Item lists ─────────────────────────────────────────────────── */
-.menu-tl__sections { display: grid; gap: clamp(3rem, 6vw, 5rem); }
-.menu-tl__section  { display: grid; gap: 0; }
+.menu-tl__sections { display: grid; gap: clamp(2.5rem, 5vw, 4rem); }
+.menu-tl__section  { display: grid; gap: 1.25rem; }
 .menu-tl__section-heading {
   font-family: var(--font-display);
   font-weight: 500;
   font-size: var(--step-1);
   letter-spacing: -0.01em;
-  margin: 0 0 1.25rem;
+  margin: 0;
   color: var(--ink);
-  padding-block-end: 0.75rem;
-  border-block-end: 1px solid var(--rule-soft);
 }
-.menu-tl__items { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.menu-tl__items { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.25rem; }
 .menu-tl__item {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.35rem 1.5rem;
-  align-items: start;
-  padding-block: clamp(0.75rem, 1.5vw, 1rem);
-  border-block-end: 1px solid var(--rule-soft);
-  line-height: 1.5;
+  gap: 0.4rem 1.25rem;
+  align-items: baseline;
+  line-height: 1.55;
 }
-.menu-tl__item:last-child { border-block-end: 0; }
 .menu-tl__item-main { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
 .menu-tl__item-name { font-weight: 600; font-size: var(--step-0); color: var(--ink); }
 .menu-tl__item-desc { color: var(--ink-soft); font-size: var(--step--1); font-weight: 300; line-height: 1.55; }
@@ -2114,39 +2124,34 @@ html[dir="rtl"] .menu-tl__chapter::before {
 .menu-tl__item-price--wine { display: inline-flex; align-items: baseline; gap: 0.35rem; }
 .menu-tl__price-sep { color: var(--ink-faint); font-weight: 300; }
 .menu-tl__price-glass { color: var(--ink-muted); font-size: var(--step--1); }
-
-/* ── Cocktails: same row style as food, italic serif name ──────── */
-.menu-tl__cocktails { display: grid; gap: 0; }
-.menu-tl__cocktail {
-  display: grid;
-  gap: 0.25rem;
-  padding-block: clamp(0.75rem, 1.5vw, 1rem);
-  border-block-end: 1px solid var(--rule-soft);
+.menu-tl__cocktails { display: grid; grid-template-columns: 1fr; gap: var(--space-m); }
+@media (min-width: 720px) {
+  .menu-tl__cocktails { grid-template-columns: 1fr 1fr; }
 }
-.menu-tl__cocktail:last-child { border-block-end: 0; }
+.menu-tl__cocktail {
+  background: var(--paper-card);
+  border: 1px solid var(--rule-soft);
+  padding: clamp(1.1rem, 2.5vw, 1.5rem);
+  display: grid;
+  gap: 0.6rem;
+}
 .menu-tl__cocktail-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1.25rem;
-  border: 0;
-  padding: 0;
+  gap: 1rem;
+  padding-block-end: 0.5rem;
+  border-block-end: 1px solid var(--rule-soft);
 }
 .menu-tl__cocktail-name {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: var(--step-0);
+  font-size: var(--step-1);
   font-weight: 400;
   margin: 0;
   color: var(--ink);
 }
-/* Reuse the same price style as food items */
-.menu-tl__cocktail-head .menu-tl__item-price {
-  font-size: var(--step-0);
-  padding-block-start: 0;
-}
-.menu-tl__cocktail-desc { margin: 0; font-size: var(--step--1); color: var(--ink-soft); font-weight: 300; line-height: 1.55; }
-
+.menu-tl__cocktail-desc { margin: 0; font-size: var(--step--1); color: var(--ink-soft); font-weight: 300; }
 .menu-tl__loading,
 .menu-tl__empty {
   text-align: center;

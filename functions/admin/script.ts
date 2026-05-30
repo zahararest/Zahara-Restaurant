@@ -136,7 +136,8 @@ function renderPanel() {
   const main = document.getElementById('main-area');
   main.innerHTML = '';
 
-  const panel = el('div', { class: 'panel is-active', dir });
+  // Panel chrome is always LTR — only the content tables carry the menu language dir.
+  const panel = el('div', { class: 'panel is-active' });
 
   // Sub-line shows the current variant in friendly form ("Hebrew · he")
   // rather than the raw KV slug.
@@ -206,7 +207,7 @@ function renderPanel() {
     'With nothing starred, the first items show (as before).'));
 
   // Sections
-  const sectionsEl = el('div', { class: 'sections', id: 'sections-' + slug });
+  const sectionsEl = el('div', { class: 'sections', id: 'sections-' + slug, dir });
   if (data.sections.length === 0) {
     sectionsEl.appendChild(el('div', { class: 'empty' },
       el('p', {}, 'No sections yet.'),
@@ -281,11 +282,12 @@ function buildSectionBlock(slug, section, si) {
   function addItemRow(item) {
     item = item || { name: '', description: '', price: '' };
 
-    const nameI = el('textarea', { class: 'item-input name', rows: '1', placeholder: ph.name });
+    const itemDir = currentDir();
+    const nameI = el('textarea', { class: 'item-input name', rows: '1', placeholder: ph.name, dir: itemDir });
     nameI.value = item.name || '';
     nameI.addEventListener('input', () => autosize(nameI));
 
-    const descI = el('textarea', { class: 'item-input desc', rows: '1', placeholder: ph.desc });
+    const descI = el('textarea', { class: 'item-input desc', rows: '1', placeholder: ph.desc, dir: itemDir });
     descI.value = item.description || '';
     descI.addEventListener('input', () => autosize(descI));
 
@@ -350,6 +352,7 @@ function buildSectionBlock(slug, section, si) {
     type:        'text',
     value:       section.title || '',
     placeholder: currentDir() === 'rtl' ? 'שם הקטגוריה' : 'Category name',
+    dir:         currentDir(),
   });
   const count          = el('span', { class: 'section-count' }, items.length + ' items');
   const featuredCountEl = el('span', { class: 'section-featured', title: 'Items featured on the home page' }, '★ 0/' + MAX_FEATURED);
@@ -507,29 +510,62 @@ function xmlToPagedLines(xmlStr) {
   return lines;
 }
 
+function stripXmlTags(xml) {
+  return xml ? xml.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+}
+
 function extractDate(s) {
   if (!s) return null;
   let m = s.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
   if (m) {
     let yy = m[3];
     if (yy.length === 2) yy = (parseInt(yy, 10) > 50 ? '19' : '20') + yy;
-    const dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0');
-    return yy + '-' + mm + '-' + dd;
+    const dd = m[1].padStart(2,'0'), mm2 = m[2].padStart(2,'0');
+    return yy + '-' + mm2 + '-' + dd;
   }
   m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m) return m[1] + '-' + m[2] + '-' + m[3];
   return null;
 }
 
+// Hebrew and English month names → month numbers
+const HE_MONTHS = ['ינואר','פברואר','מרץ','מרס','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const EN_MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+
+function extractMonthYear(s) {
+  if (!s) return null;
+  // Hebrew: "ינואר 2026" or "2026 ינואר"
+  for (let i = 0; i < HE_MONTHS.length; i++) {
+    let m = s.match(new RegExp(HE_MONTHS[i] + '\\s*(\\d{4})'));
+    if (m) return m[1] + '-' + String(i < 3 ? i + 1 : i + 1).padStart(2,'0') + '-01';
+    m = s.match(new RegExp('(\\d{4})\\s*' + HE_MONTHS[i]));
+    if (m) return m[1] + '-' + String(i + 1).padStart(2,'0') + '-01';
+  }
+  // English: "January 2026" or "2026 January"
+  const lower = s.toLowerCase();
+  for (let i = 0; i < EN_MONTHS.length; i++) {
+    let m = lower.match(new RegExp(EN_MONTHS[i] + '\\s*(\\d{4})'));
+    if (m) return m[1] + '-' + String(i + 1).padStart(2,'0') + '-01';
+    m = lower.match(new RegExp('(\\d{4})\\s*' + EN_MONTHS[i]));
+    if (m) return m[1] + '-' + String(i + 1).padStart(2,'0') + '-01';
+  }
+  return null;
+}
+
 function findDate(headersXml, allLines, filename) {
+  // Search header text first (strip XML tags so we get clean text, not
+  // raw XML attribute values that might contain spurious numbers).
   for (const xml of headersXml) {
-    const m = extractDate(xml);
-    if (m) return m;
+    const text = stripXmlTags(xml);
+    const d = extractDate(text) || extractMonthYear(text);
+    if (d) return d;
   }
-  for (let i = 0; i < Math.min(6, allLines.length); i++) {
-    const m = extractDate(allLines[i].text);
-    if (m) return m;
+  // Then search the first few body lines.
+  for (let i = 0; i < Math.min(8, allLines.length); i++) {
+    const d = extractDate(allLines[i].text) || extractMonthYear(allLines[i].text);
+    if (d) return d;
   }
+  // Last resort: date embedded in filename (DDMMYY pattern).
   const fm = filename.match(/(\d{2})(\d{2})(\d{2})/);
   if (fm) return '20' + fm[3] + '-' + fm[2] + '-' + fm[1];
   return null;

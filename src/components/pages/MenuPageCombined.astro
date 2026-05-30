@@ -374,7 +374,10 @@ const toggleAriaLabel        = lang === 'he' ? 'תצוגת תפריט' : 'Menu v
     bc.addEventListener('message', (ev) => {
       const slug = ev?.data?.slug;
       if (!slug) return;
-      fetchCache.delete(slug);
+      // Use cache:'reload' to bypass both browser and CDN caches —
+      // admin just saved fresh data and we need it immediately.
+      fetchCache.set(slug, fetch(`/api/menu/${slug}`, { cache: 'reload' })
+        .then((r) => { if (!r.ok) throw new Error('fetch failed'); return r.json(); }));
       const cfg = hydrationPayload.find((c) => c.apiSlug === slug);
       if (cfg) hydrate({ ...cfg, prefilled: false });
     });
