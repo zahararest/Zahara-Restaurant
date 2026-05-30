@@ -70,14 +70,7 @@
   --err:            #A53623;
   --shadow:         #0A0806;
 
-  /* ── Typography — fonts and type scale. */
-  --font-display-he: 'Frank Ruhl Libre', Georgia, serif;
-  --font-display-en: 'Fraunces', Georgia, serif;
-  --font-body-en:    'Inter', system-ui, sans-serif;
-  --font-body-he:    'Heebo', 'Inter', system-ui, sans-serif;
-  --font-display:    var(--font-display-en);
-  --font-body:       var(--font-body-en);
-
+  /* ── Typography — font families live in font-config.css; only scale here. */
   --step--2: clamp(0.70rem, 0.66rem + 0.18vw, 0.78rem);
   --step--1: clamp(0.80rem, 0.76rem + 0.20vw, 0.90rem);
   --step-0:  clamp(1.00rem, 0.94rem + 0.31vw, 1.10rem);

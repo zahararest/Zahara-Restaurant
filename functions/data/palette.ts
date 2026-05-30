@@ -90,7 +90,10 @@ export async function readPalette(env: PaletteEnv): Promise<PalettePair> {
   const target = pickKv(env);
   if (!target) return { light: {}, dark: {} };
   try {
-    const raw = await target.kv.get(target.key, 'json');
+    // cacheTtl=600: palette changes at most once per admin session; cache
+    // at the Cloudflare edge for 10 minutes to avoid KV reads on every
+    // HTML page request (the middleware calls this on every page load).
+    const raw = await target.kv.get(target.key, { type: 'json', cacheTtl: 600 });
     return sanitisePalettePair(raw);
   } catch {
     return { light: {}, dark: {} };

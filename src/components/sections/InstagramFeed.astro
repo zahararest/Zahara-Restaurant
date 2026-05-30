@@ -1,0 +1,235 @@
+---
+// InstagramFeed — horizontal story-style scroller.
+//
+// Hydrates from /api/instagram which returns recent posts from the
+// Instagram Graph API when INSTAGRAM_ACCESS_TOKEN is set as a
+// Cloudflare Pages secret. Falls back to a branded "Follow us" CTA
+// when no token is configured.
+
+import { RESTAURANT } from '../../data/restaurant';
+import type { Lang }  from '../../data/i18n';
+
+export interface Props {
+  lang: Lang;
+}
+
+const { lang } = Astro.props;
+const isHe = lang === 'he';
+
+const t = {
+  eyebrow:  isHe ? 'אינסטגרם' : 'Instagram',
+  heading:  isHe ? 'רגעים מהמטבח.' : 'Moments from the kitchen.',
+  follow:   isHe ? 'עקבו אחרינו' : 'Follow us',
+  loading:  isHe ? 'טוען...' : 'Loading…',
+  empty:    isHe ? 'עקבו אחרינו באינסטגרם' : 'Follow us on Instagram',
+  handle:   '@zahara.restaurant',
+  ariaStrip: isHe ? 'פיד אינסטגרם של זהרה' : 'Zahara Instagram feed',
+};
+---
+
+<section class="section-tight ig-section reveal-on-scroll">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow eyebrow--center">{t.eyebrow}</p>
+      <h2
+        class="display"
+        data-word-reveal
+        data-word-reveal-delay="0.06"
+        data-word-reveal-step="0.06"
+      >{t.heading}</h2>
+    </div>
+  </div>
+
+  <div class="ig-scroll-wrap">
+    <div class="ig-scroll" data-ig-scroll role="list" aria-label={t.ariaStrip}>
+      {/* Placeholder cards shown before hydration */}
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div class="ig-card ig-card--skeleton" role="listitem" aria-hidden="true" style={`--i:${i}`}>
+          <div class="ig-card__img"></div>
+        </div>
+      ))}
+    </div>
+
+    {/* Profile CTA — shown as fallback and always visible below the strip */}
+    <div class="ig-follow reveal-on-scroll">
+      <a
+        class="ig-follow__link"
+        href={RESTAURANT.instagram}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${t.follow} · ${t.handle}`}
+      >
+        <svg class="ig-follow__icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+        <span class="ig-follow__handle">{t.handle}</span>
+        <span class="ig-follow__label">↗</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<script is:inline define:vars={{ instagramUrl: RESTAURANT.instagram, t }}>
+  (async function () {
+    const scroll = document.querySelector('[data-ig-scroll]');
+    if (!scroll) return;
+
+    // Drag-scroll (same as gallery)
+    let startX = 0, scrollLeft = 0, dragging = false;
+    scroll.addEventListener('mousedown', (e) => {
+      dragging = true; startX = e.pageX - scroll.offsetLeft;
+      scrollLeft = scroll.scrollLeft; scroll.style.cursor = 'grabbing'; e.preventDefault();
+    });
+    scroll.addEventListener('mouseleave', () => { dragging = false; scroll.style.cursor = ''; });
+    scroll.addEventListener('mouseup',    () => { dragging = false; scroll.style.cursor = ''; });
+    scroll.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      scroll.scrollLeft = scrollLeft - (e.pageX - scroll.offsetLeft - startX) * 1.4;
+    });
+
+    try {
+      const res = await fetch('/api/instagram', { cache: 'default' });
+      if (!res.ok) throw new Error('no feed');
+      const { posts } = await res.json();
+      if (!Array.isArray(posts) || posts.length === 0) throw new Error('empty');
+
+      scroll.innerHTML = posts.map((p, i) => `
+        <a
+          class="ig-card"
+          href="${p.permalink}"
+          target="_blank"
+          rel="noopener noreferrer"
+          role="listitem"
+          aria-label="${p.caption ? p.caption.slice(0, 60) : t.handle}"
+          style="--i:${i}"
+        >
+          <div class="ig-card__img" style="background-image:url(${p.thumbnail_url || p.media_url})"></div>
+          ${p.media_type === 'VIDEO' ? '<span class="ig-card__badge" aria-hidden="true">▶</span>' : ''}
+          ${p.media_type === 'CAROUSEL_ALBUM' ? '<span class="ig-card__badge" aria-hidden="true">⧉</span>' : ''}
+        </a>`).join('');
+    } catch {
+      // Fallback: replace skeletons with branded follow CTA card
+      scroll.innerHTML = `
+        <a class="ig-card ig-card--cta" href="${instagramUrl}" target="_blank"
+           rel="noopener noreferrer" role="listitem"
+           aria-label="${t.follow}">
+          <div class="ig-card__img ig-card__img--cta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+              <rect x="2" y="2" width="20" height="20" rx="5"/>
+              <circle cx="12" cy="12" r="4"/>
+              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            <span>${t.empty}</span>
+            <span class="ig-cta-handle">${t.handle}</span>
+          </div>
+        </a>`;
+    }
+  })();
+</script>
+
+<style>
+  .ig-section { overflow: hidden; }
+
+  .ig-scroll-wrap { margin-block-start: var(--space-l); }
+
+  .ig-scroll {
+    display: flex;
+    gap: var(--space-xs);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+    padding-inline: var(--space-m);
+    padding-block-end: var(--space-s);
+    scrollbar-width: none;
+  }
+  .ig-scroll::-webkit-scrollbar { display: none; }
+
+  .ig-card {
+    position: relative;
+    flex: 0 0 clamp(130px, 20vw, 220px);
+    aspect-ratio: 1;
+    scroll-snap-align: start;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--paper-deep);
+    display: block;
+    text-decoration: none;
+    transition: opacity 0.3s;
+  }
+  .ig-card:hover { opacity: 0.88; }
+  .ig-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .ig-card__img {
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    transition: transform 0.5s var(--ease-out);
+  }
+  .ig-card:hover .ig-card__img { transform: scale(1.04); }
+
+  .ig-card--skeleton .ig-card__img {
+    background: linear-gradient(90deg, var(--paper-deep) 25%, var(--paper-edge) 50%, var(--paper-deep) 75%);
+    background-size: 200% 100%;
+    animation: igSkeleton 1.5s ease infinite;
+  }
+  @keyframes igSkeleton {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ig-card--skeleton .ig-card__img { animation: none; }
+  }
+
+  .ig-card__badge {
+    position: absolute;
+    inset-block-start: 0.4rem;
+    inset-inline-end: 0.4rem;
+    font-size: 0.7rem;
+    color: var(--paper-on-photo);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+
+  /* Fallback CTA card */
+  .ig-card--cta { flex: 0 0 clamp(200px, 50vw, 340px); }
+  .ig-card__img--cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: var(--ink-muted);
+    font-size: var(--step--1);
+    padding: var(--space-m);
+    text-align: center;
+  }
+  .ig-card__img--cta svg { width: 2rem; height: 2rem; color: var(--ink-muted); }
+  .ig-cta-handle { font-size: var(--step--2); color: var(--accent); letter-spacing: 0.05em; }
+
+  /* Follow link below strip */
+  .ig-follow {
+    display: flex;
+    justify-content: center;
+    margin-block-start: var(--space-m);
+  }
+  .ig-follow__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    color: var(--ink-muted);
+    transition: color 0.2s;
+  }
+  .ig-follow__link:hover { color: var(--ink); }
+  .ig-follow__icon { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
+  .ig-follow__label { font-size: 0.8em; }
+</style>

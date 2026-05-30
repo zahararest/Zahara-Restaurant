@@ -3,5 +3,5 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-# Sitemap: update this line with your actual domain once set in astro.config.mjs
-# Sitemap: https://zahara-jerusalem.co.il/sitemap-index.xml
+# Update this URL to match your production domain in astro.config.mjs
+Sitemap: https://zahara-jerusalem.co.il/sitemap-index.xml

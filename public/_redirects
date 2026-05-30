@@ -1,4 +1,9 @@
 # Cloudflare Pages redirects
-# /events/ was renamed to /contact/ in 2026; preserve old links.
+
+# /events/ was renamed to /contact/ in 2026.
 /events/      /contact/      301
 /en/events/   /en/contact/   301
+
+# /menu/v2/ removed — redirect to main menu.
+/menu/v2/     /menu/         301
+/en/menu/v2/  /en/menu/      301

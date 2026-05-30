@@ -272,7 +272,7 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
 
   async function loadSlug(slug, kind) {
     try {
-      const res = await fetch(`/api/menu/${slug}`, { cache: 'no-store' });
+      const res = await fetch(`/api/menu/${slug}`, { cache: 'default' });
       if (!res.ok) return;
       const data = await res.json();
       applyPayload(slug, kind, data);

@@ -121,3 +121,48 @@ html[lang="he"] .header-reserve {
   color: var(--ink);
   border-color: var(--paper-on-photo);
 }
+
+/* Rooftop link/button — muted secondary action, with a "coming soon" badge
+   when the rooftop site is not yet live (RESTAURANT.rooftopUrl is null). */
+.header-rooftop {
+  position: relative;
+  font-size: var(--step--1);
+  font-family: var(--font-body);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+.header-rooftop:not(.header-rooftop--soon):hover { color: var(--ink); }
+html[lang="he"] .header-rooftop { letter-spacing: 0.08em; text-transform: none; }
+
+.header-rooftop--soon { cursor: default; }
+
+.header-rooftop__badge {
+  display: inline-block;
+  margin-inline-start: 0.4em;
+  font-size: 0.68em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper-on-photo);
+  background: var(--ink-muted);
+  padding: 0.1em 0.45em;
+  border-radius: 2px;
+  vertical-align: middle;
+  line-height: 1.5;
+}
+
+/* On photo: rooftop matches the nav colour */
+.site-header.is-on-photo .header-rooftop { color: var(--paper-on-photo); }
+.site-header.is-on-photo .header-rooftop__badge {
+  background: color-mix(in srgb, var(--paper-on-photo) 30%, transparent);
+  color: var(--paper-on-photo);
+}
+
+/* Hide on mobile alongside the reserve button */
+@media (max-width: 860px) {
+  .header-rooftop { display: none; }
+}

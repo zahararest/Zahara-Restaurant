@@ -7,14 +7,13 @@ export interface Props {
   lang:    Lang;
   eyebrow: string;
   heading: string;
-  /** 6–8 photos render best with the asymmetric grid. */
   photos:  readonly PhotoEntry[];
 }
 
 const { lang, eyebrow, heading, photos } = Astro.props;
 ---
 
-<section class="section-tight">
+<section class="section-tight gallery-section">
   <div class="wrap">
     <div class="section-head reveal-on-scroll">
       <p class="eyebrow eyebrow--center">{eyebrow}</p>
@@ -26,7 +25,110 @@ const { lang, eyebrow, heading, photos } = Astro.props;
       >{heading}</h2>
     </div>
   </div>
-  <div class="gallery stagger reveal-on-scroll">
-    {photos.map(p => <Photo src={p.src} alt={p.alt[lang]} aspect="1/1" />)}
+
+  <div class="gallery-scroll-wrap">
+    <div class="gallery-scroll" role="list" aria-label={eyebrow}>
+      {photos.map((p, i) => (
+        <div class="gallery-scroll__item reveal-on-scroll" role="listitem" style={`--i:${i}`}>
+          <Photo src={p.src} alt={p.alt[lang]} aspect="3/4" />
+        </div>
+      ))}
+    </div>
+    {/* Drag-scroll hint — fades out after first interaction */}
+    <p class="gallery-scroll__hint" aria-hidden="true" data-gallery-hint>
+      {lang === 'he' ? '← גרור לגלילה' : 'drag to scroll →'}
+    </p>
   </div>
 </section>
+
+<script>
+  // Mouse-drag and touch-scroll for the gallery strip.
+  document.querySelectorAll<HTMLElement>('.gallery-scroll').forEach((el) => {
+    let startX = 0;
+    let scrollLeft = 0;
+    let dragging = false;
+
+    el.addEventListener('mousedown', (e) => {
+      dragging = true;
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    el.addEventListener('mouseleave', () => { dragging = false; el.style.cursor = ''; });
+    el.addEventListener('mouseup',    () => { dragging = false; el.style.cursor = ''; });
+    el.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const x    = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.4;
+      el.scrollLeft = scrollLeft - walk;
+    });
+
+    // Dismiss the drag hint on first scroll/drag
+    const hint = el.closest('.gallery-scroll-wrap')?.querySelector<HTMLElement>('[data-gallery-hint]');
+    const dismissHint = () => { if (hint) hint.style.opacity = '0'; };
+    el.addEventListener('scroll',    dismissHint, { once: true, passive: true });
+    el.addEventListener('mousedown', dismissHint, { once: true });
+    el.addEventListener('touchstart', dismissHint, { once: true, passive: true });
+  });
+</script>
+
+<style>
+  .gallery-section { overflow: hidden; }
+
+  .gallery-scroll-wrap {
+    position: relative;
+    margin-block-start: var(--space-l);
+  }
+
+  .gallery-scroll {
+    display: flex;
+    gap: var(--space-s);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+    padding-inline: var(--space-m);
+    padding-block-end: var(--space-s);
+    /* Hide scrollbar — interaction is via drag + touch */
+    scrollbar-width: none;
+  }
+  .gallery-scroll::-webkit-scrollbar { display: none; }
+
+  .gallery-scroll__item {
+    flex: 0 0 clamp(200px, 30vw, 340px);
+    scroll-snap-align: start;
+    /* Staggered entry: each item's reveal delay uses --i */
+    transition-delay: calc(var(--i, 0) * 0.05s);
+  }
+
+  /* Keyboard: allow Tab navigation within the strip */
+  .gallery-scroll__item:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .gallery-scroll__hint {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    font-size: var(--step--2);
+    letter-spacing: 0.15em;
+    color: var(--ink-muted);
+    pointer-events: none;
+    transition: opacity 0.5s;
+    white-space: nowrap;
+  }
+
+  @media (hover: none) {
+    /* Touch devices: hint not needed */
+    .gallery-scroll__hint { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gallery-scroll { scroll-behavior: auto; }
+  }
+</style>

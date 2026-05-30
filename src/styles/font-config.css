@@ -1,0 +1,46 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   FONT CONFIGURATION — edit this file to change fonts site-wide.
+   ══════════════════════════════════════════════════════════════════════════
+
+   HOW TO CHANGE A FONT
+   ────────────────────
+   1. Download the new font as WOFF2 and drop it in /public/fonts/
+   2. Add its @font-face declaration to src/styles/font-faces.css
+      (copy an existing block and swap the src and unicode-range)
+   3. Update the font-family value below — that's it.
+
+   FONT ROLES
+   ──────────
+   --font-display-he  Display serif for Hebrew headings (H1–H3, pull quotes)
+   --font-display-en  Display serif for English headings (italic variant used)
+   --font-body-he     Body sans-serif for Hebrew paragraph text and UI
+   --font-body-en     Body sans-serif for English paragraph text and UI
+
+   CURRENT CHOICES
+   ────────────────
+   • Frank Ruhl Libre — Classic Israeli newspaper serif. Warm and editorial.
+     Swap ideas: Noto Serif Hebrew, Almoni Neue, David CLM
+   • Fraunces — Variable optical-size serif with SOFT axis. Feels handcrafted.
+     Swap ideas: Playfair Display, Cormorant Garamond, DM Serif Display
+   • Heebo — Clean neutral Hebrew sans. Standard, highly legible.
+     Swap ideas: Noto Sans Hebrew, Assistant, Rubik
+   • Inter — Variable humanist sans for English UI and body text.
+     Swap ideas: DM Sans, Plus Jakarta Sans, Geist
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font-display-he: 'Frank Ruhl Libre', Georgia, 'Times New Roman', serif;
+  --font-display-en: 'Fraunces', Georgia, serif;
+  --font-body-he:    'Heebo', 'Inter', system-ui, sans-serif;
+  --font-body-en:    'Inter', system-ui, sans-serif;
+
+  /* Shorthand aliases — resolve to HE by default; lang-specific overrides
+     in base.css switch them for html[lang="en"] pages. */
+  --font-display: var(--font-display-he);
+  --font-body:    var(--font-body-he);
+}
+
+html[lang="en"] {
+  --font-display: var(--font-display-en);
+  --font-body:    var(--font-body-en);
+}

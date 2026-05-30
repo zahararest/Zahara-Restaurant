@@ -2,6 +2,7 @@
 import { pick, header as labels } from '../data/i18n';
 import { RESTAURANT }              from '../data/restaurant';
 import { path, altLangHref, NAV_ORDER, type RouteKey } from '../lib/paths';
+const rooftopUrl = RESTAURANT.rooftopUrl;
 import type { Lang }               from '../data/i18n';
 
 export interface Props {
@@ -54,6 +55,21 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     </a>
 
     <div class="header-cta">
+      {rooftopUrl
+        ? (
+          <a class="header-rooftop" href={rooftopUrl} target="_blank" rel="noopener"
+             aria-label={`${t.rooftop} ↗`}>
+            {t.rooftop}
+          </a>
+        )
+        : (
+          <span class="header-rooftop header-rooftop--soon" title={t.rooftopSoon}
+                aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
+            {t.rooftop}
+            <span class="header-rooftop__badge">{t.rooftopSoon}</span>
+          </span>
+        )
+      }
       <a class="header-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">
         {t.reserve}
       </a>

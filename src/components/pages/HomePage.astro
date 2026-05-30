@@ -28,6 +28,7 @@ import BleedPhoto    from '../sections/BleedPhoto.astro';
 import PhotoBlock    from '../sections/PhotoBlock.astro';
 import PullQuote     from '../sections/PullQuote.astro';
 import Gallery       from '../sections/Gallery.astro';
+import InstagramFeed from '../sections/InstagramFeed.astro';
 
 import { pick, home as copy } from '../../data/i18n';
 import { PHOTOS, MENU_CATEGORY_PHOTOS } from '../../data/photos';
@@ -57,12 +58,13 @@ const galleryPhotos   = [
 ];
 
 const sec = {
-  hero:    lang === 'he' ? 'בית'      : 'Open',
-  story:   lang === 'he' ? 'סיפור'    : 'Story',
-  kitchen: lang === 'he' ? 'מטבח'     : 'Kitchen',
-  menu:    lang === 'he' ? 'תפריט'    : 'Menu',
-  gallery: lang === 'he' ? 'גלריה'    : 'Gallery',
-  events:  lang === 'he' ? 'אירועים'  : 'Events',
+  hero:      lang === 'he' ? 'בית'        : 'Open',
+  story:     lang === 'he' ? 'סיפור'      : 'Story',
+  kitchen:   lang === 'he' ? 'מטבח'       : 'Kitchen',
+  menu:      lang === 'he' ? 'תפריט'      : 'Menu',
+  gallery:   lang === 'he' ? 'גלריה'      : 'Gallery',
+  instagram: lang === 'he' ? 'אינסטגרם'   : 'Instagram',
+  events:    lang === 'he' ? 'אירועים'    : 'Events',
 };
 
 // ── Cinematic menu chapters ────────────────────────────────────
@@ -360,6 +362,10 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     <Gallery lang={lang} eyebrow={t.galleryEyebrow} heading={t.galleryHeading} photos={galleryPhotos} />
   </div>
 
+  <div data-section-name={sec.instagram}>
+    <InstagramFeed lang={lang} />
+  </div>
+
   <div data-section-name={sec.events}>
     <PhotoBlock
       lang={lang}
@@ -386,7 +392,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
   const fetchCache = new Map();
   function fetchMenu(slug) {
     if (!fetchCache.has(slug)) {
-      fetchCache.set(slug, fetch(`/api/menu/${slug}`, { cache: 'no-store' }).then((r) => {
+      fetchCache.set(slug, fetch(`/api/menu/${slug}`, { cache: 'default' }).then((r) => {
         if (!r.ok) throw new Error('fetch failed');
         return r.json();
       }));

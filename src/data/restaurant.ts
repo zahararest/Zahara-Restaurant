@@ -38,4 +38,8 @@ export const RESTAURANT = {
   reservationUrl: 'https://tabitisrael.co.il/site/noocha-hotel-zahara',
   instagram:      'https://www.instagram.com/zahara.restaurant/',
   facebook:       'https://www.facebook.com/',
+
+  // Rooftop bar — coming soon. Update this URL when the site is live.
+  // Set to null to hide the header button entirely.
+  rooftopUrl:     null as string | null,
 } as const;

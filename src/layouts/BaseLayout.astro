@@ -7,6 +7,21 @@ import Accessibility from '../components/Accessibility.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
 
+// ── Analytics / Ads — opt-in via Cloudflare Pages environment variables ──
+// Set these as "Variables" (not Secrets) in the Cloudflare Pages dashboard
+// under Settings → Environment Variables so they are baked into the build.
+//
+//   PUBLIC_GOOGLE_ADS_ID        — Google Ads conversion tag, e.g. AW-XXXXXXXXX
+//   PUBLIC_GA_MEASUREMENT_ID    — Google Analytics 4, e.g. G-XXXXXXXXXX
+//   PUBLIC_GSC_VERIFICATION     — Google Search Console meta verification code
+//
+// Leave any variable unset to omit the corresponding tag entirely.
+const googleAdsId     = import.meta.env.PUBLIC_GOOGLE_ADS_ID     || '';
+const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID  || '';
+const gscVerification = import.meta.env.PUBLIC_GSC_VERIFICATION   || '';
+// Use Ads ID for gtag if set, otherwise fall back to GA4 ID
+const gtagId          = googleAdsId || gaMeasurementId;
+
 export interface Props {
   title:           string;
   description?:    string;
@@ -68,7 +83,8 @@ const schema = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon"             type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon"                     href="/favicon.svg" />
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
@@ -96,12 +112,31 @@ const schema = {
 
     <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700&family=Heebo:wght@300;400;500;600&family=Inter:wght@300;400;500;600&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..600,0..100;1,9..144,300..600,0..100&display=swap"
-      rel="stylesheet"
-    />
+    {/* Google Search Console ownership verification — add PUBLIC_GSC_VERIFICATION
+        as a Cloudflare Pages build variable to activate. */}
+    {gscVerification && (
+      <meta name="google-site-verification" content={gscVerification} />
+    )}
+
+    {/* Google tag (Ads + Analytics) — loaded only when PUBLIC_GOOGLE_ADS_ID or
+        PUBLIC_GA_MEASUREMENT_ID is set as a Cloudflare Pages build variable.
+        Uses async loading so it never blocks first paint. */}
+    {gtagId && (
+      <>
+        <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gtagId}`}></script>
+        <script is:inline define:vars={{ gtagId, googleAdsId, gaMeasurementId }}>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          if (googleAdsId) gtag('config', googleAdsId);
+          if (gaMeasurementId && gaMeasurementId !== googleAdsId) gtag('config', gaMeasurementId);
+        </script>
+      </>
+    )}
+
+    {/* Fonts are self-hosted in /public/fonts/ via src/styles/font-faces.css.
+        No Google CDN requests — no third-party IP logging on page load.
+        To change fonts: edit src/styles/font-config.css */}
 
     {/* Theme + palette pre-paint — runs SYNCHRONOUSLY before <body>
         renders so the page paints once in the visitor's chosen theme

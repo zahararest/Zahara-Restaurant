@@ -26,6 +26,8 @@ export const header = {
   menu:        { he: 'תפריט',          en: 'Menu'      },
   contact:     { he: 'צור קשר',        en: 'Contact'   },
   reserve:     { he: 'הזמנה',          en: 'Reserve'   },
+  rooftop:     { he: 'גג',             en: 'Rooftop'   },
+  rooftopSoon: { he: 'בקרוב',          en: 'Coming soon' },
   langToggle:  { he: 'EN',             en: 'עברית'     },
   themeToggle: { he: 'שינוי ערכת נושא', en: 'Toggle theme' },
   themeLight:  { he: 'בהיר',           en: 'Light'        },

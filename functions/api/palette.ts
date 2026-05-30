@@ -13,7 +13,11 @@ export const onRequestGet: PagesFunction<PaletteEnv> = async ({ env }) => {
   return new Response(JSON.stringify(palette), {
     headers: {
       'Content-Type':  'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
+      // Palette changes rarely — cache for 10 minutes at edge.
+      // Admin color saves broadcast via BroadcastChannel so open tabs
+      // update immediately; other visitors see the new palette within
+      // the TTL window (10 min max lag).
+      'Cache-Control': 'public, max-age=600, stale-while-revalidate=3600',
       'X-Robots-Tag':  'noindex',
     },
   });

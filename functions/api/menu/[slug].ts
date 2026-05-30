@@ -32,7 +32,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env }) => {
 
   let raw: unknown = null;
   try {
-    raw = await env.MENU_DATA.get(slug, 'json');
+    // cacheTtl=60: Cloudflare caches this KV read for 60 s at the edge,
+    // avoiding a round-trip to KV storage on every request.
+    raw = await env.MENU_DATA.get(slug, { type: 'json', cacheTtl: 60 });
   } catch {
     /* KV unavailable in local dev — fall through to defaults */
   }
@@ -42,10 +44,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env }) => {
     payload = { sections: DEFAULT_SECTIONS[slug] ?? [], date: null };
   }
 
+  // Cache at Cloudflare edge for 60 s; browsers revalidate in background
+  // (stale-while-revalidate) so subsequent loads are instant. Admin writes
+  // will take up to 60 s to propagate to uncached visitors — acceptable
+  // for a menu that changes at most once per service period.
   return new Response(JSON.stringify(payload), {
     headers: {
       'Content-Type':  'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
     },
   });
 };

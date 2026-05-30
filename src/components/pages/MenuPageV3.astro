@@ -239,14 +239,26 @@ const hydrationPayload = rails.map((r) => ({
     }).join('');
   }
 
+  // Per-tab in-memory fetch cache — avoids duplicate requests when the same
+  // slug is needed by multiple consumers (and avoids re-fetching on soft
+  // navigations within the same tab). The server already sets max-age=60,
+  // so the browser HTTP cache is the persistent layer; this is an optional
+  // dedup layer inside the same page load.
+  const fetchCache = new Map();
+  function fetchMenu(slug) {
+    if (!fetchCache.has(slug)) {
+      fetchCache.set(slug, fetch(`/api/menu/${slug}`, { cache: 'default' })
+        .then((r) => { if (!r.ok) throw new Error('fetch failed'); return r.json(); }));
+    }
+    return fetchCache.get(slug);
+  }
+
   async function hydrate(cfg) {
     if (cfg.prefilled) return;
     const host = document.querySelector(`[data-menu-body][data-chapter-id="${cfg.id}"]`);
     if (!host) return;
     try {
-      const res = await fetch(`/api/menu/${cfg.apiSlug}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('fetch failed');
-      const data = await res.json();
+      const data = await fetchMenu(cfg.apiSlug);
       const sections = Array.isArray(data) ? data : (data?.sections ?? []);
       renderMeta(cfg.apiSlug, Array.isArray(data) ? null : (data?.date ?? null));
       if (sections.length === 0) {
@@ -303,12 +315,14 @@ const hydrationPayload = rails.map((r) => ({
   }, { rootMargin: '-30% 0px -55% 0px', threshold: 0 });
   document.querySelectorAll('[data-menu-chapter]').forEach((s) => io.observe(s));
 
-  // Live updates from /admin
+  // Live updates from /admin — invalidate the cache for the updated slug
+  // then re-hydrate so the new content appears without a page reload.
   try {
     const bc = new BroadcastChannel('zahara-menu');
     bc.addEventListener('message', (ev) => {
       const slug = ev?.data?.slug;
       if (!slug) return;
+      fetchCache.delete(slug); // bust the in-memory cache for this slug
       const cfg = hydrationPayload.find((c) => c.apiSlug === slug);
       if (cfg) hydrate({ ...cfg, prefilled: false });
     });

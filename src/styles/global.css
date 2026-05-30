@@ -1,3 +1,7 @@
+/* Font faces must load first so other rules can reference the families. */
+@import './font-faces.css';
+/* Font config: edit this file to swap font families site-wide. */
+@import './font-config.css';
 @import './tokens.css';
 @import './base.css';
 @import './buttons.css';
