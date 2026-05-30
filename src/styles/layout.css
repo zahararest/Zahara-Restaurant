@@ -430,7 +430,7 @@ html[lang="he"] .nav {
 }
 
 /* Decorative gold corner ornament. */
-.menu-section-group::after {
+/* .menu-section-group::after {
   content: '';
   position: absolute;
   inset-block-end: 0;
@@ -440,7 +440,7 @@ html[lang="he"] .nav {
   background: radial-gradient(circle at bottom right, color-mix(in srgb, var(--gold) 10%, transparent), transparent 70%);
   pointer-events: none;
   z-index: -1;
-}
+} */
 
 .menu-section-group + .menu-section-group { margin-block-start: 0; }
 
