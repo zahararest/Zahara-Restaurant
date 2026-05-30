@@ -28,10 +28,9 @@ id = "0b42d476d3cb446bb7efbbdb7ecb4c1e"
 # `functions/photos/[file].ts` middleware checks R2 first, then falls
 # through to the static asset.
 # Create with: wrangler r2 bucket create zahara-images
-# Uncomment when you've created the bucket: npx wrangler r2 bucket create zahara-images
-# [[r2_buckets]]
-# binding     = "IMAGES"
-# bucket_name = "zahara-images"
+[[r2_buckets]]
+binding     = "IMAGES"
+bucket_name = "zahara-images"
 
 # Secrets — set these via the Cloudflare Pages dashboard or with `wrangler pages secret put`.
 # DO NOT commit values here. This file is just declarative.
