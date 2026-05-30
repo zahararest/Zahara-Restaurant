@@ -3,4 +3,5 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://your-restaurant.com/sitemap-index.xml
+# Sitemap: update this line with your actual domain once set in astro.config.mjs
+# Sitemap: https://zahara-jerusalem.co.il/sitemap-index.xml

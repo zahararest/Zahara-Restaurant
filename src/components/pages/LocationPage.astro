@@ -10,7 +10,8 @@ export interface Props { lang: Lang }
 
 const { lang } = Astro.props;
 const t        = pick(copy, lang);
-const title    = lang === 'he' ? 'מיקום' : 'Location';
+const isHe     = lang === 'he';
+const title    = isHe ? 'מיקום' : 'Location';
 
 const dial     = lang === 'he' ? RESTAURANT.phone.dialHe : RESTAURANT.phone.dialEn;
 const encoded  = encodeURIComponent(RESTAURANT.address.maps);
@@ -34,13 +35,27 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
   </section>
 
   <section class="section-tight wrap">
-    <div class="reveal-on-scroll">
+    {/* Map is not auto-loaded — clicking "Show map" sets the iframe src,
+        preventing Google from receiving the visitor's IP on page load. */}
+    <div class="reveal-on-scroll map-wrapper" data-map-embed={mapEmbed}>
+      <div class="map-consent" data-map-consent>
+        <p class="map-consent__note">
+          {isHe
+            ? 'המפה מסופקת על ידי Google. לחצו להצגה.'
+            : 'Map provided by Google. Click to display.'}
+        </p>
+        <button class="btn" type="button" data-map-btn>
+          {isHe ? 'הצג מפה' : 'Show map'}
+        </button>
+      </div>
       <iframe
         class="map-frame"
-        src={mapEmbed}
+        data-map-frame
+        src="about:blank"
         loading="lazy"
         referrerpolicy="no-referrer-when-downgrade"
         title={t.mapTitle}
+        hidden
       ></iframe>
     </div>
 
@@ -77,3 +92,41 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  const wrapper = document.querySelector('[data-map-embed]') as HTMLElement | null;
+  const btn     = document.querySelector('[data-map-btn]');
+  const consent = document.querySelector('[data-map-consent]') as HTMLElement | null;
+  const frame   = document.querySelector('[data-map-frame]') as HTMLIFrameElement | null;
+
+  if (btn && wrapper && consent && frame) {
+    btn.addEventListener('click', () => {
+      const src = wrapper.dataset.mapEmbed || '';
+      frame.src = src;
+      frame.hidden = false;
+      consent.hidden = true;
+    });
+  }
+</script>
+
+<style>
+  .map-wrapper { position: relative; }
+  .map-consent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    min-height: 320px;
+    border: 1px solid var(--rule-soft);
+    background: var(--paper-deep);
+    border-radius: 2px;
+    padding: var(--space-l);
+    text-align: center;
+  }
+  .map-consent__note {
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    margin: 0;
+  }
+</style>

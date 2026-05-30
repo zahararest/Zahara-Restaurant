@@ -48,7 +48,7 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
       <span class="footer-bottom__links">
         <a href={lang === 'he' ? '/accessibility/' : '/en/accessibility/'}
            style="margin-inline-end: 1rem;">{t.accessibility}</a>
-        <a href="#">{t.privacy}</a>
+        <a href={lang === 'he' ? '/privacy/' : '/en/privacy/'}>{t.privacy}</a>
       </span>
     </div>
   </div>

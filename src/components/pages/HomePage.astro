@@ -381,6 +381,19 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
   const esc = (s) => String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // Deduplicate concurrent fetches for the same slug (food-start and
+  // food-main both hit /api/menu/he — one request, two consumers).
+  const fetchCache = new Map();
+  function fetchMenu(slug) {
+    if (!fetchCache.has(slug)) {
+      fetchCache.set(slug, fetch(`/api/menu/${slug}`, { cache: 'no-store' }).then((r) => {
+        if (!r.ok) throw new Error('fetch failed');
+        return r.json();
+      }));
+    }
+    return fetchCache.get(slug);
+  }
+
   async function hydrateChapter(cfg) {
     if (!cfg.apiSlug) return;
     const host = document.querySelector(`[data-cinema-items][data-chapter-id="${cfg.id}"]`);
@@ -392,9 +405,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     const hadRealItems = !host.querySelector('.menu-cinema__item--placeholder');
 
     try {
-      const res = await fetch(`/api/menu/${cfg.apiSlug}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('fetch failed');
-      const data = await res.json();
+      const data = await fetchMenu(cfg.apiSlug);
       const sections = Array.isArray(data) ? data : (data?.sections ?? []);
 
       // Find the target items: either a specific section by title (food

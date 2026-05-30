@@ -9,11 +9,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^6.3.8",
-    "chrome-devtools-mcp": "^1.1.1"
+    "astro": "^6.3.8"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260507.1",
+    "chrome-devtools-mcp": "^1.1.1",
     "wrangler": "^4.95.0"
   }
 }
