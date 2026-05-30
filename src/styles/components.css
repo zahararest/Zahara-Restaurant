@@ -1282,8 +1282,6 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   color: var(--button-color);
   border: var(--button-border-width) solid var(--button-border);
   border-radius: 50%;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
   opacity: 0;
@@ -2002,13 +2000,45 @@ html[dir="rtl"] .menu-tl__rail-list {
   .menu-tl__rail-tick { display: none; }
 }
 
-.menu-tl__content { display: grid; gap: clamp(3rem, 7vw, 5.5rem); }
+.menu-tl__content { display: grid; gap: clamp(2rem, 5vw, 3.5rem); }
+
+/* ── Chapter card gradient backgrounds ────────────────────────── */
 .menu-tl__chapter {
   scroll-margin-top: calc(var(--header-h) + 1rem);
-  padding-block-end: clamp(2rem, 4vw, 3rem);
-  border-block-end: 1px solid var(--rule-soft);
+  padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1.25rem, 3vw, 2rem);
+  border-radius: 4px;
+  border: 1px solid var(--rule-soft);
+  position: relative;
+  overflow: hidden;
 }
-.menu-tl__chapter:last-child { border-block-end: 0; }
+/* Odd chapters: warm paper-card top-left to paper-deep bottom-right */
+.menu-tl__chapter:nth-child(odd) {
+  background: linear-gradient(135deg,
+    var(--paper-card) 0%,
+    var(--paper) 45%,
+    var(--paper-deep) 100%);
+}
+/* Even chapters: deeper warm tone, slightly different angle for variety */
+.menu-tl__chapter:nth-child(even) {
+  background: linear-gradient(160deg,
+    var(--paper-deep) 0%,
+    var(--paper) 40%,
+    var(--paper-card) 80%,
+    var(--paper-edge) 100%);
+}
+/* Subtle warm glow in the corner — paper-card tonal accent */
+.menu-tl__chapter::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  width: 40%;
+  height: 40%;
+  background: radial-gradient(ellipse at top right,
+    color-mix(in srgb, var(--gold) 8%, transparent) 0%,
+    transparent 70%);
+  pointer-events: none;
+}
 .menu-tl__head { margin-block-end: clamp(2rem, 4vw, 3rem); }
 .menu-tl__eyebrow {
   font-family: var(--font-body);

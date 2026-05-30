@@ -7,3 +7,31 @@
 @import './buttons.css';
 @import './layout.css';
 @import './components.css';
+
+/* ── Print styles ────────────────────────────────────────────────────────────
+   Useful when a visitor prints /menu/ — hides all chrome, shows content cleanly.
+   The interactive menu items print as a readable list. */
+@media print {
+  .site-header, .mobile-nav, .a11y-toggle, .scroll-top, .section-hud,
+  .menu-view-switch, .menu-tl__rail, .gallery-scene, .ig-section,
+  .hero-bleed, .intro-photo__content, footer, .scroll-progress { display: none !important; }
+
+  html, body { background: #fff; color: #000; font-size: 11pt; }
+
+  .menu-tl { display: block !important; }
+  .menu-tl__chapter {
+    background: none !important;
+    border: none !important;
+    border-block-end: 0.5pt solid #ccc !important;
+    padding-inline: 0 !important;
+    margin-block-end: 1rem;
+    break-inside: avoid;
+  }
+  .menu-tl__chapter::before { display: none; }
+  .menu-tl__item { border-block-end: 0.25pt solid #eee; }
+  .menu-tl__item-name { font-weight: bold; }
+  .menu-tl__item-price { font-weight: bold; }
+
+  a[href]::after { content: ''; } /* suppress URL printing */
+  .wrap { max-width: 100%; padding-inline: 1cm; }
+}

@@ -391,8 +391,9 @@
       btn.className = 'scroll-top';
       btn.setAttribute('aria-label',
         document.documentElement.lang === 'he' ? 'גלילה למעלה' : 'Scroll to top');
-      // Up arrow glyph — simple, no icon dependency.
-      btn.innerHTML = '<span aria-hidden="true">↑</span>';
+      // SVG arrow — Unicode glyphs have inconsistent vertical metrics across
+      // fonts; an inline SVG is always perfectly centred in the button grid.
+      btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="width:16px;height:16px;display:block"><line x1="8" y1="13" x2="8" y2="3"/><polyline points="4,7 8,3 12,7"/></svg>';
       document.body.appendChild(btn);
 
       btn.addEventListener('click', () => {

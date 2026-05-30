@@ -60,7 +60,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     </div>
 
     <div class="directions-grid stagger reveal-on-scroll">
-      <a class="btn btn--block"            href={wazeUrl}  target="_blank" rel="noopener">{t.waze}</a>
+      <a class="btn btn--block btn--ghost" href={wazeUrl}  target="_blank" rel="noopener">{t.waze}</a>
       <a class="btn btn--block btn--ghost" href={gmapsUrl} target="_blank" rel="noopener">{t.gmaps}</a>
       <a class="btn btn--block btn--ghost" href={`tel:${dial}`}>{t.call}</a>
     </div>
@@ -103,9 +103,26 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     btn.addEventListener('click', () => {
       const src = wrapper.dataset.mapEmbed || '';
       frame.src = src;
-      frame.hidden = false;
+      frame.removeAttribute('hidden');
+      frame.style.display = '';
+      // .map-consent has display:flex which beats the [hidden] attribute,
+      // so force display:none explicitly.
       consent.hidden = true;
+      consent.style.display = 'none';
+      // Remember consent so the map auto-loads on next visit.
+      try { sessionStorage.setItem('zahara-map-shown', '1'); } catch (_) {}
     });
+    // Auto-load if user already accepted this session.
+    try {
+      if (sessionStorage.getItem('zahara-map-shown')) {
+        const src = wrapper.dataset.mapEmbed || '';
+        frame.src = src;
+        frame.removeAttribute('hidden');
+        frame.style.display = '';
+        consent.hidden = true;
+        consent.style.display = 'none';
+      }
+    } catch (_) {}
   }
 </script>
 
@@ -123,6 +140,16 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     border-radius: 2px;
     padding: var(--space-l);
     text-align: center;
+  }
+  /* display:flex overrides [hidden] — explicit override needed */
+  .map-consent[hidden], .map-consent[style*="display: none"] { display: none !important; }
+
+  .map-frame {
+    display: block;
+    width: 100%;
+    min-height: 400px;
+    border: 0;
+    border-radius: 2px;
   }
   .map-consent__note {
     font-size: var(--step--1);

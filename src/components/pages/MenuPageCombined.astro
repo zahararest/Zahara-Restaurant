@@ -1,0 +1,425 @@
+---
+// MenuPageCombined — wraps both the interactive timeline (v3) and the
+// PDF/photo-embed view (v1) behind a simple two-state toggle so the user
+// can switch between them without navigating.
+//
+// Default view: 'interactive' (v3 timeline with right-side rail).
+// Alternate view: 'embed' (v1 category hero tabs + PDF viewer).
+// Preference is remembered in localStorage under 'zahara-menu-view'.
+
+import BaseLayout  from '../../layouts/BaseLayout.astro';
+import IntroPhoto  from '../sections/IntroPhoto.astro';
+import MenuEmbed   from '../MenuEmbed.astro';
+import { pick, menu as labels } from '../../data/i18n';
+import { menuHe }               from '../../data/menu-he';
+import { MENU_CATEGORIES }      from '../../data/menu-spec';
+import { PHOTOS }               from '../../data/photos';
+import type { Lang }            from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(labels, lang);
+const title    = lang === 'he' ? 'תפריט' : 'Menu';
+
+type ChapterId = 'food' | 'cocktails' | 'wine' | 'dessert' | 'events';
+interface Rail {
+  id:      ChapterId;
+  number:  string;
+  apiSlug: string;
+  kind:    'list' | 'wine' | 'cocktails';
+  label:   string;
+  heading: string;
+  eyebrow: string;
+}
+
+const cat = (id: ChapterId) => MENU_CATEGORIES.find((c) => c.id === id)!;
+
+const rails: Rail[] = [
+  { id: 'food', number: '01', apiSlug: cat('food').slugs[lang], kind: 'list',
+    label:   lang === 'he' ? 'אוכל'      : 'Food',
+    heading: lang === 'he' ? 'אוכל'      : 'Food',
+    eyebrow: lang === 'he' ? 'מהמטבח'    : 'From the kitchen' },
+  { id: 'cocktails', number: '02', apiSlug: cat('cocktails').slugs[lang], kind: 'cocktails',
+    label:   lang === 'he' ? 'קוקטיילים'  : 'Cocktails',
+    heading: lang === 'he' ? 'קוקטיילים'  : 'Cocktails',
+    eyebrow: lang === 'he' ? 'מהבר'       : 'From the bar' },
+  { id: 'wine', number: '03', apiSlug: cat('wine').slugs[lang], kind: 'wine',
+    label:   lang === 'he' ? 'יין'        : 'Wine',
+    heading: lang === 'he' ? 'יין'        : 'Wine',
+    eyebrow: lang === 'he' ? 'לכוס שלכם'  : 'For your glass' },
+  { id: 'dessert', number: '04', apiSlug: cat('dessert').slugs[lang], kind: 'list',
+    label:   lang === 'he' ? 'קינוחים'    : 'Desserts',
+    heading: lang === 'he' ? 'קינוחים'    : 'Desserts',
+    eyebrow: lang === 'he' ? 'בסוף'       : 'And then' },
+  { id: 'events', number: '05', apiSlug: cat('events').slugs[lang], kind: 'list',
+    label:   lang === 'he' ? 'אירועים'    : 'Events',
+    heading: lang === 'he' ? 'אירועים'    : 'Events',
+    eyebrow: lang === 'he' ? 'באירוע'     : 'For events' },
+];
+
+const staticFood    = lang === 'he' ? menuHe : null;
+const updatedLbl    = lang === 'he' ? 'עודכן'        : 'Updated';
+const bottleLabel   = t.priceBottle;
+const glassLabel    = t.priceGlass;
+const loadingLabel  = lang === 'he' ? 'נטען…'        : 'Loading…';
+const comingSoonLbl = lang === 'he' ? 'יתעדכן בקרוב' : 'Updates coming soon';
+const railTitle     = lang === 'he' ? 'תפריט'        : 'Menu';
+
+const hydrationPayload = rails.map((r) => ({
+  id:        r.id,
+  apiSlug:   r.apiSlug,
+  kind:      r.kind,
+  prefilled: r.id === 'food' && staticFood !== null,
+}));
+
+const toggleLabelInteractive = lang === 'he' ? 'תפריט'  : 'Menu';
+const toggleLabelPdf         = lang === 'he' ? 'PDF'     : 'PDF';
+const toggleAriaLabel        = lang === 'he' ? 'תצוגת תפריט' : 'Menu view';
+---
+
+<BaseLayout title={title} lang={lang} transparentHeader>
+  <IntroPhoto
+    lang={lang}
+    photo={PHOTOS.dish}
+    eyebrow={t.eyebrow}
+    heading={t.heading}
+    lede={t.lede}
+  />
+
+  {/* ── View toggle ─────────────────────────────────────────── */}
+  <div class="menu-view-switch wrap" role="group" aria-label={toggleAriaLabel}>
+    <div class="menu-view-switch__pill">
+      <button
+        class="menu-view-switch__btn is-active"
+        type="button"
+        data-view-btn="interactive"
+        aria-pressed="true"
+      >{toggleLabelInteractive}</button>
+      <button
+        class="menu-view-switch__btn"
+        type="button"
+        data-view-btn="embed"
+        aria-pressed="false"
+      >{toggleLabelPdf}</button>
+    </div>
+  </div>
+
+  {/* ── View: interactive (v3 timeline + right-side rail) ───── */}
+  <div data-menu-view="interactive">
+    <section class="menu-tl wrap">
+      <nav class="menu-tl__rail" aria-label={railTitle}>
+        <p class="menu-tl__rail-title">{railTitle}</p>
+        <ol class="menu-tl__rail-list">
+          {rails.map((r, i) => (
+            <li>
+              <a
+                href={`#cat-${r.id}`}
+                class={`menu-tl__rail-link${i === 0 ? ' is-active' : ''}`}
+                data-rail-link={r.id}
+              >
+                <span class="menu-tl__rail-num">{r.number}</span>
+                <span class="menu-tl__rail-label">{r.label}</span>
+                <span class="menu-tl__rail-tick" aria-hidden="true"></span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
+      <div class="menu-tl__content">
+        {rails.map((r) => (
+          <section
+            id={`cat-${r.id}`}
+            class="menu-tl__chapter"
+            data-menu-chapter={r.id}
+            aria-labelledby={`cat-${r.id}-h`}
+          >
+            <header class="menu-tl__head reveal-on-scroll">
+              <p class="menu-tl__eyebrow">
+                <span class="menu-tl__num">{r.number}</span>
+                <span class="menu-tl__sep">·</span>
+                <span>{r.eyebrow}</span>
+              </p>
+              <h2
+                id={`cat-${r.id}-h`}
+                class="display menu-tl__title"
+                data-word-reveal
+                data-word-reveal-delay="0.05"
+                data-word-reveal-step="0.07"
+              >{r.heading}</h2>
+              <p class="menu-tl__meta" data-meta-for={r.apiSlug}></p>
+            </header>
+
+            <div
+              class="menu-tl__body"
+              data-menu-body
+              data-chapter-id={r.id}
+              data-slug={r.apiSlug}
+              data-kind={r.kind}
+            >
+              {r.id === 'food' && staticFood ? (
+                <div class="menu-tl__sections">
+                  {staticFood.map((section) => (
+                    <div class="menu-tl__section reveal-on-scroll">
+                      <h3 class="menu-tl__section-heading">{section.title}</h3>
+                      <ul class="menu-tl__items stagger reveal-on-scroll">
+                        {section.items.map((item) => (
+                          <li class="menu-tl__item">
+                            <div class="menu-tl__item-main">
+                              <strong class="menu-tl__item-name">{item.name}</strong>
+                              {item.description && (
+                                <span class="menu-tl__item-desc">{item.description}</span>
+                              )}
+                            </div>
+                            <span class="menu-tl__item-price">{item.price}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div class="menu-tl__loading" aria-live="polite"><span>{loadingLabel}</span></div>
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  </div>
+
+  {/* ── View: embed (v1 photo-tab + PDF viewer) ─────────────── */}
+  <div data-menu-view="embed" class="is-hidden">
+    <section class="section-tight wrap">
+      <MenuEmbed lang={lang} />
+    </section>
+  </div>
+</BaseLayout>
+
+<script is:inline define:vars={{ hydrationPayload, updatedLbl, bottleLabel, glassLabel, comingSoonLbl, lang }}>
+  // ── View toggle ──────────────────────────────────────────────────────────
+  const STORAGE_KEY = 'zahara-menu-view';
+  const panels = {
+    interactive: document.querySelector('[data-menu-view="interactive"]'),
+    embed:       document.querySelector('[data-menu-view="embed"]'),
+  };
+  const btns = Array.from(document.querySelectorAll('[data-view-btn]'));
+
+  function setView(view) {
+    Object.entries(panels).forEach(([k, el]) => {
+      if (!el) return;
+      if (k === view) { el.classList.remove('is-hidden'); }
+      else            { el.classList.add('is-hidden'); }
+    });
+    btns.forEach((b) => {
+      const active = b.dataset.viewBtn === view;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    try { localStorage.setItem(STORAGE_KEY, view); } catch (_) {}
+    // Re-arm scroll reveals for newly visible content.
+    const panel = panels[view];
+    if (panel && typeof window.__zaharaArmReveals === 'function') {
+      window.__zaharaArmReveals(panel);
+    }
+  }
+
+  btns.forEach((b) => b.addEventListener('click', () => setView(b.dataset.viewBtn)));
+
+  // Restore last chosen view.
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && panels[saved]) setView(saved);
+  } catch (_) {}
+
+  // ── v3 hydration ─────────────────────────────────────────────────────────
+  const esc = (s) => String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    try {
+      return new Intl.DateTimeFormat(lang === 'he' ? 'he-IL' : 'en-GB',
+        { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+    } catch { return iso; }
+  }
+  function renderMeta(slug, iso) {
+    const el = document.querySelector(`[data-meta-for="${slug}"]`);
+    if (!el) return;
+    el.textContent = iso ? `${updatedLbl} · ${fmtDate(iso)}` : '';
+  }
+
+  function splitWinePrice(p) {
+    const m = String(p || '').match(/^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/);
+    return m ? { bottle: m[1], glass: m[2] } : null;
+  }
+  function renderPrice(price, kind) {
+    if (kind !== 'wine') return `<span class="menu-tl__item-price">${esc(price)}</span>`;
+    const split = splitWinePrice(price);
+    if (!split) return `<span class="menu-tl__item-price">${esc(price)}</span>`;
+    return `<span class="menu-tl__item-price menu-tl__item-price--wine">
+      <span>${esc(split.bottle)}</span>
+      <span class="menu-tl__price-sep">/</span>
+      <span class="menu-tl__price-glass">${esc(split.glass)}</span>
+    </span>`;
+  }
+
+  function renderList(sections, kind) {
+    return sections.map((s) => {
+      const items = (s.items || []).map((it) => `
+        <li class="menu-tl__item">
+          <div class="menu-tl__item-main">
+            <strong class="menu-tl__item-name">${esc(it.name)}</strong>
+            ${it.description ? `<span class="menu-tl__item-desc">${esc(it.description)}</span>` : ''}
+          </div>
+          ${renderPrice(it.price, kind)}
+        </li>`).join('');
+      const heading = s.title
+        ? `<h3 class="menu-tl__section-heading">${esc(s.title)}</h3>` : '';
+      return `<div class="menu-tl__section reveal-on-scroll">
+        ${heading}
+        <ul class="menu-tl__items stagger reveal-on-scroll">${items}</ul>
+      </div>`;
+    }).join('');
+  }
+  function renderCocktails(sections) {
+    return sections.map((s) => {
+      const cards = (s.items || []).map((it) => `
+        <article class="menu-tl__cocktail">
+          <header class="menu-tl__cocktail-head">
+            <h4 class="menu-tl__cocktail-name">${esc(it.name)}</h4>
+            <span class="menu-tl__item-price">${esc(it.price)}</span>
+          </header>
+          ${it.description ? `<p class="menu-tl__cocktail-desc">${esc(it.description)}</p>` : ''}
+        </article>`).join('');
+      const heading = s.title
+        ? `<h3 class="menu-tl__section-heading">${esc(s.title)}</h3>` : '';
+      return `<div class="menu-tl__section reveal-on-scroll">
+        ${heading}
+        <div class="menu-tl__cocktails stagger reveal-on-scroll">${cards}</div>
+      </div>`;
+    }).join('');
+  }
+
+  const fetchCache = new Map();
+  function fetchMenu(slug) {
+    if (!fetchCache.has(slug)) {
+      fetchCache.set(slug, fetch(`/api/menu/${slug}`, { cache: 'default' })
+        .then((r) => { if (!r.ok) throw new Error('fetch failed'); return r.json(); }));
+    }
+    return fetchCache.get(slug);
+  }
+
+  async function hydrate(cfg) {
+    if (cfg.prefilled) return;
+    const host = document.querySelector(`[data-menu-body][data-chapter-id="${cfg.id}"]`);
+    if (!host) return;
+    try {
+      const data = await fetchMenu(cfg.apiSlug);
+      const sections = Array.isArray(data) ? data : (data?.sections ?? []);
+      renderMeta(cfg.apiSlug, Array.isArray(data) ? null : (data?.date ?? null));
+      if (sections.length === 0) {
+        host.innerHTML = `<p class="menu-tl__empty">${esc(comingSoonLbl)}</p>`;
+        return;
+      }
+      const html = cfg.kind === 'cocktails'
+        ? renderCocktails(sections)
+        : renderList(sections, cfg.kind);
+      host.innerHTML = `<div class="menu-tl__sections">${html}</div>`;
+      if (typeof window.__zaharaArmReveals === 'function') {
+        window.__zaharaArmReveals(host);
+      }
+    } catch (err) {
+      console.warn('[Menu] hydration failed for', cfg.id, err);
+      host.innerHTML = `<p class="menu-tl__empty">${esc(comingSoonLbl)}</p>`;
+    }
+  }
+  hydrationPayload.forEach(hydrate);
+
+  // ── Rail interactions ────────────────────────────────────────────────────
+  document.querySelectorAll('[data-rail-link]').forEach((a) => {
+    a.addEventListener('click', (e) => {
+      const id = a.getAttribute('data-rail-link');
+      const target = document.getElementById(`cat-${id}`);
+      if (!target) return;
+      e.preventDefault();
+      const headerH = (document.getElementById('site-header')?.offsetHeight || 76);
+      const top = target.getBoundingClientRect().top + window.scrollY - headerH - 16;
+      window.scrollTo({ top, behavior: 'smooth' });
+      history.replaceState(null, '', `#cat-${id}`);
+    });
+  });
+
+  const railLinks = new Map(
+    Array.from(document.querySelectorAll('[data-rail-link]'))
+      .map((a) => [a.getAttribute('data-rail-link'), a]),
+  );
+  const setActive = (id) => {
+    railLinks.forEach((a, key) => a.classList.toggle('is-active', key === id));
+  };
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      const id = e.target.getAttribute('data-menu-chapter');
+      if (id) setActive(id);
+    }
+  }, { rootMargin: '-30% 0px -55% 0px', threshold: 0 });
+  document.querySelectorAll('[data-menu-chapter]').forEach((s) => io.observe(s));
+
+  try {
+    const bc = new BroadcastChannel('zahara-menu');
+    bc.addEventListener('message', (ev) => {
+      const slug = ev?.data?.slug;
+      if (!slug) return;
+      fetchCache.delete(slug);
+      const cfg = hydrationPayload.find((c) => c.apiSlug === slug);
+      if (cfg) hydrate({ ...cfg, prefilled: false });
+    });
+  } catch {}
+</script>
+
+<style>
+  /* ── View toggle pill ──────────────────────────────────────── */
+  .menu-view-switch {
+    padding-block: var(--space-m);
+    display: flex;
+    justify-content: flex-end;
+  }
+  .menu-view-switch__pill {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--paper-deep);
+    border: 1px solid var(--rule-soft);
+    border-radius: 999px;
+    padding: 3px;
+  }
+  .menu-view-switch__btn {
+    padding: 0.45rem 1.1rem;
+    border-radius: 999px;
+    font-size: var(--step--1);
+    letter-spacing: 0.12em;
+    font-family: var(--font-body);
+    font-weight: 500;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+  }
+  .menu-view-switch__btn.is-active {
+    background: var(--ink);
+    color: var(--paper-on-photo);
+  }
+  .menu-view-switch__btn:not(.is-active):hover { color: var(--ink); }
+  .menu-view-switch__btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ── Panel hide/show ───────────────────────────────────────── */
+  [data-menu-view].is-hidden { display: none; }
+</style>
