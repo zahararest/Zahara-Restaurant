@@ -1,10 +1,9 @@
 ---
-import { pick, menu as labels }                  from '../data/i18n';
-import { menuHe }                                 from '../data/menu-he';
-import { MENU_CATEGORIES }                        from '../data/menu-spec';
-import { MENU_CATEGORY_PHOTOS }                   from '../data/photos';
-import type { Lang }                              from '../data/i18n';
-import type { MenuKind }                          from '../data/menu-spec';
+import { pick, menu as labels }  from '../data/i18n';
+import { menuHe }               from '../data/menu-he';
+import { MENU_CATEGORIES }      from '../data/menu-spec';
+import type { Lang }            from '../data/i18n';
+import type { MenuKind }        from '../data/menu-spec';
 
 export interface Props { lang?: Lang }
 
@@ -36,30 +35,6 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
 ---
 
 <div class="menu-embed" id="menu-embed" data-lang={lang}>
-  <!-- Category hero — swaps with a cross-fade as tabs change. -->
-  <div class="menu-hero" aria-hidden="true">
-    {tabs.map((tab, i) => {
-      const photo = MENU_CATEGORY_PHOTOS[tab.id];
-      return (
-        <img
-          class={`menu-hero__img${i === 0 ? ' is-active' : ''}`}
-          src={photo.src}
-          alt={photo.alt[lang]}
-          data-hero-for={tab.id}
-          loading={i === 0 ? 'eager' : 'lazy'}
-          decoding="async"
-        />
-      );
-    })}
-    <div class="menu-hero__overlay"></div>
-    <div class="menu-hero__label">
-      {tabs.map((tab, i) => (
-        <span class={`menu-hero__label-text${i === 0 ? ' is-active' : ''}`} data-hero-label-for={tab.id}>
-          {tab.label}
-        </span>
-      ))}
-    </div>
-  </div>
 
   <nav class="menu-tabs" role="tablist" aria-label={lang === 'he' ? 'קטגוריות תפריט' : 'Menu categories'}>
     {tabs.map((tab, i) => (
@@ -282,30 +257,19 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
   // ── Tab wiring ──────────────────────────────────────────────
   const tabBtns = Array.from(document.querySelectorAll('.menu-tab'));
   const panels  = Array.from(document.querySelectorAll('.menu-panel'));
-  const heroImgs   = Array.from(document.querySelectorAll('[data-hero-for]'));
-  const heroLabels = Array.from(document.querySelectorAll('[data-hero-label-for]'));
-  const loaded     = new Set();
-
-  function activateHero(tabId) {
-    heroImgs.forEach(img =>
-      img.classList.toggle('is-active', img.dataset.heroFor === tabId));
-    heroLabels.forEach(el =>
-      el.classList.toggle('is-active', el.dataset.heroLabelFor === tabId));
-  }
+  const loaded  = new Set();
 
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const idx   = Number(btn.dataset.index);
       const slug  = btn.dataset.slug  ?? '';
       const kind  = btn.dataset.kind  ?? 'list';
-      const tabId = btn.dataset.tabId ?? '';
 
       tabBtns.forEach((t, i) => {
         t.classList.toggle('is-active', i === idx);
         t.setAttribute('aria-selected', i === idx ? 'true' : 'false');
       });
       panels.forEach((p, i) => p.classList.toggle('is-active', i === idx));
-      activateHero(tabId);
 
       // Trigger the panel-sweep entrance animation on the newly-active panel.
       const activePanel = panels[idx];

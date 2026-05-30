@@ -411,8 +411,9 @@ const toggleAriaLabel        = lang === 'he' ? 'תצוגת תפריט' : 'Menu v
     white-space: nowrap;
   }
   .menu-view-switch__btn.is-active {
-    background: var(--ink);
-    color: var(--paper-on-photo);
+    /* --button-background/--button-color invert correctly in dark mode */
+    background: var(--button-background);
+    color: var(--button-color);
   }
   .menu-view-switch__btn:not(.is-active):hover { color: var(--ink); }
   .menu-view-switch__btn:focus-visible {
