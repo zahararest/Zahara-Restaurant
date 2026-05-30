@@ -157,9 +157,9 @@ const schema = {
         // ── 1. Theme (two states only: light + dark) ──────────────
         try {
           var saved = localStorage.getItem('zahara-theme');
-          root.setAttribute('data-theme', saved === 'dark' ? 'dark' : 'light');
+          root.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
         } catch (_) {
-          root.setAttribute('data-theme', 'light');
+          root.setAttribute('data-theme', 'dark');
         }
 
         // ── 2. Palette overrides (light + dark) ───────────────────

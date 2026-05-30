@@ -696,7 +696,12 @@ html[lang="he"] .issue-stamp__chef { letter-spacing: 0.1em; font-style: normal; 
    Numbered list with dotted leaders, drawn on entry.
    ────────────────────────────────────────────────────────────────────────── */
 .menu-toc {
-  background: var(--paper);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--shadow) 32%, transparent) 0%,
+      color-mix(in srgb, var(--paper) 16%, transparent) 30%,
+      color-mix(in srgb, var(--paper-card) 58%, transparent) 100%),
+    linear-gradient(150deg, var(--accent-soft), var(--paper));
   padding-block: clamp(3rem, 7vw, 5rem);
 }
 .menu-toc__head { text-align: center; margin-block-end: clamp(2rem, 4vw, 3rem); }
@@ -1519,12 +1524,13 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
 
 /* ── E. Vertical "film-strip" scroll rail ───────────────────────────── */
 /* Built by Motion.astro when the page has any [data-section-name]. One
-   tick per section; the active one is accent-filled. Inline-end side
-   so it doesn't fight the HUD on the inline-start side. */
+   tick per section; the active one is accent-filled. Left in English,
+   right in Hebrew, so it always sits on the physical outside edge. */
 .scroll-rail {
   position: fixed;
   inset-block: 0;
-  inset-inline-end: 1rem;
+  left: 1.3rem;
+  right: auto;
   z-index: 60;
   display: grid;
   align-content: center;
@@ -1532,6 +1538,10 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   pointer-events: none;
   /* Hide on small screens — the bottom-left HUD already gives the
      reader their position. The rail is a desktop-editorial detail. */
+}
+html[dir="rtl"] .scroll-rail {
+  right: 1.3rem;
+  left: auto;
 }
 @media (max-width: 720px) { .scroll-rail { display: none; } }
 .scroll-rail__tick {

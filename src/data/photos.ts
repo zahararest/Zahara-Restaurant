@@ -78,6 +78,27 @@ export const PHOTOS = {
     src: `${base}/MOYAL-09682.jpg`,
     alt: { he: 'אירוח באולם', en: 'Hosting in the dining room' },
   },
+
+  // ── Intro photo at the top of the menu pages. Its own key (split from
+  // `dish`) so the admin can adjust it separately from the home page.
+  // Until a dedicated image is uploaded, the /photos middleware falls
+  // back to the `dish` override (see functions/data/photos-map.ts).
+  menuIntro: {
+    src: `${base}/menu-intro.jpg`,
+    alt: { he: 'מנה מהתפריט', en: "A dish from Zahara's menu" },
+  },
+
+  // ── Contact & Location page photos. Split from the gallery `interior`
+  // shot so each page can be adjusted on its own; both fall back to the
+  // `interior` override until a dedicated image is uploaded.
+  contact: {
+    src: `${base}/contact-page.jpg`,
+    alt: { he: 'פנים המסעדה', en: 'Restaurant interior' },
+  },
+  location: {
+    src: `${base}/location-page.jpg`,
+    alt: { he: 'פנים המסעדה', en: 'Restaurant interior' },
+  },
 } satisfies Record<string, PhotoEntry>;
 
 /** Hero photo shown above each menu category's content. */
