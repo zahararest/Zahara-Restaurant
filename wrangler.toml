@@ -7,7 +7,7 @@ pages_build_output_dir = "./dist"
 # Then set kv_namespaces.id below.
 [[kv_namespaces]]
 binding = "MENU_DATA"
-id = "2a2a087dde704d0ea49ffe1d58436026"
+id = "028d7b7c8dde489ab34e6384346ad8ef"
 
 # KV namespace for the site palette saved from /admin/colors/. The colour
 # editor POSTs to /admin/colors/save which writes JSON here; functions/
@@ -21,7 +21,7 @@ id = "2a2a087dde704d0ea49ffe1d58436026"
 # Create with: wrangler kv namespace create PALETTE_DATA
 [[kv_namespaces]]
 binding = "PALETTE_DATA"
-id = "0b42d476d3cb446bb7efbbdb7ecb4c1e"
+id = "a3005ec0bed04ea98a73098372e6ec46"
 
 # R2 bucket for admin-uploaded image overrides. When a file exists at
 # `images/{name}` it overrides the default in /public/photos/. The
