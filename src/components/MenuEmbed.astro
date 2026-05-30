@@ -36,6 +36,17 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
 
 <div class="menu-embed" id="menu-embed" data-lang={lang}>
 
+  {/* Sticky side-rail: hidden on mobile, fades in on desktop when the
+      tab bar scrolls out of view. Populated entirely by JS so it stays
+      in sync with the tab state without any duplicate server markup. */}
+  <nav
+    class="menu-embed-rail"
+    id="menu-embed-rail"
+    aria-label={lang === 'he' ? 'ניווט קטגוריות' : 'Category navigation'}
+    aria-hidden="true"
+  ></nav>
+
+  <div class="menu-embed-main">
   <nav class="menu-tabs" role="tablist" aria-label={lang === 'he' ? 'קטגוריות תפריט' : 'Menu categories'}>
     {tabs.map((tab, i) => (
       <button
@@ -96,6 +107,7 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
       </div>
     </div>
   ))}
+  </div>{/* end .menu-embed-main */}
 </div>
 
 <script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel }}>
@@ -259,40 +271,57 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
   const panels  = Array.from(document.querySelectorAll('.menu-panel'));
   const loaded  = new Set();
 
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx   = Number(btn.dataset.index);
-      const slug  = btn.dataset.slug  ?? '';
-      const kind  = btn.dataset.kind  ?? 'list';
+  // Central switch function used by both tab clicks and rail button clicks.
+  // scrollBack: when true, smooth-scrolls the tab bar into view (tab click
+  // behaviour). Rail clicks pass false so the user stays at their scroll
+  // position while only the panel content changes.
+  function switchToTab(idx, scrollBack) {
+    const btn  = tabBtns[idx];
+    if (!btn) return;
+    const slug = btn.dataset.slug ?? '';
+    const kind = btn.dataset.kind ?? 'list';
 
-      tabBtns.forEach((t, i) => {
-        t.classList.toggle('is-active', i === idx);
-        t.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+    // Sync tab bar active state.
+    tabBtns.forEach((t, i) => {
+      t.classList.toggle('is-active', i === idx);
+      t.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+    });
+
+    // Sync rail active state.
+    const rail = document.getElementById('menu-embed-rail');
+    if (rail) {
+      rail.querySelectorAll('.menu-embed-rail__btn').forEach((rb, i) => {
+        rb.classList.toggle('is-active', i === idx);
       });
-      panels.forEach((p, i) => p.classList.toggle('is-active', i === idx));
+    }
 
-      // Trigger the panel-sweep entrance animation on the newly-active panel.
-      const activePanel = panels[idx];
-      if (activePanel) {
-        activePanel.classList.remove('is-switching');
-        // Force a reflow so the animation restarts even on the same panel.
-        void activePanel.offsetWidth;
-        activePanel.classList.add('is-switching');
-        armReveals(activePanel);
-      }
+    // Swap the visible panel with entrance animation.
+    panels.forEach((p, i) => p.classList.toggle('is-active', i === idx));
+    const activePanel = panels[idx];
+    if (activePanel) {
+      activePanel.classList.remove('is-switching');
+      void activePanel.offsetWidth; // force reflow
+      activePanel.classList.add('is-switching');
+      armReveals(activePanel);
+    }
 
-      // Smooth-scroll the tabs into view so the user can see content scroll up.
+    // Scroll to tab bar only when triggered from a tab click.
+    if (scrollBack) {
       const tabsBar = document.querySelector('.menu-tabs');
       if (tabsBar) {
         const top = tabsBar.getBoundingClientRect().top + window.scrollY - 80;
         window.scrollTo({ top, behavior: 'smooth' });
       }
+    }
 
-      if (!loaded.has(slug)) {
-        loaded.add(slug);
-        loadSlug(slug, kind);
-      }
-    });
+    if (!loaded.has(slug)) {
+      loaded.add(slug);
+      loadSlug(slug, kind);
+    }
+  }
+
+  tabBtns.forEach((btn, i) => {
+    btn.addEventListener('click', () => switchToTab(i, true));
   });
 
   // Arm reveals on the initially-active panel (server-rendered HE food).
@@ -308,16 +337,75 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
     loadSlug(slug, kind);
   }
 
-  // Deep-link support: if the URL hash points at a tab (#tab-cocktails,
-  // #tab-dessert, etc.), activate that tab on load. HomePageV2's chapter
-  // CTAs use this to land users on the right category.
+  // ── Side rail ─────────────────────────────────────────────────
+  // Build rail buttons from the same tab data. The rail appears (fades in)
+  // via IntersectionObserver when the tab bar scrolls out of view, giving
+  // quick category access without scrolling back to the top.
+  (function buildRail() {
+    const rail    = document.getElementById('menu-embed-rail');
+    const tabsBar = document.querySelector('.menu-tabs');
+    if (!rail || !tabsBar || window.matchMedia('(max-width: 879px)').matches) return;
+
+    const titleEl = document.createElement('p');
+    titleEl.className   = 'menu-embed-rail__title';
+    titleEl.textContent = pageLang === 'he' ? 'תפריט' : 'Menu';
+    rail.appendChild(titleEl);
+
+    const list = document.createElement('ol');
+    list.className = 'menu-embed-rail__list';
+
+    tabBtns.forEach((btn, i) => {
+      const rb   = document.createElement('button');
+      rb.type      = 'button';
+      rb.className = 'menu-embed-rail__btn' + (i === 0 ? ' is-active' : '');
+      rb.setAttribute('aria-label', btn.textContent.trim());
+
+      const label = document.createElement('span');
+      label.className   = 'menu-embed-rail__label';
+      label.textContent = btn.textContent.trim();
+
+      const tick = document.createElement('span');
+      tick.className  = 'menu-embed-rail__tick';
+      tick.setAttribute('aria-hidden', 'true');
+
+      rb.append(label, tick);
+      // Rail click: switch panel without scrolling back to the tab bar.
+      rb.addEventListener('click', () => switchToTab(i, false));
+
+      const li = document.createElement('li');
+      li.appendChild(rb);
+      list.appendChild(li);
+    });
+
+    rail.appendChild(list);
+
+    // Show the rail once the tab bar is fully out of view; hide it when
+    // the tab bar re-enters the viewport (user scrolled back up).
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const show = !entry.isIntersecting;
+        rail.classList.toggle('is-visible', show);
+        rail.setAttribute('aria-hidden', show ? 'false' : 'true');
+      },
+      { threshold: 0 },
+    );
+    io.observe(tabsBar);
+  })();
+
+  // ── Deep-link support ─────────────────────────────────────────
+  // If the URL hash points at a tab (#tab-cocktails, etc.), activate it on
+  // load without scrolling to the tab bar (user landed directly here).
   function activateByHash() {
     const hash = (window.location.hash || '').replace(/^#/, '');
     if (!hash) return;
     const m = hash.match(/^tab-(.+)$/);
     if (!m) return;
-    const target = tabBtns.find((b) => b.dataset.tabId === m[1] || b.id === `tab-${m[1]}`);
-    if (target && !target.classList.contains('is-active')) target.click();
+    const idx = tabBtns.findIndex(
+      (b) => b.dataset.tabId === m[1] || b.id === `tab-${m[1]}`,
+    );
+    if (idx >= 0 && !tabBtns[idx].classList.contains('is-active')) {
+      switchToTab(idx, false);
+    }
   }
   activateByHash();
   window.addEventListener('hashchange', activateByHash);

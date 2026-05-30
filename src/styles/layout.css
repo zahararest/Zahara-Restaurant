@@ -317,6 +317,99 @@ body.nav-open { overflow: hidden; }
   padding-block-end: var(--space-2xl);
 }
 
+/* ── Embed grid: side-rail + main content ──────────────────────── */
+@media (min-width: 880px) {
+  .menu-embed {
+    display: grid;
+    /* Rail on the right (matching the v3 rail position) */
+    grid-template-columns: 1fr minmax(160px, 200px);
+    grid-template-areas: 'main rail';
+    gap: 0 clamp(2rem, 4vw, 3rem);
+    align-items: start;
+  }
+  .menu-embed-main { grid-area: main; min-width: 0; }
+  .menu-embed-rail {
+    grid-area: rail;
+    position: sticky;
+    top: calc(var(--header-h) + 1.5rem);
+    /* Hidden until tab bar scrolls out of view */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(0.4rem);
+    transition: opacity 0.35s var(--ease-out), transform 0.35s var(--ease-out);
+  }
+  html[dir="rtl"] .menu-embed-rail { transform: translateX(-0.4rem); }
+  .menu-embed-rail.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+}
+
+/* Rail hidden entirely on mobile (horizontal tab bar is sufficient) */
+.menu-embed-rail { display: none; }
+@media (min-width: 880px) { .menu-embed-rail { display: block; } }
+
+/* ── Rail internals (matches menu-tl__rail visual language) ───── */
+.menu-embed-rail__title {
+  font-family: var(--font-body);
+  font-size: var(--step--2);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+}
+
+.menu-embed-rail__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+  /* Always left-border (faces content which is always physically to the left) */
+  border-left: 1px solid var(--rule-soft);
+}
+
+.menu-embed-rail__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  background: transparent;
+  border: 0;
+  text-align: start;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.25s var(--ease-out), background 0.25s var(--ease-out);
+}
+.menu-embed-rail__btn:hover { color: var(--ink); }
+.menu-embed-rail__btn.is-active {
+  color: var(--ink);
+  background: var(--paper-deep);
+}
+
+.menu-embed-rail__tick {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--rule);
+  flex-shrink: 0;
+  transition: background 0.25s var(--ease-out), border-color 0.25s var(--ease-out);
+}
+.menu-embed-rail__btn.is-active .menu-embed-rail__tick {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .menu-tabs {
   position: relative;
   display: flex;
