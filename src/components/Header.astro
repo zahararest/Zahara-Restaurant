@@ -55,40 +55,41 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     </a>
 
     <div class="header-cta">
+      {/* Primary actions: Rooftop + Reserve */}
       {rooftopUrl
         ? (
-          <a class="header-rooftop" href={rooftopUrl} target="_blank" rel="noopener"
-             aria-label={`${t.rooftop} ↗`}>
+          <a class="header-rooftop" href={rooftopUrl} target="_blank" rel="noopener">
             {t.rooftop}
           </a>
         )
         : (
-          <span class="header-rooftop header-rooftop--soon" title={t.rooftopSoon}
+          <span class="header-rooftop header-rooftop--soon"
                 aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
             {t.rooftop}
-            <span class="header-rooftop__badge">{t.rooftopSoon}</span>
+            <span class="header-rooftop__badge" aria-hidden="true">{t.rooftopSoon}</span>
           </span>
         )
       }
       <a class="header-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">
         {t.reserve}
       </a>
-      {/* Theme toggle — three-state cycle: auto → light → dark → auto.
-          The label + icon update in the boot script so first paint
-          already shows the correct state. */}
-      <button
-        class="theme-toggle"
-        type="button"
-        data-theme-toggle
-        aria-label={t.themeToggle}
-        title={t.themeToggle}
-      >
-        <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">●</span>
-        <span class="visually-hidden" data-theme-state></span>
-      </button>
-      <a href={otherLangHref} class="lang-toggle" aria-label={lang === 'he' ? 'English' : 'עברית'}>
-        {t.langToggle}
-      </a>
+
+      {/* Utility controls: theme + lang — visually separated */}
+      <div class="header-utils">
+        <button
+          class="theme-toggle"
+          type="button"
+          data-theme-toggle
+          aria-label={t.themeToggle}
+          title={t.themeToggle}
+        >
+          <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">●</span>
+          <span class="visually-hidden" data-theme-state></span>
+        </button>
+        <a href={otherLangHref} class="lang-toggle" aria-label={lang === 'he' ? 'English' : 'עברית'}>
+          {t.langToggle}
+        </a>
+      </div>
     </div>
   </div>
 
@@ -99,7 +100,11 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       ))}
     </ul>
     <div class="mobile-nav__cta">
-      <a class="btn"       href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
+      {rooftopUrl
+        ? <a class="btn btn--ghost" href={rooftopUrl} target="_blank" rel="noopener">{t.rooftop}</a>
+        : <span class="mobile-nav__rooftop-soon">{t.rooftop} · {t.rooftopSoon}</span>
+      }
+      <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
       <a class="text-link" href={otherLangHref}>{t.langToggle}</a>
     </div>
   </div>

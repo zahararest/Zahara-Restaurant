@@ -53,11 +53,21 @@ body {
   text-rendering: optimizeLegibility;
   font-weight: 400;
   overflow-x: hidden;
+  /* Prevent grey tap flash on iOS for links/buttons */
+  -webkit-tap-highlight-color: transparent;
 }
 
 img, svg, video { display: block; max-width: 100%; height: auto; }
-a { color: inherit; text-decoration: none; }
-button { font: inherit; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; }
+a { color: inherit; text-decoration: none; touch-action: manipulation; }
+button { font: inherit; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; touch-action: manipulation; }
+
+/* All interactive elements: minimum 44px touch target per WCAG 2.5.5 */
+a, button, [role="button"], [role="tab"], input, select, textarea {
+  min-height: 44px;
+}
+/* Exceptions: inline links and display-only roles need not be 44px tall */
+p a, li a, .eyebrow, [aria-hidden="true"],
+.menu-tl__rail-link { min-height: unset; }
 
 ::selection { background: var(--accent-soft); color: var(--ink); }
 

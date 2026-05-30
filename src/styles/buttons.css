@@ -122,47 +122,48 @@ html[lang="he"] .header-reserve {
   border-color: var(--paper-on-photo);
 }
 
-/* Rooftop link/button — muted secondary action, with a "coming soon" badge
-   when the rooftop site is not yet live (RESTAURANT.rooftopUrl is null). */
+/* Rooftop link — treated like a nav item, NOT a button.
+   Uses a smaller tracking than reserve since "Nucha Rooftop" is longer. */
 .header-rooftop {
   position: relative;
   font-size: var(--step--1);
   font-family: var(--font-body);
-  letter-spacing: 0.22em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 500;
   color: var(--ink-muted);
   text-decoration: none;
   transition: color 0.2s;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
 }
 .header-rooftop:not(.header-rooftop--soon):hover { color: var(--ink); }
-html[lang="he"] .header-rooftop { letter-spacing: 0.08em; text-transform: none; }
 
 .header-rooftop--soon { cursor: default; }
 
 .header-rooftop__badge {
-  display: inline-block;
-  margin-inline-start: 0.4em;
-  font-size: 0.68em;
-  letter-spacing: 0.14em;
+  font-size: 0.65em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--paper-on-photo);
-  background: var(--ink-muted);
-  padding: 0.1em 0.45em;
+  color: var(--ink-muted);
+  border: 1px solid var(--rule);
+  padding: 0.12em 0.4em;
   border-radius: 2px;
-  vertical-align: middle;
   line-height: 1.5;
+  opacity: 0.75;
 }
 
-/* On photo: rooftop matches the nav colour */
-.site-header.is-on-photo .header-rooftop { color: var(--paper-on-photo); }
-.site-header.is-on-photo .header-rooftop__badge {
-  background: color-mix(in srgb, var(--paper-on-photo) 30%, transparent);
-  color: var(--paper-on-photo);
+/* Mobile nav "soon" label */
+.mobile-nav__rooftop-soon {
+  font-size: var(--step--1);
+  color: var(--ink-muted);
+  letter-spacing: 0.1em;
+  text-align: center;
 }
 
-/* Hide on mobile alongside the reserve button */
+/* Hide on mobile — appears in the mobile drawer instead */
 @media (max-width: 860px) {
   .header-rooftop { display: none; }
 }
