@@ -9,3 +9,7 @@ dist/
 *.log
 # Local photo library (raw originals from the MOYAL shoot — not committed)
 /photos/
+# Word temporary lock files
+~$*.docx
+~$*.xlsx
+*.tmp
