@@ -11,7 +11,7 @@ import sitemap          from '@astrojs/sitemap';
 //
 // Update this before deploying and commit the change.
 // ────────────────────────────────────────────────────────────────────────────
-const SITE = import.meta.env.SITE || 'https://zahara-jerusalem.co.il';
+const SITE = import.meta.env.SITE || 'https://zahara.rest';
 
 export default defineConfig({
   site: SITE,

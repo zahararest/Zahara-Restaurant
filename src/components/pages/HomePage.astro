@@ -179,26 +179,19 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
 ---
 
 <BaseLayout title={title} lang={lang} transparentHeader>
-  {/* Preload every cinematic-chapter photo in <head>, but using the
-      Cloudflare-resized version. Originals are 5–6 MB JPGs; serving
-      them through /cdn-cgi/image/ (Cloudflare Image Resizing) returns
-      ~300 KB WebP/AVIF versions at the size the browser actually needs,
-      which fixes the "photo goes black on scroll-back" memory eviction
-      that even eager+sync decoding couldn't beat for the originals. */}
+  {/* Preload only what's truly above the fold: the first cinematic
+      chapter photo and the moodDining backdrop behind the story.
+      Chapters 2–4 load lazily; preloading them races the LCP path for
+      no gain. */}
   <Fragment slot="head">
-    {chapters.map((c) => (
-      <link
-        rel="preload"
-        as="image"
-        href={resized(c.photo.src, 1800)}
-        imagesrcset={resizedSrcset(c.photo.src, CHAPTER_WIDTHS)}
-        imagesizes="100vw"
-      />
-    ))}
-    {/* Mood backdrops behind section-on-photo are heavily darkened, so
-        they don't need huge resolutions — 1600 is plenty. */}
+    <link
+      rel="preload"
+      as="image"
+      href={resized(chapters[0].photo.src, 1800)}
+      imagesrcset={resizedSrcset(chapters[0].photo.src, CHAPTER_WIDTHS)}
+      imagesizes="100vw"
+    />
     <link rel="preload" as="image" href={resized(PHOTOS.moodDining.src, 1600)} />
-    <link rel="preload" as="image" href={resized(PHOTOS.moodChef.src,   1600)} />
   </Fragment>
 
   <div data-section-name={sec.hero}>
@@ -280,15 +273,10 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
           data-chapter-id={c.id}
           data-chapter-pos={i === 0 ? 'first' : i === chapters.length - 1 ? 'last' : 'mid'}
         >
-          {/* Plain media container — no `.parallax` data attribute.
-              The scroll-linked parallax transform was the third source
-              of GPU-layer churn (the runtime writes --parallax-y every
-              frame), and the cinematic feel is already carried by the
-              one-shot settle-in scale. Photos stay rock-steady now.
-              Image source is the Cloudflare-resized URL with a srcset
-              so the browser pulls the right resolution for the device,
-              keeping the decoded bitmap small enough that the OS won't
-              evict it under memory pressure. */}
+          {/* Image source is the Cloudflare-resized URL with a srcset
+              so the browser pulls the right resolution for the device.
+              Only the first chapter is eager + high priority; the rest
+              lazy-load as they approach the viewport. */}
           <div class="menu-cinema__media" aria-hidden="true">
             <img
               class="menu-cinema__img"
@@ -296,9 +284,9 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
               srcset={resizedSrcset(c.photo.src, CHAPTER_WIDTHS)}
               sizes="100vw"
               alt={c.photo.alt[lang]}
-              loading="eager"
-              fetchpriority={i === 0 ? 'high' : 'low'}
-              decoding="sync"
+              loading={i === 0 ? 'eager' : 'lazy'}
+              fetchpriority={i === 0 ? 'high' : 'auto'}
+              decoding="async"
             />
           </div>
           <div class="menu-cinema__overlay" aria-hidden="true"></div>

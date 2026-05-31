@@ -70,6 +70,20 @@
   --err:            #A53623;
   --shadow:         #0A0806;
 
+  /* ── Home cinematic-strip palette. Each menu chapter on the home page
+        is a full-bleed photo with text overlaid; these tokens colour
+        that text independently of the rest of the site so the chef can
+        retune the cinematic strip without dragging body text along. */
+  --cinema-eyebrow:    #D2C9AF;
+  --cinema-num:        #A88947;
+  --cinema-title:      #F4ECCF;
+  --cinema-item-name:  #F4ECCF;
+  --cinema-item-desc:  #C2BAA1;
+  --cinema-item-price: #A88947;
+  --cinema-divider:    #3D372C;
+  --cinema-count:      #ACA388;
+  --cinema-cta:        #F4ECCF;
+
   /* ── Typography — font families live in font-config.css; only scale here. */
   --step--2: clamp(0.70rem, 0.66rem + 0.18vw, 0.78rem);
   --step--1: clamp(0.80rem, 0.76rem + 0.20vw, 0.90rem);
@@ -186,6 +200,19 @@ html[data-theme="dark"] {
   --c-mauve:        #AD9499;
   --ok:             #5BA670;
   --err:            #E07060;
+
+  /* Cinematic-strip palette tuned for dark mode (gold lifted to match
+     the dark accent; everything else stays in the cream/dim family
+     since the strip sits over dark photography in both themes). */
+  --cinema-eyebrow:    #D2C9AF;
+  --cinema-num:        #C8A050;
+  --cinema-title:      #F4ECCF;
+  --cinema-item-name:  #F4ECCF;
+  --cinema-item-desc:  #C2BAA1;
+  --cinema-item-price: #C8A050;
+  --cinema-divider:    #3D372C;
+  --cinema-count:      #ACA388;
+  --cinema-cta:        #F4ECCF;
   color-scheme: dark;
 }
 html[data-theme="light"] { color-scheme: light; }

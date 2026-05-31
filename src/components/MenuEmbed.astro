@@ -272,9 +272,10 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
   const loaded  = new Set();
 
   // Central switch function used by both tab clicks and rail button clicks.
-  // scrollBack: when true, smooth-scrolls the tab bar into view (tab click
-  // behaviour). Rail clicks pass false so the user stays at their scroll
-  // position while only the panel content changes.
+  // scrollBack: when true, smooth-scrolls the tab bar into view. Both tab
+  // and rail clicks pass true — the rail is a quick category jumper, so
+  // landing the user at the start of the freshly-switched category is the
+  // expected behaviour.
   function switchToTab(idx, scrollBack) {
     const btn  = tabBtns[idx];
     if (!btn) return;
@@ -369,8 +370,9 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
       tick.setAttribute('aria-hidden', 'true');
 
       rb.append(label, tick);
-      // Rail click: switch panel without scrolling back to the tab bar.
-      rb.addEventListener('click', () => switchToTab(i, false));
+      // Rail click: switch panel AND scroll back to the menu's tab bar
+      // so the user sees the new category from its top.
+      rb.addEventListener('click', () => switchToTab(i, true));
 
       const li = document.createElement('li');
       li.appendChild(rb);

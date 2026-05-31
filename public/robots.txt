@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /api/
 
 # Update this URL to match your production domain in astro.config.mjs
-Sitemap: https://zahara-jerusalem.co.il/sitemap-index.xml
+Sitemap: https://zahara.rest/sitemap-index.xml

@@ -34,7 +34,7 @@
 // originals. Photos may still get evicted on memory-constrained mobile
 // devices until you turn the resize layer on; that's the trade-off.
 
-const RESIZE_ENABLED = false;
+const RESIZE_ENABLED = true;
 
 /** Return a Cloudflare-resized URL for an image in /photos/.
  *  Pass the original src exactly as it appears in PHOTOS — the helper

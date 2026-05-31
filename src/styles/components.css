@@ -875,7 +875,7 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
   font-size: var(--step--1);
   letter-spacing: 0.34em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--paper-on-photo) 85%, transparent);
+  color: var(--cinema-eyebrow);
   font-weight: 500;
   margin: 0;
   display: inline-flex;
@@ -891,16 +891,16 @@ html[lang="he"] .menu-cinema__eyebrow {
   font-weight: 500;
   font-size: 1.1em;
   letter-spacing: 0.05em;
-  color: var(--accent);
+  color: var(--cinema-num);
 }
-.menu-cinema__sep { color: var(--accent); opacity: 0.6; }
+.menu-cinema__sep { color: var(--cinema-num); opacity: 0.6; }
 .menu-cinema__title {
   font-family: var(--font-display);
   font-weight: 400;
   font-size: clamp(2.5rem, 7vw, 5.5rem);
   line-height: 1;
   letter-spacing: -0.025em;
-  color: var(--paper-on-photo);
+  color: var(--cinema-title);
   margin: 0;
   text-shadow: 0 2px 36px color-mix(in srgb, var(--shadow) 45%, transparent);
   max-width: 18ch;
@@ -922,7 +922,7 @@ html[lang="he"] .menu-cinema__eyebrow {
   gap: 0.5rem 1.5rem;
   align-items: baseline;
   padding-block-end: 0.85rem;
-  border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 14%, transparent);
+  border-block-end: 1px solid var(--cinema-divider);
 }
 .menu-cinema__item:last-child { border-block-end: 0; padding-block-end: 0; }
 .menu-cinema__item-main { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
@@ -930,7 +930,7 @@ html[lang="he"] .menu-cinema__eyebrow {
   font-family: var(--font-display);
   font-weight: 500;
   font-size: clamp(1.05rem, 1.5vw, 1.3rem);
-  color: var(--paper-on-photo);
+  color: var(--cinema-item-name);
   letter-spacing: -0.005em;
   line-height: 1.25;
   text-shadow: 0 1px 3px color-mix(in srgb, var(--shadow) 70%, transparent);
@@ -940,7 +940,7 @@ html[lang="he"] .menu-cinema__eyebrow {
   font-size: var(--step--1);
   font-weight: 300;
   line-height: 1.5;
-  color: color-mix(in srgb, var(--paper-on-photo) 78%, transparent);
+  color: var(--cinema-item-desc);
   text-shadow: 0 1px 2px color-mix(in srgb, var(--shadow) 60%, transparent);
 }
 html[lang="he"] .menu-cinema__item-desc { font-family: var(--font-body-he); }
@@ -948,7 +948,7 @@ html[lang="he"] .menu-cinema__item-desc { font-family: var(--font-body-he); }
   font-family: var(--font-display);
   font-weight: 500;
   font-size: var(--step-0);
-  color: var(--accent);
+  color: var(--cinema-item-price);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -961,13 +961,13 @@ html[lang="he"] .menu-cinema__item-desc { font-family: var(--font-body-he); }
   justify-content: space-between;
   gap: 1rem;
   padding-block-start: 1rem;
-  border-block-start: 1px solid color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
+  border-block-start: 1px solid var(--cinema-divider);
 }
 .menu-cinema__count {
   font-size: var(--step--2);
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+  color: var(--cinema-count);
   font-weight: 500;
 }
 .menu-cinema__cta {
@@ -976,16 +976,16 @@ html[lang="he"] .menu-cinema__item-desc { font-family: var(--font-body-he); }
   letter-spacing: 0.22em;
   text-transform: uppercase;
   font-weight: 500;
-  color: var(--paper-on-photo);
+  color: var(--cinema-cta);
   padding: 0.6rem 1.2rem;
-  border: 1px solid color-mix(in srgb, var(--paper-on-photo) 65%, transparent);
+  border: 1px solid var(--cinema-cta);
   transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
 html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spacing: 0.12em; }
 .menu-cinema__cta:hover {
-  background: var(--paper-on-photo);
+  background: var(--cinema-cta);
   color: var(--ink);
-  border-color: var(--paper-on-photo);
+  border-color: var(--cinema-cta);
 }
 
 @media (min-width: 880px) {

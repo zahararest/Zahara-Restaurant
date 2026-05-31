@@ -196,6 +196,88 @@ export const groups: Group[] = [
       },
     ],
   },
+  {
+    group: 'Home menu-cinema strip',
+    intro: 'The four full-bleed menu chapters on the home page (Starters → Almost there → Cocktails → Desserts). These tokens are <strong>independent</strong> from the rest of the site — tune the cinematic strip without dragging body text along.',
+    tokens: [
+      {
+        token:     '--cinema-eyebrow',
+        shortName: 'cinema-eyebrow',
+        label:     'Cinema — eyebrow label',
+        hint:      'The small uppercase eyebrow above the chapter title ("TO BEGIN", "MAINS", …).',
+        def:       '#D2C9AF',
+      },
+      {
+        token:     '--cinema-num',
+        shortName: 'cinema-num',
+        label:     'Cinema — chapter number',
+        hint:      'The "01 ·", "02 ·" chapter number and its separator dot.',
+        def:       '#A88947',
+      },
+      {
+        token:     '--cinema-title',
+        shortName: 'cinema-title',
+        label:     'Cinema — chapter title',
+        hint:      'The large serif chapter heading ("Something to start", "Cocktails", …).',
+        def:       '#F4ECCF',
+      },
+      {
+        token:     '--cinema-item-name',
+        shortName: 'cinema-item-name',
+        label:     'Cinema — menu item name',
+        hint:      'Each dish or drink name listed under a chapter.',
+        def:       '#F4ECCF',
+      },
+      {
+        token:     '--cinema-item-desc',
+        shortName: 'cinema-item-desc',
+        label:     'Cinema — item description',
+        hint:      'The short note under each item (ingredients, preparation).',
+        def:       '#C2BAA1',
+      },
+      {
+        token:     '--cinema-item-price',
+        shortName: 'cinema-item-price',
+        label:     'Cinema — item price',
+        hint:      'The numerals at the right of each item row.',
+        def:       '#A88947',
+      },
+      {
+        token:     '--cinema-divider',
+        shortName: 'cinema-divider',
+        label:     'Cinema — row & footer divider',
+        hint:      'The thin lines between items and above the chapter footer.',
+        def:       '#3D372C',
+      },
+      {
+        token:     '--cinema-count',
+        shortName: 'cinema-count',
+        label:     'Cinema — "01 / 04 Chapters"',
+        hint:      'The small count label in the chapter footer.',
+        def:       '#ACA388',
+      },
+      {
+        token:     '--cinema-cta',
+        shortName: 'cinema-cta',
+        label:     'Cinema — "See the full menu" CTA',
+        hint:      'The outlined CTA at the bottom of each chapter (text + border).',
+        def:       '#F4ECCF',
+      },
+    ],
+  },
+  {
+    group: 'Atmosphere',
+    intro: 'Wide-impact ambient colour used in shadows and dark overlays across the site.',
+    tokens: [
+      {
+        token:     '--shadow',
+        shortName: 'shadow',
+        label:     'Shadow — base shadow & overlay tone',
+        hint:      'Tints every drop shadow and the dark gradient overlays on hero / menu-cinema photographs. Warm near-black by default; shift cooler for a different mood.',
+        def:       '#0A0806',
+      },
+    ],
+  },
 ];
 
 const allTokens = groups.flatMap((g) => g.tokens);
@@ -227,4 +309,18 @@ export const darkDefaults: Record<string, string> = {
   '--c-mauve':        '#AD9499',
   '--ok':             '#5BA670',
   '--err':            '#E07060',
+
+  // Cinema strip — accent shifts to gold in dark mode, the rest stays
+  // light since the strip sits over dark photography in both themes.
+  '--cinema-eyebrow':    '#D2C9AF',
+  '--cinema-num':        '#C8A050',
+  '--cinema-title':      '#F4ECCF',
+  '--cinema-item-name':  '#F4ECCF',
+  '--cinema-item-desc':  '#C2BAA1',
+  '--cinema-item-price': '#C8A050',
+  '--cinema-divider':    '#3D372C',
+  '--cinema-count':      '#ACA388',
+  '--cinema-cta':        '#F4ECCF',
+
+  '--shadow':         '#000000',
 };

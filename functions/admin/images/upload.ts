@@ -9,10 +9,11 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAuth, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
+import { purgePhotoCache } from './cache';
 
 interface Env extends AuthEnv { IMAGES: R2Bucket; }
 
-const MAX_BYTES = 10 * 1024 * 1024;  // 1 MB
+const MAX_BYTES = 10 * 1024 * 1024;  // 10 MB
 
 const VALID_TYPES = new Set([
   'image/jpeg',
@@ -45,8 +46,6 @@ function detectImageType(bytes: Uint8Array): string | null {
   return null;
 }
 
-const VALID_KEYS = new Set(PHOTO_CATALOGUE.map((p) => p.key));
-
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!checkAuth(request, env)) return json({ ok: false, error: 'Unauthorized' }, 401);
   if (!env.IMAGES) return json({ ok: false, error: 'IMAGES binding missing' }, 500);
@@ -56,7 +55,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   catch { return json({ ok: false, error: 'Expected multipart/form-data' }, 400); }
 
   const key = String(form.get('key') || '');
-  if (!VALID_KEYS.has(key)) {
+  const meta = PHOTO_CATALOGUE.find((p) => p.key === key);
+  if (!meta) {
     return json({ ok: false, error: `Unknown image key: ${key}` }, 400);
   }
 
@@ -87,6 +87,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   } catch (err) {
     console.error('[admin/images/upload] R2 put failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
+  }
+
+  // Purge the colo cache for this filename and any keys that fall back
+  // to it (e.g. uploading `interior` should also refresh contact/location
+  // until they get their own override).
+  const origin = new URL(request.url).origin;
+  await purgePhotoCache(origin, meta.filename);
+  for (const dep of PHOTO_CATALOGUE) {
+    if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename);
   }
 
   return json({ ok: true, key, size: buffer.byteLength, type: detected });

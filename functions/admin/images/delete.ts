@@ -5,10 +5,9 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAuth, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
+import { purgePhotoCache } from './cache';
 
 interface Env extends AuthEnv { IMAGES: R2Bucket; }
-
-const VALID_KEYS = new Set(PHOTO_CATALOGUE.map((p) => p.key));
 
 function json(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,7 +31,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'Expected form data' }, 400);
   }
 
-  if (!VALID_KEYS.has(key)) return json({ ok: false, error: 'Unknown key' }, 400);
+  const meta = PHOTO_CATALOGUE.find((p) => p.key === key);
+  if (!meta) return json({ ok: false, error: 'Unknown key' }, 400);
 
   try {
     await env.IMAGES.delete(`images/${key}`);
@@ -40,5 +40,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     console.error('[admin/images/delete] R2 delete failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
+
+  const origin = new URL(request.url).origin;
+  await purgePhotoCache(origin, meta.filename);
+  for (const dep of PHOTO_CATALOGUE) {
+    if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename);
+  }
+
   return json({ ok: true, key });
 };

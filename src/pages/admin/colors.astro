@@ -62,6 +62,9 @@ const TITLE = 'Color editor · Zahara';
         <option value="terracotta">Terracotta</option>
         <option value="forest">Forest</option>
         <option value="navy-light">Navy (light)</option>
+        <option value="linen">Linen (crisp pale + navy)</option>
+        <option value="rose-paper">Rose paper (wine accent)</option>
+        <option value="sage">Sage (pale green + moss)</option>
       </optgroup>
       <optgroup label="Dark themes">
         <option value="midnight">Midnight (dark navy)</option>
@@ -70,6 +73,9 @@ const TITLE = 'Color editor · Zahara';
         <option value="plum">Plum (dark purple)</option>
         <option value="dusk-navy">Dusk Navy (cool slate)</option>
         <option value="charcoal">Charcoal (warm gray + rust)</option>
+        <option value="moss">Moss (dark green + gold)</option>
+        <option value="wine">Wine (deep aubergine)</option>
+        <option value="cobalt-noir">Cobalt Noir (ink + electric blue)</option>
         <option value="dark-frantzen">Dark · Frantzen (blue)</option>
         <option value="dark-white">Dark + white (stark)</option>
       </optgroup>
@@ -298,21 +304,45 @@ const TITLE = 'Color editor · Zahara';
           <span class="preview-fragment" data-uses="ink"> for people."</span>
         </blockquote>
 
-        <!-- HOME CINEMATIC STRIP (text on photo) — the home page menu teaser.
-             The /menu/ page itself uses the paper-card section above. -->
+        {/* HOME CINEMATIC STRIP — the four full-bleed menu chapters on
+            the home page. Every visible piece of text binds to its own
+            --cinema-* token so editing one of the cinema rows in the
+            list above pulses the matching fragment here. The strip is
+            independent from the rest of the page palette by design. */}
         <div class="sim__cinema">
-          <span class="sim__cinema-eyebrow preview-fragment" data-uses="paper-on-photo,accent">
-            HOME · CINEMATIC STRIP
-          </span>
-          <h4 class="sim__cinema-title preview-fragment" data-uses="paper-on-photo">
+          <p class="sim__cinema-eyebrow preview-fragment" data-uses="cinema-eyebrow,cinema-num">
+            <span class="sim__cinema-num preview-fragment" data-uses="cinema-num">01</span>
+            <span class="sim__cinema-sep preview-fragment" data-uses="cinema-num">·</span>
+            <span class="preview-fragment" data-uses="cinema-eyebrow">TO BEGIN</span>
+          </p>
+          <h4 class="sim__cinema-title preview-fragment" data-uses="cinema-title">
             Something to start
           </h4>
-          <div class="sim__cinema-row">
-            <span class="preview-fragment" data-uses="paper-on-photo">Bread service</span>
-            <span class="preview-fragment" data-uses="accent">32</span>
+
+          <div class="sim__cinema-item preview-fragment" data-uses="cinema-divider">
+            <div class="sim__cinema-item-main">
+              <span class="sim__cinema-item-name preview-fragment" data-uses="cinema-item-name">Bread service</span>
+              <span class="sim__cinema-item-desc preview-fragment" data-uses="cinema-item-desc">sourdough, cultured butter, olive oil</span>
+            </div>
+            <span class="sim__cinema-item-price preview-fragment" data-uses="cinema-item-price">32</span>
           </div>
-          <div class="sim__cinema-cta preview-fragment" data-uses="paper-on-photo">
-            SEE THE FULL MENU ↗
+          <div class="sim__cinema-item preview-fragment" data-uses="cinema-divider">
+            <div class="sim__cinema-item-main">
+              <span class="sim__cinema-item-name preview-fragment" data-uses="cinema-item-name">Beef tartare</span>
+              <span class="sim__cinema-item-desc preview-fragment" data-uses="cinema-item-desc">smoked egg yolk, capers, toast</span>
+            </div>
+            <span class="sim__cinema-item-price preview-fragment" data-uses="cinema-item-price">78</span>
+          </div>
+          <div class="sim__cinema-item preview-fragment" data-uses="cinema-divider">
+            <div class="sim__cinema-item-main">
+              <span class="sim__cinema-item-name preview-fragment" data-uses="cinema-item-name">Sea-bass sashimi</span>
+            </div>
+            <span class="sim__cinema-item-price preview-fragment" data-uses="cinema-item-price">78</span>
+          </div>
+
+          <div class="sim__cinema-foot preview-fragment" data-uses="cinema-divider">
+            <span class="sim__cinema-count preview-fragment" data-uses="cinema-count">01 / 04 CHAPTERS</span>
+            <span class="sim__cinema-cta preview-fragment" data-uses="cinema-cta">SEE THE FULL MENU ↗</span>
           </div>
         </div>
 
@@ -524,7 +554,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#2F2A22', '--accent-deep': '#15110D', '--accent-soft': '#D8D2C0',
       '--gold': '#8A7E68',
       '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
-      '--ok': '#4F6B47', '--err': '#A53623',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0C0A',
+      '--cinema-eyebrow': '#CCC8BF', '--cinema-num': '#2F2A22', '--cinema-title': '#F2EFE7',
+      '--cinema-item-name': '#F2EFE7', '--cinema-item-desc': '#BCB9B0', '--cinema-item-price': '#8A7E68',
+      '--cinema-divider': '#2C2820', '--cinema-count': '#A8A498', '--cinema-cta': '#F2EFE7',
     },
 
     terracotta: {
@@ -535,7 +568,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#9C4621', '--accent-deep': '#6F2F12', '--accent-soft': '#F2DFCF',
       '--gold': '#B68A3F',
       '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
-      '--ok': '#4F6B47', '--err': '#A53623',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0805',
+      '--cinema-eyebrow': '#DCD2BC', '--cinema-num': '#C76830', '--cinema-title': '#F8F2E5',
+      '--cinema-item-name': '#F8F2E5', '--cinema-item-desc': '#C7C0AC', '--cinema-item-price': '#C76830',
+      '--cinema-divider': '#3A3220', '--cinema-count': '#B0AA94', '--cinema-cta': '#F8F2E5',
     },
 
     forest: {
@@ -546,7 +582,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#3F6B4B', '--accent-deep': '#214731', '--accent-soft': '#CFDFCB',
       '--gold': '#9D936A',
       '--c-green': '#3F6B4B', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
-      '--ok': '#4F6B47', '--err': '#A53623',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A07',
+      '--cinema-eyebrow': '#D0CFC0', '--cinema-num': '#6BA070', '--cinema-title': '#F2EFE3',
+      '--cinema-item-name': '#F2EFE3', '--cinema-item-desc': '#C0BFB0', '--cinema-item-price': '#6BA070',
+      '--cinema-divider': '#2A2E25', '--cinema-count': '#A8A698', '--cinema-cta': '#F2EFE3',
     },
 
     'navy-light': {
@@ -557,11 +596,61 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#2A4A7A', '--accent-deep': '#152846', '--accent-soft': '#D0DCEC',
       '--gold': '#7E8AA0',
       '--c-green': '#5A786A', '--c-teal': '#2D5C66', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
-      '--ok': '#4F6B47', '--err': '#A53623',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#060810',
+      '--cinema-eyebrow': '#D0CCBE', '--cinema-num': '#5C82BC', '--cinema-title': '#F3EFE5',
+      '--cinema-item-name': '#F3EFE5', '--cinema-item-desc': '#C0BCAE', '--cinema-item-price': '#5C82BC',
+      '--cinema-divider': '#1F2A38', '--cinema-count': '#A8A496', '--cinema-cta': '#F3EFE5',
+    },
+
+    // ── New light themes ──────────────────────────────────────────────────────
+
+    // Linen — crisp pale linen, deep navy accent.
+    linen: {
+      '--paper': '#F7F4ED', '--paper-deep': '#ECE7DA', '--paper-edge': '#D6CFBE',
+      '--paper-card': '#FCFAF3', '--paper-on-photo': '#F4F0E5',
+      '--ink': '#13171F', '--ink-soft': '#2E333D', '--ink-muted': '#717686', '--ink-faint': '#A8ACB8',
+      '--rule': '#CFCABC', '--rule-soft': '#E3DFD2',
+      '--accent': '#1F3A66', '--accent-deep': '#0F1F40', '--accent-soft': '#D8DFEC',
+      '--gold': '#A4944F',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#06080F',
+      '--cinema-eyebrow': '#D2CEBE', '--cinema-num': '#5476B6', '--cinema-title': '#F4F0E5',
+      '--cinema-item-name': '#F4F0E5', '--cinema-item-desc': '#C2BCAA', '--cinema-item-price': '#5476B6',
+      '--cinema-divider': '#222B3A', '--cinema-count': '#A8A494', '--cinema-cta': '#F4F0E5',
+    },
+
+    // Rose Paper — pale rose paper, wine red accent.
+    'rose-paper': {
+      '--paper': '#F6EDE8', '--paper-deep': '#EEE0D8', '--paper-edge': '#DECABD',
+      '--paper-card': '#FBF4EF', '--paper-on-photo': '#F8EFEA',
+      '--ink': '#1E1310', '--ink-soft': '#3F2E2A', '--ink-muted': '#84675D', '--ink-faint': '#B8A097',
+      '--rule': '#D5BFB3', '--rule-soft': '#E8D6CC',
+      '--accent': '#8A2A3F', '--accent-deep': '#5A1224', '--accent-soft': '#EFD4D6',
+      '--gold': '#B68F58',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0606',
+      '--cinema-eyebrow': '#DCC8C0', '--cinema-num': '#B84A60', '--cinema-title': '#F8EFEA',
+      '--cinema-item-name': '#F8EFEA', '--cinema-item-desc': '#C8B4AC', '--cinema-item-price': '#B84A60',
+      '--cinema-divider': '#3A1E20', '--cinema-count': '#B09690', '--cinema-cta': '#F8EFEA',
+    },
+
+    // Sage — pale sage paper, deep moss accent.
+    sage: {
+      '--paper': '#EEEEE2', '--paper-deep': '#E0E2D0', '--paper-edge': '#CBCEB6',
+      '--paper-card': '#F6F6EB', '--paper-on-photo': '#F0F1E4',
+      '--ink': '#161A14', '--ink-soft': '#2E3328', '--ink-muted': '#6F7866', '--ink-faint': '#A6AC9C',
+      '--rule': '#BEC4B0', '--rule-soft': '#D4D8C4',
+      '--accent': '#34563A', '--accent-deep': '#1B341F', '--accent-soft': '#CFD9C6',
+      '--gold': '#9E9656',
+      '--c-green': '#34563A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A06',
+      '--cinema-eyebrow': '#CCD0BA', '--cinema-num': '#6E9670', '--cinema-title': '#F0F1E4',
+      '--cinema-item-name': '#F0F1E4', '--cinema-item-desc': '#BCC0AC', '--cinema-item-price': '#6E9670',
+      '--cinema-divider': '#222A20', '--cinema-count': '#A4AA94', '--cinema-cta': '#F0F1E4',
     },
 
     // ── Dark themes ───────────────────────────────────────────────────────────
-    // All six dark themes use dark paper surfaces so the entire UI goes dark.
+    // All dark themes use dark paper surfaces so the entire UI goes dark.
     // paper-on-photo stays light (cream/white) so text on photo heroes stays readable.
 
     // 1. Midnight — deep navy, steel-blue accent
@@ -573,7 +662,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#5880C8', '--accent-deep': '#3460B0', '--accent-soft': '#18264A',
       '--gold': '#90A8CC',
       '--c-green': '#487870', '--c-teal': '#3878A0', '--c-slate': '#3A5068', '--c-mauve': '#8070A0',
-      '--ok': '#48B07A', '--err': '#D85050',
+      '--ok': '#48B07A', '--err': '#D85050', '--shadow': '#02040A',
+      '--cinema-eyebrow': '#C0C8D2', '--cinema-num': '#88AAE0', '--cinema-title': '#E0E8F2',
+      '--cinema-item-name': '#E0E8F2', '--cinema-item-desc': '#98A0AC', '--cinema-item-price': '#88AAE0',
+      '--cinema-divider': '#1C2638', '--cinema-count': '#8088A0', '--cinema-cta': '#E0E8F2',
     },
 
     // 2. Obsidian — near-black warm, amber-gold accent
@@ -585,7 +677,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#C89840', '--accent-deep': '#8C6820', '--accent-soft': '#281E08',
       '--gold': '#E0B858',
       '--c-green': '#5C6E58', '--c-teal': '#486868', '--c-slate': '#3E5060', '--c-mauve': '#7E6070',
-      '--ok': '#48A060', '--err': '#C84038',
+      '--ok': '#48A060', '--err': '#C84038', '--shadow': '#06040A',
+      '--cinema-eyebrow': '#D8C8A0', '--cinema-num': '#E0B858', '--cinema-title': '#F2ECC8',
+      '--cinema-item-name': '#F2ECC8', '--cinema-item-desc': '#B6A98A', '--cinema-item-price': '#E0B858',
+      '--cinema-divider': '#2E2418', '--cinema-count': '#968870', '--cinema-cta': '#F2ECC8',
     },
 
     // 3. Espresso — dark roasted brown, amber accent
@@ -597,7 +692,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#D09840', '--accent-deep': '#906818', '--accent-soft': '#281808',
       '--gold': '#E8B850',
       '--c-green': '#4E6040', '--c-teal': '#3A6050', '--c-slate': '#3A5048', '--c-mauve': '#7A4862',
-      '--ok': '#48A050', '--err': '#C84030',
+      '--ok': '#48A050', '--err': '#C84030', '--shadow': '#0A0604',
+      '--cinema-eyebrow': '#DCC8A0', '--cinema-num': '#E8B850', '--cinema-title': '#F4E8C8',
+      '--cinema-item-name': '#F4E8C8', '--cinema-item-desc': '#B6A088', '--cinema-item-price': '#E8B850',
+      '--cinema-divider': '#301E14', '--cinema-count': '#968476', '--cinema-cta': '#F4E8C8',
     },
 
     // 4. Plum — dark purple/plum, violet accent
@@ -609,7 +707,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#9E68E0', '--accent-deep': '#6A38B8', '--accent-soft': '#1E1040',
       '--gold': '#D09858',
       '--c-green': '#4A6C5E', '--c-teal': '#3E6082', '--c-slate': '#384858', '--c-mauve': '#9E72B2',
-      '--ok': '#48B870', '--err': '#E04860',
+      '--ok': '#48B870', '--err': '#E04860', '--shadow': '#06020E',
+      '--cinema-eyebrow': '#CCC4D8', '--cinema-num': '#D098F8', '--cinema-title': '#EEE8F8',
+      '--cinema-item-name': '#EEE8F8', '--cinema-item-desc': '#ACA0BC', '--cinema-item-price': '#D098F8',
+      '--cinema-divider': '#261640', '--cinema-count': '#8C84A4', '--cinema-cta': '#EEE8F8',
     },
 
     // 5. Dusk Navy — cool dark slate-navy, teal accent
@@ -621,7 +722,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#38A090', '--accent-deep': '#207878', '--accent-soft': '#0C2028',
       '--gold': '#78B8A0',
       '--c-green': '#488068', '--c-teal': '#388898', '--c-slate': '#3C5870', '--c-mauve': '#7C70A0',
-      '--ok': '#48B880', '--err': '#D05048',
+      '--ok': '#48B880', '--err': '#D05048', '--shadow': '#04080E',
+      '--cinema-eyebrow': '#BCC8D2', '--cinema-num': '#68C0B0', '--cinema-title': '#DDEAF2',
+      '--cinema-item-name': '#DDEAF2', '--cinema-item-desc': '#98A4B0', '--cinema-item-price': '#68C0B0',
+      '--cinema-divider': '#1C2830', '--cinema-count': '#7888A0', '--cinema-cta': '#DDEAF2',
     },
 
     // 6. Charcoal — warm dark gray, rust/terracotta accent
@@ -633,7 +737,57 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#B06040', '--accent-deep': '#7A3818', '--accent-soft': '#281008',
       '--gold': '#D09060',
       '--c-green': '#587050', '--c-teal': '#406860', '--c-slate': '#485062', '--c-mauve': '#907082',
-      '--ok': '#50A850', '--err': '#C84838',
+      '--ok': '#50A850', '--err': '#C84838', '--shadow': '#0A0808',
+      '--cinema-eyebrow': '#D6CCC8', '--cinema-num': '#E08560', '--cinema-title': '#F2ECEC',
+      '--cinema-item-name': '#F2ECEC', '--cinema-item-desc': '#B6A8A0', '--cinema-item-price': '#E08560',
+      '--cinema-divider': '#28201A', '--cinema-count': '#968880', '--cinema-cta': '#F2ECEC',
+    },
+
+    // ── New dark themes ───────────────────────────────────────────────────────
+
+    // Moss — dark green-black, warm gold accent.
+    moss: {
+      '--paper': '#0A1108', '--paper-deep': '#121A0E', '--paper-edge': '#1E2C18',
+      '--paper-card': '#10180C', '--paper-on-photo': '#E8F0DC',
+      '--ink': '#E4EED4', '--ink-soft': '#B4BFA0', '--ink-muted': '#6A7A5C', '--ink-faint': '#2E3A24',
+      '--rule': '#1E2C18', '--rule-soft': '#162010',
+      '--accent': '#C8A050', '--accent-deep': '#8C6820', '--accent-soft': '#1A2410',
+      '--gold': '#E0C070',
+      '--c-green': '#6A8870', '--c-teal': '#487868', '--c-slate': '#4A5C58', '--c-mauve': '#90856E',
+      '--ok': '#5BA670', '--err': '#D85048', '--shadow': '#040A02',
+      '--cinema-eyebrow': '#CCD0B8', '--cinema-num': '#E0C070', '--cinema-title': '#E8F0DC',
+      '--cinema-item-name': '#E8F0DC', '--cinema-item-desc': '#A8B098', '--cinema-item-price': '#E0C070',
+      '--cinema-divider': '#1E2C18', '--cinema-count': '#86907A', '--cinema-cta': '#E8F0DC',
+    },
+
+    // Wine — deep aubergine/wine, pale gold accent.
+    wine: {
+      '--paper': '#160810', '--paper-deep': '#1F0E18', '--paper-edge': '#341A28',
+      '--paper-card': '#1A0C14', '--paper-on-photo': '#F2E4DE',
+      '--ink': '#EEDFD8', '--ink-soft': '#C0A89E', '--ink-muted': '#806068', '--ink-faint': '#40242C',
+      '--rule': '#34182A', '--rule-soft': '#22101A',
+      '--accent': '#D49770', '--accent-deep': '#A06A45', '--accent-soft': '#28121C',
+      '--gold': '#E4B080',
+      '--c-green': '#5E7A6A', '--c-teal': '#4A6E80', '--c-slate': '#48505E', '--c-mauve': '#A07088',
+      '--ok': '#5BA670', '--err': '#E07060', '--shadow': '#0C0408',
+      '--cinema-eyebrow': '#DCC8C0', '--cinema-num': '#E4B080', '--cinema-title': '#F2E4DE',
+      '--cinema-item-name': '#F2E4DE', '--cinema-item-desc': '#B69E98', '--cinema-item-price': '#E4B080',
+      '--cinema-divider': '#34182A', '--cinema-count': '#988078', '--cinema-cta': '#F2E4DE',
+    },
+
+    // Cobalt Noir — deep ink-blue, electric cobalt accent.
+    'cobalt-noir': {
+      '--paper': '#06080F', '--paper-deep': '#0C1019', '--paper-edge': '#161C2A',
+      '--paper-card': '#0A0E18', '--paper-on-photo': '#E2EAF2',
+      '--ink': '#DCE4F0', '--ink-soft': '#A8B0C2', '--ink-muted': '#5C657A', '--ink-faint': '#283044',
+      '--rule': '#16203A', '--rule-soft': '#0E1626',
+      '--accent': '#4080F0', '--accent-deep': '#2058C0', '--accent-soft': '#0C1A38',
+      '--gold': '#88A4D8',
+      '--c-green': '#4A7868', '--c-teal': '#3878A0', '--c-slate': '#3A4E68', '--c-mauve': '#7868A0',
+      '--ok': '#5BA670', '--err': '#E07060', '--shadow': '#02040A',
+      '--cinema-eyebrow': '#C0C8D6', '--cinema-num': '#5C94F4', '--cinema-title': '#E2EAF2',
+      '--cinema-item-name': '#E2EAF2', '--cinema-item-desc': '#98A0B2', '--cinema-item-price': '#5C94F4',
+      '--cinema-divider': '#16203A', '--cinema-count': '#7A8298', '--cinema-cta': '#E2EAF2',
     },
 
     // ── Classic dark (kept for reference) ────────────────────────────────────
@@ -646,7 +800,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#5878E8', '--accent-deep': '#3854D0', '--accent-soft': '#1A2440',
       '--gold': '#8AA4FF',
       '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
-      '--ok': '#4DB378', '--err': '#E54F4F',
+      '--ok': '#4DB378', '--err': '#E54F4F', '--shadow': '#04060A',
+      '--cinema-eyebrow': '#C8CCD8', '--cinema-num': '#88A4FF', '--cinema-title': '#ECEEF2',
+      '--cinema-item-name': '#ECEEF2', '--cinema-item-desc': '#A8ACBA', '--cinema-item-price': '#88A4FF',
+      '--cinema-divider': '#2A2E36', '--cinema-count': '#80869A', '--cinema-cta': '#ECEEF2',
     },
 
     'dark-white': {
@@ -657,7 +814,10 @@ const TITLE = 'Color editor · Zahara';
       '--accent': '#FFFFFF', '--accent-deep': '#C8C8C8', '--accent-soft': '#2A2A2D',
       '--gold': '#BCBCBC',
       '--c-green': '#7B9685', '--c-teal': '#558693', '--c-slate': '#5B6B71', '--c-mauve': '#A697A1',
-      '--ok': '#5BC287', '--err': '#EF5A5A',
+      '--ok': '#5BC287', '--err': '#EF5A5A', '--shadow': '#000000',
+      '--cinema-eyebrow': '#D0D0D0', '--cinema-num': '#FFFFFF', '--cinema-title': '#FFFFFF',
+      '--cinema-item-name': '#FFFFFF', '--cinema-item-desc': '#B0B0B0', '--cinema-item-price': '#FFFFFF',
+      '--cinema-divider': '#2A2A2D', '--cinema-count': '#8C8C8C', '--cinema-cta': '#FFFFFF',
     },
   };
 

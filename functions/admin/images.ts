@@ -165,6 +165,8 @@ const STYLE = `
     color: #faf7ee;
   }
   .card__badge--override { background: #a88947; color: #fff; }
+  .card__badge--missing  { background: #a53623; color: #fff; }
+  .card__badge--fallback { background: #6f6457; color: #faf7ee; }
   .card__tags {
     position: absolute;
     inset-block-start: 0.5rem;
@@ -211,6 +213,48 @@ const STYLE = `
     font-size: 0.78rem;
     width: 100%;
   }
+  .card__file-name {
+    margin: 0.35rem 0 0;
+    font-family: 'Inter', monospace;
+    font-size: 0.72rem;
+    color: #6f6457;
+    word-break: break-all;
+    min-height: 1.1em;
+  }
+  .card__thumb {
+    transition: outline-color 0.15s;
+    outline: 2px dashed transparent;
+    outline-offset: -6px;
+  }
+  .card__thumb.is-dragging {
+    outline-color: #a88947;
+    background: #ece3d0;
+  }
+  .card__missing-note {
+    margin: 0.4rem 0 0;
+    padding: 0.45rem 0.55rem;
+    background: #fbeae6;
+    border-inline-start: 3px solid #a53623;
+    font-size: 0.74rem;
+    color: #6b1a0e;
+    line-height: 1.45;
+  }
+  .top__action {
+    font: inherit;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 0.45rem 0.7rem;
+    background: transparent;
+    color: #6f6457;
+    border: 1px solid #d8ccae;
+    cursor: pointer;
+    margin-inline-end: 0.4rem;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+  }
+  .top__action:hover { color: #1a1410; background: #ece3d0; border-color: #a88947; }
+  .top__action:disabled { opacity: 0.5; cursor: not-allowed; }
   .card__row {
     display: flex;
     gap: 0.45rem;
@@ -376,6 +420,34 @@ const SCRIPT = `
   (function () {
     'use strict';
 
+    // ── Bulk "refresh cached photos" button ───────────────────────────
+    const purgeBtn = document.getElementById('top-purge');
+    if (purgeBtn) {
+      purgeBtn.addEventListener('click', async () => {
+        const orig = purgeBtn.textContent;
+        purgeBtn.disabled = true;
+        purgeBtn.textContent = 'Refreshing…';
+        try {
+          const res = await fetch('/admin/images/purge', { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Purge failed');
+          purgeBtn.textContent = 'Refreshed ' + data.count;
+          // Force every visible thumbnail to refetch so the admin sees
+          // post-purge state immediately, not the locally-cached copy.
+          document.querySelectorAll('[data-thumb]').forEach((img) => {
+            img.src = img.dataset.src + '?t=' + Date.now();
+          });
+        } catch (err) {
+          purgeBtn.textContent = 'Failed — retry';
+          console.warn('[purge]', err);
+        } finally {
+          setTimeout(() => { purgeBtn.textContent = orig; purgeBtn.disabled = false; }, 2500);
+        }
+      });
+    }
+
+    function fmtKB(b) { return Math.round(b / 1024) + ' KB'; }
+
     // ── Per-card upload / remove wiring ───────────────────────────────
     const cards = document.querySelectorAll('[data-photo-card]');
     cards.forEach((card) => {
@@ -388,25 +460,66 @@ const SCRIPT = `
       const status= card.querySelector('[data-status]');
       const badge = card.querySelector('[data-badge]');
       const thumb = card.querySelector('[data-thumb]');
+      const thumbZone = card.querySelector('[data-thumb-zone]');
+      const fname = card.querySelector('[data-file-name]');
+      const missingNote = card.querySelector('[data-missing-note]');
 
       function setStatus(msg, err) {
         status.textContent = msg || '';
         status.classList.toggle('card__status--err', !!err);
       }
 
+      function syncFileName() {
+        if (file.files && file.files[0]) {
+          fname.textContent = file.files[0].name + ' · ' + fmtKB(file.files[0].size);
+        } else {
+          fname.textContent = '';
+        }
+      }
+
       // After any successful save, refresh this card's thumb + badge.
       function markSaved(sizeBytes) {
-        setStatus('Saved · ' + Math.round(sizeBytes / 1024) + ' KB', false);
+        setStatus('Saved · ' + fmtKB(sizeBytes), false);
         thumb.src = thumb.dataset.src + '?t=' + Date.now();
         badge.textContent = 'Override';
+        badge.classList.remove('card__badge--missing', 'card__badge--fallback');
         badge.classList.add('card__badge--override');
+        if (missingNote) missingNote.hidden = true;
         try { new BroadcastChannel('zahara-images').postMessage({ key, action: 'set' }); } catch (_) {}
       }
 
       file.addEventListener('change', () => {
         submit.disabled = !file.files || file.files.length === 0;
+        syncFileName();
       });
       submit.disabled = true;
+
+      // Drag-and-drop onto the thumbnail area — sets the file input.
+      ['dragenter', 'dragover'].forEach((ev) => {
+        thumbZone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          thumbZone.classList.add('is-dragging');
+        });
+      });
+      ['dragleave', 'drop'].forEach((ev) => {
+        thumbZone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          thumbZone.classList.remove('is-dragging');
+        });
+      });
+      thumbZone.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!f) return;
+        if (!/^image\\/(jpeg|png|webp)$/.test(f.type)) {
+          setStatus('Only JPG / PNG / WebP', true); return;
+        }
+        const dt = new DataTransfer();
+        dt.items.add(f);
+        file.files = dt.files;
+        submit.disabled = false;
+        syncFileName();
+        setStatus('Ready to upload — press Upload or Edit & adjust', false);
+      });
 
       // Plain upload — send the selected file as-is, no editing.
       form.addEventListener('submit', async (e) => {
@@ -418,6 +531,7 @@ const SCRIPT = `
           const data = await window.ZAHARA_UPLOAD(key, file.files[0]);
           markSaved(data.size);
           file.value = '';
+          syncFileName();
         } catch (err) {
           setStatus(String(err.message || err), true);
         } finally {
@@ -435,7 +549,7 @@ const SCRIPT = `
           key,
           label: card.dataset.label || key,
           source: src,
-          onSaved: (size) => { markSaved(size); file.value = ''; },
+          onSaved: (size) => { markSaved(size); file.value = ''; syncFileName(); },
         });
       });
 
@@ -451,8 +565,14 @@ const SCRIPT = `
           if (!res.ok || !data.ok) throw new Error(data.error || 'Delete failed');
           setStatus('Reverted to default', false);
           thumb.src = thumb.dataset.fallback + '?t=' + Date.now();
-          badge.textContent = 'Default';
+          badge.textContent = card.dataset.fallbackLabel || 'Default';
           badge.classList.remove('card__badge--override');
+          if (card.dataset.fallbackLabel) {
+            badge.classList.add('card__badge--fallback');
+          } else {
+            badge.classList.add('card__badge--missing');
+            if (missingNote) missingNote.hidden = false;
+          }
           try { new BroadcastChannel('zahara-images').postMessage({ key, action: 'delete' }); } catch (_) {}
         } catch (err) {
           setStatus(String(err.message || err), true);
@@ -502,11 +622,16 @@ const SCRIPT = `
       const resetB = document.getElementById('ed-reset');
       const applyB = document.getElementById('ed-apply');
       const cancelB= document.getElementById('ed-cancel');
+      const compareB = document.getElementById('ed-compare');
 
       let img = null;             // the loaded HTMLImageElement
       let ctxState = null;        // { key, onSaved }
       let panX = 0, panY = 0;     // -0.5 … 0.5 crop offset
+      let dirty = false;          // true once any control changes
+      let comparing = false;      // press-and-hold "before" view
       const PREVIEW_MAX = 520;    // px — preview canvas longest edge
+
+      function markDirty() { dirty = true; }
 
       // Current adjustment values, read straight off the sliders.
       function currentOpts() {
@@ -583,6 +708,14 @@ const SCRIPT = `
         let pw = PREVIEW_MAX, ph = Math.round(PREVIEW_MAX / ar);
         if (ph > PREVIEW_MAX) { ph = PREVIEW_MAX; pw = Math.round(PREVIEW_MAX * ar); }
         canvas.width = pw; canvas.height = ph;
+        // When the user is holding "Compare" we draw the un-cropped, un-
+        // adjusted source so they can see what they started with.
+        if (comparing) {
+          ctx.clearRect(0, 0, pw, ph);
+          ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, pw, ph);
+          syncLabels();
+          return;
+        }
         const { sx, sy, sw, sh } = cropRect();
         ctx.clearRect(0, 0, pw, ph);
         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pw, ph);
@@ -637,7 +770,14 @@ const SCRIPT = `
         inputs.width.value = '2000';
         inputs.quality.value = '0.85';
         panX = 0; panY = 0;
+        dirty = false;
         drawPreview();
+      }
+
+      function tryClose() {
+        if (dirty && !confirm('Discard unsaved changes to this photo?')) return false;
+        close();
+        return true;
       }
 
       function open(opts) {
@@ -645,6 +785,7 @@ const SCRIPT = `
         titleEl.textContent = 'Edit · ' + opts.label;
         setStatus('Loading…', false);
         reset();
+        dirty = false;
         applyB.disabled = true;
         root.classList.add('is-open');
 
@@ -676,17 +817,51 @@ const SCRIPT = `
 
       // ── Wire controls ──
       ['grayscale','brightness','contrast','saturate','zoom'].forEach((k) => {
-        inputs[k].addEventListener('input', drawPreview);
+        inputs[k].addEventListener('input', () => { markDirty(); drawPreview(); });
       });
+      inputs.width.addEventListener('change', markDirty);
+      inputs.quality.addEventListener('change', markDirty);
       bwChip.addEventListener('click', () => {
         inputs.grayscale.value = inputs.grayscale.value === '100' ? '0' : '100';
+        markDirty();
         drawPreview();
       });
-      resetB.addEventListener('click', reset);
-      cancelB.addEventListener('click', close);
-      root.addEventListener('click', (e) => { if (e.target === root) close(); });
+      resetB.addEventListener('click', () => { reset(); markDirty(); });
+      cancelB.addEventListener('click', tryClose);
+      root.addEventListener('click', (e) => { if (e.target === root) tryClose(); });
+
+      // Press-and-hold "Compare" — shows the un-cropped, un-adjusted source.
+      function startCompare() {
+        if (comparing || !img) return;
+        comparing = true;
+        compareB.classList.add('is-on');
+        drawPreview();
+      }
+      function stopCompare() {
+        if (!comparing) return;
+        comparing = false;
+        compareB.classList.remove('is-on');
+        drawPreview();
+      }
+      compareB.addEventListener('pointerdown', (e) => { e.preventDefault(); startCompare(); });
+      compareB.addEventListener('pointerup',     stopCompare);
+      compareB.addEventListener('pointerleave',  stopCompare);
+      compareB.addEventListener('pointercancel', stopCompare);
+
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && root.classList.contains('is-open')) close();
+        if (!root.classList.contains('is-open')) return;
+        // Don't hijack typing in inputs / selects.
+        const tag = (e.target && e.target.tagName) || '';
+        const inField = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+        if (e.key === 'Escape') { e.preventDefault(); tryClose(); return; }
+        if (inField) return;
+        if (e.key === ' ' && !e.repeat) { e.preventDefault(); startCompare(); return; }
+        if (e.key === 's' || e.key === 'S') { e.preventDefault(); if (!applyB.disabled) applyB.click(); return; }
+        if (e.key === 'r' || e.key === 'R') { e.preventDefault(); reset(); return; }
+        if (e.key === 'b' || e.key === 'B') { e.preventDefault(); bwChip.click(); return; }
+      });
+      document.addEventListener('keyup', (e) => {
+        if (e.key === ' ') stopCompare();
       });
 
       // Drag to pan when zoomed in.
@@ -705,6 +880,7 @@ const SCRIPT = `
         panX = Math.max(-0.5, Math.min(0.5, panX));
         panY = Math.max(-0.5, Math.min(0.5, panY));
         lastX = e.clientX; lastY = e.clientY;
+        markDirty();
         drawPreview();
       });
       canvas.addEventListener('pointerup',   () => { dragging = false; });
@@ -719,6 +895,8 @@ const SCRIPT = `
           setStatus('Uploading ' + w + '×' + h + ' · ' + Math.round(blob.size / 1024) + ' KB…', false);
           const data = await window.ZAHARA_UPLOAD(ctxState.key, blob, ctxState.key + '.jpg');
           if (ctxState.onSaved) ctxState.onSaved(data.size);
+          // Save succeeded — bypass the dirty guard on close.
+          dirty = false;
           close();
         } catch (err) {
           setStatus(String(err.message || err), true);
@@ -738,7 +916,12 @@ function esc(s: string): string {
   ));
 }
 
-function renderCard(p: PhotoMeta, hasOverride: boolean, version: number): string {
+function renderCard(
+  p: PhotoMeta,
+  hasOverride: boolean,
+  fallbackFromLabel: string | null,
+  version: number,
+): string {
   // Two URLs:
   //   src      — the URL currently shown (override-aware via middleware)
   //   fallback — the same path without override; after a delete we reload it
@@ -747,26 +930,46 @@ function renderCard(p: PhotoMeta, hasOverride: boolean, version: number): string
   const tags: string[] = [];
   if (p.reused)   tags.push('<span class="card__tag">Shared</span>');
   if (p.reserved) tags.push('<span class="card__tag">Not shown</span>');
+
+  // Tri-state badge: own override / fallback from parent / missing entirely.
+  let badgeClass = '';
+  let badgeText = 'Default';
+  if (hasOverride) {
+    badgeClass = 'card__badge--override';
+    badgeText  = 'Override';
+  } else if (fallbackFromLabel) {
+    badgeClass = 'card__badge--fallback';
+    badgeText  = 'Using ' + fallbackFromLabel;
+  } else if (!p.reserved) {
+    badgeClass = 'card__badge--missing';
+    badgeText  = 'Missing';
+  }
+
+  const showMissingNote = !hasOverride && !fallbackFromLabel && !p.reserved;
+
   return `
-    <article class="card" data-photo-card="${esc(p.key)}" data-label="${esc(p.label)}">
-      <div class="card__thumb">
+    <article class="card" data-photo-card="${esc(p.key)}" data-label="${esc(p.label)}"
+             ${fallbackFromLabel ? `data-fallback-label="${esc('Using ' + fallbackFromLabel)}"` : ''}>
+      <div class="card__thumb" data-thumb-zone>
         <img data-thumb data-src="/photos/${esc(p.filename)}" data-fallback="${esc(fallback)}"
              src="${esc(src)}" alt="${esc(p.label)}" loading="lazy" decoding="async"
              onerror="this.style.opacity=0.25" />
-        <span class="card__badge ${hasOverride ? 'card__badge--override' : ''}" data-badge>
-          ${hasOverride ? 'Override' : 'Default'}
-        </span>
+        <span class="card__badge ${badgeClass}" data-badge>${esc(badgeText)}</span>
         ${tags.length ? `<div class="card__tags">${tags.join('')}</div>` : ''}
       </div>
       <header class="card__head">
         <p class="card__label">${esc(p.label)}</p>
         <p class="card__where">${esc(p.where)}</p>
         <p class="card__token"><code>${esc(p.key)}</code></p>
+        <p class="card__missing-note" data-missing-note ${showMissingNote ? '' : 'hidden'}>
+          No image stored — visitors see a broken photo here. Upload one to fix.
+        </p>
       </header>
       <div class="card__actions">
         <form data-form-upload>
           <input class="card__file-input" type="file" data-input-file
                  accept="image/jpeg,image/png,image/webp" />
+          <p class="card__file-name" data-file-name></p>
           <div class="card__row" style="margin-top:0.55rem">
             <button class="btn" type="submit" data-btn-upload>Upload</button>
             <button class="btn btn--ghost btn--sm" type="button" data-btn-edit>Edit &amp; adjust</button>
@@ -802,6 +1005,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // Single version stamp so all thumbs cache-bust together on reload.
   const v = Date.now();
 
+  // Friendly label lookup for fallback-from messaging.
+  const labelOf = (key: string) =>
+    PHOTO_CATALOGUE.find((p) => p.key === key)?.label ?? key;
+
+  let missingCount = 0;
   const groupHtml = (Object.keys(PHOTO_GROUPS) as Array<keyof typeof PHOTO_GROUPS>)
     .map((g) => {
       const photos = PHOTO_CATALOGUE.filter((p) => p.group === g);
@@ -813,11 +1021,24 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             <small>${photos.length} photo${photos.length === 1 ? '' : 's'} · in page order</small>
           </header>
           <div class="grid">
-            ${photos.map((p) => renderCard(p, overrideSet.has(p.key), v)).join('')}
+            ${photos.map((p) => {
+              const hasOverride = overrideSet.has(p.key);
+              const fallbackFromLabel = !hasOverride && p.fallbackKey && overrideSet.has(p.fallbackKey)
+                ? labelOf(p.fallbackKey)
+                : null;
+              if (!hasOverride && !fallbackFromLabel && !p.reserved) missingCount++;
+              return renderCard(p, hasOverride, fallbackFromLabel, v);
+            }).join('')}
           </div>
         </section>
       `;
     }).join('');
+
+  const missingBanner = missingCount > 0
+    ? `<p class="lead" style="background:#fbeae6;border-inline-start:3px solid #a53623;padding:0.6rem 0.85rem;color:#6b1a0e;">
+         <strong>${missingCount}</strong> photo${missingCount === 1 ? ' has' : 's have'} no image stored — visitors see a broken image there. Look for the red <em>Missing</em> badge below.
+       </p>`
+    : '';
 
   const html = `<!doctype html>
 <html lang="en" dir="ltr">
@@ -839,6 +1060,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       <a class="top__navlink is-active"  href="/admin/images/" aria-current="page">Images</a>
       <a class="top__navlink"            href="/admin/colors/">Colors</a>
       <span class="top__spacer"></span>
+      <button class="top__action" type="button" id="top-purge"
+              title="Force the CDN to refetch every photo (use if you just uploaded and the live site still shows the old image)">
+        Refresh cached photos
+      </button>
       <a class="top__site" href="/" target="_blank">View site ↗</a>
     </nav>
     <h1 class="top__title">Image manager</h1>
@@ -846,13 +1071,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   <main>
     <p class="lead">
       Every photo on the site, grouped by page and listed in the order you
-      meet it as you scroll. Each one is adjusted on its own. Press
+      meet it as you scroll. Drag a file straight onto a thumbnail, or use
       <strong>Upload</strong> to drop in a replacement as-is, or
-      <strong>Edit &amp; adjust</strong> to crop / zoom, make it black &amp;
-      white, tweak brightness &amp; contrast, and resize before saving.
+      <strong>Edit &amp; adjust</strong> to crop, recolour, and resize.
       <strong>Remove override</strong> reverts to the original.
+      In the editor: <code>S</code> save · <code>R</code> reset ·
+      <code>B</code> toggle B&amp;W · hold <code>Space</code> to compare.
       Accepts JPG / PNG / WebP up to 10&nbsp;MB.
     </p>
+    ${missingBanner}
     ${groupHtml}
   </main>
 
@@ -868,6 +1095,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
         <div class="editor__toggles">
           <button type="button" class="chip" id="ed-bw">Black &amp; white</button>
+          <button type="button" class="chip" id="ed-compare" title="Hold to see the original">Compare (hold)</button>
           <button type="button" class="chip" id="ed-reset">Reset</button>
         </div>
 

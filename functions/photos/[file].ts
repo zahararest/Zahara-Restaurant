@@ -45,8 +45,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env, next, requ
             headers: {
               'Content-Type':  contentType,
               'ETag':          etag,
-              // Cache aggressively — the admin UI cache-busts with ?t= after upload.
-              'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+              // Short max-age + long SWR. The admin uploads have to take
+              // effect on the live site quickly — anything longer than a
+              // minute and visitors keep seeing the old photo. ETag still
+              // makes the round-trip cheap (304 with no body).
+              'Cache-Control': 'public, max-age=60, stale-while-revalidate=86400',
             },
           });
         }

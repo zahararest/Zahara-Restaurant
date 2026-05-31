@@ -135,8 +135,9 @@ const schema = {
     )}
 
     {/* Fonts are self-hosted in /public/fonts/ via src/styles/font-faces.css.
-        No Google CDN requests — no third-party IP logging on page load.
-        To change fonts: edit src/styles/font-config.css */}
+        Single bilingual family (Alef, Regular + Bold) covers display + body
+        for both languages. No Google CDN requests — no third-party IP
+        logging on page load. To change fonts: edit src/styles/font-config.css */}
 
     {/* Theme + palette pre-paint — runs SYNCHRONOUSLY before <body>
         renders so the page paints once in the visitor's chosen theme
