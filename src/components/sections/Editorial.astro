@@ -5,26 +5,39 @@ export interface Props {
   heading:    string;
   /** Paragraphs in order. May contain inline HTML. */
   paragraphs: readonly string[];
+  /** Optional admin-editable content keys (data-content-key). When set, the
+   *  matching element can be overridden from /admin/content/. */
+  eyebrowKey?:    string;
+  headingKey?:    string;
+  paragraphKeys?: readonly string[];
 }
 
-const { eyebrow, heading, paragraphs } = Astro.props;
+const { eyebrow, heading, paragraphs, eyebrowKey, headingKey, paragraphKeys } = Astro.props;
 ---
 
 <section class="section">
   <div class="wrap">
     <div class="editorial">
       <header class="editorial__head reveal-on-scroll">
-        <p class="eyebrow">{eyebrow}</p>
+        <p class="eyebrow" data-content-key={eyebrowKey}>{eyebrow}</p>
         <h2
           class="display"
           data-word-reveal
           data-word-reveal-delay="0.08"
           data-word-reveal-step="0.06"
+          data-content-key={headingKey}
+          data-content-html={headingKey ? '' : undefined}
           set:html={heading}
         />
       </header>
       <div class="prose stagger reveal-on-scroll">
-        {paragraphs.map(p => <p set:html={p} />)}
+        {paragraphs.map((p, i) => (
+          <p
+            data-content-key={paragraphKeys?.[i]}
+            data-content-html={paragraphKeys?.[i] ? '' : undefined}
+            set:html={p}
+          />
+        ))}
       </div>
     </div>
   </div>

@@ -21,10 +21,7 @@ const t        = pick(copy, lang);
 const l        = pick(loc, lang);
 const title    = lang === 'he' ? 'אודות' : 'About';
 
-const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFull];
-
 const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
-const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
 
 // ── Map + directions (folded in from the old Location page) ──────────────
 const encoded  = encodeURIComponent(RESTAURANT.address.maps);
@@ -34,6 +31,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
 ---
 
 <BaseLayout title={title} lang={lang}>
+  <div class="about-page">
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">
       <p class="eyebrow">{t.aboutEyebrow}</p>
@@ -81,6 +79,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     </div>
   </section>
 
+  {/* ── How the space is designed (four seating areas) ────────────────── */}
   <section class="section">
     <div class="wrap">
       <div class="photo-block">
@@ -88,18 +87,19 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
           <Photo src={PHOTOS.location.src} alt={PHOTOS.location.alt[lang]} aspect="4/5" />
         </div>
         <div class="photo-block__content stagger reveal-on-scroll">
-          <p class="eyebrow">{l.infoEyebrow}</p>
+          <p class="eyebrow">{t.designEyebrow}</p>
           <h2
             class="display"
             data-word-reveal
             data-word-reveal-delay="0.06"
             data-word-reveal-step="0.06"
-            set:html={l.infoHeading}
+            set:html={t.designHeading}
           />
-          <p set:html={l.infoByCar} />
-          <p set:html={l.infoByTransit} />
-          <p set:html={l.infoAccessibility} />
-          <p set:html={l.infoBooking} />
+          <p class="lede-prose">{t.designLede}</p>
+          <p set:html={t.designInside} />
+          <p set:html={t.designBar} />
+          <p set:html={t.designClosed} />
+          <p set:html={t.designOpen} />
         </div>
       </div>
     </div>
@@ -107,43 +107,26 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
 
   <hr class="rule" />
 
-  {/* ── Get in touch ──────────────────────────────────────────────────── */}
-  <section class="section-tight">
-    <div class="wrap">
-      <ul class="benefits stagger reveal-on-scroll">
-        {benefits.map((label, i) => (
-          <li class="benefit">
-            <span class="benefit__num">0{i + 1}</span>
-            <span class="benefit__text">{label}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
-
-  <ContactForm lang={lang} />
-
-  {/* Direct contact details — phone and email as a quiet postscript. */}
-  <section class="section-tight">
-    <div class="wrap wrap--tight">
-      <div class="reach-us reveal-on-scroll">
-        <p class="eyebrow">{t.reachUsEyebrow}</p>
-        <dl class="reach-us__list">
-          <div class="reach-us__row">
-            <dt>{t.reachUsPhoneLabel}</dt>
-            <dd><a href={`tel:${dial}`}>{phoneTxt}</a></dd>
-          </div>
-          <div class="reach-us__row">
-            <dt>{t.reachUsEmailLabel}</dt>
-            <dd><a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></dd>
-          </div>
-        </dl>
-      </div>
-    </div>
-  </section>
+  {/* General contact form. Event inquiries now live on the dedicated
+      /events/ page, so the event toggle is hidden here. */}
+  <ContactForm lang={lang} showToggle={false} />
+  </div>
 </BaseLayout>
 
 <style>
+  /* The About page stacks several full sections; the default --space-2xl
+     padding stacked them too far apart (the photos → form → footer gaps
+     read as empty screens). Tighten the rhythm here only — other pages
+     keep the standard section spacing. */
+  .about-page :global(.section)       { padding-block: var(--space-l); }
+  .about-page :global(.section-tight) { padding-block: var(--space-m); }
+  /* Last section before the footer: no trailing gap on top of the
+     footer's own padding. */
+  .about-page > :global(.section:last-child),
+  .about-page :global(.section-tight:last-of-type) {
+    padding-block-end: var(--space-l);
+  }
+
   .map-wrapper { position: relative; }
   .map-frame {
     display: block;

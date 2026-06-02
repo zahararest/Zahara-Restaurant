@@ -1467,8 +1467,13 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   display: inline-block;
   transform: translateY(110%);
   transition: transform 1s var(--ease-out);
-  will-change: transform;
 }
+/* Promote to its own layer ONLY while the word is still waiting to rise.
+   Once revealed we drop the hint so the compositor can collapse the
+   layer — a permanent `will-change` left every revealed word on its own
+   GPU layer, and those lingering layers smeared / "stuck" as fragments
+   during scroll (especially over the backdrop-filtered sections). */
+.word-mask:not(.is-in) .word-mask__inner { will-change: transform; }
 .word-mask.is-in .word-mask__inner { transform: translateY(0); }
 
 /* Line-mask — same idea but per measured line, built by buildLineReveals
@@ -1483,8 +1488,10 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   display: block;
   transform: translateY(110%);
   transition: transform 1.05s var(--ease-out);
-  will-change: transform;
 }
+/* Same one-shot promotion as .word-mask__inner — drop will-change once
+   the line has risen so the layer doesn't linger and smear on scroll. */
+.line-mask:not(.is-in) .line-mask__inner { will-change: transform; }
 .line-mask.is-in .line-mask__inner { transform: translateY(0); }
 
 /* Top scroll-progress bar — kept lightweight; .scroll-progress already

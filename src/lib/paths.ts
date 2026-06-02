@@ -5,10 +5,9 @@
 
 import type { Lang } from '../data/i18n';
 
-export type RouteKey = 'home' | 'menu' | 'events' | 'about';
+export type RouteKey = 'menu' | 'events' | 'about';
 
 const SEGMENTS: Record<RouteKey, string> = {
-  home:   '',
   menu:   'menu',
   events: 'events',
   about:  'about',

@@ -25,7 +25,7 @@
 // section each card appears under in /admin/images, and the order within
 // it (kept the same as the photo's real scroll order on the page).
 
-export type PhotoGroup = 'home' | 'menu' | 'about';
+export type PhotoGroup = 'home' | 'menu' | 'events' | 'about';
 
 export interface PhotoMeta {
   key:          string;       // PHOTOS map key (e.g. 'hero')
@@ -36,6 +36,8 @@ export interface PhotoMeta {
   fallbackKey?: string;       // serve this key's override if `key` has none
   reused?:      boolean;      // the same image shows in more than one spot
   reserved?:    boolean;      // defined but not currently shown on the site
+  optional?:    boolean;      // optional slot — only appears once an image is
+                              // uploaded; an empty slot is hidden, not broken
 }
 
 export const PHOTO_CATALOGUE: PhotoMeta[] = [
@@ -43,37 +45,44 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
   { key: 'hero',     filename: 'MOYAL-00009.jpg', group: 'home',
     label: 'Hero',                where: 'Top of the home page — also the social-share preview image' },
   { key: 'moodDining', filename: 'MOYAL-09221.jpg', group: 'home',
-    label: 'Story / menu backdrop', where: 'Darkened photo behind the opening story text, and the full-frame “menu split” section' },
-  { key: 'kitchen',  filename: 'MOYAL-09689.jpg', group: 'home', reused: true,
-    label: 'Kitchen — full bleed', where: 'Full-width band after the story (also reused as the menu-preview “mains” chapter)' },
-  { key: 'dish',     filename: 'MOYAL-00020.jpg', group: 'home',
-    label: 'The kitchen — photo block', where: 'Beside the “open kitchen” text' },
-  { key: 'moodChef', filename: 'MOYAL-09251.jpg', group: 'home',
-    label: 'Pull-quote backdrop', where: 'Darkened photo behind the chef pull-quote' },
-  { key: 'menuFood', filename: 'MOYAL-00029.jpg', group: 'home',
-    label: 'Menu preview · Starters',  where: 'Chapter 01 of the home-page menu preview' },
-  { key: 'menuCocktails', filename: 'MOYAL-09569.jpg', group: 'home',
-    label: 'Menu preview · Cocktails', where: 'Chapter 03 of the home-page menu preview' },
-  { key: 'menuDessert', filename: 'MOYAL-00084.jpg', group: 'home',
-    label: 'Menu preview · Desserts',  where: 'Chapter 04 of the home-page menu preview' },
+    label: 'Story backdrop', where: 'Darkened photo behind the opening story text' },
+  { key: 'kitchen',  filename: 'MOYAL-09689.jpg', group: 'home',
+    label: 'Kitchen — full bleed', where: 'Full-width band after the story' },
+  { key: 'menuSplit', filename: 'menu-split.jpg', group: 'home', fallbackKey: 'kitchen',
+    label: 'Menu-split background', where: 'Full-frame “the menu” section (food · wine · cocktails · dessert)' },
   { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home',
-    label: 'Gallery 1 · Interior', where: 'First photo of the four-shot home gallery' },
+    label: 'Gallery 1 · Interior', where: 'First photo of the home gallery' },
   { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home',
     label: 'Gallery 2 · Chef',     where: 'Second photo of the home gallery' },
   { key: 'bar',      filename: 'MOYAL-09574.jpg', group: 'home',
     label: 'Gallery 3 · Bar',      where: 'Third photo of the home gallery' },
   { key: 'wine',     filename: 'MOYAL-09832.jpg', group: 'home',
     label: 'Gallery 4 · Wine bar', where: 'Fourth photo of the home gallery' },
+  // Optional gallery slots 5–10. Empty by default; upload one to add it to
+  // the home-page gallery (max 10 photos). Empty slots are hidden on the
+  // site, never shown as blanks.
+  { key: 'gallery5',  filename: 'gallery-5.jpg',  group: 'home', optional: true,
+    label: 'Gallery 5 · Extra', where: 'Optional 5th home-gallery photo — shows only if uploaded' },
+  { key: 'gallery6',  filename: 'gallery-6.jpg',  group: 'home', optional: true,
+    label: 'Gallery 6 · Extra', where: 'Optional 6th home-gallery photo — shows only if uploaded' },
+  { key: 'gallery7',  filename: 'gallery-7.jpg',  group: 'home', optional: true,
+    label: 'Gallery 7 · Extra', where: 'Optional 7th home-gallery photo — shows only if uploaded' },
+  { key: 'gallery8',  filename: 'gallery-8.jpg',  group: 'home', optional: true,
+    label: 'Gallery 8 · Extra', where: 'Optional 8th home-gallery photo — shows only if uploaded' },
+  { key: 'gallery9',  filename: 'gallery-9.jpg',  group: 'home', optional: true,
+    label: 'Gallery 9 · Extra', where: 'Optional 9th home-gallery photo — shows only if uploaded' },
+  { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true,
+    label: 'Gallery 10 · Extra', where: 'Optional 10th home-gallery photo — shows only if uploaded' },
   { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home',
     label: 'Events — photo block', where: 'Beside the events text near the footer' },
 
   // ── MENU PAGES ─────────────────────────────────────────────────────
-  { key: 'menuIntro', filename: 'menu-intro.jpg', group: 'menu', fallbackKey: 'dish',
+  { key: 'menuIntro', filename: 'menu-intro.jpg', group: 'menu', fallbackKey: 'kitchen',
     label: 'Menu intro', where: 'Large photo at the top of every menu page' },
-  { key: 'menuWine', filename: 'MOYAL-09817.jpg', group: 'menu', reserved: true,
-    label: 'Wine', where: 'Reserved menu image — not shown on the site yet' },
-  { key: 'menuEvents', filename: 'MOYAL-09682.jpg', group: 'menu', reserved: true,
-    label: 'Events', where: 'Reserved menu image — not shown on the site yet' },
+
+  // ── EVENTS PAGE ────────────────────────────────────────────────────
+  { key: 'menuEvents', filename: 'MOYAL-09682.jpg', group: 'events', fallbackKey: 'detail2',
+    label: 'Events page photo', where: 'Full-width band near the top of the Events page' },
 
   // ── ABOUT PAGE (formerly Contact + Location) ───────────────────────
   { key: 'contact', filename: 'contact-page.jpg', group: 'about', fallbackKey: 'interior',
@@ -93,7 +102,8 @@ export const FILENAME_TO_KEY: Record<string, string> =
 
 /** Friendly, page-based grouping for the admin UI (rendered in this order). */
 export const PHOTO_GROUPS = {
-  home:  'Home page',
-  menu:  'Menu pages',
-  about: 'About page',
+  home:   'Home page',
+  menu:   'Menu pages',
+  events: 'Events page',
+  about:  'About page',
 } as const;

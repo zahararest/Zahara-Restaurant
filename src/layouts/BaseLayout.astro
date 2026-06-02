@@ -250,6 +250,32 @@ const schema = {
       <slot />
     </main>
     <Footer lang={lang} />
+
+    {/* Editable-copy overlay. The middleware injects the owner's saved
+        text as a <script id="zahara-content"> JSON blob in <head>; this
+        applies it to every [data-content-key] element. Runs synchronously
+        here (after the content is in the DOM, before Motion boots) so any
+        overridden heading is in place BEFORE the word-reveal splitter runs.
+        No network call — the data is already inline. */}
+    <script is:inline>
+      (function () {
+        var tag = document.getElementById('zahara-content');
+        if (!tag) return;
+        var data;
+        try { data = JSON.parse(tag.textContent || '{}'); } catch (e) { return; }
+        var lang = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'he';
+        var nodes = document.querySelectorAll('[data-content-key]');
+        for (var i = 0; i < nodes.length; i++) {
+          var node = nodes[i];
+          var entry = data[node.getAttribute('data-content-key')];
+          var v = entry && entry[lang];
+          if (typeof v !== 'string' || v === '') continue;
+          if (node.hasAttribute('data-content-html')) node.innerHTML = v;
+          else node.textContent = v;
+        }
+      })();
+    </script>
+
     {/* Motion owns every animation primitive — reveals, section HUD,
         parallax, progress bar, past-hero hand-off. Native browser scroll
         only; no Lenis. */}

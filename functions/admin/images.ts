@@ -16,8 +16,14 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAuth, unauthorized, type AuthEnv } from './auth';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
+import {
+  readContent, galleryCaptionKey, GALLERY_CAPTION_KEYS,
+  type ContentEnv, type ContentValue,
+} from '../data/content';
 
-interface Env extends AuthEnv { IMAGES?: R2Bucket; }
+interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
+
+const GALLERY_CAPTION_SET = new Set<string>(GALLERY_CAPTION_KEYS);
 
 const STYLE = `
   *, *::before, *::after { box-sizing: border-box; }
@@ -167,6 +173,7 @@ const STYLE = `
   .card__badge--override { background: #a88947; color: #fff; }
   .card__badge--missing  { background: #a53623; color: #fff; }
   .card__badge--fallback { background: #6f6457; color: #faf7ee; }
+  .card__badge--optional { background: #c9bda0; color: #1a1410; }
   .card__tags {
     position: absolute;
     inset-block-start: 0.5rem;
@@ -239,6 +246,15 @@ const STYLE = `
     color: #6b1a0e;
     line-height: 1.45;
   }
+  .card__optional-note {
+    margin: 0.4rem 0 0;
+    padding: 0.45rem 0.55rem;
+    background: #f3eddc;
+    border-inline-start: 3px solid #a88947;
+    font-size: 0.74rem;
+    color: #6f5a2e;
+    line-height: 1.45;
+  }
   .top__action {
     font: inherit;
     font-size: 0.72rem;
@@ -288,6 +304,22 @@ const STYLE = `
     color: #4f6b47;
   }
   .card__status--err { color: #a53623; }
+  .card__caption {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid #ece3d0;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .card__caption-label { margin: 0; font-size: 0.74rem; font-weight: 600; color: #6f6457; }
+  .card__caption-label span { display: block; font-weight: 400; color: #9a8d77; font-size: 0.68rem; }
+  .card__caption-input {
+    font: inherit; font-size: 0.82rem; width: 100%;
+    padding: 0.4rem 0.5rem; border: 1px solid #d8ccae; background: #fff; color: #1a1410;
+  }
+  .card__caption-input:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
+  .card__caption-status { margin: 0; min-height: 1.05em; font-size: 0.72rem; color: #4f6b47; }
+  .card__caption-status--err { color: #a53623; }
 
   /* ── Editor modal ────────────────────────────────────────────── */
   .editor {
@@ -446,6 +478,41 @@ const SCRIPT = `
       });
     }
 
+    // ── Gallery caption autosave ──────────────────────────────────────
+    // Delegated change handler: when a gallery photo's caption input loses
+    // focus, save just that key to the shared content store.
+    document.addEventListener('change', async (e) => {
+      const el = e.target;
+      if (!el || !el.matches || !el.matches('[data-caption-key]')) return;
+      const key  = el.getAttribute('data-caption-key');
+      const heEl = document.querySelector('[data-caption-key="' + key + '"][data-caption-lang="he"]');
+      const enEl = document.querySelector('[data-caption-key="' + key + '"][data-caption-lang="en"]');
+      const wrap = el.closest('.card__caption');
+      const statusEl = wrap ? wrap.querySelector('[data-caption-status]') : null;
+      function setS(m, err) {
+        if (!statusEl) return;
+        statusEl.textContent = m || '';
+        statusEl.classList.toggle('card__caption-status--err', !!err);
+      }
+      const map = {};
+      map[key] = { he: heEl ? heEl.value : '', en: enEl ? enEl.value : '' };
+      setS('Saving…', false);
+      try {
+        const res = await fetch('/admin/content/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ map: map }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Save failed');
+        setS('Saved', false);
+        try { new BroadcastChannel('zahara-content').postMessage({ action: 'saved' }); } catch (_) {}
+        setTimeout(() => setS('', false), 1800);
+      } catch (err) {
+        setS(String(err.message || err), true);
+      }
+    });
+
     function fmtKB(b) { return Math.round(b / 1024) + ' KB'; }
 
     // ── Per-card upload / remove wiring ───────────────────────────────
@@ -463,6 +530,8 @@ const SCRIPT = `
       const thumbZone = card.querySelector('[data-thumb-zone]');
       const fname = card.querySelector('[data-file-name]');
       const missingNote = card.querySelector('[data-missing-note]');
+      const optionalNote = card.querySelector('[data-optional-note]');
+      const isOptional = card.dataset.optional === '1';
 
       function setStatus(msg, err) {
         status.textContent = msg || '';
@@ -482,9 +551,10 @@ const SCRIPT = `
         setStatus('Saved · ' + fmtKB(sizeBytes), false);
         thumb.src = thumb.dataset.src + '?t=' + Date.now();
         badge.textContent = 'Override';
-        badge.classList.remove('card__badge--missing', 'card__badge--fallback');
+        badge.classList.remove('card__badge--missing', 'card__badge--fallback', 'card__badge--optional');
         badge.classList.add('card__badge--override');
-        if (missingNote) missingNote.hidden = true;
+        if (missingNote)  missingNote.hidden = true;
+        if (optionalNote) optionalNote.hidden = true;
         try { new BroadcastChannel('zahara-images').postMessage({ key, action: 'set' }); } catch (_) {}
       }
 
@@ -554,7 +624,10 @@ const SCRIPT = `
       });
 
       del.addEventListener('click', async () => {
-        if (!confirm('Remove override and revert to the default photo?')) return;
+        const ask = isOptional
+          ? 'Remove this photo from the gallery? The slot will go back to empty.'
+          : 'Remove override and revert to the default photo?';
+        if (!confirm(ask)) return;
         const fd = new FormData();
         fd.append('key', key);
         submit.disabled = true; del.disabled = true; editB.disabled = true;
@@ -563,13 +636,18 @@ const SCRIPT = `
           const res = await fetch('/admin/images/delete', { method: 'POST', body: fd });
           const data = await res.json();
           if (!res.ok || !data.ok) throw new Error(data.error || 'Delete failed');
-          setStatus('Reverted to default', false);
+          setStatus(isOptional ? 'Removed — slot is empty' : 'Reverted to default', false);
           thumb.src = thumb.dataset.fallback + '?t=' + Date.now();
-          badge.textContent = card.dataset.fallbackLabel || 'Default';
-          badge.classList.remove('card__badge--override');
+          badge.classList.remove('card__badge--override', 'card__badge--fallback', 'card__badge--optional', 'card__badge--missing');
           if (card.dataset.fallbackLabel) {
+            badge.textContent = card.dataset.fallbackLabel;
             badge.classList.add('card__badge--fallback');
+          } else if (isOptional) {
+            badge.textContent = 'Empty';
+            badge.classList.add('card__badge--optional');
+            if (optionalNote) optionalNote.hidden = false;
           } else {
+            badge.textContent = 'Missing';
             badge.classList.add('card__badge--missing');
             if (missingNote) missingNote.hidden = false;
           }
@@ -623,12 +701,16 @@ const SCRIPT = `
       const applyB = document.getElementById('ed-apply');
       const cancelB= document.getElementById('ed-cancel');
       const compareB = document.getElementById('ed-compare');
+      const rotateLB = document.getElementById('ed-rotate-l');
+      const rotateRB = document.getElementById('ed-rotate-r');
+      const rotateV  = document.getElementById('ed-rotate-v');
 
       let img = null;             // the loaded HTMLImageElement
       let ctxState = null;        // { key, onSaved }
       let panX = 0, panY = 0;     // -0.5 … 0.5 crop offset
       let dirty = false;          // true once any control changes
       let comparing = false;      // press-and-hold "before" view
+      let rotation = 0;           // degrees, multiple of 90 (baked into export)
       const PREVIEW_MAX = 520;    // px — preview canvas longest edge
 
       function markDirty() { dirty = true; }
@@ -699,26 +781,47 @@ const SCRIPT = `
         vals.contrast.textContent   = inputs.contrast.value + '%';
         vals.saturate.textContent   = inputs.saturate.value + '%';
         vals.zoom.textContent       = parseFloat(inputs.zoom.value).toFixed(2) + '×';
+        if (rotateV) rotateV.textContent = rotation + '\\u00B0';
         bwChip.classList.toggle('is-on', inputs.grayscale.value === '100');
+      }
+
+      function setRotation(deg) {
+        rotation = ((deg % 360) + 360) % 360;
+        markDirty();
+        drawPreview();
       }
 
       function drawPreview() {
         if (!img) return;
-        const ar = img.naturalWidth / img.naturalHeight;
-        let pw = PREVIEW_MAX, ph = Math.round(PREVIEW_MAX / ar);
-        if (ph > PREVIEW_MAX) { ph = PREVIEW_MAX; pw = Math.round(PREVIEW_MAX * ar); }
-        canvas.width = pw; canvas.height = ph;
+        const cropAR = img.naturalWidth / img.naturalHeight;
         // When the user is holding "Compare" we draw the un-cropped, un-
-        // adjusted source so they can see what they started with.
+        // rotated, un-adjusted source so they can see what they started with.
         if (comparing) {
+          let pw = PREVIEW_MAX, ph = Math.round(PREVIEW_MAX / cropAR);
+          if (ph > PREVIEW_MAX) { ph = PREVIEW_MAX; pw = Math.round(PREVIEW_MAX * cropAR); }
+          canvas.width = pw; canvas.height = ph;
           ctx.clearRect(0, 0, pw, ph);
           ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, pw, ph);
           syncLabels();
           return;
         }
+        // 90°/270° rotations swap the displayed aspect ratio.
+        const rot90  = rotation % 180 !== 0;
+        const dispAR = rot90 ? (1 / cropAR) : cropAR;
+        let pw = PREVIEW_MAX, ph = Math.round(PREVIEW_MAX / dispAR);
+        if (ph > PREVIEW_MAX) { ph = PREVIEW_MAX; pw = Math.round(PREVIEW_MAX * dispAR); }
+        canvas.width = pw; canvas.height = ph;
+
         const { sx, sy, sw, sh } = cropRect();
         ctx.clearRect(0, 0, pw, ph);
-        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, pw, ph);
+        ctx.save();
+        ctx.translate(pw / 2, ph / 2);
+        if (rotation) ctx.rotate(rotation * Math.PI / 180);
+        const dw = rot90 ? ph : pw;
+        const dh = rot90 ? pw : ph;
+        ctx.drawImage(img, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
+        ctx.restore();
+
         const o = currentOpts();
         if (needsAdjust(o)) {
           try {
@@ -738,12 +841,21 @@ const SCRIPT = `
         const targetW = inputs.width.value === 'orig'
           ? Math.round(sw)
           : Math.min(parseInt(inputs.width.value, 10), Math.round(sw));
-        const outW = Math.max(1, Math.round(targetW));
-        const outH = Math.max(1, Math.round(outW * sh / sw));
+        // Unrotated output dimensions (the resize cap applies to the
+        // pre-rotation width, matching what the user sees as "width").
+        const baseW = Math.max(1, Math.round(targetW));
+        const baseH = Math.max(1, Math.round(baseW * sh / sw));
+        const rot90 = rotation % 180 !== 0;
+        const outW  = rot90 ? baseH : baseW;
+        const outH  = rot90 ? baseW : baseH;
         const off = document.createElement('canvas');
         off.width = outW; off.height = outH;
         const octx = off.getContext('2d');
-        octx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+        octx.save();
+        octx.translate(outW / 2, outH / 2);
+        if (rotation) octx.rotate(rotation * Math.PI / 180);
+        octx.drawImage(img, sx, sy, sw, sh, -baseW / 2, -baseH / 2, baseW, baseH);
+        octx.restore();
         const o = currentOpts();
         if (needsAdjust(o)) {
           const id = octx.getImageData(0, 0, outW, outH);
@@ -770,6 +882,7 @@ const SCRIPT = `
         inputs.width.value = '2000';
         inputs.quality.value = '0.85';
         panX = 0; panY = 0;
+        rotation = 0;
         dirty = false;
         drawPreview();
       }
@@ -826,6 +939,8 @@ const SCRIPT = `
         markDirty();
         drawPreview();
       });
+      if (rotateLB) rotateLB.addEventListener('click', () => setRotation(rotation - 90));
+      if (rotateRB) rotateRB.addEventListener('click', () => setRotation(rotation + 90));
       resetB.addEventListener('click', () => { reset(); markDirty(); });
       cancelB.addEventListener('click', tryClose);
       root.addEventListener('click', (e) => { if (e.target === root) tryClose(); });
@@ -921,6 +1036,7 @@ function renderCard(
   hasOverride: boolean,
   fallbackFromLabel: string | null,
   version: number,
+  caption: ContentValue | null,
 ): string {
   // Two URLs:
   //   src      — the URL currently shown (override-aware via middleware)
@@ -931,7 +1047,8 @@ function renderCard(
   if (p.reused)   tags.push('<span class="card__tag">Shared</span>');
   if (p.reserved) tags.push('<span class="card__tag">Not shown</span>');
 
-  // Tri-state badge: own override / fallback from parent / missing entirely.
+  // Badge: own override / fallback from parent / empty optional slot /
+  // missing entirely.
   let badgeClass = '';
   let badgeText = 'Default';
   if (hasOverride) {
@@ -940,15 +1057,21 @@ function renderCard(
   } else if (fallbackFromLabel) {
     badgeClass = 'card__badge--fallback';
     badgeText  = 'Using ' + fallbackFromLabel;
+  } else if (p.optional) {
+    // Optional slots are empty by design — not an error.
+    badgeClass = 'card__badge--optional';
+    badgeText  = 'Empty';
   } else if (!p.reserved) {
     badgeClass = 'card__badge--missing';
     badgeText  = 'Missing';
   }
 
-  const showMissingNote = !hasOverride && !fallbackFromLabel && !p.reserved;
+  const showMissingNote  = !hasOverride && !fallbackFromLabel && !p.reserved && !p.optional;
+  const showOptionalNote = !hasOverride && !!p.optional;
 
   return `
     <article class="card" data-photo-card="${esc(p.key)}" data-label="${esc(p.label)}"
+             ${p.optional ? 'data-optional="1"' : ''}
              ${fallbackFromLabel ? `data-fallback-label="${esc('Using ' + fallbackFromLabel)}"` : ''}>
       <div class="card__thumb" data-thumb-zone>
         <img data-thumb data-src="/photos/${esc(p.filename)}" data-fallback="${esc(fallback)}"
@@ -963,6 +1086,9 @@ function renderCard(
         <p class="card__token"><code>${esc(p.key)}</code></p>
         <p class="card__missing-note" data-missing-note ${showMissingNote ? '' : 'hidden'}>
           No image stored — visitors see a broken photo here. Upload one to fix.
+        </p>
+        <p class="card__optional-note" data-optional-note ${showOptionalNote ? '' : 'hidden'}>
+          Optional slot — empty. Upload a photo to add it to the home gallery.
         </p>
       </header>
       <div class="card__actions">
@@ -979,6 +1105,17 @@ function renderCard(
           <button class="btn btn--ghost" type="button" data-btn-delete>Remove override</button>
         </div>
         <p class="card__status" data-status></p>
+        ${caption ? `
+        <div class="card__caption">
+          <p class="card__caption-label">Gallery caption <span>shown on this photo in the home gallery</span></p>
+          <input class="card__caption-input" type="text" dir="rtl"
+                 data-caption-key="${esc(galleryCaptionKey(p.key))}" data-caption-lang="he"
+                 value="${esc(caption.he ?? '')}" placeholder="כיתוב (עברית)" />
+          <input class="card__caption-input" type="text" dir="ltr"
+                 data-caption-key="${esc(galleryCaptionKey(p.key))}" data-caption-lang="en"
+                 value="${esc(caption.en ?? '')}" placeholder="Caption (English)" />
+          <p class="card__caption-status" data-caption-status></p>
+        </div>` : ''}
       </div>
     </article>
   `;
@@ -1001,6 +1138,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       console.warn('[admin/images] R2 list failed', err);
     }
   }
+
+  // Current gallery captions (so each gallery card pre-fills its inputs).
+  const content = await readContent(env);
 
   // Single version stamp so all thumbs cache-bust together on reload.
   const v = Date.now();
@@ -1026,8 +1166,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
               const fallbackFromLabel = !hasOverride && p.fallbackKey && overrideSet.has(p.fallbackKey)
                 ? labelOf(p.fallbackKey)
                 : null;
-              if (!hasOverride && !fallbackFromLabel && !p.reserved) missingCount++;
-              return renderCard(p, hasOverride, fallbackFromLabel, v);
+              if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional) missingCount++;
+              const caption = GALLERY_CAPTION_SET.has(p.key)
+                ? (content[galleryCaptionKey(p.key)] ?? {})
+                : null;
+              return renderCard(p, hasOverride, fallbackFromLabel, v, caption);
             }).join('')}
           </div>
         </section>
@@ -1058,6 +1201,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       <a class="top__brand" href="/admin/">Zahara · Admin</a>
       <a class="top__navlink"            href="/admin/">Menu editor</a>
       <a class="top__navlink is-active"  href="/admin/images/" aria-current="page">Images</a>
+      <a class="top__navlink"            href="/admin/content/">Content</a>
       <a class="top__navlink"            href="/admin/colors/">Colors</a>
       <span class="top__spacer"></span>
       <button class="top__action" type="button" id="top-purge"
@@ -1102,6 +1246,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <div class="ctl">
           <div class="ctl__row"><label for="ed-zoom">Zoom / crop</label><span class="ctl__val" id="ed-zoom-v">1.00×</span></div>
           <input type="range" id="ed-zoom" min="1" max="4" step="0.01" value="1" />
+        </div>
+        <div class="ctl">
+          <div class="ctl__row"><label>Rotate</label><span class="ctl__val" id="ed-rotate-v">0°</span></div>
+          <div class="editor__toggles">
+            <button type="button" class="chip" id="ed-rotate-l" title="Rotate 90° counter-clockwise">↺ Left</button>
+            <button type="button" class="chip" id="ed-rotate-r" title="Rotate 90° clockwise">↻ Right</button>
+          </div>
         </div>
         <div class="ctl">
           <div class="ctl__row"><label for="ed-grayscale">Black &amp; white</label><span class="ctl__val" id="ed-grayscale-v">0%</span></div>

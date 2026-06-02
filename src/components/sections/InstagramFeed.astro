@@ -30,12 +30,13 @@ const t = {
 <section class="section-tight ig-section reveal-on-scroll">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow eyebrow--center">{t.eyebrow}</p>
+      <p class="eyebrow eyebrow--center" data-content-key="home.igEyebrow">{t.eyebrow}</p>
       <h2
         class="display"
         data-word-reveal
         data-word-reveal-delay="0.06"
         data-word-reveal-step="0.06"
+        data-content-key="home.igHeading"
       >{t.heading}</h2>
     </div>
   </div>
@@ -130,27 +131,36 @@ const t = {
 </script>
 
 <style>
-  .ig-section { overflow: hidden; }
+  /* Compact strip: this is a quiet "follow us" footer-ish moment, not a
+     full editorial section, so it gets tighter padding and a smaller
+     heading than the page's main sections. */
+  section.ig-section {
+    overflow: hidden;
+    padding-block: var(--space-l) var(--space-m);
+  }
+  .ig-section .section-head { margin-block-end: 0; }
+  .ig-section .eyebrow { margin-block-end: 0.35rem; }
+  .ig-section .display { font-size: var(--step-2); margin: 0; }
 
-  .ig-scroll-wrap { margin-block-start: var(--space-l); }
+  .ig-scroll-wrap { margin-block-start: var(--space-m); }
 
   .ig-scroll {
     display: flex;
-    gap: var(--space-xs);
+    gap: var(--space-2xs);
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     cursor: grab;
     padding-inline: var(--space-m);
-    padding-block-end: var(--space-s);
+    padding-block-end: var(--space-2xs);
     scrollbar-width: none;
   }
   .ig-scroll::-webkit-scrollbar { display: none; }
 
   .ig-card {
     position: relative;
-    flex: 0 0 clamp(130px, 20vw, 220px);
+    flex: 0 0 clamp(104px, 14vw, 150px);
     aspect-ratio: 1;
     scroll-snap-align: start;
     overflow: hidden;

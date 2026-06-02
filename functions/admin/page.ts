@@ -32,6 +32,7 @@ export function adminPage(): string {
       <a class="topbar__brand"                href="/admin/">Zahara · Admin</a>
       <a class="topbar__navlink is-active"    href="/admin/"        aria-current="page">Menu editor</a>
       <a class="topbar__navlink"              href="/admin/images/">Images</a>
+      <a class="topbar__navlink"              href="/admin/content/">Content</a>
       <a class="topbar__navlink"              href="/admin/colors/">Colors</a>
       <span class="topbar__spacer"></span>
       <a class="topbar__site" href="/" target="_blank" rel="noopener">View site ↗</a>

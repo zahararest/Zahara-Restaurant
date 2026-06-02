@@ -12,13 +12,13 @@ const t = pick(labels, lang);
 
 // Materialize the tab list for this language from the canonical category spec.
 interface Tab {
-  id:    'food' | 'dessert' | 'wine' | 'cocktails' | 'events';
+  id:    'food' | 'dessert' | 'wine' | 'cocktails' ;
   slug:  string;
   label: string;
   kind:  MenuKind;
 }
 
-const tabs: Tab[] = MENU_CATEGORIES.map(c => ({
+const tabs: Tab[] = MENU_CATEGORIES.map(c => ({ 
   id:    c.id,
   slug:  c.slugs[lang],
   label: t[c.labelKey],

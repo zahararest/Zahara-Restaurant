@@ -52,10 +52,22 @@ const t        = pick(copy, lang);
 const title           = lang === 'he' ? 'בית' : 'Home';
 const kitchenCaption  = lang === 'he' ? 'המטבח של זהרה' : 'The Zahara kitchen';
 
-// Tightened gallery: four-shot edit (interior, chef, bar, wine).
+// Gallery: a four-shot base edit (interior, chef, bar, wine) that always
+// shows, plus up to six optional slots the admin can fill in /admin/images.
+// Empty optional slots are hidden client-side, so the gallery grows from 4
+// up to 10 photos without ever showing a blank frame.
 const galleryPhotos   = [
   PHOTOS.interior, PHOTOS.chef, PHOTOS.bar, PHOTOS.wine,
 ];
+const galleryOptional = [
+  PHOTOS.gallery5, PHOTOS.gallery6, PHOTOS.gallery7,
+  PHOTOS.gallery8, PHOTOS.gallery9, PHOTOS.gallery10,
+];
+// Per-photo caption content keys (edited per photo in /admin/images),
+// parallel to the photo arrays above.
+const galleryCaptionKeys  = ['interior', 'chef', 'bar', 'wine'].map(k => `gallery.caption.${k}`);
+const galleryOptionalCaptionKeys =
+  ['gallery5', 'gallery6', 'gallery7', 'gallery8', 'gallery9', 'gallery10'].map(k => `gallery.caption.${k}`);
 
 const sec = {
   hero:      lang === 'he' ? 'בית'        : 'Open',
@@ -179,20 +191,11 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
 ---
 
 <BaseLayout title={title} lang={lang} transparentHeader>
-  {/* Preload only what's truly above the fold: the first cinematic
-      chapter photo and the moodDining backdrop behind the story.
-      Chapters 2–4 load lazily; preloading them races the LCP path for
-      no gain. */}
-  <Fragment slot="head">
-    <link
-      rel="preload"
-      as="image"
-      href={resized(chapters[0].photo.src, 1800)}
-      imagesrcset={resizedSrcset(chapters[0].photo.src, CHAPTER_WIDTHS)}
-      imagesizes="100vw"
-    />
-    <link rel="preload" as="image" href={resized(PHOTOS.moodDining.src, 1600)} />
-  </Fragment>
+  {/* The hero photo (the LCP) is already loaded eager + fetchpriority=high
+      inside HeroBleed, so it needs no extra <link rel=preload>. We used to
+      preload a cinematic-chapter photo here, but that section is gone — the
+      preload just fetched an unused image (and 415'd for any photo without
+      an R2 override), so it was removed. */}
 
   <div data-section-name={sec.hero}>
     <HeroBleed lang={lang} photo={PHOTOS.hero} />
@@ -217,6 +220,9 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
         eyebrow={t.storyEyebrow}
         heading={t.storyHeading}
         paragraphs={[t.storyP1, t.storyP2, t.storyP3]}
+        eyebrowKey="home.storyEyebrow"
+        headingKey="home.storyHeading"
+        paragraphKeys={['home.storyP1', 'home.storyP2', 'home.storyP3']}
       />
     </div>
     <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
@@ -353,10 +359,10 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     <div class="menu-split__media" aria-hidden="true">
       <img
         class="menu-split__img"
-        src={resized(PHOTOS.moodDining.src, 1800)}
-        srcset={resizedSrcset(PHOTOS.moodDining.src, CHAPTER_WIDTHS)}
+        src={resized(PHOTOS.menuSplit.src, 1800)}
+        srcset={resizedSrcset(PHOTOS.menuSplit.src, CHAPTER_WIDTHS)}
         sizes="100vw"
-        alt={PHOTOS.moodDining.alt[lang]}
+        alt={PHOTOS.menuSplit.alt[lang]}
         loading="lazy"
         decoding="async"
       />
@@ -364,33 +370,52 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     <div class="menu-split__overlay" aria-hidden="true"></div>
 
     <div class="menu-split__inner wrap reveal-on-scroll">
-      <p class="eyebrow eyebrow--on-photo">{t.menuSplitEyebrow}</p>
+      <p class="eyebrow eyebrow--on-photo" data-content-key="home.menuSplitEyebrow">{t.menuSplitEyebrow}</p>
       <h2
         class="display menu-split__title"
         data-word-reveal
         data-word-reveal-delay="0.08"
         data-word-reveal-step="0.06"
+        data-content-key="home.menuSplitHeading"
+        data-content-html
         set:html={t.menuSplitHeading}
       />
-      <p class="menu-split__lede">{t.menuSplitLede}</p>
+      <p class="menu-split__lede" data-content-key="home.menuSplitLede">{t.menuSplitLede}</p>
 
       <ol class="menu-split__parts stagger">
-        {[t.menuSplitFood, t.menuSplitWine, t.menuSplitCocktails, t.menuSplitDessert].map((label, i) => (
-          <li class="menu-split__part">
-            <span class="menu-split__num">{`0${i + 1}`.slice(-2)}</span>
-            <span class="menu-split__label">{label}</span>
+        {[
+          { label: t.menuSplitFood,      tab: 'food'      },
+          { label: t.menuSplitWine,      tab: 'wine'      },
+          { label: t.menuSplitCocktails, tab: 'cocktails' },
+          { label: t.menuSplitDessert,   tab: 'dessert'   },
+        ].map((part, i) => (
+          <li>
+            <a class="menu-split__part" href={`${menuPath}#tab-${part.tab}`}>
+              <span class="menu-split__num">{`0${i + 1}`.slice(-2)}</span>
+              <span class="menu-split__label">{part.label}</span>
+            </a>
           </li>
         ))}
       </ol>
 
       <div class="btn-row">
-        <a class="btn" href={menuPath}>{t.menuSplitCta}</a>
+        <a class="btn menu-split__cta" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
       </div>
     </div>
   </section>
 
   <div data-section-name={sec.gallery}>
-    <Gallery lang={lang} eyebrow={t.galleryEyebrow} heading={t.galleryHeading} photos={galleryPhotos} />
+    <Gallery
+      lang={lang}
+      eyebrow={t.galleryEyebrow}
+      heading={t.galleryHeading}
+      photos={galleryPhotos}
+      optionalPhotos={galleryOptional}
+      eyebrowKey="home.galleryEyebrow"
+      headingKey="home.galleryHeading"
+      captionKeys={galleryCaptionKeys}
+      optionalCaptionKeys={galleryOptionalCaptionKeys}
+    />
   </div>
 
    <div data-section-name={sec.events}>
@@ -400,7 +425,11 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
       eyebrow={t.eventsEyebrow}
       heading={t.eventsHeading}
       paragraphs={[t.eventsP1, t.eventsP2]}
-      cta={{ label: t.eventsCta, href: path('events', lang) }}
+      cta={{ label: t.eventsCta, href: path('events', lang), key: 'home.eventsCta' }}
+      cta2={{ label: t.eventsContactCta, href: `${path('about', lang)}#contact`, key: 'home.eventsContactCta' }}
+      eyebrowKey="home.eventsEyebrow"
+      headingKey="home.eventsHeading"
+      paragraphKeys={['home.eventsP1', 'home.eventsP2']}
       reverse
     />
    </div>
@@ -575,13 +604,25 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     border: 1px solid color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
     max-width: 30rem;
   }
+  .menu-split__parts > li { display: flex; }
+  /* Each part is a link straight to its section on the menu page. */
   .menu-split__part {
+    flex: 1;
     display: flex;
     align-items: baseline;
     gap: 0.7em;
     padding: 0.85rem 1.1rem;
     background: color-mix(in srgb, rgba(18, 13, 9, 1) 30%, transparent);
     backdrop-filter: blur(2px);
+    text-decoration: none;
+    transition: background 0.25s ease;
+  }
+  .menu-split__part:hover {
+    background: color-mix(in srgb, var(--paper-on-photo) 14%, rgba(18, 13, 9, 0.45));
+  }
+  .menu-split__part:focus-visible {
+    outline: 2px solid var(--paper-on-photo);
+    outline-offset: -2px;
   }
   .menu-split__num {
     font-family: var(--font-body);
@@ -594,10 +635,12 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     font-size: var(--step-1);
     color: var(--paper-on-photo);
   }
-  /* The CTA reads as a paper-on-photo button against the dark wash. */
+  /* The CTA reads as a paper-on-photo button against the dark wash. Text
+     uses --shadow (near-black in BOTH themes) so it never disappears into
+     the cream fill when dark mode flips --ink to cream. */
   .menu-split .btn {
     background: var(--paper-on-photo);
-    color: var(--ink);
+    color: var(--shadow);
     border-color: var(--paper-on-photo);
   }
   .menu-split .btn:hover {

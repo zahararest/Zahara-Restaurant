@@ -8,9 +8,22 @@ export interface Props {
   eyebrow: string;
   heading: string;
   photos:  readonly PhotoEntry[];
+  /** Optional extra slots (admin-uploadable). Each only appears if its
+   *  image actually loads; slots whose photo 404s are removed client-side,
+   *  so the gallery never shows a blank frame. */
+  optionalPhotos?: readonly PhotoEntry[];
+  /** Admin-editable content keys. eyebrow/heading + a per-photo caption key
+   *  parallel to `photos` / `optionalPhotos` (data-content-key). */
+  eyebrowKey?:           string;
+  headingKey?:           string;
+  captionKeys?:          readonly string[];
+  optionalCaptionKeys?:  readonly string[];
 }
 
-const { lang, eyebrow, heading, photos } = Astro.props;
+const {
+  lang, eyebrow, heading, photos, optionalPhotos = [],
+  eyebrowKey, headingKey, captionKeys = [], optionalCaptionKeys = [],
+} = Astro.props;
 
 const WIDTHS = [800, 1200, 1600, 2400] as const;
 const prevLabel = lang === 'he' ? 'תמונה קודמת' : 'Previous photo';
@@ -20,27 +33,28 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
 <section class="gallery-scene" aria-label={eyebrow}>
   <div class="gallery-film" data-gallery aria-roledescription="carousel">
 
-    {/* Heading overlaid on the photo so the gallery fills exactly one frame */}
+    {/* Section eyebrow + heading — top corner, kept restrained so it sits
+        WITH the photography instead of fighting it. */}
     <div class="gallery-scene__head">
       <div class="reveal-on-scroll">
-        <p class="eyebrow eyebrow--center eyebrow--on-photo">{eyebrow}</p>
+        <p class="eyebrow eyebrow--on-photo" data-content-key={eyebrowKey}>{eyebrow}</p>
         <h2
-          class="display"
+          class="gallery-scene__title"
           data-word-reveal
           data-word-reveal-delay="0.06"
           data-word-reveal-step="0.06"
+          data-content-key={headingKey}
         >{heading}</h2>
       </div>
     </div>
 
-    {/* Slides */}
+    {/* Base slides — always shown. Each carries an (optional) editable
+        caption, shown only while its slide is active. */}
     {photos.map((p, i) => (
       <div
         class={`gallery-film__slide${i === 0 ? ' is-active' : ''}`}
-        data-slide={i}
         role="group"
         aria-roledescription="slide"
-        aria-label={`${i + 1} / ${photos.length}`}
         aria-hidden={i !== 0}
       >
         <img
@@ -52,6 +66,35 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
           loading={i === 0 ? 'eager' : 'lazy'}
           decoding={i === 0 ? 'sync' : 'async'}
         />
+        {captionKeys[i] && (
+          <p class="gallery-film__caption"><span data-content-key={captionKeys[i]}></span></p>
+        )}
+      </div>
+    ))}
+
+    {/* Optional slides — start `is-pending` (excluded from the carousel).
+        The script reveals each one whose image loads and drops any whose
+        image 404s, so empty admin slots never appear as blank frames. */}
+    {optionalPhotos.map((p, i) => (
+      <div
+        class="gallery-film__slide is-pending"
+        data-optional
+        role="group"
+        aria-roledescription="slide"
+        aria-hidden="true"
+      >
+        <img
+          class="gallery-film__img"
+          src={resized(p.src, 1600)}
+          srcset={resizedSrcset(p.src, WIDTHS)}
+          sizes="100vw"
+          alt={p.alt[lang]}
+          loading="lazy"
+          decoding="async"
+        />
+        {optionalCaptionKeys[i] && (
+          <p class="gallery-film__caption"><span data-content-key={optionalCaptionKeys[i]}></span></p>
+        )}
       </div>
     ))}
 
@@ -86,45 +129,82 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
       </svg>
     </button>
 
-    {/* Photo counter — bottom corner */}
+    {/* Photo counter — bottom corner. The total is updated client-side as
+        optional slots are confirmed or dropped. */}
     <div class="gallery-film__counter" aria-live="polite" aria-atomic="true">
       <span data-gallery-index>01</span>
       <span class="gallery-film__counter-sep" aria-hidden="true"> · </span>
-      <span class="gallery-film__counter-total">{String(photos.length).padStart(2, '0')}</span>
+      <span class="gallery-film__counter-total" data-gallery-total>{String(photos.length).padStart(2, '0')}</span>
     </div>
   </div>
 </section>
 
-<script is:inline define:vars={{ totalSlides: photos.length }}>
+<script is:inline>
   (function () {
     const film = document.querySelector('[data-gallery]');
     if (!film) return;
 
-    let current    = 0;
+    let current     = 0;          // index into the *live* slide list
     let isAnimating = false;
-    const slides   = Array.from(film.querySelectorAll('[data-slide]'));
-    const indexEl  = film.querySelector('[data-gallery-index]');
-    const reduce   = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const DURATION = reduce ? 0 : 700; // ms — crossfade length
+    const indexEl   = film.querySelector('[data-gallery-index]');
+    const totalEl   = film.querySelector('[data-gallery-total]');
+    const reduce    = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const DURATION  = reduce ? 0 : 700; // ms — crossfade length
 
-    function pad(n) { return String(n + 1).padStart(2, '0'); }
+    const pad = (n) => String(n).padStart(2, '0');
+
+    // Live slides = every slide that isn't still pending image confirmation.
+    function live() {
+      return Array.from(film.querySelectorAll('.gallery-film__slide:not(.is-pending)'));
+    }
+
+    // Keep the counter total and per-slide aria labels in sync with the
+    // current live set (it grows as optional slots confirm, shrinks if any
+    // fail to load).
+    function refreshMeta() {
+      const slides = live();
+      if (current >= slides.length) current = Math.max(0, slides.length - 1);
+      if (totalEl) totalEl.textContent = pad(slides.length);
+      slides.forEach((s, i) => s.setAttribute('aria-label', (i + 1) + ' / ' + slides.length));
+      if (indexEl) indexEl.textContent = pad(current + 1);
+    }
+
+    function show(next) {
+      const slides = live();
+      if (!slides.length) return;
+      current = ((next % slides.length) + slides.length) % slides.length;
+      slides.forEach((s, i) => {
+        const on = i === current;
+        s.classList.toggle('is-active', on);
+        s.setAttribute('aria-hidden', on ? 'false' : 'true');
+      });
+      if (indexEl) indexEl.textContent = pad(current + 1);
+    }
 
     function goTo(next) {
-      if (isAnimating || next === current) return;
+      if (isAnimating) return;
+      const slides = live();
+      if (slides.length < 2) return;
       isAnimating = true;
-
-      const prev   = current;
-      current      = ((next % totalSlides) + totalSlides) % totalSlides;
-
-      slides[prev].classList.remove('is-active');
-      slides[prev].setAttribute('aria-hidden', 'true');
-      slides[current].classList.add('is-active');
-      slides[current].setAttribute('aria-hidden', 'false');
-
-      if (indexEl) indexEl.textContent = pad(current);
-
+      show(next);
       setTimeout(() => { isAnimating = false; }, DURATION);
     }
+
+    // ── Probe optional slots — reveal on load, drop on error ──────────────
+    film.querySelectorAll('.gallery-film__slide[data-optional]').forEach((slide) => {
+      const img = slide.querySelector('img');
+      if (!img) { slide.remove(); return; }
+      const keep = () => { slide.classList.remove('is-pending'); refreshMeta(); };
+      const drop = () => { slide.remove(); refreshMeta(); };
+      if (img.complete) {
+        if (img.naturalWidth > 0) keep(); else drop();
+      } else {
+        img.addEventListener('load',  keep, { once: true });
+        img.addEventListener('error', drop, { once: true });
+      }
+    });
+
+    refreshMeta();
 
     // Prev / next buttons
     film.querySelector('[data-gallery-prev]')
@@ -154,24 +234,59 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
 <style>
   .gallery-scene { position: relative; overflow: hidden; }
 
-  /* Heading overlaid on the photo, top-centred, with a scrim for legibility */
+  /* Eyebrow + heading, top inline-start, with a soft top scrim for
+     legibility. Kept restrained (smaller, corner-set) so it reads as a
+     caption ON the photography rather than a banner fighting it. */
   .gallery-scene__head {
     position: absolute;
     inset-block-start: 0;
     inset-inline: 0;
     z-index: 4;
-    padding: calc(var(--header-h) + var(--space-l)) clamp(1.25rem, 4vw, 3rem) var(--space-xl);
-    text-align: center;
+    padding: calc(var(--header-h) + var(--space-m)) clamp(1.25rem, 4vw, 3rem) var(--space-xl);
+    text-align: start;
     pointer-events: none;
     background: linear-gradient(180deg,
-      color-mix(in srgb, var(--shadow) 50%, transparent) 0%,
-      color-mix(in srgb, var(--shadow) 18%, transparent) 55%,
+      color-mix(in srgb, var(--shadow) 45%, transparent) 0%,
+      color-mix(in srgb, var(--shadow) 14%, transparent) 55%,
       transparent 100%);
   }
-  .gallery-scene__head .display {
+  .gallery-scene__title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: var(--step-3);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
     color: var(--paper-on-photo);
-    margin: 0.4rem 0 0;
+    margin: 0.35rem 0 0;
+    max-width: 18ch;
     text-shadow: 0 2px 24px color-mix(in srgb, var(--shadow) 35%, transparent);
+  }
+
+  /* Per-photo caption — bottom inline-start, shown only on the active
+     slide. Empty (no admin caption set) → nothing renders. */
+  .gallery-film__caption {
+    position: absolute;
+    inset-block-end: clamp(1.5rem, 6vh, 3.5rem);
+    inset-inline-start: clamp(1.25rem, 4vw, 3rem);
+    margin: 0;
+    max-width: min(42ch, 70%);
+    z-index: 3;
+    pointer-events: none;
+    font-family: var(--font-display);
+    font-size: var(--step-2);
+    line-height: 1.15;
+    color: var(--paper-on-photo);
+    text-shadow: 0 2px 18px color-mix(in srgb, var(--shadow) 55%, transparent);
+    opacity: 0;
+    transform: translateY(0.4rem);
+    transition: opacity 0.7s var(--ease-out) 0.15s, transform 0.7s var(--ease-out) 0.15s;
+  }
+  .gallery-film__slide.is-active .gallery-film__caption {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gallery-film__caption { transition: none; transform: none; }
   }
 
   /* ── Full-bleed film strip — fills the viewport frame ──────────── */
@@ -191,9 +306,14 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
     inset: 0;
     opacity: 0;
     transition: opacity 0.7s ease;
-    will-change: opacity;
+    /* No `will-change: opacity` here: with up to 10 full-viewport slides it
+       blew Firefox's will-change budget (which then ignores it anyway). A
+       two-slide opacity crossfade composites fine without the hint. */
   }
   .gallery-film__slide.is-active { opacity: 1; }
+  /* Optional slots awaiting image confirmation: kept fully hidden and
+     non-interactive so a not-yet-loaded (or 404-ing) photo never flashes. */
+  .gallery-film__slide.is-pending { opacity: 0 !important; pointer-events: none; }
 
   .gallery-film__img {
     width: 100%;
@@ -261,6 +381,15 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
   .gallery-film__arrow:focus-visible {
     outline: 2px solid var(--paper-on-photo);
     outline-offset: -4px;
+  }
+
+  /* On desktop the fixed page scroll-rail sits ~1.3rem from the outer edge.
+     Pull the gallery arrows inward so their hit-area (and chevron) clears
+     the rail — otherwise the rail intercepts clicks meant for the arrow. */
+  @media (min-width: 721px) {
+    .gallery-film__arrow { width: clamp(56px, 9vw, 120px); }
+    .gallery-film__arrow--prev { inset-inline-start: 3.25rem; }
+    .gallery-film__arrow--next { inset-inline-end:   3.25rem; }
   }
 
   .gallery-film__chevron {

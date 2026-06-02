@@ -88,6 +88,8 @@ export const home = {
   infoReservLabel:  { he: 'להזמנות',           en: 'Reservations' },
   infoTabit:        { he: 'הזמנה בטאביט ↗',     en: 'Book on Tabit ↗' },
   infoChefLabel:    { he: 'השף',               en: 'Chef'         },
+  infoKosherLabel:  { he: 'כשרות',             en: 'Kosher'       },
+  infoKosherValue:  { he: 'רבנות ירושלים',     en: 'Rabbanut Yerushalayim' },
 
   storyEyebrow: { he: 'הסיפור', en: 'The story' },
 
@@ -173,6 +175,7 @@ export const home = {
   },
 
   eventsCta: { he: 'לפנייה לאירועים ↗', en: 'Inquire about events ↗' },
+  eventsContactCta: { he: 'צרו קשר', en: 'Contact us' },
 
   // ── Editorial signature ─────────────────────────────────────────────────────
   // A single magazine-style "masthead" line that sits below the hero. Encodes
@@ -281,6 +284,35 @@ export const contact = {
   aboutLede: {
     he: "מסעדת שף ים-תיכונית כשרה בקומת הכניסה של מלון נוצ׳ה ברחוב בן סירא, ירושלים. כאן תמצאו את כל הפרטים — איך מגיעים, ואיך ליצור איתנו קשר.",
     en: 'A kosher Mediterranean chef restaurant on the ground floor of Nucha Hotel, Ben Sira Street, Jerusalem. Everything you need is here — how to reach us, and how to get in touch.',
+  },
+
+  // ── About page: how the space is designed (four seating areas) ──────────────
+  designEyebrow: { he: 'החלל', en: 'The space' },
+  // [HTML] contains <br />
+  designHeading: {
+    he: 'ארבע דרכים<br />לשבת.',
+    en: 'Four ways<br />to sit.',
+  },
+  designLede: {
+    he: 'תכננו את זהרה כך שלכל ערב יש פינה משלו — מהמטבח הפתוח בפנים ועד האוויר הפתוח בחוץ.',
+    en: 'Zahara is laid out so every evening finds its own corner — from the open kitchen inside to the open air outside.',
+  },
+  // [HTML] each paragraph opens with <strong>
+  designInside: {
+    he: '<strong>ישיבה בפנים:</strong> אולם המסעדה סביב המטבח הפתוח — לב הבית, שבו רואים את השף עובד והצלחות יוצאות.',
+    en: '<strong>Indoor seating:</strong> the dining room wraps around the open kitchen — the heart of the house, where you watch the chef work and the plates leave the pass.',
+  },
+  designBar: {
+    he: '<strong>ישיבה בבר:</strong> כיסאות גבוהים מול הבר — המושב הראשון לקוקטייל או לכוס יין, לבד או בזוג.',
+    en: '<strong>At the bar:</strong> high stools facing the bar — the front-row seat for a cocktail or a glass of wine, alone or as a pair.',
+  },
+  designClosed: {
+    he: '<strong>מרפסת סגורה:</strong> ישיבה בחוץ בחלל מקורה ומחומם, ללא עישון — נעים לאורך כל השנה, גם בערבי החורף של ירושלים.',
+    en: "<strong>Enclosed terrace:</strong> covered, heated outdoor seating, non-smoking — comfortable year-round, even on Jerusalem's cooler evenings.",
+  },
+  designOpen: {
+    he: '<strong>מרפסת פתוחה:</strong> ישיבה בחוץ באוויר הפתוח, מתאימה לעישון — לערבים שבהם רוצים את השמיים מעל.',
+    en: '<strong>Open terrace:</strong> open-air outdoor seating, smoking welcome — for the nights you want the sky overhead.',
   },
 
   // ── Events page identity (dedicated event-inquiry page) ─────────────────────

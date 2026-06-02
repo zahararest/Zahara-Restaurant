@@ -57,6 +57,16 @@ export const PHOTOS = {
     alt: { he: 'השף עם דג',     en: 'The chef with a cut of fish' },
   },
 
+  // Full-frame "menu split" background on the home page. Its own key (split
+  // from moodDining, which still backs the story section) so the two
+  // sections use different photos and each can be swapped independently in
+  // /admin/images. Falls back to the `kitchen` override until a dedicated
+  // image is uploaded (see functions/data/photos-map.ts).
+  menuSplit: {
+    src: `${base}/menu-split.jpg`,
+    alt: { he: 'שולחן בזהרה', en: 'A table at Zahara' },
+  },
+
   // ── Menu-page imagery — per-category hero photos. ─────────────────
   menuFood: {
     src: `${base}/MOYAL-00029.jpg`,
@@ -99,6 +109,18 @@ export const PHOTOS = {
     src: `${base}/location-page.jpg`,
     alt: { he: 'פנים המסעדה', en: 'Restaurant interior' },
   },
+
+  // ── Extra home-gallery slots (5–10). These have NO shipped default file;
+  // each only appears in the home-page gallery once an admin uploads an
+  // image for it via /admin/images. The gallery hides any slot whose photo
+  // doesn't load, so empty slots never show as blanks. (The first four
+  // gallery shots are `interior`, `chef`, `bar`, `wine` above.)
+  gallery5:  { src: `${base}/gallery-5.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
+  gallery6:  { src: `${base}/gallery-6.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
+  gallery7:  { src: `${base}/gallery-7.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
+  gallery8:  { src: `${base}/gallery-8.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
+  gallery9:  { src: `${base}/gallery-9.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
+  gallery10: { src: `${base}/gallery-10.jpg`, alt: { he: 'גלריה', en: 'Zahara gallery' } },
 } satisfies Record<string, PhotoEntry>;
 
 /** Hero photo shown above each menu category's content. */

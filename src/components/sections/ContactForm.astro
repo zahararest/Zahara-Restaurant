@@ -34,7 +34,7 @@ const eventTypes: { value: string; label: string }[] = [
 ];
 ---
 
-<section class="section-tight">
+<section class="section-tight" id="contact">
   <div class="wrap wrap--tight">
     {/* Toggle — two buttons that switch the form between modes. The
         underlying form keeps every field; mode = 'event' just unhides
@@ -103,26 +103,30 @@ const eventTypes: { value: string; label: string }[] = [
           <input id="email" name="email" type="email" required autocomplete="email" />
         </div>
 
-        {/* Event-only fields. JS toggles `data-event-only` visibility. */}
-        <div class="contact-event-fields" data-event-only hidden={!isEvent}>
-          <div class="form__row form__row--2">
-            <div class="field">
-              <label for="event_date">{t.fieldDate}</label>
-              <input id="event_date" name="event_date" type="date" />
+        {/* Event-only fields. Rendered only when the form can actually reach
+            event mode (the dedicated events page, or a page that shows the
+            general/event toggle). The general-only About form omits them. */}
+        {(isEvent || showToggle) && (
+          <div class="contact-event-fields" data-event-only hidden={!isEvent}>
+            <div class="form__row form__row--2">
+              <div class="field">
+                <label for="event_date">{t.fieldDate}</label>
+                <input id="event_date" name="event_date" type="date" />
+              </div>
+              <div class="field">
+                <label for="guests">{t.fieldGuests}</label>
+                <input id="guests" name="guests" type="number" min="2" max="80" />
+              </div>
             </div>
-            <div class="field">
-              <label for="guests">{t.fieldGuests}</label>
-              <input id="guests" name="guests" type="number" min="2" max="80" />
-            </div>
-          </div>
 
-          <div class="field">
-            <label for="event_type">{t.fieldType}</label>
-            <select id="event_type" name="event_type">
-              {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
-            </select>
+            <div class="field">
+              <label for="event_type">{t.fieldType}</label>
+              <select id="event_type" name="event_type">
+                {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
+              </select>
+            </div>
           </div>
-        </div>
+        )}
 
         <div class="field">
           <label for="message">{t.fieldMessage}</label>

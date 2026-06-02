@@ -1,9 +1,14 @@
 # Cloudflare Pages redirects
 
-# /events/ was renamed to /contact/ in 2026.
-/events/      /contact/      301
-/en/events/   /en/contact/   301
+# /contact/ and /location/ were folded into /about/ in 2026.
+# (NB: /events/ is a live page again — do NOT redirect it.)
+/contact/     /about/        301
+/en/contact/  /en/about/     301
+/location/    /about/        301
+/en/location/ /en/about/     301
 
-# /menu/v2/ removed — redirect to main menu.
+# Old menu prototypes removed — redirect to the main menu.
 /menu/v2/     /menu/         301
 /en/menu/v2/  /en/menu/      301
+/menu/v3/     /menu/         301
+/en/menu/v3/  /en/menu/      301

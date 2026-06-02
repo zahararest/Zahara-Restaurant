@@ -16,24 +16,24 @@ const display  = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
   <div class="wrap">
     <div class="info-strip__grid stagger reveal-on-scroll">
       <div class="info-strip__cell">
-        <div class="meta-block__label">{t.infoHoursLabel}</div>
-        <div class="meta-block__value">{t.infoHoursValue}</div>
+        <div class="meta-block__label" data-content-key="info.hoursLabel">{t.infoHoursLabel}</div>
+        <div class="meta-block__value" data-content-key="info.hoursValue">{t.infoHoursValue}</div>
       </div>
 
       <div class="info-strip__cell">
-        <div class="meta-block__label">{t.infoAddressLabel}</div>
-        <a class="meta-block__value" href={path('about', lang)}>{t.infoAddressValue}</a>
+        <div class="meta-block__label" data-content-key="info.addressLabel">{t.infoAddressLabel}</div>
+        <a class="meta-block__value" href={path('about', lang)} data-content-key="info.addressValue">{t.infoAddressValue}</a>
       </div>
 
       <div class="info-strip__cell">
-        <div class="meta-block__label">{t.infoReservLabel}</div>
-        <a class="meta-block__value"   href={`tel:${dial}`}>{display}</a>
-        <a class="info-strip__sub"     href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.infoTabit}</a>
+        <div class="meta-block__label" data-content-key="info.reservLabel">{t.infoReservLabel}</div>
+        <a class="meta-block__value"   href={`tel:${dial}`} data-content-key="info.reservValue">{display}</a>
+        <a class="info-strip__sub"     href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-content-key="info.reservTabit">{t.infoTabit}</a>
       </div>
 
       <div class="info-strip__cell">
-        <div class="meta-block__label">{t.infoChefLabel}</div>
-        <div class="meta-block__value">{RESTAURANT.chef[lang]}</div>
+        <div class="meta-block__label" data-content-key="info.kosherLabel">{t.infoKosherLabel}</div>
+        <div class="meta-block__value" data-content-key="info.kosherValue">{t.infoKosherValue}</div>
       </div>
     </div>
   </div>

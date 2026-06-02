@@ -12,12 +12,19 @@ export interface Props {
   /** Paragraphs in order. May contain inline HTML (rendered with set:html). */
   paragraphs: readonly string[];
   /** Optional CTA at the bottom of the block. */
-  cta?:       { label: string; href: string };
+  cta?:       { label: string; href: string; key?: string };
+  /** Optional secondary CTA, shown as a ghost button beside `cta`. */
+  cta2?:      { label: string; href: string; key?: string };
   /** Place the photo on the trailing edge (mirrored layout). */
   reverse?:   boolean;
+  /** Optional admin-editable content keys (data-content-key). */
+  eyebrowKey?:    string;
+  headingKey?:    string;
+  paragraphKeys?: readonly string[];
 }
 
-const { lang, photo, eyebrow, heading, paragraphs, cta, reverse = false } = Astro.props;
+const { lang, photo, eyebrow, heading, paragraphs, cta, cta2, reverse = false,
+        eyebrowKey, headingKey, paragraphKeys } = Astro.props;
 const classList = reverse ? 'photo-block photo-block--reverse' : 'photo-block';
 ---
 
@@ -28,18 +35,27 @@ const classList = reverse ? 'photo-block photo-block--reverse' : 'photo-block';
         <Photo src={photo.src} alt={photo.alt[lang]} aspect="4/5" />
       </div>
       <div class="photo-block__content stagger reveal-on-scroll">
-        <p class="eyebrow">{eyebrow}</p>
+        <p class="eyebrow" data-content-key={eyebrowKey}>{eyebrow}</p>
         <h2
           class="display"
           data-word-reveal
           data-word-reveal-delay="0.06"
           data-word-reveal-step="0.06"
+          data-content-key={headingKey}
+          data-content-html={headingKey ? '' : undefined}
           set:html={heading}
         />
-        {paragraphs.map(p => <p set:html={p} />)}
-        {cta && (
+        {paragraphs.map((p, i) => (
+          <p
+            data-content-key={paragraphKeys?.[i]}
+            data-content-html={paragraphKeys?.[i] ? '' : undefined}
+            set:html={p}
+          />
+        ))}
+        {(cta || cta2) && (
           <div class="btn-row">
-            <a class="btn" href={cta.href}>{cta.label}</a>
+            {cta  && <a class="btn"          href={cta.href}  data-content-key={cta.key}>{cta.label}</a>}
+            {cta2 && <a class="btn btn--ghost" href={cta2.href} data-content-key={cta2.key}>{cta2.label}</a>}
           </div>
         )}
       </div>

@@ -34,15 +34,15 @@ const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
   </div>
   <div class="hero-bleed__overlay" aria-hidden="true"></div>
   <div class="hero-bleed__inner">
-    <p class="eyebrow eyebrow--on-photo fade-up">{t.heroEyebrow}</p>
+    <p class="eyebrow eyebrow--on-photo fade-up" data-content-key="home.heroEyebrow">{t.heroEyebrow}</p>
     <h1
       class="display hero-bleed__title"
       data-word-reveal
       data-word-reveal-delay="0.15"
       data-word-reveal-step="0.08"
     >
-      {t.heroHeadline}
-      <span class="hero-bleed__title-mark">{t.heroTitleMark}</span>
+      <span data-content-key="home.heroHeadline">{t.heroHeadline}</span>
+      <span class="hero-bleed__title-mark" data-content-key="home.heroTitleMark">{t.heroTitleMark}</span>
     </h1>
     <!-- <p class="hero-bleed__lede fade-up" set:html={t.heroLede} /> -->
     <div class="btn-row fade-up">
