@@ -45,11 +45,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env, next, requ
             headers: {
               'Content-Type':  contentType,
               'ETag':          etag,
-              // Short max-age + long SWR. The admin uploads have to take
-              // effect on the live site quickly — anything longer than a
-              // minute and visitors keep seeing the old photo. ETag still
-              // makes the round-trip cheap (304 with no body).
-              'Cache-Control': 'public, max-age=60, stale-while-revalidate=86400',
+              // Short, NON-stale TTL. Admin uploads have to take effect on
+              // the live site quickly. This Cache-Control is what the
+              // Cloudflare Image Resizing layer (/cdn-cgi/image/…, the URLs
+              // the pages actually request) inherits for its own edge
+              // cache — so a long `stale-while-revalidate` here meant the
+              // RESIZED variants kept serving the old photo for up to a day,
+              // even after an upload + purge. We drop SWR entirely: after
+              // 60s the edge revalidates against R2 (cheap 304 via ETag) and
+              // picks up the new image everywhere within ~a minute.
+              'Cache-Control': 'public, max-age=60, must-revalidate',
             },
           });
         }

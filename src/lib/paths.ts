@@ -5,13 +5,13 @@
 
 import type { Lang } from '../data/i18n';
 
-export type RouteKey = 'home' | 'location' | 'contact' | 'menu';
+export type RouteKey = 'home' | 'menu' | 'events' | 'about';
 
 const SEGMENTS: Record<RouteKey, string> = {
-  home:     '',
-  location: 'location',
-  contact:  'contact',
-  menu:     'menu',
+  home:   '',
+  menu:   'menu',
+  events: 'events',
+  about:  'about',
 };
 
 export function path(key: RouteKey, lang: Lang): string {
@@ -30,4 +30,4 @@ export function altLangHref(currentPath: string, lang: Lang): string {
 }
 
 /** All site routes, in nav order — consumed by the header. */
-export const NAV_ORDER: RouteKey[] = ['home', 'location', 'menu', 'contact'];
+export const NAV_ORDER: RouteKey[] = ['menu', 'events', 'about'];

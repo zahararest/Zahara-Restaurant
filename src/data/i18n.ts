@@ -21,10 +21,9 @@ export function pick<T extends Record<string, { he: string; en: string }>>(
 // ── Header ──────────────────────────────────────────────────────────────────
 
 export const header = {
-  home:        { he: 'בית',            en: 'Home'      },
-  location:    { he: 'מיקום',          en: 'Location'  },
   menu:        { he: 'תפריט',          en: 'Menu'      },
-  contact:     { he: 'צור קשר',        en: 'Contact'   },
+  events:      { he: 'אירועים',        en: 'Events'    },
+  about:       { he: 'אודות',          en: 'About'     },
   reserve:     { he: 'הזמנה',          en: 'Reserve'   },
   rooftop:     { he: 'Nucha Rooftop', en: 'Nucha Rooftop' },
   rooftopSoon: { he: 'בקרוב',         en: 'Soon'         },
@@ -139,6 +138,21 @@ export const home = {
 
   galleryEyebrow: { he: 'גלריה',         en: 'Gallery'                   },
   galleryHeading: { he: 'הצצה לערב.',    en: 'A glimpse of the evening.' },
+
+  // ── Menu split — the full-frame "how the table is built" section that
+  // replaced the in-page menu preview. One photo, the four parts of the
+  // menu, and a single link through to the full menu page.
+  menuSplitEyebrow: { he: 'התפריט',           en: 'The menu'              },
+  menuSplitHeading: { he: 'שולחן אחד,<br />ארבעה חלקים.', en: 'One table,<br />four parts.' },
+  menuSplitLede: {
+    he: 'התפריט בנוי לשיתוף ונחלק לארבעה — אוכל מהמטבח, יין, קוקטיילים מהבר וקינוחים. הכול עובר בין כולם.',
+    en: 'Built to share and split into four — food from the kitchen, wine, cocktails from the bar, and dessert. Everything moves around the table.',
+  },
+  menuSplitFood:      { he: 'אוכל',      en: 'Food'      },
+  menuSplitWine:      { he: 'יין',       en: 'Wine'      },
+  menuSplitCocktails: { he: 'קוקטיילים', en: 'Cocktails' },
+  menuSplitDessert:   { he: 'קינוחים',   en: 'Dessert'   },
+  menuSplitCta:       { he: 'לתפריט המלא ↗', en: 'See the full menu ↗' },
 
   eventsEyebrow: { he: 'אירועים פרטיים', en: 'Private events' },
 
@@ -255,6 +269,30 @@ export const contact = {
   lede: {
     he: 'שאלות, בקשות מיוחדות, שיתופי פעולה — או אירוע שתרצו לסגור איתנו. בחרו את הטופס המתאים, ונחזור אליכם תוך יום עסקים.',
     en: "Questions, special requests, collaborations — or a private night you'd like to plan with us. Pick the form that fits, and we'll get back to you within one business day.",
+  },
+
+  // ── About page identity (the renamed Contact page) ──────────────────────────
+  aboutEyebrow: { he: 'אודות',          en: 'About'      },
+  // [HTML] contains <br />
+  aboutHeading: {
+    he: 'זהרה,<br />והדרך אלינו.',
+    en: 'Zahara,<br />and how to find us.',
+  },
+  aboutLede: {
+    he: "מסעדת שף ים-תיכונית כשרה בקומת הכניסה של מלון נוצ׳ה ברחוב בן סירא, ירושלים. כאן תמצאו את כל הפרטים — איך מגיעים, ואיך ליצור איתנו קשר.",
+    en: 'A kosher Mediterranean chef restaurant on the ground floor of Nucha Hotel, Ben Sira Street, Jerusalem. Everything you need is here — how to reach us, and how to get in touch.',
+  },
+
+  // ── Events page identity (dedicated event-inquiry page) ─────────────────────
+  eventsPageEyebrow: { he: 'אירועים פרטיים', en: 'Private events' },
+  // [HTML] contains <br />
+  eventsPageHeading: {
+    he: 'חלל פרטי,<br />ערב פרטי.',
+    en: 'Private space,<br />private night.',
+  },
+  eventsPageLede: {
+    he: 'המסעדה ניתנת לסגירה לאירועים פרטיים ועסקיים — חדר אינטימי לקבוצות קטנות, החלל המורחב לאירועי חברה, או המסעדה כולה. השאירו פרטים ונחזור אליכם תוך יום עסקים.',
+    en: 'The restaurant is available for private and corporate events — an intimate room for small groups, an extended space for company gatherings, or the entire room. Leave your details and we’ll get back to you within one business day.',
   },
 
   // ── Mode toggle ─────────────────────────────────────────────────────────────

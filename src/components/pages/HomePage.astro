@@ -222,7 +222,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
   </div>
 
-  <div data-section-name={sec.kitchen}>
+  <!-- <div data-section-name={sec.kitchen}>
     <PhotoBlock
       lang={lang}
       photo={PHOTOS.dish}
@@ -235,9 +235,9 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
          style={`--bg-photo: url(${resized(PHOTOS.moodChef.src, 1600)})`}>
       <PullQuote quote={t.pullQuote} attribution={t.pullQuoteAttr} />
     </div>
-  </div>
+  </div> -->
 
-  <div data-section-name={sec.menu}>
+  <!-- <div data-section-name={sec.menu}>
     {/* Table of contents — a "what you'll see" plate above the chapters.
         Pure typography; no chrome, no motion beyond the standard reveal. */}
     <section class="menu-toc">
@@ -344,27 +344,72 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
         </article>
       ))}
     </section>
-  </div>
+  </div> -->
+
+  {/* ── Menu split — full-frame photo that says how the table is built:
+      four parts (food / wine / cocktails / dessert), one link to the full
+      menu. Replaces the old in-page menu preview. */}
+  <section class="menu-split" data-section-name={sec.menu} aria-label={t.menuSplitEyebrow}>
+    <div class="menu-split__media" aria-hidden="true">
+      <img
+        class="menu-split__img"
+        src={resized(PHOTOS.moodDining.src, 1800)}
+        srcset={resizedSrcset(PHOTOS.moodDining.src, CHAPTER_WIDTHS)}
+        sizes="100vw"
+        alt={PHOTOS.moodDining.alt[lang]}
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+    <div class="menu-split__overlay" aria-hidden="true"></div>
+
+    <div class="menu-split__inner wrap reveal-on-scroll">
+      <p class="eyebrow eyebrow--on-photo">{t.menuSplitEyebrow}</p>
+      <h2
+        class="display menu-split__title"
+        data-word-reveal
+        data-word-reveal-delay="0.08"
+        data-word-reveal-step="0.06"
+        set:html={t.menuSplitHeading}
+      />
+      <p class="menu-split__lede">{t.menuSplitLede}</p>
+
+      <ol class="menu-split__parts stagger">
+        {[t.menuSplitFood, t.menuSplitWine, t.menuSplitCocktails, t.menuSplitDessert].map((label, i) => (
+          <li class="menu-split__part">
+            <span class="menu-split__num">{`0${i + 1}`.slice(-2)}</span>
+            <span class="menu-split__label">{label}</span>
+          </li>
+        ))}
+      </ol>
+
+      <div class="btn-row">
+        <a class="btn" href={menuPath}>{t.menuSplitCta}</a>
+      </div>
+    </div>
+  </section>
 
   <div data-section-name={sec.gallery}>
     <Gallery lang={lang} eyebrow={t.galleryEyebrow} heading={t.galleryHeading} photos={galleryPhotos} />
   </div>
 
-  <div data-section-name={sec.instagram}>
-    <InstagramFeed lang={lang} />
-  </div>
-
-  <div data-section-name={sec.events}>
+   <div data-section-name={sec.events}>
     <PhotoBlock
       lang={lang}
       photo={PHOTOS.detail2}
       eyebrow={t.eventsEyebrow}
       heading={t.eventsHeading}
       paragraphs={[t.eventsP1, t.eventsP2]}
-      cta={{ label: t.eventsCta, href: `${path('contact', lang)}?type=event` }}
+      cta={{ label: t.eventsCta, href: path('events', lang) }}
       reverse
     />
+   </div>
+   
+  <div data-section-name={sec.instagram}>
+    <InstagramFeed lang={lang} />
   </div>
+
+ 
 </BaseLayout>
 
 <script is:inline define:vars={{ hydrationPayload, lang }}>
@@ -472,3 +517,96 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     document.querySelectorAll('.menu-cinema__chapter').forEach((c) => c.classList.add('is-settled'));
   }
 </script>
+
+<style>
+  /* ── Menu split — full-frame photo, four parts of the menu, one CTA ──── */
+  .menu-split {
+    position: relative;
+    min-height: 100svh;
+    display: flex;
+    align-items: center;
+    overflow: clip;
+    isolation: isolate;
+  }
+  .menu-split__media {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+  }
+  .menu-split__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  /* Dark, slightly warm wash so the cream type reads in any theme. The
+     gradient is heavier toward the inline-start where the text sits. */
+  .menu-split__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      linear-gradient(to bottom, rgba(18, 13, 9, 0.55), rgba(18, 13, 9, 0.78)),
+      radial-gradient(120% 120% at 0% 50%, rgba(18, 13, 9, 0.5), transparent 60%);
+  }
+  .menu-split__inner {
+    color: var(--paper-on-photo);
+    padding-block: clamp(var(--space-2xl), 12vh, var(--space-3xl));
+    max-width: 56ch;
+  }
+  .menu-split__title {
+    color: var(--paper-on-photo);
+    margin-block: 0.4em 0.5em;
+  }
+  .menu-split__lede {
+    color: color-mix(in srgb, var(--paper-on-photo) 88%, transparent);
+    font-size: var(--step-0);
+    max-width: 46ch;
+    margin: 0;
+  }
+  .menu-split__parts {
+    list-style: none;
+    margin: clamp(var(--space-l), 5vh, var(--space-xl)) 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    background: color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
+    max-width: 30rem;
+  }
+  .menu-split__part {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7em;
+    padding: 0.85rem 1.1rem;
+    background: color-mix(in srgb, rgba(18, 13, 9, 1) 30%, transparent);
+    backdrop-filter: blur(2px);
+  }
+  .menu-split__num {
+    font-family: var(--font-body);
+    font-size: var(--step--2);
+    letter-spacing: 0.12em;
+    color: color-mix(in srgb, var(--paper-on-photo) 60%, transparent);
+  }
+  .menu-split__label {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    color: var(--paper-on-photo);
+  }
+  /* The CTA reads as a paper-on-photo button against the dark wash. */
+  .menu-split .btn {
+    background: var(--paper-on-photo);
+    color: var(--ink);
+    border-color: var(--paper-on-photo);
+  }
+  .menu-split .btn:hover {
+    background: transparent;
+    color: var(--paper-on-photo);
+    border-color: var(--paper-on-photo);
+  }
+
+  @media (max-width: 560px) {
+    .menu-split__parts { grid-template-columns: 1fr; max-width: none; }
+  }
+</style>

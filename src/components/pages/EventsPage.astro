@@ -1,0 +1,54 @@
+---
+// EventsPage — dedicated private/corporate event inquiry page, linked from
+// the header. Same editorial structure as the About page (intro, bleed
+// photo, benefits, form) but the form is locked to event mode: the
+// general/event toggle is hidden and every event-only field is shown.
+
+import BaseLayout    from '../../layouts/BaseLayout.astro';
+import BleedPhoto    from '../sections/BleedPhoto.astro';
+import ContactForm   from '../sections/ContactForm.astro';
+import { pick, contact as copy } from '../../data/i18n';
+import { PHOTOS }    from '../../data/photos';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+
+const { lang } = Astro.props;
+const t        = pick(copy, lang);
+const title    = lang === 'he' ? 'אירועים' : 'Events';
+
+const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFull];
+---
+
+<BaseLayout title={title} lang={lang}>
+  <section class="page-intro wrap">
+    <div class="stagger reveal-on-scroll">
+      <p class="eyebrow">{t.eventsPageEyebrow}</p>
+      <h1
+        class="display"
+        data-word-reveal
+        data-word-reveal-delay="0.08"
+        data-word-reveal-step="0.07"
+        set:html={t.eventsPageHeading}
+      />
+      <p class="lede-prose">{t.eventsPageLede}</p>
+    </div>
+  </section>
+
+  <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} height="clamp(280px, 50vh, 480px)" />
+
+  <section class="section-tight">
+    <div class="wrap">
+      <ul class="benefits stagger reveal-on-scroll">
+        {benefits.map((label, i) => (
+          <li class="benefit">
+            <span class="benefit__num">0{i + 1}</span>
+            <span class="benefit__text">{label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <ContactForm lang={lang} defaultMode="event" showToggle={false} />
+</BaseLayout>

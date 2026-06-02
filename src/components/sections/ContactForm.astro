@@ -12,10 +12,18 @@
 import { pick, contact as copy } from '../../data/i18n';
 import type { Lang }            from '../../data/i18n';
 
-export interface Props { lang: Lang }
+export interface Props {
+  lang: Lang;
+  /** Which mode the form opens in. Defaults to general. */
+  defaultMode?: 'general' | 'event';
+  /** Show the general/event toggle. Hide it on the dedicated events page. */
+  showToggle?: boolean;
+}
 
-const { lang } = Astro.props;
+const { lang, defaultMode = 'general', showToggle = true } = Astro.props;
 const t        = pick(copy, lang);
+
+const isEvent = defaultMode === 'event';
 
 const eventTypes: { value: string; label: string }[] = [
   { value: '',         label: t.typeChoose   },
@@ -30,37 +38,40 @@ const eventTypes: { value: string; label: string }[] = [
   <div class="wrap wrap--tight">
     {/* Toggle — two buttons that switch the form between modes. The
         underlying form keeps every field; mode = 'event' just unhides
-        the date/type/guests row. */}
-    <div class="contact-toggle reveal-on-scroll" role="tablist" aria-label={t.eyebrow}>
-      <button
-        class="contact-toggle__btn is-active"
-        type="button"
-        role="tab"
-        aria-selected="true"
-        data-contact-mode="general"
-        id="contact-mode-general"
-      >
-        <span class="contact-toggle__label">{t.modeGeneral}</span>
-        <span class="contact-toggle__caption">{t.modeGeneralCaption}</span>
-      </button>
-      <button
-        class="contact-toggle__btn"
-        type="button"
-        role="tab"
-        aria-selected="false"
-        data-contact-mode="event"
-        id="contact-mode-event"
-      >
-        <span class="contact-toggle__label">{t.modeEvent}</span>
-        <span class="contact-toggle__caption">{t.modeEventCaption}</span>
-      </button>
-      <span class="contact-toggle__indicator" aria-hidden="true"></span>
-    </div>
+        the date/type/guests row. Hidden on the dedicated events page,
+        which locks the form to event mode. */}
+    {showToggle && (
+      <div class="contact-toggle reveal-on-scroll" role="tablist" aria-label={t.eyebrow}>
+        <button
+          class={`contact-toggle__btn${isEvent ? '' : ' is-active'}`}
+          type="button"
+          role="tab"
+          aria-selected={isEvent ? 'false' : 'true'}
+          data-contact-mode="general"
+          id="contact-mode-general"
+        >
+          <span class="contact-toggle__label">{t.modeGeneral}</span>
+          <span class="contact-toggle__caption">{t.modeGeneralCaption}</span>
+        </button>
+        <button
+          class={`contact-toggle__btn${isEvent ? ' is-active' : ''}`}
+          type="button"
+          role="tab"
+          aria-selected={isEvent ? 'true' : 'false'}
+          data-contact-mode="event"
+          id="contact-mode-event"
+        >
+          <span class="contact-toggle__label">{t.modeEvent}</span>
+          <span class="contact-toggle__caption">{t.modeEventCaption}</span>
+        </button>
+        <span class="contact-toggle__indicator" aria-hidden="true"></span>
+      </div>
+    )}
 
     <div class="form-card stagger reveal-on-scroll" data-contact-card>
       <header class="form-card__head">
         <p class="eyebrow" data-form-eyebrow data-eyebrow-general={t.formEyebrowGeneral} data-eyebrow-event={t.formEyebrowEvent}>
-          {t.formEyebrowGeneral}
+          {isEvent ? t.formEyebrowEvent : t.formEyebrowGeneral}
         </p>
         <h2
           class="display"
@@ -70,11 +81,11 @@ const eventTypes: { value: string; label: string }[] = [
           data-word-reveal
           data-word-reveal-delay="0.06"
           data-word-reveal-step="0.06"
-        >{t.formHeadingGeneral}</h2>
+        >{isEvent ? t.formHeadingEvent : t.formHeadingGeneral}</h2>
       </header>
 
       <form class="form" method="POST" action="/api/contact" id="contact-form">
-        <input type="hidden" name="inquiry_type" value="general" data-inquiry-type />
+        <input type="hidden" name="inquiry_type" value={isEvent ? 'event' : 'general'} data-inquiry-type />
 
         <div class="form__row form__row--2">
           <div class="field">
@@ -93,7 +104,7 @@ const eventTypes: { value: string; label: string }[] = [
         </div>
 
         {/* Event-only fields. JS toggles `data-event-only` visibility. */}
-        <div class="contact-event-fields" data-event-only hidden>
+        <div class="contact-event-fields" data-event-only hidden={!isEvent}>
           <div class="form__row form__row--2">
             <div class="field">
               <label for="event_date">{t.fieldDate}</label>
@@ -131,7 +142,7 @@ const eventTypes: { value: string; label: string }[] = [
             data-submit
             data-submit-general={t.submitGeneral}
             data-submit-event={t.submitEvent}
-          >{t.submitGeneral}</button>
+          >{isEvent ? t.submitEvent : t.submitGeneral}</button>
           <p id="form-status" role="status" aria-live="polite" class="form-status"></p>
         </div>
       </form>

@@ -27,7 +27,7 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
         <h4>{t.contact}</h4>
         <a href={`tel:${dial}`}>{phoneTxt}</a>
         <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a>
-        <a href={path('location', lang)}>{RESTAURANT.address[lang]}</a>
+        <a href={path('about', lang)}>{RESTAURANT.address[lang]}</a>
       </div>
 
       <div class="footer-block">
