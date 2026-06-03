@@ -320,6 +320,26 @@ const STYLE = `
   .card__caption-input:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
   .card__caption-status { margin: 0; min-height: 1.05em; font-size: 0.72rem; color: #4f6b47; }
   .card__caption-status--err { color: #a53623; }
+  .card__mobile {
+    margin-top: 0.65rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid #ece3d0;
+  }
+  .card__mobile-label { margin: 0 0 0.15rem; font-size: 0.74rem; font-weight: 600; color: #6f6457;
+    display: flex; align-items: center; gap: 0.5rem; }
+  .card__mobile-badge { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+    font-weight: 700; padding: 0.12rem 0.4rem; background: #ece3d0; color: #6f6457; }
+  .card__mobile-badge.is-set { background: #a88947; color: #fff; }
+  .card__mobile-hint { margin: 0 0 0.5rem; font-size: 0.68rem; color: #9a8d77; line-height: 1.4; }
+  .card__mobile-grid { display: grid; grid-template-columns: 64px 1fr; gap: 0.6rem; align-items: start; }
+  .card__mobile-thumb {
+    width: 64px; aspect-ratio: 9 / 16; background: #ece3d0 center / cover no-repeat; overflow: hidden;
+    border: 1px solid #d8ccae;
+  }
+  .card__mobile-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card__mobile-actions { display: grid; gap: 0.2rem; }
+  .card__mobile-status { margin: 0; min-height: 1.05em; font-size: 0.72rem; color: #4f6b47; }
+  .card__mobile-status--err { color: #a53623; }
 
   /* ── Editor modal ────────────────────────────────────────────── */
   .editor {
@@ -658,12 +678,63 @@ const SCRIPT = `
           submit.disabled = false; del.disabled = false; editB.disabled = false;
         }
       });
+
+      // ── Mobile (portrait) variant wiring ──────────────────────────
+      const mFile   = card.querySelector('[data-mobile-file]');
+      const mUp     = card.querySelector('[data-mobile-upload]');
+      const mDel    = card.querySelector('[data-mobile-delete]');
+      const mStatus = card.querySelector('[data-mobile-status]');
+      const mThumb  = card.querySelector('[data-mobile-thumb]');
+      const mBadge  = card.querySelector('[data-mobile-badge]');
+      function mSet(msg, err) {
+        if (!mStatus) return;
+        mStatus.textContent = msg || '';
+        mStatus.classList.toggle('card__mobile-status--err', !!err);
+      }
+      function mRefresh() {
+        if (mThumb) { mThumb.style.opacity = 1; mThumb.src = mThumb.src.split('?')[0] + '?t=' + Date.now(); }
+      }
+      if (mUp) {
+        mUp.addEventListener('click', async () => {
+          if (!mFile || !mFile.files || !mFile.files.length) { mSet('Choose a file first', true); return; }
+          mUp.disabled = true; if (mDel) mDel.disabled = true;
+          mSet('Uploading…', false);
+          try {
+            const data = await window.ZAHARA_UPLOAD(key, mFile.files[0], key + '-mobile.jpg', 'mobile');
+            mSet('Saved · ' + fmtKB(data.size), false);
+            mRefresh();
+            if (mBadge) { mBadge.textContent = 'Set'; mBadge.classList.add('is-set'); }
+            mFile.value = '';
+            try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'set' }); } catch (_) {}
+          } catch (err) { mSet(String(err.message || err), true); }
+          finally { mUp.disabled = false; if (mDel) mDel.disabled = false; }
+        });
+      }
+      if (mDel) {
+        mDel.addEventListener('click', async () => {
+          if (!confirm('Remove the mobile photo? Phones will fall back to the desktop photo.')) return;
+          if (mUp) mUp.disabled = true; mDel.disabled = true;
+          mSet('Removing…', false);
+          try {
+            const fd = new FormData(); fd.append('key', key); fd.append('variant', 'mobile');
+            const res = await fetch('/admin/images/delete', { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || 'Delete failed');
+            mSet('Removed — using desktop', false);
+            mRefresh();
+            if (mBadge) { mBadge.textContent = 'Using desktop'; mBadge.classList.remove('is-set'); }
+            try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'delete' }); } catch (_) {}
+          } catch (err) { mSet(String(err.message || err), true); }
+          finally { if (mUp) mUp.disabled = false; mDel.disabled = false; }
+        });
+      }
     });
 
     // ── Shared upload helper (canvas blob OR File) ────────────────────
-    window.ZAHARA_UPLOAD = async function (key, fileOrBlob, filename) {
+    window.ZAHARA_UPLOAD = async function (key, fileOrBlob, filename, variant) {
       const fd = new FormData();
       fd.append('key', key);
+      if (variant) fd.append('variant', variant);
       fd.append('file', fileOrBlob, filename || (fileOrBlob.name || (key + '.jpg')));
       const res  = await fetch('/admin/images/upload', { method: 'POST', body: fd });
       const data = await res.json();
@@ -1037,6 +1108,7 @@ function renderCard(
   fallbackFromLabel: string | null,
   version: number,
   caption: ContentValue | null,
+  hasMobile: boolean,
 ): string {
   // Two URLs:
   //   src      — the URL currently shown (override-aware via middleware)
@@ -1116,6 +1188,26 @@ function renderCard(
                  value="${esc(caption.en ?? '')}" placeholder="Caption (English)" />
           <p class="card__caption-status" data-caption-status></p>
         </div>` : ''}
+        ${p.mobile ? `
+        <div class="card__mobile" data-mobile-block>
+          <p class="card__mobile-label">
+            Mobile photo (portrait) <span class="card__mobile-badge ${hasMobile ? 'is-set' : ''}" data-mobile-badge>${hasMobile ? 'Set' : 'Using desktop'}</span>
+          </p>
+          <p class="card__mobile-hint">A tall crop shown on phones. Leave empty to fall back to the desktop photo above.</p>
+          <div class="card__mobile-grid">
+            <div class="card__mobile-thumb">
+              <img data-mobile-thumb src="/photos-m/${esc(p.filename)}?t=${version}" alt="" loading="lazy" decoding="async" onerror="this.style.opacity=0.2" />
+            </div>
+            <div class="card__mobile-actions">
+              <input class="card__file-input" type="file" data-mobile-file accept="image/jpeg,image/png,image/webp" />
+              <div class="card__row" style="margin-top:0.4rem">
+                <button class="btn btn--sm" type="button" data-mobile-upload>Upload</button>
+                <button class="btn btn--ghost btn--sm" type="button" data-mobile-delete>Remove</button>
+              </div>
+              <p class="card__mobile-status" data-mobile-status></p>
+            </div>
+          </div>
+        </div>` : ''}
       </div>
     </article>
   `;
@@ -1124,15 +1216,18 @@ function renderCard(
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!checkAuth(request, env)) return unauthorized();
 
-  // Look up which keys have an override in R2 right now.
+  // Look up which keys have an override in R2 right now. Mobile variants are
+  // stored as `{key}__mobile`; track them separately.
   const overrideSet = new Set<string>();
+  const mobileSet   = new Set<string>();
   if (env.IMAGES) {
     try {
       // R2 list returns up to 1000 keys; we won't exceed that.
       const listing = await env.IMAGES.list({ prefix: 'images/' });
       for (const o of listing.objects) {
-        // Strip the `images/` prefix to recover the key.
-        overrideSet.add(o.key.replace(/^images\//, ''));
+        const k = o.key.replace(/^images\//, '');
+        if (k.endsWith('__mobile')) mobileSet.add(k.slice(0, -'__mobile'.length));
+        else overrideSet.add(k);
       }
     } catch (err) {
       console.warn('[admin/images] R2 list failed', err);
@@ -1170,7 +1265,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
               const caption = GALLERY_CAPTION_SET.has(p.key)
                 ? (content[galleryCaptionKey(p.key)] ?? {})
                 : null;
-              return renderCard(p, hasOverride, fallbackFromLabel, v, caption);
+              return renderCard(p, hasOverride, fallbackFromLabel, v, caption, mobileSet.has(p.key));
             }).join('')}
           </div>
         </section>
@@ -1218,7 +1313,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       meet it as you scroll. Drag a file straight onto a thumbnail, or use
       <strong>Upload</strong> to drop in a replacement as-is, or
       <strong>Edit &amp; adjust</strong> to crop, recolour, and resize.
-      <strong>Remove override</strong> reverts to the original.
+      <strong>Remove override</strong> reverts to the original. Full-screen
+      photos also have a <strong>Mobile photo (portrait)</strong> slot — upload
+      a tall crop there to control exactly what phones show.
       In the editor: <code>S</code> save · <code>R</code> reset ·
       <code>B</code> toggle B&amp;W · hold <code>Space</code> to compare.
       Accepts JPG / PNG / WebP up to 10&nbsp;MB.

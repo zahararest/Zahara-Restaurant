@@ -25,9 +25,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!env.IMAGES) return json({ ok: false, error: 'IMAGES binding missing' }, 500);
 
   let key = '';
+  let isMobile = false;
   try {
     const form = await request.formData();
     key = String(form.get('key') || '');
+    isMobile = String(form.get('variant') || '') === 'mobile';
   } catch {
     return json({ ok: false, error: 'Expected form data' }, 400);
   }
@@ -35,8 +37,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const meta = PHOTO_CATALOGUE.find((p) => p.key === key);
   if (!meta) return json({ ok: false, error: 'Unknown key' }, 400);
 
+  const objectKey = isMobile ? `${key}__mobile` : key;
   try {
-    await env.IMAGES.delete(`images/${key}`);
+    await env.IMAGES.delete(`images/${objectKey}`);
   } catch (err) {
     console.error('[admin/images/delete] R2 delete failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
@@ -45,9 +48,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   await bumpAssetVersion(env);
 
   const origin = new URL(request.url).origin;
-  await purgePhotoCache(origin, meta.filename, env);
-  for (const dep of PHOTO_CATALOGUE) {
-    if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+  if (!isMobile) {
+    await purgePhotoCache(origin, meta.filename, env);
+    for (const dep of PHOTO_CATALOGUE) {
+      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+    }
   }
 
   return json({ ok: true, key });

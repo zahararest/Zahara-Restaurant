@@ -61,6 +61,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: `Unknown image key: ${key}` }, 400);
   }
 
+  // Optional mobile (portrait) variant — stored separately and served on
+  // phones via /photos-m. Only allowed for photos flagged `mobile`.
+  const isMobile   = String(form.get('variant') || '') === 'mobile';
+  if (isMobile && !meta.mobile) {
+    return json({ ok: false, error: 'This photo has no mobile variant' }, 400);
+  }
+  const objectKey  = isMobile ? `${key}__mobile` : key;
+
   const file = form.get('file');
   if (!(file instanceof File)) {
     return json({ ok: false, error: 'Missing file field' }, 400);
@@ -82,7 +90,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
-    await env.IMAGES.put(`images/${key}`, buffer, {
+    await env.IMAGES.put(`images/${objectKey}`, buffer, {
       httpMetadata: { contentType: detected },
     });
   } catch (err) {
@@ -90,18 +98,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
 
-  // Purge the colo cache for this filename and any keys that fall back
-  // to it (e.g. uploading `interior` should also refresh contact/location
-  // until they get their own override).
   // Bump the asset version so every resized URL changes → the live site
-  // gets the new image immediately, without depending on a cache purge.
+  // (desktop AND mobile variants) gets the new image immediately, without
+  // depending on a cache purge.
   await bumpAssetVersion(env);
 
+  // Colo purge for the desktop filename + anything that falls back to it.
+  // (Mobile variants ride the version bump, so no separate purge needed.)
   const origin = new URL(request.url).origin;
-  await purgePhotoCache(origin, meta.filename, env);
-  for (const dep of PHOTO_CATALOGUE) {
-    if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+  if (!isMobile) {
+    await purgePhotoCache(origin, meta.filename, env);
+    for (const dep of PHOTO_CATALOGUE) {
+      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+    }
   }
 
-  return json({ ok: true, key, size: buffer.byteLength, type: detected });
+  return json({ ok: true, key, variant: isMobile ? 'mobile' : 'desktop', size: buffer.byteLength, type: detected });
 };

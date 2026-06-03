@@ -34,7 +34,7 @@ import { pick, home as copy } from '../../data/i18n';
 import { PHOTOS, MENU_CATEGORY_PHOTOS } from '../../data/photos';
 import type { PhotoEntry } from '../../data/photos';
 import { path } from '../../lib/paths';
-import { resized, resizedSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
 import { menuHe } from '../../data/menu-he';
 import type { Lang } from '../../data/i18n';
 
@@ -360,15 +360,20 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
       menu. Replaces the old in-page menu preview. */}
   <section class="menu-split" data-section-name={sec.menu} aria-label={t.menuSplitEyebrow}>
     <div class="menu-split__media" aria-hidden="true">
-      <img
-        class="menu-split__img"
-        src={resized(PHOTOS.menuSplit.src, 1800)}
-        srcset={resizedSrcset(PHOTOS.menuSplit.src, CHAPTER_WIDTHS)}
-        sizes="100vw"
-        alt={PHOTOS.menuSplit.alt[lang]}
-        loading="lazy"
-        decoding="async"
-      />
+      <picture>
+        <source media="(max-width: 600px)"
+                srcset={resizedMobileCoverSrcset(PHOTOS.menuSplit.src, [[640, 1180], [820, 1500], [1080, 1980]])}
+                sizes="100vw" />
+        <img
+          class="menu-split__img"
+          src={resized(PHOTOS.menuSplit.src, 1800)}
+          srcset={resizedSrcset(PHOTOS.menuSplit.src, CHAPTER_WIDTHS)}
+          sizes="100vw"
+          alt={PHOTOS.menuSplit.alt[lang]}
+          loading="lazy"
+          decoding="async"
+        />
+      </picture>
     </div>
     <div class="menu-split__overlay" aria-hidden="true"></div>
 
@@ -569,6 +574,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     inset: 0;
     z-index: -2;
   }
+  .menu-split__media picture { display: contents; }
   .menu-split__img {
     width: 100%;
     height: 100%;

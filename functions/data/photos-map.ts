@@ -38,40 +38,42 @@ export interface PhotoMeta {
   reserved?:    boolean;      // defined but not currently shown on the site
   optional?:    boolean;      // optional slot — only appears once an image is
                               // uploaded; an empty slot is hidden, not broken
+  mobile?:      boolean;      // full-screen photo that supports a separate
+                              // portrait crop for phones (served via /photos-m)
 }
 
 export const PHOTO_CATALOGUE: PhotoMeta[] = [
   // ── HOME PAGE — top-to-bottom in scroll order ──────────────────────
-  { key: 'hero',     filename: 'MOYAL-00009.jpg', group: 'home',
+  { key: 'hero',     filename: 'MOYAL-00009.jpg', group: 'home', mobile: true,
     label: 'Hero',                where: 'Top of the home page — also the social-share preview image' },
   { key: 'moodDining', filename: 'MOYAL-09221.jpg', group: 'home',
     label: 'Story backdrop', where: 'Darkened photo behind the opening story text' },
   { key: 'kitchen',  filename: 'MOYAL-09689.jpg', group: 'home',
     label: 'Kitchen — full bleed', where: 'Full-width band after the story' },
-  { key: 'menuSplit', filename: 'menu-split.jpg', group: 'home', fallbackKey: 'kitchen',
+  { key: 'menuSplit', filename: 'menu-split.jpg', group: 'home', fallbackKey: 'kitchen', mobile: true,
     label: 'Menu-split background', where: 'Full-frame “the menu” section (food · wine · cocktails · dessert)' },
-  { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home',
+  { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home', mobile: true,
     label: 'Gallery 1 · Interior', where: 'First photo of the home gallery' },
-  { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home',
+  { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home', mobile: true,
     label: 'Gallery 2 · Chef',     where: 'Second photo of the home gallery' },
-  { key: 'bar',      filename: 'MOYAL-09574.jpg', group: 'home',
+  { key: 'bar',      filename: 'MOYAL-09574.jpg', group: 'home', mobile: true,
     label: 'Gallery 3 · Bar',      where: 'Third photo of the home gallery' },
-  { key: 'wine',     filename: 'MOYAL-09832.jpg', group: 'home',
+  { key: 'wine',     filename: 'MOYAL-09832.jpg', group: 'home', mobile: true,
     label: 'Gallery 4 · Wine bar', where: 'Fourth photo of the home gallery' },
   // Optional gallery slots 5–10. Empty by default; upload one to add it to
   // the home-page gallery (max 10 photos). Empty slots are hidden on the
   // site, never shown as blanks.
-  { key: 'gallery5',  filename: 'gallery-5.jpg',  group: 'home', optional: true,
+  { key: 'gallery5',  filename: 'gallery-5.jpg',  group: 'home', optional: true, mobile: true,
     label: 'Gallery 5 · Extra', where: 'Optional 5th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery6',  filename: 'gallery-6.jpg',  group: 'home', optional: true,
+  { key: 'gallery6',  filename: 'gallery-6.jpg',  group: 'home', optional: true, mobile: true,
     label: 'Gallery 6 · Extra', where: 'Optional 6th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery7',  filename: 'gallery-7.jpg',  group: 'home', optional: true,
+  { key: 'gallery7',  filename: 'gallery-7.jpg',  group: 'home', optional: true, mobile: true,
     label: 'Gallery 7 · Extra', where: 'Optional 7th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery8',  filename: 'gallery-8.jpg',  group: 'home', optional: true,
+  { key: 'gallery8',  filename: 'gallery-8.jpg',  group: 'home', optional: true, mobile: true,
     label: 'Gallery 8 · Extra', where: 'Optional 8th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery9',  filename: 'gallery-9.jpg',  group: 'home', optional: true,
+  { key: 'gallery9',  filename: 'gallery-9.jpg',  group: 'home', optional: true, mobile: true,
     label: 'Gallery 9 · Extra', where: 'Optional 9th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true,
+  { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true, mobile: true,
     label: 'Gallery 10 · Extra', where: 'Optional 10th home-gallery photo — shows only if uploaded' },
   { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home',
     label: 'Events — photo block', where: 'Beside the events text near the footer' },

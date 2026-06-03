@@ -2,7 +2,7 @@
 import { pick, home as copy }    from '../../data/i18n';
 import { RESTAURANT }              from '../../data/restaurant';
 import { path }                    from '../../lib/paths';
-import { resized, resizedSrcset, resizedCoverSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
 import type { Lang }               from '../../data/i18n';
 import type { PhotoEntry }         from '../../data/photos';
 
@@ -26,7 +26,7 @@ const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
           isn't scaled up + cropped into a "zoomed-in" sliver. */}
       <source
         media="(max-width: 600px)"
-        srcset={resizedCoverSrcset(photo.src, [[640, 1180], [820, 1500], [1080, 1980]])}
+        srcset={resizedMobileCoverSrcset(photo.src, [[640, 1180], [820, 1500], [1080, 1980]])}
         sizes="100vw"
       />
       <img

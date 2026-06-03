@@ -1,10 +1,11 @@
 ---
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
-import { resized, resizedSrcset, resizedCoverSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
 
-// Phone portrait crops (subject-aware) so the full-screen gallery photos
-// aren't scaled up + cropped into a zoomed sliver on tall phone viewports.
+// Phone portrait crops so the full-screen gallery photos aren't scaled up +
+// cropped into a zoomed sliver on tall phones. Served from the mobile-variant
+// route, so an admin-uploaded portrait crop is used when present.
 const MOBILE_COVER = [[640, 1180], [820, 1500], [1080, 1980]] as const;
 
 export interface Props {
@@ -62,7 +63,7 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
         aria-hidden={i !== 0}
       >
         <picture>
-          <source media="(max-width: 600px)" srcset={resizedCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
+          <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
           <img
             class="gallery-film__img"
             src={resized(p.src, 1600)}
@@ -91,7 +92,7 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
         aria-hidden="true"
       >
         <picture>
-          <source media="(max-width: 600px)" srcset={resizedCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
+          <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
           <img
             class="gallery-film__img"
             src={resized(p.src, 1600)}

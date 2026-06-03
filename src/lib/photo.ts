@@ -92,3 +92,21 @@ export function resizedCoverSrcset(
   if (!RESIZE_ENABLED) return undefined;
   return sizes.map(([w, h]) => `${resizedCover(src, w, h)} ${w}w`).join(', ');
 }
+
+/** Like resizedCover, but sourced from the MOBILE variant route
+ *  (/photos-m/…). That route serves the admin-uploaded portrait crop when
+ *  one exists, else falls back to the desktop image — so the owner can give
+ *  any full-bleed photo a proper phone composition from /admin/images. */
+export function resizedMobileCover(src: string, width: number, height: number, quality = 78): string {
+  if (!RESIZE_ENABLED) return src;
+  const path = src.replace(/^\/+/, '').replace(/^photos\//, 'photos-m/');
+  return `/cdn-cgi/image/width=${width},height=${height},quality=${quality},format=auto,fit=cover,gravity=auto/${path}?v=${ASSET_VERSION_TOKEN}`;
+}
+
+export function resizedMobileCoverSrcset(
+  src: string,
+  sizes: readonly (readonly [number, number])[],
+): string | undefined {
+  if (!RESIZE_ENABLED) return undefined;
+  return sizes.map(([w, h]) => `${resizedMobileCover(src, w, h)} ${w}w`).join(', ');
+}
