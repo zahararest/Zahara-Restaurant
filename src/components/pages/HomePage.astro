@@ -199,7 +199,6 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
 
   <div data-section-name={sec.hero}>
     <HeroBleed lang={lang} photo={PHOTOS.hero} />
-    <InfoStrip lang={lang} />
   </div>
 
   <!-- {/* Editorial masthead — quiet magazine-style identity stamp.
@@ -213,17 +212,21 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
   </aside> -->
 
   <div data-section-name={sec.story}>
-    {/* Editorial story sits on a moody dining-room photo, grayscaled
-        and darkened so the body text reads in paper-cream over it. */}
-    <div class="section-on-photo" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
-      <Editorial
-        eyebrow={t.storyEyebrow}
-        heading={t.storyHeading}
-        paragraphs={[t.storyP1, t.storyP2, t.storyP3]}
-        eyebrowKey="home.storyEyebrow"
-        headingKey="home.storyHeading"
-        paragraphKeys={['home.storyP1', 'home.storyP2', 'home.storyP3']}
-      />
+    {/* One full-screen unit: the info strip sits at the top of the moody
+        dining-room photo, with the editorial story centred below it — so the
+        info strip reads as part of this section instead of a stray band. */}
+    <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
+      <InfoStrip lang={lang} />
+      <div class="story-scene__body">
+        <Editorial
+          eyebrow={t.storyEyebrow}
+          heading={t.storyHeading}
+          paragraphs={[t.storyP1, t.storyP2, t.storyP3]}
+          eyebrowKey="home.storyEyebrow"
+          headingKey="home.storyHeading"
+          paragraphKeys={['home.storyP1', 'home.storyP2', 'home.storyP3']}
+        />
+      </div>
     </div>
     <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
   </div>
@@ -382,6 +385,8 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
       />
       <p class="menu-split__lede" data-content-key="home.menuSplitLede">{t.menuSplitLede}</p>
 
+      {/* Each part is a large clickable panel (the whole tile navigates to
+          its section of the menu) — no small buttons. */}
       <ol class="menu-split__parts stagger">
         {[
           { label: t.menuSplitFood,      tab: 'food'      },
@@ -393,14 +398,16 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
             <a class="menu-split__part" href={`${menuPath}#tab-${part.tab}`}>
               <span class="menu-split__num">{`0${i + 1}`.slice(-2)}</span>
               <span class="menu-split__label">{part.label}</span>
+              <span class="menu-split__go" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                     stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </span>
             </a>
           </li>
         ))}
       </ol>
 
-      <div class="btn-row">
-        <a class="btn menu-split__cta" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
-      </div>
+      <a class="menu-split__full" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
     </div>
   </section>
 
@@ -593,6 +600,8 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     max-width: 46ch;
     margin: 0;
   }
+  /* Four large clickable panels — the whole tile is the link, so the photo
+     itself navigates (no small buttons). Pop&Pope-style editorial blocks. */
   .menu-split__parts {
     list-style: none;
     margin: clamp(var(--space-l), 5vh, var(--space-xl)) 0 0;
@@ -600,56 +609,98 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1px;
-    background: color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
-    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
-    max-width: 30rem;
+    background: color-mix(in srgb, var(--paper-on-photo) 24%, transparent);
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 24%, transparent);
+    max-width: 44rem;
   }
   .menu-split__parts > li { display: flex; }
-  /* Each part is a link straight to its section on the menu page. */
   .menu-split__part {
+    position: relative;
     flex: 1;
+    min-height: clamp(7rem, 16vh, 10rem);
     display: flex;
-    align-items: baseline;
-    gap: 0.7em;
-    padding: 0.85rem 1.1rem;
-    background: color-mix(in srgb, rgba(18, 13, 9, 1) 30%, transparent);
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: clamp(1rem, 2.4vw, 1.6rem);
+    background: color-mix(in srgb, rgba(18, 13, 9, 1) 34%, transparent);
     backdrop-filter: blur(2px);
     text-decoration: none;
-    transition: background 0.25s ease;
+    overflow: hidden;
+    transition: background 0.3s var(--ease-out);
   }
-  .menu-split__part:hover {
-    background: color-mix(in srgb, var(--paper-on-photo) 14%, rgba(18, 13, 9, 0.45));
+  .menu-split__part::after {
+    /* accent underline that wipes in on hover */
+    content: '';
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline: 0;
+    height: 2px;
+    background: var(--gold);
+    transform: scaleX(0);
+    transform-origin: inline-start;
+    transition: transform 0.4s var(--ease-out);
   }
+  .menu-split__part:hover,
   .menu-split__part:focus-visible {
-    outline: 2px solid var(--paper-on-photo);
-    outline-offset: -2px;
+    background: color-mix(in srgb, var(--paper-on-photo) 14%, rgba(18, 13, 9, 0.5));
+    outline: none;
   }
+  .menu-split__part:hover::after,
+  .menu-split__part:focus-visible::after { transform: scaleX(1); }
   .menu-split__num {
     font-family: var(--font-body);
     font-size: var(--step--2);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.18em;
     color: color-mix(in srgb, var(--paper-on-photo) 60%, transparent);
+  }
+  .menu-split__part-row,
+  .menu-split__part {
+    align-items: stretch;
   }
   .menu-split__label {
     font-family: var(--font-display);
-    font-size: var(--step-1);
+    font-size: var(--step-2);
+    line-height: 1.05;
     color: var(--paper-on-photo);
   }
-  /* The CTA reads as a paper-on-photo button against the dark wash. Text
-     uses --shadow (near-black in BOTH themes) so it never disappears into
-     the cream fill when dark mode flips --ink to cream. */
-  .menu-split .btn {
-    background: var(--paper-on-photo);
-    color: var(--shadow);
-    border-color: var(--paper-on-photo);
-  }
-  .menu-split .btn:hover {
-    background: transparent;
+  .menu-split__go {
+    align-self: end;
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
     color: var(--paper-on-photo);
-    border-color: var(--paper-on-photo);
+    opacity: 0;
+    transform: translateX(-0.4rem);
+    transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
   }
+  html[dir="rtl"] .menu-split__go svg { transform: scaleX(-1); }
+  .menu-split__go svg { width: 1.15rem; height: 1.15rem; }
+  .menu-split__part:hover .menu-split__go,
+  .menu-split__part:focus-visible .menu-split__go { opacity: 1; transform: translateX(0); }
+
+  /* Full-menu link — an understated text link, not a boxed button. */
+  .menu-split__full {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    margin-block-start: clamp(var(--space-m), 4vh, var(--space-l));
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--paper-on-photo);
+    text-decoration: none;
+    border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 55%, transparent);
+    padding-block-end: 0.3rem;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .menu-split__full:hover { color: var(--gold); border-color: var(--gold); }
+  .menu-split__full:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 4px; }
 
   @media (max-width: 560px) {
     .menu-split__parts { grid-template-columns: 1fr; max-width: none; }
+    .menu-split__part { min-height: 5.5rem; }
   }
 </style>

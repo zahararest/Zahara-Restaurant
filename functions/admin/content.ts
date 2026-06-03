@@ -8,7 +8,8 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAuth, unauthorized, type AuthEnv } from './auth';
 import {
-  CONTENT_GROUPS, readContent, type ContentEnv, type ContentMap,
+  CONTENT_GROUPS, readContent,
+  type ContentEnv, type ContentMap, type ContentField,
 } from '../data/content';
 
 type Env = AuthEnv & ContentEnv;
@@ -116,18 +117,18 @@ const SCRIPT = `
   })();
 `;
 
-function fieldHtml(
-  key: string, label: string, multiline: boolean, html: boolean, value: ContentMap[string],
-): string {
-  const he = esc(value?.he ?? '');
-  const en = esc(value?.en ?? '');
-  const tag = html ? '<span class="field__tag">HTML</span>' : '';
-  const input = (lang: 'he' | 'en', val: string, dir: string) => multiline
-    ? `<textarea data-key="${esc(key)}" data-lang="${lang}" dir="${dir}" placeholder="Using the built-in default">${val}</textarea>`
-    : `<input type="text" data-key="${esc(key)}" data-lang="${lang}" dir="${dir}" value="${val}" placeholder="Using the built-in default" />`;
+function fieldHtml(f: ContentField, value: ContentMap[string]): string {
+  // Pre-fill with the saved override, falling back to the built-in default,
+  // so the editor always shows the CURRENT live text rather than a blank box.
+  const he  = esc(value?.he ?? f.he ?? '');
+  const en  = esc(value?.en ?? f.en ?? '');
+  const tag = f.html ? '<span class="field__tag">HTML</span>' : '';
+  const input = (lang: 'he' | 'en', val: string, dir: string) => f.multiline
+    ? `<textarea data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}">${val}</textarea>`
+    : `<input type="text" data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" value="${val}" />`;
   return `
     <div class="field">
-      <div class="field__label">${esc(label)} ${tag}</div>
+      <div class="field__label">${esc(f.label)} ${tag}</div>
       <div class="pair">
         <div class="col"><span class="col__lang">Hebrew</span>${input('he', he, 'rtl')}</div>
         <div class="col"><span class="col__lang">English</span>${input('en', en, 'ltr')}</div>
@@ -146,8 +147,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <h2>${esc(g.title)}</h2>
         ${g.note ? `<small>${esc(g.note)}</small>` : ''}
       </header>
-      ${g.fields.map((f) =>
-        fieldHtml(f.key, f.label, !!f.multiline, !!f.html, overrides[f.key])).join('')}
+      ${g.fields.map((f) => fieldHtml(f, overrides[f.key])).join('')}
     </section>`).join('');
 
   const html = `<!doctype html>
@@ -176,8 +176,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   </header>
   <main>
     <p class="lead">
-      Edit the words on the home page and the info strip. Leave a field blank
-      to keep the built-in default. Fields tagged <strong>HTML</strong> accept
+      Every field shows the <strong>current</strong> live text — edit any of
+      them and press <strong>Save changes</strong>. Clear a field and save to
+      restore its built-in default. Fields tagged <strong>HTML</strong> accept
       simple inline markup — <code>&lt;br&gt;</code>, <code>&lt;em&gt;</code>,
       <code>&lt;strong&gt;</code>. Gallery photo captions are edited per photo
       in the <a href="/admin/images/">Images</a> tab.

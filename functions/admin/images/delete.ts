@@ -6,8 +6,9 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAuth, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
+import { bumpAssetVersion, type ContentEnv } from '../../data/content';
 
-interface Env extends AuthEnv, CachePurgeEnv { IMAGES: R2Bucket; }
+interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES: R2Bucket; }
 
 function json(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -40,6 +41,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     console.error('[admin/images/delete] R2 delete failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
+
+  await bumpAssetVersion(env);
 
   const origin = new URL(request.url).origin;
   await purgePhotoCache(origin, meta.filename, env);

@@ -10,8 +10,9 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAuth, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
+import { bumpAssetVersion, type ContentEnv } from '../../data/content';
 
-interface Env extends AuthEnv, CachePurgeEnv { IMAGES: R2Bucket; }
+interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES: R2Bucket; }
 
 const MAX_BYTES = 10 * 1024 * 1024;  // 10 MB
 
@@ -92,6 +93,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // Purge the colo cache for this filename and any keys that fall back
   // to it (e.g. uploading `interior` should also refresh contact/location
   // until they get their own override).
+  // Bump the asset version so every resized URL changes → the live site
+  // gets the new image immediately, without depending on a cache purge.
+  await bumpAssetVersion(env);
+
   const origin = new URL(request.url).origin;
   await purgePhotoCache(origin, meta.filename, env);
   for (const dep of PHOTO_CATALOGUE) {

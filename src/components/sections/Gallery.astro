@@ -1,7 +1,11 @@
 ---
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
-import { resized, resizedSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedCoverSrcset } from '../../lib/photo';
+
+// Phone portrait crops (subject-aware) so the full-screen gallery photos
+// aren't scaled up + cropped into a zoomed sliver on tall phone viewports.
+const MOBILE_COVER = [[640, 1180], [820, 1500], [1080, 1980]] as const;
 
 export interface Props {
   lang:    Lang;
@@ -57,15 +61,18 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
         aria-roledescription="slide"
         aria-hidden={i !== 0}
       >
-        <img
-          class="gallery-film__img"
-          src={resized(p.src, 1600)}
-          srcset={resizedSrcset(p.src, WIDTHS)}
-          sizes="100vw"
-          alt={p.alt[lang]}
-          loading={i === 0 ? 'eager' : 'lazy'}
-          decoding={i === 0 ? 'sync' : 'async'}
-        />
+        <picture>
+          <source media="(max-width: 600px)" srcset={resizedCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
+          <img
+            class="gallery-film__img"
+            src={resized(p.src, 1600)}
+            srcset={resizedSrcset(p.src, WIDTHS)}
+            sizes="100vw"
+            alt={p.alt[lang]}
+            loading={i === 0 ? 'eager' : 'lazy'}
+            decoding={i === 0 ? 'sync' : 'async'}
+          />
+        </picture>
         {captionKeys[i] && (
           <p class="gallery-film__caption"><span data-content-key={captionKeys[i]}></span></p>
         )}
@@ -83,15 +90,18 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
         aria-roledescription="slide"
         aria-hidden="true"
       >
-        <img
-          class="gallery-film__img"
-          src={resized(p.src, 1600)}
-          srcset={resizedSrcset(p.src, WIDTHS)}
-          sizes="100vw"
-          alt={p.alt[lang]}
-          loading="lazy"
-          decoding="async"
-        />
+        <picture>
+          <source media="(max-width: 600px)" srcset={resizedCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
+          <img
+            class="gallery-film__img"
+            src={resized(p.src, 1600)}
+            srcset={resizedSrcset(p.src, WIDTHS)}
+            sizes="100vw"
+            alt={p.alt[lang]}
+            loading="lazy"
+            decoding="async"
+          />
+        </picture>
         {optionalCaptionKeys[i] && (
           <p class="gallery-film__caption"><span data-content-key={optionalCaptionKeys[i]}></span></p>
         )}
@@ -315,6 +325,9 @@ const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
      non-interactive so a not-yet-loaded (or 404-ing) photo never flashes. */
   .gallery-film__slide.is-pending { opacity: 0 !important; pointer-events: none; }
 
+  /* <picture> is just a wrapper for the art-directed mobile crop; collapse
+     it so the image still sizes against the slide. */
+  .gallery-film__slide picture { display: contents; }
   .gallery-film__img {
     width: 100%;
     height: 100%;

@@ -34,6 +34,11 @@ export interface ContentField {
   multiline?: boolean;
   /** Value may contain inline markup (<br>, <em>, <strong>). */
   html?:      boolean;
+  /** The built-in default text (mirrors src/data/i18n.ts). Shown pre-filled
+   *  in the editor so the owner edits the CURRENT copy, not a blank box.
+   *  Keep these in sync with i18n.ts / restaurant.ts. */
+  he?:        string;
+  en?:        string;
 }
 export interface ContentGroup { title: string; note?: string; fields: ContentField[]; }
 
@@ -50,49 +55,64 @@ export const galleryCaptionKey = (photoKey: string): string => `gallery.caption.
  *  match the `data-content-key` attributes the components render. */
 export const CONTENT_GROUPS: ContentGroup[] = [
   { title: 'Hero', fields: [
-    { key: 'home.heroEyebrow',   label: 'Eyebrow' },
-    { key: 'home.heroHeadline',  label: 'Headline' },
-    { key: 'home.heroTitleMark', label: 'Headline accent' },
+    { key: 'home.heroEyebrow',   label: 'Eyebrow',         he: 'מסעדת שף · ירושלים', en: 'Chef restaurant · Jerusalem' },
+    { key: 'home.heroHeadline',  label: 'Headline',        he: 'הזרע המופלא של',      en: "Angelica's" },
+    { key: 'home.heroTitleMark', label: 'Headline accent', he: 'זהרה Zahara',         en: 'younger sister.' },
   ] },
   { title: 'Story', fields: [
-    { key: 'home.storyEyebrow', label: 'Eyebrow' },
-    { key: 'home.storyHeading', label: 'Heading',     html: true, multiline: true },
-    { key: 'home.storyP1',      label: 'Paragraph 1', html: true, multiline: true },
-    { key: 'home.storyP2',      label: 'Paragraph 2', html: true, multiline: true },
-    { key: 'home.storyP3',      label: 'Paragraph 3', html: true, multiline: true },
+    { key: 'home.storyEyebrow', label: 'Eyebrow', he: 'הסיפור', en: 'The story' },
+    { key: 'home.storyHeading', label: 'Heading', html: true, multiline: true,
+      he: 'אחותה הצעירה<br />של אנג׳ליקה.', en: 'A new chapter,<br />one kitchen.' },
+    { key: 'home.storyP1', label: 'Paragraph 1', html: true, multiline: true,
+      he: 'אנג׳ליקה פעלה במשך 16 שנה כמוסד קולינרי בירושלים. זהרה היא הפרק הבא — מסעדה חדשה בקומת הכניסה של מלון נוצ׳ה (Nucha by Fattal Colors) ברחוב בן סירא, ליד גן העצמאות וכיכר ציון.',
+      en: 'Angelica has been a Jerusalem culinary institution for sixteen years. Zahara is the next chapter — a new restaurant on the ground floor of Nucha Hotel (Nucha by Fattal Colors) on Ben Sira Street, steps from Independence Garden and Zion Square.' },
+    { key: 'home.storyP2', label: 'Paragraph 2', html: true, multiline: true,
+      he: 'השף <strong>רועי אחדות</strong>, ותיק במטבח של אנג׳ליקה, מציע כאן מטבח ים-תיכוני נדיב עם טכניקות צרפתיות קלאסיות והשפעות אסייתיות. מטבח כשר, עונתי, מבוסס על תוצרת מקומית טרייה — דגים, בשר, ירקות שמתחלפים עם השוק.',
+      en: 'Chef <strong>Roi Achdut</strong>, a longtime Angelica veteran, offers a generous Mediterranean kitchen here, anchored by classical French technique with Asian influences. The kitchen is kosher, seasonal, and built on fresh local sourcing — fish, meat, and vegetables that change with the market.' },
+    { key: 'home.storyP3', label: 'Paragraph 3', html: true, multiline: true,
+      he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
+      en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.' },
   ] },
   { title: 'Menu section', fields: [
-    { key: 'home.menuSplitEyebrow', label: 'Eyebrow' },
-    { key: 'home.menuSplitHeading', label: 'Heading', html: true },
-    { key: 'home.menuSplitLede',    label: 'Lede',    multiline: true },
-    { key: 'home.menuSplitCta',     label: 'Button label' },
+    { key: 'home.menuSplitEyebrow', label: 'Eyebrow', he: 'התפריט', en: 'The menu' },
+    { key: 'home.menuSplitHeading', label: 'Heading', html: true,
+      he: 'שולחן אחד,<br />ארבעה חלקים.', en: 'One table,<br />four parts.' },
+    { key: 'home.menuSplitLede', label: 'Lede', multiline: true,
+      he: 'התפריט בנוי לשיתוף ונחלק לארבעה — אוכל מהמטבח, יין, קוקטיילים מהבר וקינוחים. הכול עובר בין כולם.',
+      en: 'Built to share and split into four — food from the kitchen, wine, cocktails from the bar, and dessert. Everything moves around the table.' },
+    { key: 'home.menuSplitCta', label: 'Button label', he: 'לתפריט המלא ↗', en: 'See the full menu ↗' },
   ] },
   { title: 'Gallery', note: 'Per-photo captions are edited on each photo in the Images tab.', fields: [
-    { key: 'home.galleryEyebrow', label: 'Eyebrow' },
-    { key: 'home.galleryHeading', label: 'Heading' },
+    { key: 'home.galleryEyebrow', label: 'Eyebrow', he: 'גלריה', en: 'Gallery' },
+    { key: 'home.galleryHeading', label: 'Heading', he: 'הצצה לערב.', en: 'A glimpse of the evening.' },
   ] },
   { title: 'Private events', fields: [
-    { key: 'home.eventsEyebrow',     label: 'Eyebrow' },
-    { key: 'home.eventsHeading',     label: 'Heading', html: true },
-    { key: 'home.eventsP1',          label: 'Paragraph 1', multiline: true },
-    { key: 'home.eventsP2',          label: 'Paragraph 2', multiline: true },
-    { key: 'home.eventsCta',         label: 'Primary button label' },
-    { key: 'home.eventsContactCta',  label: 'Secondary button label' },
+    { key: 'home.eventsEyebrow', label: 'Eyebrow', he: 'אירועים פרטיים', en: 'Private events' },
+    { key: 'home.eventsHeading', label: 'Heading', html: true,
+      he: 'חלל פרטי,<br />ערב פרטי.', en: 'Private space,<br />private night.' },
+    { key: 'home.eventsP1', label: 'Paragraph 1', multiline: true,
+      he: 'המסעדה ניתנת לסגירה לאירועים פרטיים ועסקיים. חדר פרטי לקבוצות אינטימיות, החלל המורחב לאירועי חברה, או המסעדה כולה לארוחות סגורות.',
+      en: 'The restaurant is available for private and corporate events — an intimate private room for small groups, an extended space for company gatherings, or the entire restaurant for closed seatings.' },
+    { key: 'home.eventsP2', label: 'Paragraph 2', multiline: true,
+      he: 'כל אירוע מתוכנן עם השף. נחזור אליכם תוך יום עסקים.',
+      en: 'Each event is planned with the chef. We respond within one business day.' },
+    { key: 'home.eventsCta',        label: 'Primary button label',   he: 'לפנייה לאירועים ↗', en: 'Inquire about events ↗' },
+    { key: 'home.eventsContactCta', label: 'Secondary button label', he: 'צרו קשר',           en: 'Contact us' },
   ] },
   { title: 'Instagram', fields: [
-    { key: 'home.igEyebrow', label: 'Eyebrow' },
-    { key: 'home.igHeading', label: 'Heading' },
+    { key: 'home.igEyebrow', label: 'Eyebrow', he: 'אינסטגרם',      en: 'Instagram' },
+    { key: 'home.igHeading', label: 'Heading', he: 'רגעים מהמטבח.', en: 'Moments from the kitchen.' },
   ] },
   { title: 'Info strip (the row under the hero)', fields: [
-    { key: 'info.hoursLabel',   label: 'Hours — label' },
-    { key: 'info.hoursValue',   label: 'Hours — value' },
-    { key: 'info.addressLabel', label: 'Address — label' },
-    { key: 'info.addressValue', label: 'Address — value' },
-    { key: 'info.reservLabel',  label: 'Reservations — label' },
-    { key: 'info.reservValue',  label: 'Reservations — phone' },
-    { key: 'info.reservTabit',  label: 'Reservations — Tabit link text' },
-    { key: 'info.kosherLabel',  label: 'Kosher — label' },
-    { key: 'info.kosherValue',  label: 'Kosher — value' },
+    { key: 'info.hoursLabel',   label: 'Hours — label',  he: 'שעות',                en: 'Hours' },
+    { key: 'info.hoursValue',   label: 'Hours — value',  he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
+    { key: 'info.addressLabel', label: 'Address — label', he: 'כתובת',              en: 'Address' },
+    { key: 'info.addressValue', label: 'Address — value', he: 'בן סירא, ירושלים',   en: 'Ben Sira St, Jerusalem' },
+    { key: 'info.reservLabel',  label: 'Reservations — label',  he: 'להזמנות',       en: 'Reservations' },
+    { key: 'info.reservValue',  label: 'Reservations — phone',  he: '077-303-4180',  en: '+972 77 303 4180' },
+    { key: 'info.reservTabit',  label: 'Reservations — Tabit link text', he: 'הזמנה בטאביט ↗', en: 'Book on Tabit ↗' },
+    { key: 'info.kosherLabel',  label: 'Kosher — label', he: 'כשרות',          en: 'Kosher' },
+    { key: 'info.kosherValue',  label: 'Kosher — value', he: 'רבנות ירושלים',  en: 'Rabbanut Yerushalayim' },
   ] },
 ];
 
@@ -163,6 +183,35 @@ export async function writeContent(env: ContentEnv, map: ContentMap): Promise<bo
   if (!kv) return false;
   await kv.put(KEY, JSON.stringify(sanitiseContent(map)));
   return true;
+}
+
+// ── Asset version ──────────────────────────────────────────────────────────
+// A single counter, bumped on every admin image upload/delete. The root
+// middleware stamps it onto every resized-image URL (replacing
+// ASSET_VERSION_TOKEN) so a re-uploaded photo gets a brand-new URL → a fresh
+// Cloudflare image transform, instead of the stale cached variant. This makes
+// image changes appear instantly WITHOUT any cache purge.
+const ASSET_VERSION_KEY = '__assets_version__';
+
+export async function readAssetVersion(env: ContentEnv): Promise<string> {
+  const kv = pickKv(env);
+  if (!kv) return '0';
+  try {
+    return (await kv.get(ASSET_VERSION_KEY)) || '0';
+  } catch {
+    return '0';
+  }
+}
+
+export async function bumpAssetVersion(env: ContentEnv): Promise<void> {
+  const kv = pickKv(env);
+  if (!kv) return;
+  try {
+    // base36 timestamp — short, monotonic, and unique per upload.
+    await kv.put(ASSET_VERSION_KEY, Date.now().toString(36));
+  } catch {
+    /* non-fatal — worst case the URL keeps its previous version token */
+  }
 }
 
 /** Serialise the override map for safe embedding inside a

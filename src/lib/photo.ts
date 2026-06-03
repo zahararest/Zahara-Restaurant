@@ -36,6 +36,17 @@
 
 const RESIZE_ENABLED = true;
 
+// Cache-busting token. Cloudflare caches each resized variant under its
+// /cdn-cgi/image/… URL, in a store separate from R2 — so re-uploading a
+// photo (same URL) keeps serving the OLD transform. We append `?v=<token>`
+// to every resized URL; the root middleware (functions/_middleware.ts)
+// replaces this token with a counter that bumps on every admin upload, so a
+// new upload yields a NEW url → a fresh transform, with no cache purge.
+// If the middleware never runs (e.g. local dev), the literal token is a
+// harmless constant query — the /photos/[file] function strips the query
+// before resolving the image, so the picture still loads either way.
+export const ASSET_VERSION_TOKEN = '__ZASSETV__';
+
 /** Return a Cloudflare-resized URL for an image in /photos/.
  *  Pass the original src exactly as it appears in PHOTOS — the helper
  *  takes care of the URL massaging. Width is a max-width hint; quality
@@ -43,7 +54,7 @@ const RESIZE_ENABLED = true;
 export function resized(src: string, width: number, quality = 78): string {
   if (!RESIZE_ENABLED) return src;
   const path = src.replace(/^\/+/, '');
-  return `/cdn-cgi/image/width=${width},quality=${quality},format=auto,fit=cover/${path}`;
+  return `/cdn-cgi/image/width=${width},quality=${quality},format=auto,fit=cover/${path}?v=${ASSET_VERSION_TOKEN}`;
 }
 
 /** Build a srcset string for responsive serving. Pairs each width with
@@ -56,4 +67,28 @@ export function resizedSrcset(src: string, widths: readonly number[]): string | 
   return widths
     .map((w) => `${resized(src, w)} ${w}w`)
     .join(', ');
+}
+
+/** A PORTRAIT crop for phones. Our photography is landscape; in a tall phone
+ *  viewport `object-fit: cover` scales a wide image up to fill the height,
+ *  which reads as "zoomed in". Asking Cloudflare for a portrait crop sized to
+ *  the phone (with `gravity=auto` so it keeps the subject) means the image
+ *  fills the screen near 1:1 — full composition, no upscaling. No second set
+ *  of uploads needed; the crop is generated on the fly from the same R2
+ *  source. `gravity=auto` degrades to a centre crop if a zone doesn't support
+ *  saliency detection. */
+export function resizedCover(src: string, width: number, height: number, quality = 78): string {
+  if (!RESIZE_ENABLED) return src;
+  const path = src.replace(/^\/+/, '');
+  return `/cdn-cgi/image/width=${width},height=${height},quality=${quality},format=auto,fit=cover,gravity=auto/${path}?v=${ASSET_VERSION_TOKEN}`;
+}
+
+/** srcset of portrait crops. `sizes` is a list of [width, height] pixel
+ *  pairs; the width descriptor lets the browser pick by DPR. */
+export function resizedCoverSrcset(
+  src: string,
+  sizes: readonly (readonly [number, number])[],
+): string | undefined {
+  if (!RESIZE_ENABLED) return undefined;
+  return sizes.map(([w, h]) => `${resizedCover(src, w, h)} ${w}w`).join(', ');
 }

@@ -110,8 +110,8 @@
   --prose-max:   32rem;
   --readable-max:46rem;
 
-  --header-h:    76px;
-  --header-h-sm: 60px;
+  --header-h:    62px;
+  --header-h-sm: 54px;
 
   --shadow-1:   0 1px 2px color-mix(in srgb, var(--shadow) 5%, transparent);
   --shadow-2:   0 24px 60px -28px color-mix(in srgb, var(--shadow) 22%, transparent);

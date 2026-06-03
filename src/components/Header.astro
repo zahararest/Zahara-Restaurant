@@ -74,6 +74,21 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
         {t.reserve}
       </a>
 
+      {/* Social — Instagram + Facebook icon links */}
+      <div class="header-social">
+        <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/>
+            <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+          </svg>
+        </a>
+        <a href={RESTAURANT.facebook} target="_blank" rel="noopener" aria-label="Facebook">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H8v3h3v7h3v-7h2.5l.5-3H14V9z"/>
+          </svg>
+        </a>
+      </div>
+
       {/* Utility controls: theme + lang — visually separated */}
       <div class="header-utils">
         <button
@@ -92,23 +107,41 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       </div>
     </div>
   </div>
-
-  <div class="mobile-nav" id="mobile-nav" aria-hidden="true">
-    <ul>
-      {navItems.map(item => (
-        <li><a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>{item.label}</a></li>
-      ))}
-    </ul>
-    <div class="mobile-nav__cta">
-      {rooftopUrl
-        ? <a class="btn btn--ghost" href={rooftopUrl} target="_blank" rel="noopener">{t.rooftop}</a>
-        : <a class="btn btn--ghost mobile-nav__rooftop-soon" href={path('home', lang)}>{t.rooftop} · {t.rooftopSoon}</a>
-      }
-      <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
-      <a class="text-link" href={otherLangHref}>{t.langToggle}</a>
-    </div>
-  </div>
 </header>
+
+{/* Mobile drawer lives OUTSIDE <header> on purpose: the header carries a
+    backdrop-filter on inner pages, which would make it the containing block
+    for this position:fixed drawer and shrink it to the header's height
+    (the "half-open" bug). As a body-level sibling it always fills the
+    viewport. */}
+<div class="mobile-nav" id="mobile-nav" aria-hidden="true">
+  <ul>
+    {navItems.map(item => (
+      <li><a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>{item.label}</a></li>
+    ))}
+  </ul>
+  <div class="mobile-nav__cta">
+    {rooftopUrl
+      ? <a class="btn btn--ghost" href={rooftopUrl} target="_blank" rel="noopener">{t.rooftop}</a>
+      : <a class="btn btn--ghost mobile-nav__rooftop-soon" href={path('home', lang)}>{t.rooftop} · {t.rooftopSoon}</a>
+    }
+    <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
+    <div class="mobile-nav__social">
+      <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label="Instagram">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
+        </svg>
+      </a>
+      <a href={RESTAURANT.facebook} target="_blank" rel="noopener" aria-label="Facebook">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H8v3h3v7h3v-7h2.5l.5-3H14V9z"/>
+        </svg>
+      </a>
+    </div>
+    <a class="text-link" href={otherLangHref}>{t.langToggle}</a>
+  </div>
+</div>
 
 <script>
   const header      = document.getElementById('site-header');
