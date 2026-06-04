@@ -80,6 +80,12 @@
   align-items: center;
   gap: 0.45rem;
 }
+/* Invisible spacer the same width as the rooftop arrow, so the brand stays
+   visually centred instead of being pushed off by the arrow on its end. */
+.brand-group::before {
+  content: '';
+  flex: 0 0 1.65rem;
+}
 .brand {
   color: var(--ink);
   line-height: 1;
@@ -125,7 +131,7 @@ html[dir="rtl"] .rooftop-toggle[aria-expanded="true"] .rooftop-toggle__chev { tr
 .rooftop-reveal {
   position: absolute;
   inset-block-start: calc(100% + 0.55rem);
-  inset-inline-start: 50%;
+  left: 50%;
   transform: translate(-50%, -0.4rem);
   opacity: 0;
   pointer-events: none;
@@ -853,7 +859,10 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
 @media (max-width: 860px) {
   :root { --header-h: var(--header-h-sm); }
   .site-header__inner {
-    grid-template-columns: auto 1fr auto;
+    /* 1fr | auto | 1fr keeps the brand centred in the VIEWPORT on mobile
+       (auto 1fr auto centred it between the burger and the wider utils,
+       which read as off-centre). */
+    grid-template-columns: 1fr auto 1fr;
     gap: var(--space-s);
   }
   /* Hide nav links and primary CTA buttons; keep utils (theme + lang) */

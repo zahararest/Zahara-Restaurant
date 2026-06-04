@@ -1159,6 +1159,7 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 .story-box:hover::before,
 .story-box.is-open::before { transform: scaleX(1); }
 
+.story-box__h { margin: 0; font: inherit; }
 .story-box__head {
   width: 100%;
   text-align: start;
@@ -1211,7 +1212,7 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   content: '';
   position: absolute;
   inset-block-start: 50%;
-  inset-inline-start: 50%;
+  left: 50%;
   width: 0.6rem;
   height: 1px;
   background: var(--paper-on-photo);
@@ -2455,7 +2456,9 @@ html[dir="rtl"] .menu-tl__chapter:not(:first-child)::after {
 .scroll-cue {
   position: absolute;
   inset-block-end: clamp(1.25rem, 3.5vw, 2.5rem);
-  inset-inline-start: 50%;
+  /* physical left+translate centers identically in LTR and RTL (the logical
+     inset-inline-start:50% resolved to right:50% on the RTL site → off-centre) */
+  left: 50%;
   transform: translateX(-50%);
   z-index: 4;
   display: grid;

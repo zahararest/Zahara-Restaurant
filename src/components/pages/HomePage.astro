@@ -217,18 +217,22 @@ const emptyLabel = t.emptyLabel;
             the box stays see-through over the photo; the twist is the
             curtain-style reveal + the frame that lights up on open. */}
         <div class="story-box reveal-on-scroll" data-story-box>
-          <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-text">
-            <span class="story-box__heading">
-              <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{t.storyEyebrow}</span>
-              <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={t.storyHeading} />
-            </span>
-            <span class="story-box__cue">
-              <span class="story-box__cue-text" data-content-key="home.storyReadMore">{t.storyReadMore}</span>
-              <span class="story-box__icon" aria-hidden="true"></span>
-            </span>
-          </button>
-          <div class="story-box__reveal">
-            <div class="story-box__text" id="story-text">
+          {/* ARIA accordion pattern: a real <h2> wraps the disclosure button
+              (keeps a crawlable section heading + valid, accessible markup). */}
+          <h2 class="story-box__h">
+            <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-text">
+              <span class="story-box__heading">
+                <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{t.storyEyebrow}</span>
+                <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={t.storyHeading} />
+              </span>
+              <span class="story-box__cue" aria-hidden="true">
+                <span class="story-box__cue-text" data-content-key="home.storyReadMore">{t.storyReadMore}</span>
+                <span class="story-box__icon"></span>
+              </span>
+            </button>
+          </h2>
+          <div class="story-box__reveal" id="story-text" role="region" aria-label={t.storyEyebrow}>
+            <div class="story-box__text">
               <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
               <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
               <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
@@ -421,14 +425,14 @@ const emptyLabel = t.emptyLabel;
                   src={resized(part.photo.src, 800)}
                   srcset={resizedSrcset(part.photo.src, [500, 800, 1100])}
                   sizes="(max-width: 860px) 45vw, 22vw"
-                  alt={part.photo.alt[lang]}
+                  alt=""
                   loading="lazy"
                   decoding="async"
                 />
                 <span class="menu-tile__wipe" aria-hidden="true"></span>
               </span>
               <span class="menu-tile__foot">
-                <span class="menu-tile__num">{`0${i + 1}`.slice(-2)}</span>
+                <span class="menu-tile__num" aria-hidden="true">{`0${i + 1}`.slice(-2)}</span>
                 <span class="menu-tile__label">{part.label}</span>
                 <span class="menu-tile__go" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"

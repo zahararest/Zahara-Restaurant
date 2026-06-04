@@ -253,7 +253,7 @@ const schema = {
     {/* Persistent floating Reserve CTA — the primary action, lifted out of
         the header so it's always one tap away. Sits at the inline-end
         corner; the scroll-to-top button stacks above it once it appears. */}
-    <a class="floating-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">
+    <a class="floating-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" aria-label={reserveLabel}>
       <svg class="floating-reserve__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="18" height="17" rx="2" />
