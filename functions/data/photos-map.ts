@@ -52,6 +52,16 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Kitchen — full bleed', where: 'Full-width band after the story' },
   { key: 'menuSplit', filename: 'menu-split.jpg', group: 'home', fallbackKey: 'kitchen', mobile: true,
     label: 'Menu-split background', where: 'Full-frame “the menu” section (food · wine · cocktails · dessert)' },
+  // The four category image tiles inside the home "menu" section. Each
+  // falls back to a gallery photo until a dedicated one is uploaded.
+  { key: 'menuFood',      filename: 'MOYAL-00029.jpg', group: 'home', fallbackKey: 'kitchen',
+    label: 'Menu tile · Food',      where: '“Food” tile in the home menu section' },
+  { key: 'menuWine',      filename: 'MOYAL-09817.jpg', group: 'home', fallbackKey: 'wine',
+    label: 'Menu tile · Wine',      where: '“Wine” tile in the home menu section' },
+  { key: 'menuCocktails', filename: 'MOYAL-09569.jpg', group: 'home', fallbackKey: 'bar',
+    label: 'Menu tile · Cocktails', where: '“Cocktails” tile in the home menu section' },
+  { key: 'menuDessert',   filename: 'MOYAL-00084.jpg', group: 'home', fallbackKey: 'interior',
+    label: 'Menu tile · Dessert',   where: '“Dessert” tile in the home menu section' },
   { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home', mobile: true,
     label: 'Gallery 1 · Interior', where: 'First photo of the home gallery' },
   { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home', mobile: true,
@@ -75,8 +85,6 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Gallery 9 · Extra', where: 'Optional 9th home-gallery photo — shows only if uploaded' },
   { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true, mobile: true,
     label: 'Gallery 10 · Extra', where: 'Optional 10th home-gallery photo — shows only if uploaded' },
-  { key: 'storyFeature', filename: 'story-feature.jpg', group: 'home', fallbackKey: 'interior',
-    label: 'Story — feature image', where: 'Framed photo that reveals (curtain wipe) beside the story text' },
   { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home',
     label: 'Events — photo block', where: 'Beside the events text near the footer' },
 

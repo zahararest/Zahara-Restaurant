@@ -213,41 +213,28 @@ const emptyLabel = t.emptyLabel;
     <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
       <InfoStrip lang={lang} />
       <div class="story-scene__body wrap">
-        <div class="story-scene__text stagger reveal-on-scroll">
-          <p class="eyebrow" data-content-key="home.storyEyebrow">{t.storyEyebrow}</p>
-          <h2
-            class="display"
-            data-word-reveal
-            data-word-reveal-delay="0.08"
-            data-word-reveal-step="0.06"
-            data-content-key="home.storyHeading"
-            data-content-html
-            set:html={t.storyHeading}
-          />
-          <div class="prose">
-            <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
-            <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
-            <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
+        {/* A transparent "Our Story" box that expands the text on click —
+            the box stays see-through over the photo; the twist is the
+            curtain-style reveal + the frame that lights up on open. */}
+        <div class="story-box reveal-on-scroll" data-story-box>
+          <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-text">
+            <span class="story-box__heading">
+              <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{t.storyEyebrow}</span>
+              <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={t.storyHeading} />
+            </span>
+            <span class="story-box__cue">
+              <span class="story-box__cue-text" data-content-key="home.storyReadMore">{t.storyReadMore}</span>
+              <span class="story-box__icon" aria-hidden="true"></span>
+            </span>
+          </button>
+          <div class="story-box__reveal">
+            <div class="story-box__text" id="story-text">
+              <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
+              <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
+              <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
+            </div>
           </div>
         </div>
-
-        {/* Pop&Pope-style box-image-animation: a framed photo revealed by a
-            gold curtain-wipe as the section enters view. */}
-        <figure class="story-feature reveal-on-scroll">
-          <div class="story-feature__frame">
-            <img
-              class="story-feature__img"
-              src={resized(PHOTOS.storyFeature.src, 1000)}
-              srcset={resizedSrcset(PHOTOS.storyFeature.src, [600, 900, 1200])}
-              sizes="(max-width: 900px) 88vw, 40vw"
-              alt={PHOTOS.storyFeature.alt[lang]}
-              loading="lazy"
-              decoding="async"
-            />
-            <span class="story-feature__wipe" aria-hidden="true"></span>
-          </div>
-          <figcaption class="story-feature__caption" data-content-key="home.storyFeatureCaption">{t.storyFeatureCaption}</figcaption>
-        </figure>
       </div>
     </div>
     <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
@@ -399,42 +386,59 @@ const emptyLabel = t.emptyLabel;
     </div>
     <div class="menu-split__overlay" aria-hidden="true"></div>
 
-    <div class="menu-split__inner wrap reveal-on-scroll">
-      <p class="eyebrow eyebrow--on-photo" data-content-key="home.menuSplitEyebrow">{t.menuSplitEyebrow}</p>
-      <h2
-        class="display menu-split__title"
-        data-word-reveal
-        data-word-reveal-delay="0.08"
-        data-word-reveal-step="0.06"
-        data-content-key="home.menuSplitHeading"
-        data-content-html
-        set:html={t.menuSplitHeading}
-      />
-      <p class="menu-split__lede" data-content-key="home.menuSplitLede">{t.menuSplitLede}</p>
+    <div class="menu-split__inner wrap">
+      <div class="menu-split__intro reveal-on-scroll">
+        <p class="eyebrow eyebrow--on-photo" data-content-key="home.menuSplitEyebrow">{t.menuSplitEyebrow}</p>
+        <h2
+          class="display menu-split__title"
+          data-word-reveal
+          data-word-reveal-delay="0.08"
+          data-word-reveal-step="0.06"
+          data-content-key="home.menuSplitHeading"
+          data-content-html
+          set:html={t.menuSplitHeading}
+        />
+        <p class="menu-split__lede" data-content-key="home.menuSplitLede">{t.menuSplitLede}</p>
+        <a class="menu-split__full" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
+      </div>
 
-      {/* Each part is a large clickable panel (the whole tile navigates to
-          its section of the menu) — no small buttons. */}
-      <ol class="menu-split__parts stagger">
+      {/* Four image tiles — each navigates to its menu section. A gold
+          curtain-wipe reveals them one after another (matches the story
+          section's motif), the photo settles from a slight zoom, and a
+          circular arrow slides in on hover. */}
+      <ol class="menu-tiles reveal-on-scroll">
         {[
-          { label: t.menuSplitFood,      tab: 'food'      },
-          { label: t.menuSplitWine,      tab: 'wine'      },
-          { label: t.menuSplitCocktails, tab: 'cocktails' },
-          { label: t.menuSplitDessert,   tab: 'dessert'   },
+          { label: t.menuSplitFood,      tab: 'food',      photo: PHOTOS.menuFood      },
+          { label: t.menuSplitWine,      tab: 'wine',      photo: PHOTOS.menuWine      },
+          { label: t.menuSplitCocktails, tab: 'cocktails', photo: PHOTOS.menuCocktails },
+          { label: t.menuSplitDessert,   tab: 'dessert',   photo: PHOTOS.menuDessert   },
         ].map((part, i) => (
-          <li>
-            <a class="menu-split__part" href={`${menuPath}#tab-${part.tab}`}>
-              <span class="menu-split__num">{`0${i + 1}`.slice(-2)}</span>
-              <span class="menu-split__label">{part.label}</span>
-              <span class="menu-split__go" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                     stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          <li class="menu-tiles__item">
+            <a class="menu-tile" href={`${menuPath}#tab-${part.tab}`}>
+              <span class="menu-tile__media">
+                <img
+                  class="menu-tile__img"
+                  src={resized(part.photo.src, 800)}
+                  srcset={resizedSrcset(part.photo.src, [500, 800, 1100])}
+                  sizes="(max-width: 860px) 45vw, 22vw"
+                  alt={part.photo.alt[lang]}
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="menu-tile__wipe" aria-hidden="true"></span>
+              </span>
+              <span class="menu-tile__foot">
+                <span class="menu-tile__num">{`0${i + 1}`.slice(-2)}</span>
+                <span class="menu-tile__label">{part.label}</span>
+                <span class="menu-tile__go" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                       stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </span>
               </span>
             </a>
           </li>
         ))}
       </ol>
-
-      <a class="menu-split__full" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
     </div>
   </section>
 
@@ -553,6 +557,16 @@ const emptyLabel = t.emptyLabel;
 
   hydrationPayload.forEach(hydrateChapter);
 
+  // ── "Our Story" box — click the head to expand/collapse the text ──
+  document.querySelectorAll('[data-story-box]').forEach((box) => {
+    const head = box.querySelector('.story-box__head');
+    if (!head) return;
+    head.addEventListener('click', () => {
+      const open = box.classList.toggle('is-open');
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  });
+
   // ── Cinematic chapter "settle-in" ────────────────────────────
   // Each menu-cinema chapter starts its photo slightly enlarged
   // (scale 1.08). When the chapter enters view, we add `.is-settled`,
@@ -615,9 +629,9 @@ const emptyLabel = t.emptyLabel;
   }
   .menu-split__inner {
     color: var(--paper-on-photo);
-    padding-block: clamp(var(--space-2xl), 12vh, var(--space-3xl));
-    max-width: 56ch;
+    padding-block: clamp(var(--space-xl), 11vh, var(--space-3xl));
   }
+  .menu-split__intro { max-width: 50ch; }
   .menu-split__title {
     color: var(--paper-on-photo);
     margin-block: 0.4em 0.5em;
@@ -628,92 +642,13 @@ const emptyLabel = t.emptyLabel;
     max-width: 46ch;
     margin: 0;
   }
-  /* Four large clickable panels — the whole tile is the link, so the photo
-     itself navigates (no small buttons). Pop&Pope-style editorial blocks. */
-  .menu-split__parts {
-    list-style: none;
-    margin: clamp(var(--space-l), 5vh, var(--space-xl)) 0 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1px;
-    background: color-mix(in srgb, var(--paper-on-photo) 24%, transparent);
-    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 24%, transparent);
-    max-width: 44rem;
-  }
-  .menu-split__parts > li { display: flex; }
-  .menu-split__part {
-    position: relative;
-    flex: 1;
-    min-height: clamp(7rem, 16vh, 10rem);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 0.6rem;
-    padding: clamp(1rem, 2.4vw, 1.6rem);
-    background: color-mix(in srgb, rgba(18, 13, 9, 1) 34%, transparent);
-    backdrop-filter: blur(2px);
-    text-decoration: none;
-    overflow: hidden;
-    transition: background 0.3s var(--ease-out);
-  }
-  .menu-split__part::after {
-    /* accent underline that wipes in on hover */
-    content: '';
-    position: absolute;
-    inset-block-end: 0;
-    inset-inline: 0;
-    height: 2px;
-    background: var(--gold);
-    transform: scaleX(0);
-    transform-origin: inline-start;
-    transition: transform 0.4s var(--ease-out);
-  }
-  .menu-split__part:hover,
-  .menu-split__part:focus-visible {
-    background: color-mix(in srgb, var(--paper-on-photo) 14%, rgba(18, 13, 9, 0.5));
-    outline: none;
-  }
-  .menu-split__part:hover::after,
-  .menu-split__part:focus-visible::after { transform: scaleX(1); }
-  .menu-split__num {
-    font-family: var(--font-body);
-    font-size: var(--step--2);
-    letter-spacing: 0.18em;
-    color: color-mix(in srgb, var(--paper-on-photo) 60%, transparent);
-  }
-  .menu-split__part-row,
-  .menu-split__part {
-    align-items: stretch;
-  }
-  .menu-split__label {
-    font-family: var(--font-display);
-    font-size: var(--step-2);
-    line-height: 1.05;
-    color: var(--paper-on-photo);
-  }
-  .menu-split__go {
-    align-self: end;
-    display: grid;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    color: var(--paper-on-photo);
-    opacity: 0;
-    transform: translateX(-0.4rem);
-    transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
-  }
-  html[dir="rtl"] .menu-split__go svg { transform: scaleX(-1); }
-  .menu-split__go svg { width: 1.15rem; height: 1.15rem; }
-  .menu-split__part:hover .menu-split__go,
-  .menu-split__part:focus-visible .menu-split__go { opacity: 1; transform: translateX(0); }
 
   /* Full-menu link — an understated text link, not a boxed button. */
   .menu-split__full {
     display: inline-flex;
     align-items: center;
     gap: 0.5em;
-    margin-block-start: clamp(var(--space-m), 4vh, var(--space-l));
+    margin-block-start: var(--space-m);
     font-family: var(--font-body);
     font-size: var(--step--1);
     letter-spacing: 0.16em;
@@ -727,8 +662,118 @@ const emptyLabel = t.emptyLabel;
   .menu-split__full:hover { color: var(--gold); border-color: var(--gold); }
   .menu-split__full:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 4px; }
 
-  @media (max-width: 560px) {
-    .menu-split__parts { grid-template-columns: 1fr; max-width: none; }
-    .menu-split__part { min-height: 5.5rem; }
+  /* ── Four image tiles (Pop&Pope-style): each photo tile is the link to
+     its menu section. Gold curtain-wipe reveal, photo settle, hover arrow. */
+  .menu-tiles {
+    list-style: none;
+    margin: clamp(var(--space-l), 5vh, var(--space-xl)) 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(0.5rem, 1.4vw, 1rem);
+  }
+  .menu-tiles__item { margin: 0; }
+  .menu-tile {
+    position: relative;
+    display: block;
+    text-decoration: none;
+    color: var(--paper-on-photo);
+  }
+  .menu-tile__media {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 3 / 4;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--shadow) 40%, transparent);
+  }
+  .menu-tile__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform: scale(1.12);
+    transition: transform 1.3s var(--ease-out);
+  }
+  .menu-tile__media::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(to top,
+      color-mix(in srgb, var(--shadow) 78%, transparent) 0%,
+      color-mix(in srgb, var(--shadow) 22%, transparent) 42%,
+      transparent 68%);
+  }
+  .menu-tile__wipe {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: var(--accent);
+    transform-origin: inline-end;
+    transition: transform 0.7s var(--ease-out);
+  }
+  html[dir="rtl"] .menu-tile__wipe { transform-origin: inline-start; }
+  .menu-tiles.is-in-view .menu-tile__img  { transform: scale(1); }
+  .menu-tiles.is-in-view .menu-tile__wipe { transform: scaleX(0); }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) .menu-tile__wipe { transition-delay: 0.06s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) .menu-tile__wipe { transition-delay: 0.16s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) .menu-tile__wipe { transition-delay: 0.26s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) .menu-tile__wipe { transition-delay: 0.36s; }
+
+  .menu-tile__foot {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline: 0;
+    z-index: 3;
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    padding: clamp(0.7rem, 1.4vw, 1rem);
+  }
+  .menu-tile__num {
+    font-family: var(--font-body);
+    font-size: var(--step--2);
+    letter-spacing: 0.14em;
+    color: color-mix(in srgb, var(--paper-on-photo) 62%, transparent);
+  }
+  .menu-tile__label {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    line-height: 1.05;
+    color: var(--paper-on-photo);
+  }
+  .menu-tile__go {
+    margin-inline-start: auto;
+    align-self: flex-end;
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 45%, transparent);
+    border-radius: 50%;
+    flex-shrink: 0;
+    opacity: 0;
+    transform: translateY(0.4rem);
+    transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out), background 0.25s ease;
+  }
+  .menu-tile__go svg { width: 0.95rem; height: 0.95rem; }
+  html[dir="rtl"] .menu-tile__go svg { transform: scaleX(-1); }
+  .menu-tile:hover .menu-tile__img,
+  .menu-tile:focus-visible .menu-tile__img { transform: scale(1.05); }
+  .menu-tile:hover .menu-tile__go,
+  .menu-tile:focus-visible .menu-tile__go {
+    opacity: 1;
+    transform: translateY(0);
+    background: color-mix(in srgb, var(--paper-on-photo) 16%, transparent);
+  }
+  .menu-tile:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 3px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .menu-tile__img { transform: none !important; transition: none; }
+    .menu-tile__wipe { display: none; }
+  }
+  @media (max-width: 860px) {
+    .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   }
 </style>

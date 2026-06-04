@@ -50,27 +50,35 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       ))}
     </nav>
 
-    <a href={path('home', lang)} class="brand" aria-label={t.brandAria}>
-      {t.brandText}
-    </a>
+    {/* Brand + the rooftop reveal arrow. Clicking the ‹ chevron opens a
+        small "Nucha Rooftop" panel; it auto-peeks once per session so
+        visitors notice it. */}
+    <div class="brand-group">
+      <a href={path('home', lang)} class="brand" aria-label={t.brandAria}>
+        {t.brandText}
+      </a>
+      <button class="rooftop-toggle" type="button" id="rooftop-toggle"
+              aria-expanded="false" aria-controls="rooftop-reveal" aria-label={t.rooftop}>
+        <svg class="rooftop-toggle__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 5 8 12 15 19" />
+        </svg>
+      </button>
+      <div class="rooftop-reveal" id="rooftop-reveal" aria-hidden="true">
+        {rooftopUrl
+          ? <a class="rooftop-reveal__link" href={rooftopUrl} target="_blank" rel="noopener">{t.rooftop}</a>
+          : (
+            <span class="rooftop-reveal__link rooftop-reveal__link--soon">
+              {t.rooftop}<span class="rooftop-reveal__badge">{t.rooftopSoon}</span>
+            </span>
+          )
+        }
+      </div>
+    </div>
 
     <div class="header-cta">
-      {/* Primary actions: Rooftop + Reserve */}
-      {rooftopUrl
-        ? (
-          <a class="header-rooftop" href={rooftopUrl} target="_blank" rel="noopener">
-            {t.rooftop}
-          </a>
-        )
-        : (
-          <a class="header-rooftop header-rooftop--soon" href={path('home', lang)}
-             aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
-            {t.rooftop}
-            <span class="header-rooftop__badge" aria-hidden="true">{t.rooftopSoon}</span>
-          </a>
-        )
-      }
-      {/* Reserve moved to a persistent floating button (see BaseLayout). */}
+      {/* Rooftop now lives behind the brand's ‹ arrow; Reserve is a floating
+          button (see BaseLayout). */}
 
       {/* Social — Instagram + Facebook icon links */}
       <div class="header-social">
@@ -193,6 +201,34 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && drawer?.classList.contains('is-open')) closeNav();
   });
+
+  // ── Nucha Rooftop reveal (the ‹ arrow beside the brand) ──────────────
+  // Click to open/close a small "Nucha Rooftop" panel. Twist: it auto-peeks
+  // once per browser session so visitors discover it while browsing.
+  const rtToggle = document.getElementById('rooftop-toggle');
+  const rtReveal = document.getElementById('rooftop-reveal');
+  function rtOpen()  { rtReveal?.classList.add('is-open');    rtReveal?.setAttribute('aria-hidden', 'false'); rtToggle?.setAttribute('aria-expanded', 'true'); }
+  function rtClose() { rtReveal?.classList.remove('is-open'); rtReveal?.setAttribute('aria-hidden', 'true');  rtToggle?.setAttribute('aria-expanded', 'false'); }
+  if (rtToggle && rtReveal) {
+    rtToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (rtReveal.classList.contains('is-open')) rtClose(); else rtOpen();
+    });
+    document.addEventListener('click', (e) => {
+      const target = e.target as Element | null;
+      if (rtReveal.classList.contains('is-open') && target && !target.closest('.brand-group')) rtClose();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') rtClose(); });
+    try {
+      if (!sessionStorage.getItem('zahara-rooftop-peeked')) {
+        window.setTimeout(() => {
+          rtOpen();
+          window.setTimeout(rtClose, 2600);
+          try { sessionStorage.setItem('zahara-rooftop-peeked', '1'); } catch (_) {}
+        }, 3800);
+      }
+    } catch (_) {}
+  }
 
   // ── Theme toggle (two states: light ↔ dark) ──────────────────────────
   // Per-browser; saved in localStorage as `zahara-theme`. The pre-paint

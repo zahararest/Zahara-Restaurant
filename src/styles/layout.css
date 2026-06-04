@@ -73,14 +73,94 @@
 /* On phones the header CTA cluster is hidden; social moves into the drawer. */
 @media (max-width: 860px) { .header-social { display: none; } }
 
-.brand {
+.brand-group {
   justify-self: center;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.brand {
   color: var(--ink);
   line-height: 1;
   transition: opacity 0.3s ease, letter-spacing 0.3s ease, color 0.06s linear;
   display: inline-block;
 }
 .brand:hover { opacity: 0.7; }
+
+/* ── Nucha Rooftop reveal — the ‹ arrow beside the brand ─────────────── */
+.rooftop-toggle {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--ink-soft);
+  border-radius: 50%;
+  transition: color 0.2s ease, background 0.2s ease;
+  animation: rooftopNudge 3.4s var(--ease-out) infinite;
+}
+.rooftop-toggle:hover { color: var(--accent); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.rooftop-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rooftop-toggle__chev { width: 0.95rem; height: 0.95rem; transition: transform 0.4s var(--ease-out); }
+.rooftop-toggle[aria-expanded="true"] { animation: none; color: var(--accent); }
+.rooftop-toggle[aria-expanded="true"] .rooftop-toggle__chev { transform: rotate(180deg); }
+html[dir="rtl"] .rooftop-toggle__chev { transform: scaleX(-1); }
+html[dir="rtl"] .rooftop-toggle[aria-expanded="true"] .rooftop-toggle__chev { transform: scaleX(-1) rotate(180deg); }
+@keyframes rooftopNudge {
+  0%, 85%, 100% { transform: translateX(0); }
+  90% { transform: translateX(-0.16rem); }
+  95% { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) { .rooftop-toggle { animation: none; } }
+
+.site-header.is-on-photo .rooftop-toggle { color: color-mix(in srgb, var(--paper-on-photo) 80%, transparent); }
+.site-header.is-on-photo .rooftop-toggle:hover { color: var(--paper-on-photo); background: color-mix(in srgb, var(--paper-on-photo) 12%, transparent); }
+.site-header.is-on-photo .rooftop-toggle[aria-expanded="true"] { color: var(--paper-on-photo); }
+
+.rooftop-reveal {
+  position: absolute;
+  inset-block-start: calc(100% + 0.55rem);
+  inset-inline-start: 50%;
+  transform: translate(-50%, -0.4rem);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+  z-index: 5;
+}
+.rooftop-reveal.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.rooftop-reveal__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-card);
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: var(--shadow-2);
+}
+a.rooftop-reveal__link:hover { color: var(--ink); border-color: var(--accent); }
+.rooftop-reveal__badge {
+  font-size: 0.62em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--paper-on-photo);
+  background: var(--accent);
+  padding: 0.2em 0.5em;
+  border-radius: 999px;
+}
 
 html[lang="he"] .brand {
   font-family: var(--font-display);
