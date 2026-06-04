@@ -23,7 +23,6 @@
 import BaseLayout    from '../../layouts/BaseLayout.astro';
 import HeroBleed     from '../sections/HeroBleed.astro';
 import InfoStrip     from '../sections/InfoStrip.astro';
-import Editorial     from '../sections/Editorial.astro';
 import BleedPhoto    from '../sections/BleedPhoto.astro';
 import PhotoBlock    from '../sections/PhotoBlock.astro';
 import PullQuote     from '../sections/PullQuote.astro';
@@ -49,8 +48,9 @@ export interface Props { lang: Lang }
 const { lang } = Astro.props;
 const t        = pick(copy, lang);
 
-const title           = lang === 'he' ? 'בית' : 'Home';
-const kitchenCaption  = lang === 'he' ? 'המטבח של זהרה' : 'The Zahara kitchen';
+const title           = t.pageTitle;
+const description     = t.pageDescription;
+const kitchenCaption  = t.kitchenCaption;
 
 // Gallery: a four-shot base edit (interior, chef, bar, wine) that always
 // shows, plus up to six optional slots the admin can fill in /admin/images.
@@ -70,13 +70,13 @@ const galleryOptionalCaptionKeys =
   ['gallery5', 'gallery6', 'gallery7', 'gallery8', 'gallery9', 'gallery10'].map(k => `gallery.caption.${k}`);
 
 const sec = {
-  hero:      lang === 'he' ? 'בית'        : 'Open',
-  story:     lang === 'he' ? 'סיפור'      : 'Story',
-  kitchen:   lang === 'he' ? 'מטבח'       : 'Kitchen',
-  menu:      lang === 'he' ? 'תפריט'      : 'Menu',
-  gallery:   lang === 'he' ? 'גלריה'      : 'Gallery',
-  instagram: lang === 'he' ? 'אינסטגרם'   : 'Instagram',
-  events:    lang === 'he' ? 'אירועים'    : 'Events',
+  hero:      t.secHero,
+  story:     t.secStory,
+  kitchen:   t.secKitchen,
+  menu:      t.secMenu,
+  gallery:   t.secGallery,
+  instagram: t.secInstagram,
+  events:    t.secEvents,
 };
 
 // ── Cinematic menu chapters ────────────────────────────────────
@@ -124,9 +124,9 @@ const chapters: Chapter[] = [
     // English home page.
     sectionTitle: lang === 'he' ? 'משהו להתחלה' : 'Beginnings',
     number: '01',
-    eyebrow: lang === 'he' ? 'משהו להתחלה'  : 'To begin',
-    title:   lang === 'he' ? 'משהו להתחיל'   : 'Something to start',
-    tocLine: lang === 'he' ? 'פתיחות מהמטבח' : 'Openings from the kitchen',
+    eyebrow: t.homeChapterStartEyebrow,
+    title:   t.homeChapterStartTitle,
+    tocLine: t.homeChapterStartTocLine,
     photo:   MENU_CATEGORY_PHOTOS.food,
     initial: initialFoodStart,
   },
@@ -135,9 +135,9 @@ const chapters: Chapter[] = [
     apiSlug: lang === 'he' ? 'he' : 'en',
     sectionTitle: lang === 'he' ? 'כמעט הגענו' : 'Almost There',
     number: '02',
-    eyebrow: lang === 'he' ? 'ממשיכים'        : 'Mains',
-    title:   lang === 'he' ? 'כמעט הגענו'      : 'Almost there',
-    tocLine: lang === 'he' ? 'דגים ובשר מהשוק' : 'Fish and meat from the market',
+    eyebrow: t.homeChapterMainEyebrow,
+    title:   t.homeChapterMainTitle,
+    tocLine: t.homeChapterMainTocLine,
     photo:   PHOTOS.kitchen,
     initial: initialFoodMain,
   },
@@ -145,9 +145,9 @@ const chapters: Chapter[] = [
     id: 'cocktails', menuTab: 'cocktails', take: 5,
     apiSlug: 'cocktails',
     number: '03',
-    eyebrow: lang === 'he' ? 'בר זהרה'    : 'Zahara bar',
-    title:   lang === 'he' ? 'קוקטיילים'   : 'Cocktails',
-    tocLine: lang === 'he' ? 'מהבר של איתי' : 'From the bar',
+    eyebrow: t.homeChapterCocktailsEyebrow,
+    title:   t.homeChapterCocktailsTitle,
+    tocLine: t.homeChapterCocktailsTocLine,
     photo:   MENU_CATEGORY_PHOTOS.cocktails,
     initial: [],
   },
@@ -155,25 +155,20 @@ const chapters: Chapter[] = [
     id: 'dessert', menuTab: 'dessert', take: 3,
     apiSlug: lang === 'he' ? 'dessert' : 'dessert_en',
     number: '04',
-    eyebrow: lang === 'he' ? 'בסוף'         : 'And then',
-    title:   lang === 'he' ? 'קינוחים'       : 'Desserts',
-    tocLine: lang === 'he' ? 'סיום מתוק לערב' : 'A sweet finish',
+    eyebrow: t.homeChapterDessertEyebrow,
+    title:   t.homeChapterDessertTitle,
+    tocLine: t.homeChapterDessertTocLine,
     photo:   MENU_CATEGORY_PHOTOS.dessert,
     initial: [],
   },
 ];
 
-const menuIntroEyebrow = lang === 'he' ? 'התפריט'        : 'The menu';
-const chapterCountLbl  = lang === 'he' ? 'פרקים'         : 'Chapters';
+const menuIntroEyebrow = t.menuIntroEyebrow;
+const chapterCountLbl  = t.chapterCountLabel;
 const fullMenuLabelFor = (tab: 'food' | 'cocktails' | 'dessert') => {
-  if (lang === 'he') {
-    return tab === 'cocktails' ? 'לקוקטיילים המלאים ↗'
-         : tab === 'dessert'   ? 'לקינוחים המלאים ↗'
-         : 'לתפריט המלא ↗';
-  }
-  return tab === 'cocktails' ? 'See all cocktails ↗'
-       : tab === 'dessert'   ? 'See all desserts ↗'
-       : 'See the full menu ↗';
+  if (tab === 'cocktails') return t.fullMenuLabelCocktails;
+  if (tab === 'dessert')   return t.fullMenuLabelDessert;
+  return t.fullMenuLabelFood;
 };
 
 const menuPath = path('menu', lang);
@@ -187,10 +182,10 @@ const hydrationPayload = chapters.map((c) => ({
   sectionTitle: c.sectionTitle ?? null,
   take:         c.take,
 }));
-const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
+const emptyLabel = t.emptyLabel;
 ---
 
-<BaseLayout title={title} lang={lang} transparentHeader>
+<BaseLayout title={title} lang={lang} transparentHeader description={description}>
   {/* The hero photo (the LCP) is already loaded eager + fetchpriority=high
       inside HeroBleed, so it needs no extra <link rel=preload>. We used to
       preload a cinematic-chapter photo here, but that section is gone — the
@@ -217,15 +212,42 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
         info strip reads as part of this section instead of a stray band. */}
     <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
       <InfoStrip lang={lang} />
-      <div class="story-scene__body">
-        <Editorial
-          eyebrow={t.storyEyebrow}
-          heading={t.storyHeading}
-          paragraphs={[t.storyP1, t.storyP2, t.storyP3]}
-          eyebrowKey="home.storyEyebrow"
-          headingKey="home.storyHeading"
-          paragraphKeys={['home.storyP1', 'home.storyP2', 'home.storyP3']}
-        />
+      <div class="story-scene__body wrap">
+        <div class="story-scene__text stagger reveal-on-scroll">
+          <p class="eyebrow" data-content-key="home.storyEyebrow">{t.storyEyebrow}</p>
+          <h2
+            class="display"
+            data-word-reveal
+            data-word-reveal-delay="0.08"
+            data-word-reveal-step="0.06"
+            data-content-key="home.storyHeading"
+            data-content-html
+            set:html={t.storyHeading}
+          />
+          <div class="prose">
+            <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
+            <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
+            <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
+          </div>
+        </div>
+
+        {/* Pop&Pope-style box-image-animation: a framed photo revealed by a
+            gold curtain-wipe as the section enters view. */}
+        <figure class="story-feature reveal-on-scroll">
+          <div class="story-feature__frame">
+            <img
+              class="story-feature__img"
+              src={resized(PHOTOS.storyFeature.src, 1000)}
+              srcset={resizedSrcset(PHOTOS.storyFeature.src, [600, 900, 1200])}
+              sizes="(max-width: 900px) 88vw, 40vw"
+              alt={PHOTOS.storyFeature.alt[lang]}
+              loading="lazy"
+              decoding="async"
+            />
+            <span class="story-feature__wipe" aria-hidden="true"></span>
+          </div>
+          <figcaption class="story-feature__caption" data-content-key="home.storyFeatureCaption">{t.storyFeatureCaption}</figcaption>
+        </figure>
       </div>
     </div>
     <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
@@ -453,7 +475,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
  
 </BaseLayout>
 
-<script is:inline define:vars={{ hydrationPayload, lang }}>
+<script is:inline define:vars={{ hydrationPayload, lang, emptyLabel }}>
   // Hydrate chapters that have empty initial items (cocktails, desserts,
   // and EN food) by fetching /api/menu/{slug} and rendering the first
   // N items. Mirrors how MenuEmbed loads its panels.
@@ -509,7 +531,7 @@ const emptyLabel = lang === 'he' ? 'נטען…' : 'Loading…';
         if (hadRealItems) return; // keep the server items rather than blanking
         host.innerHTML = `<li class="menu-cinema__item menu-cinema__item--empty">
           <div class="menu-cinema__item-main">
-            <em class="menu-cinema__item-name">${lang === 'he' ? 'יתעדכן בקרוב' : 'Updates coming soon'}</em>
+            <em class="menu-cinema__item-name">${emptyLabel}</em>
           </div>
         </li>`;
         return;

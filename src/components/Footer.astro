@@ -17,14 +17,14 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
   <div class="wrap">
     <div class="footer-grid stagger">
       <div class="footer-block">
-        <h4>{t.hours}</h4>
+        <h3>{t.hours}</h3>
         <p>{t.weekdays}</p>
         <p class="footer-note">{t.closedNote}</p>
         <p class="footer-note">{t.hotelNote}</p>
       </div>
 
       <div class="footer-block">
-        <h4>{t.contact}</h4>
+        <h3>{t.contact}</h3>
         <a href={`tel:${dial}`}>{phoneTxt}</a>
         <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a>
         <a href={path('about', lang)}>{RESTAURANT.address[lang]}</a>
@@ -32,8 +32,8 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
 
       <div class="footer-block">
         <h4>{t.follow}</h4>
-        <a href={RESTAURANT.instagram} target="_blank" rel="noopener">Instagram</a>
-        <a href={RESTAURANT.facebook}  target="_blank" rel="noopener">Facebook</a>
+        <a href={RESTAURANT.instagram} target="_blank" rel="noopener">{t.instagram}</a>
+        <a href={RESTAURANT.facebook}  target="_blank" rel="noopener">{t.facebook}</a>
       </div>
 
       <div class="footer-block">
@@ -46,9 +46,8 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
     <div class="footer-bottom">
       <span>© {year} {RESTAURANT.name[lang]} — {t.rights}</span>
       <span class="footer-bottom__links">
-        <a href={lang === 'he' ? '/accessibility/' : '/en/accessibility/'}
-           style="margin-inline-end: 1rem;">{t.accessibility}</a>
-        <a href={lang === 'he' ? '/privacy/' : '/en/privacy/'}>{t.privacy}</a>
+        <a href={path('accessibility', lang)} style="margin-inline-end: 1rem;">{t.accessibility}</a>
+        <a href={path('privacy', lang)}>{t.privacy}</a>
       </span>
     </div>
   </div>

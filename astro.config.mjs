@@ -17,7 +17,7 @@ export default defineConfig({
   site: SITE,
 
   build: {
-    inlineStylesheets: 'auto',
+    inlineStylesheets: 'always',
   },
 
   integrations: [

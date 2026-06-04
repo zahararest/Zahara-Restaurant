@@ -1,4 +1,5 @@
 ---
+import { pick, global as globals } from '../../data/i18n';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
@@ -29,10 +30,11 @@ const {
   lang, eyebrow, heading, photos, optionalPhotos = [],
   eyebrowKey, headingKey, captionKeys = [], optionalCaptionKeys = [],
 } = Astro.props;
+const g = pick(globals, lang);
 
 const WIDTHS = [800, 1200, 1600, 2400] as const;
-const prevLabel = lang === 'he' ? 'תמונה קודמת' : 'Previous photo';
-const nextLabel = lang === 'he' ? 'תמונה הבאה'  : 'Next photo';
+const prevLabel = g.previousPhoto;
+const nextLabel = g.nextPhoto;
 ---
 
 <section class="gallery-scene" aria-label={eyebrow}>

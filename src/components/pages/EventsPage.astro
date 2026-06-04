@@ -7,7 +7,7 @@
 import BaseLayout    from '../../layouts/BaseLayout.astro';
 import BleedPhoto    from '../sections/BleedPhoto.astro';
 import ContactForm   from '../sections/ContactForm.astro';
-import { pick, contact as copy } from '../../data/i18n';
+import { pick, contact as copy, eventsPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
 import type { Lang } from '../../data/i18n';
 
@@ -15,12 +15,14 @@ export interface Props { lang: Lang }
 
 const { lang } = Astro.props;
 const t        = pick(copy, lang);
-const title    = lang === 'he' ? 'אירועים' : 'Events';
+const page     = pick(pageCopy, lang);
+const title    = page.pageTitle;
+const description = page.pageDescription;
 
 const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFull];
 ---
 
-<BaseLayout title={title} lang={lang}>
+<BaseLayout title={title} lang={lang} description={description}>
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">
       <p class="eyebrow">{t.eventsPageEyebrow}</p>

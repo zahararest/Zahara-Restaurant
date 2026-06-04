@@ -9,7 +9,7 @@ import BaseLayout    from '../../layouts/BaseLayout.astro';
 import BleedPhoto    from '../sections/BleedPhoto.astro';
 import ContactForm   from '../sections/ContactForm.astro';
 import Photo         from '../Photo.astro';
-import { pick, contact as copy, location as loc } from '../../data/i18n';
+import { pick, contact as copy, location as loc, aboutPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
 import { RESTAURANT } from '../../data/restaurant';
 import type { Lang } from '../../data/i18n';
@@ -19,7 +19,9 @@ export interface Props { lang: Lang }
 const { lang } = Astro.props;
 const t        = pick(copy, lang);
 const l        = pick(loc, lang);
-const title    = lang === 'he' ? 'אודות' : 'About';
+const page     = pick(pageCopy, lang);
+const title    = page.pageTitle;
+const description = page.pageDescription;
 
 const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
 
@@ -30,7 +32,7 @@ const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
 const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
 ---
 
-<BaseLayout title={title} lang={lang}>
+<BaseLayout title={title} lang={lang} description={description}>
   <div class="about-page">
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">

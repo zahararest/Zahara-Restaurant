@@ -31,7 +31,7 @@ const initialFood = lang === 'he' ? menuHe : [];
 
 const bottleLabel = t.priceBottle;
 const glassLabel  = t.priceGlass;
-const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
+const updatedLbl  = t.updatedLabel;
 ---
 
 <div class="menu-embed" id="menu-embed" data-lang={lang}>
@@ -42,12 +42,12 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
   <nav
     class="menu-embed-rail"
     id="menu-embed-rail"
-    aria-label={lang === 'he' ? 'ניווט קטגוריות' : 'Category navigation'}
+    aria-label={t.categoryNavigation}
     aria-hidden="true"
   ></nav>
 
   <div class="menu-embed-main">
-  <nav class="menu-tabs" role="tablist" aria-label={lang === 'he' ? 'קטגוריות תפריט' : 'Menu categories'}>
+  <nav class="menu-tabs" role="tablist" aria-label={t.menuCategories}>
     {tabs.map((tab, i) => (
       <button
         class={`menu-tab${i === 0 ? ' is-active' : ''}`}
@@ -110,7 +110,7 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
   </div>{/* end .menu-embed-main */}
 </div>
 
-<script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel }}>
+<script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel, menuTitle: t.eyebrow, noCocktailsLabel: t.noCocktails, menuUnavailableLabel: t.notReady }}>
   // ── HTML escape ─────────────────────────────────────────────
   const esc = s => String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -248,8 +248,8 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
       if (html) content.innerHTML = html;
       else {
         const empty = kind === 'cocktails'
-          ? (pageLang === 'he' ? 'אין קוקטיילים זמינים כעת' : 'No cocktails available')
-          : (pageLang === 'he' ? 'התפריט עדיין לא הועלה'    : 'Menu coming soon');
+          ? noCocktailsLabel
+          : menuUnavailableLabel;
         content.innerHTML = `<div class="menu-coming-soon"><p>${esc(empty)}</p></div>`;
       }
       armReveals(content);
@@ -349,7 +349,7 @@ const updatedLbl  = lang === 'he' ? 'עודכן' : 'Updated';
 
     const titleEl = document.createElement('p');
     titleEl.className   = 'menu-embed-rail__title';
-    titleEl.textContent = pageLang === 'he' ? 'תפריט' : 'Menu';
+    titleEl.textContent = menuTitle;
     rail.appendChild(titleEl);
 
     const list = document.createElement('ol');

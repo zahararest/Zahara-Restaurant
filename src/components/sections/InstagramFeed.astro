@@ -6,6 +6,7 @@
 // Cloudflare Pages secret. Falls back to a branded "Follow us" CTA
 // when no token is configured.
 
+import { pick, home as copy } from '../../data/i18n';
 import { RESTAURANT } from '../../data/restaurant';
 import type { Lang }  from '../../data/i18n';
 
@@ -14,35 +15,25 @@ export interface Props {
 }
 
 const { lang } = Astro.props;
-const isHe = lang === 'he';
-
-const t = {
-  eyebrow:  isHe ? 'אינסטגרם' : 'Instagram',
-  heading:  isHe ? 'רגעים מהמטבח.' : 'Moments from the kitchen.',
-  follow:   isHe ? 'עקבו אחרינו' : 'Follow us',
-  loading:  isHe ? 'טוען...' : 'Loading…',
-  empty:    isHe ? 'עקבו אחרינו באינסטגרם' : 'Follow us on Instagram',
-  handle:   '@zahara.restaurant',
-  ariaStrip: isHe ? 'פיד אינסטגרם של זהרה' : 'Zahara Instagram feed',
-};
+const t = pick(copy, lang);
 ---
 
 <section class="section-tight ig-section reveal-on-scroll">
   <div class="wrap">
     <div class="section-head">
-      <p class="eyebrow eyebrow--center" data-content-key="home.igEyebrow">{t.eyebrow}</p>
+      <p class="eyebrow eyebrow--center" data-content-key="home.igEyebrow">{t.igEyebrow}</p>
       <h2
         class="display"
         data-word-reveal
         data-word-reveal-delay="0.06"
         data-word-reveal-step="0.06"
         data-content-key="home.igHeading"
-      >{t.heading}</h2>
+      >{t.igHeading}</h2>
     </div>
   </div>
 
   <div class="ig-scroll-wrap">
-    <div class="ig-scroll" data-ig-scroll role="list" aria-label={t.ariaStrip}>
+    <div class="ig-scroll" data-ig-scroll role="list" aria-label={t.igAriaStrip}>
       {/* Placeholder cards shown before hydration */}
       {Array.from({ length: 6 }).map((_, i) => (
         <div class="ig-card ig-card--skeleton" role="listitem" aria-hidden="true" style={`--i:${i}`}>
@@ -58,14 +49,14 @@ const t = {
         href={RESTAURANT.instagram}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label={`${t.follow} · ${t.handle}`}
+        aria-label={`${t.igFollow} · ${t.igHandle}`}
       >
         <svg class="ig-follow__icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
           <circle cx="12" cy="12" r="4"/>
           <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
         </svg>
-        <span class="ig-follow__handle">{t.handle}</span>
+        <span class="ig-follow__handle">{t.igHandle}</span>
         <span class="ig-follow__label">↗</span>
       </a>
     </div>
@@ -103,7 +94,7 @@ const t = {
           target="_blank"
           rel="noopener noreferrer"
           role="listitem"
-          aria-label="${p.caption ? p.caption.slice(0, 60) : t.handle}"
+          aria-label="${p.caption ? p.caption.slice(0, 60) : t.igHandle}"
           style="--i:${i}"
         >
           <div class="ig-card__img" style="background-image:url(${p.thumbnail_url || p.media_url})"></div>
@@ -115,15 +106,15 @@ const t = {
       scroll.innerHTML = `
         <a class="ig-card ig-card--cta" href="${instagramUrl}" target="_blank"
            rel="noopener noreferrer" role="listitem"
-           aria-label="${t.follow}">
+           aria-label="${t.igFollow}">
           <div class="ig-card__img ig-card__img--cta">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
               <circle cx="12" cy="12" r="4"/>
               <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
             </svg>
-            <span>${t.empty}</span>
-            <span class="ig-cta-handle">${t.handle}</span>
+            <span>${t.igEmpty}</span>
+            <span class="ig-cta-handle">${t.igHandle}</span>
           </div>
         </a>`;
     }

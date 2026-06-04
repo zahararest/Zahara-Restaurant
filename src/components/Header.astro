@@ -1,7 +1,7 @@
 ---
 import { pick, header as labels } from '../data/i18n';
 import { RESTAURANT }              from '../data/restaurant';
-import { path, altLangHref, NAV_ORDER, type RouteKey } from '../lib/paths';
+import { path, altLangHref, NAV_ORDER, type RouteKey, type NavKey } from '../lib/paths';
 const rooftopUrl = RESTAURANT.rooftopUrl;
 import type { Lang }               from '../data/i18n';
 
@@ -15,7 +15,7 @@ const { lang = 'he', transparent = false } = Astro.props;
 const t        = pick(labels, lang);
 const currPath = Astro.url.pathname;
 
-const navItems: { href: string; label: string; key: RouteKey }[] = NAV_ORDER.map(key => ({
+const navItems: { href: string; label: string; key: NavKey }[] = NAV_ORDER.map((key: NavKey) => ({
   key,
   href:  path(key, lang),
   label: t[key],
@@ -37,21 +37,21 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       class="burger"
       id="burger"
       type="button"
-      aria-label={lang === 'he' ? 'תפריט ניווט' : 'Navigation menu'}
+      aria-label={t.burgerAria}
       aria-expanded="false"
       aria-controls="mobile-nav"
     >
       <span></span><span></span><span></span>
     </button>
 
-    <nav class="nav nav-row" aria-label={lang === 'he' ? 'ניווט ראשי' : 'Primary'}>
+    <nav class="nav nav-row" aria-label={t.navAria}>
       {navItems.map(item => (
         <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>{item.label}</a>
       ))}
     </nav>
 
-    <a href={path('home', lang)} class="brand" aria-label={lang === 'he' ? 'זהרה — עמוד הבית' : 'Zahara — Home'}>
-      {lang === 'he' ? 'זהרה' : 'Zahara'}
+    <a href={path('home', lang)} class="brand" aria-label={t.brandAria}>
+      {t.brandText}
     </a>
 
     <div class="header-cta">
@@ -70,19 +70,17 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
           </a>
         )
       }
-      <a class="header-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">
-        {t.reserve}
-      </a>
+      {/* Reserve moved to a persistent floating button (see BaseLayout). */}
 
       {/* Social — Instagram + Facebook icon links */}
       <div class="header-social">
-        <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label="Instagram">
+        <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label={t.instagramAria}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
             <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/>
             <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
           </svg>
         </a>
-        <a href={RESTAURANT.facebook} target="_blank" rel="noopener" aria-label="Facebook">
+        <a href={RESTAURANT.facebook} target="_blank" rel="noopener" aria-label={t.facebookAria}>
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H8v3h3v7h3v-7h2.5l.5-3H14V9z"/>
           </svg>
@@ -101,7 +99,7 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
           <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">●</span>
           <span class="visually-hidden" data-theme-state></span>
         </button>
-        <a href={otherLangHref} class="lang-toggle" aria-label={lang === 'he' ? 'English' : 'עברית'}>
+        <a href={otherLangHref} class="lang-toggle" aria-label={t.langToggleAria}>
           {t.langToggle}
         </a>
       </div>

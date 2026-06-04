@@ -682,6 +682,7 @@ const SCRIPT = `
       // ── Mobile (portrait) variant wiring ──────────────────────────
       const mFile   = card.querySelector('[data-mobile-file]');
       const mUp     = card.querySelector('[data-mobile-upload]');
+      const mEdit   = card.querySelector('[data-mobile-edit]');
       const mDel    = card.querySelector('[data-mobile-delete]');
       const mStatus = card.querySelector('[data-mobile-status]');
       const mThumb  = card.querySelector('[data-mobile-thumb]');
@@ -708,6 +709,30 @@ const SCRIPT = `
             try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'set' }); } catch (_) {}
           } catch (err) { mSet(String(err.message || err), true); }
           finally { mUp.disabled = false; if (mDel) mDel.disabled = false; }
+        });
+      }
+      if (mEdit) {
+        // Same crop/rotate/adjust editor as the desktop photo, but it saves
+        // to the mobile variant. With no file picked, it opens on the photo
+        // currently shown for phones (the desktop image until a mobile one is
+        // set), so the owner can crop a portrait straight from it.
+        mEdit.addEventListener('click', () => {
+          const src = (mFile && mFile.files && mFile.files[0])
+            ? mFile.files[0]
+            : (mThumb ? mThumb.src.split('?')[0] + '?t=' + Date.now() : null);
+          if (!src) { mSet('Choose a file or wait for the preview', true); return; }
+          window.ZAHARA_EDITOR.open({
+            key: key,
+            label: (card.dataset.label || key) + ' · mobile',
+            source: src,
+            variant: 'mobile',
+            onSaved: (size) => {
+              mSet('Saved · ' + fmtKB(size), false);
+              mRefresh();
+              if (mBadge) { mBadge.textContent = 'Set'; mBadge.classList.add('is-set'); }
+              if (mFile) mFile.value = '';
+            },
+          });
         });
       }
       if (mDel) {
@@ -1079,7 +1104,8 @@ const SCRIPT = `
         try {
           const { blob, w, h } = await exportBlob();
           setStatus('Uploading ' + w + '×' + h + ' · ' + Math.round(blob.size / 1024) + ' KB…', false);
-          const data = await window.ZAHARA_UPLOAD(ctxState.key, blob, ctxState.key + '.jpg');
+          const fname = ctxState.key + (ctxState.variant === 'mobile' ? '-mobile' : '') + '.jpg';
+          const data = await window.ZAHARA_UPLOAD(ctxState.key, blob, fname, ctxState.variant);
           if (ctxState.onSaved) ctxState.onSaved(data.size);
           // Save succeeded — bypass the dirty guard on close.
           dirty = false;
@@ -1202,6 +1228,9 @@ function renderCard(
               <input class="card__file-input" type="file" data-mobile-file accept="image/jpeg,image/png,image/webp" />
               <div class="card__row" style="margin-top:0.4rem">
                 <button class="btn btn--sm" type="button" data-mobile-upload>Upload</button>
+                <button class="btn btn--ghost btn--sm" type="button" data-mobile-edit>Edit &amp; adjust</button>
+              </div>
+              <div class="card__row" style="margin-top:0.35rem">
                 <button class="btn btn--ghost btn--sm" type="button" data-mobile-delete>Remove</button>
               </div>
               <p class="card__mobile-status" data-mobile-status></p>

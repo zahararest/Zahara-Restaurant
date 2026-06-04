@@ -1,4 +1,12 @@
 ---
+import { pick, global as globals, type Lang } from '../data/i18n';
+
+export interface Props { lang?: Lang }
+const { lang = 'he' } = Astro.props;
+const t = pick(globals, lang);
+const sectionNavLabel = t.pageNavigation;
+const scrollTopLabel = t.scrollToTop;
+
 // Global motion runtime — runs on EVERY page (included from BaseLayout)
 // and powers every animation primitive identically across V1 and V2:
 //
@@ -23,7 +31,7 @@
 // MotionV2.astro layers Lenis smooth scroll + the pin-cycle device on
 // top of this — never duplicating anything Motion already owns.
 ---
-<script is:inline>
+<script is:inline define:vars={{ sectionNavLabel, scrollTopLabel }}>
   (function () {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -337,8 +345,7 @@
       if (!rail) {
         rail = document.createElement('nav');
         rail.className = 'scroll-rail';
-        rail.setAttribute('aria-label',
-          document.documentElement.lang === 'he' ? 'ניווט בעמוד' : 'Page navigation');
+        rail.setAttribute('aria-label', sectionNavLabel);
         sections.forEach((sec, i) => {
           const a = document.createElement('a');
           a.className = 'scroll-rail__tick';
@@ -389,8 +396,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'scroll-top';
-      btn.setAttribute('aria-label',
-        document.documentElement.lang === 'he' ? 'גלילה למעלה' : 'Scroll to top');
+      btn.setAttribute('aria-label', scrollTopLabel);
       // SVG arrow — Unicode glyphs have inconsistent vertical metrics across
       // fonts; an inline SVG is always perfectly centred in the button grid.
       btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" style="width:16px;height:16px;display:block"><line x1="8" y1="13" x2="8" y2="3"/><polyline points="4,7 8,3 12,7"/></svg>';

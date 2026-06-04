@@ -69,10 +69,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
   const objectKey  = isMobile ? `${key}__mobile` : key;
 
-  const file = form.get('file');
-  if (!(file instanceof File)) {
+  // The Workers type lib types FormData values as `string`, with no `File`
+  // value to `instanceof`. At runtime an uploaded file is a Blob-like with
+  // these members, so we guard structurally and cast to that shape.
+  type UploadedFile = { size: number; type?: string; name?: string; arrayBuffer(): Promise<ArrayBuffer> };
+  const rawEntry = form.get('file') as unknown;
+  if (rawEntry === null || typeof rawEntry === 'string' ||
+      typeof (rawEntry as UploadedFile)?.arrayBuffer !== 'function') {
     return json({ ok: false, error: 'Missing file field' }, 400);
   }
+  const file = rawEntry as UploadedFile;
   if (file.size === 0) {
     return json({ ok: false, error: 'File is empty' }, 400);
   }

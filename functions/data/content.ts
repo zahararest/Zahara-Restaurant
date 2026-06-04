@@ -72,6 +72,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'home.storyP3', label: 'Paragraph 3', html: true, multiline: true,
       he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
       en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.' },
+    { key: 'home.storyFeatureCaption', label: 'Feature image caption', he: 'ערב אצלנו', en: 'An evening with us' },
   ] },
   { title: 'Menu section', fields: [
     { key: 'home.menuSplitEyebrow', label: 'Eyebrow', he: 'התפריט', en: 'The menu' },
@@ -124,12 +125,20 @@ export const ALL_CONTENT_KEYS: readonly string[] = [
 ];
 const ALLOWED = new Set(ALL_CONTENT_KEYS);
 
+/** Built-in default text per key (gallery captions have no default → ''). */
+export const CONTENT_DEFAULTS: Record<string, ContentValue> = Object.fromEntries(
+  CONTENT_GROUPS.flatMap(g => g.fields.map(f => [f.key, { he: f.he ?? '', en: f.en ?? '' }])),
+);
+const defaultFor = (key: string, lang: 'he' | 'en'): string => CONTENT_DEFAULTS[key]?.[lang] ?? '';
+
 function pickKv(env: ContentEnv): KVNamespace | null {
   return env.MENU_DATA ?? env.PALETTE_DATA ?? null;
 }
 
 /** Reduce arbitrary input to a clean { key: { he?, en? } } map. Drops
- *  unknown keys and empty strings. */
+ *  unknown keys and non-strings. Empty strings ARE kept — an explicit empty
+ *  override means "hide this element on the site" (distinct from "no
+ *  override", which falls back to the built-in default). */
 export function sanitiseContent(input: unknown): ContentMap {
   const out: ContentMap = {};
   if (!input || typeof input !== 'object') return out;
@@ -138,19 +147,22 @@ export function sanitiseContent(input: unknown): ContentMap {
     const val: ContentValue = {};
     for (const lang of ['he', 'en'] as const) {
       const s = (v as Record<string, unknown>)[lang];
-      if (typeof s === 'string' && s.trim() !== '') val[lang] = s.slice(0, MAX_LEN);
+      if (typeof s === 'string') val[lang] = s.slice(0, MAX_LEN);
     }
     if (val.he !== undefined || val.en !== undefined) out[k] = val;
   }
   return out;
 }
 
-/** Merge a posted (possibly partial) map into the existing one. A posted
- *  lang value that is an empty string CLEARS that override; a missing lang
- *  property is left untouched. */
+/** Merge a posted (possibly partial) map into the existing one, comparing
+ *  each value to its built-in default:
+ *    • value === default  → no override stored (the page shows the default)
+ *    • value === ''       → stored as an explicit empty (HIDES the element)
+ *    • anything else      → stored as an override
+ *  A missing lang property is left untouched. */
 export function mergeContent(existing: ContentMap, posted: unknown): ContentMap {
   const merged: ContentMap = { ...existing };
-  if (!posted || typeof posted !== 'object') return sanitiseContent(merged);
+  if (!posted || typeof posted !== 'object') return merged;
   for (const [k, v] of Object.entries(posted as Record<string, unknown>)) {
     if (!ALLOWED.has(k) || !v || typeof v !== 'object') continue;
     const cur: ContentValue = { ...(merged[k] ?? {}) };
@@ -158,8 +170,8 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
       const raw = (v as Record<string, unknown>)[lang];
       if (typeof raw !== 'string') continue;       // not provided → leave as-is
       const t = raw.slice(0, MAX_LEN);
-      if (t.trim() === '') delete cur[lang];        // explicit clear
-      else cur[lang] = t;
+      if (t === defaultFor(k, lang)) delete cur[lang];   // matches default → no override
+      else cur[lang] = t;                                 // override (incl. '' = hide)
     }
     if (cur.he !== undefined || cur.en !== undefined) merged[k] = cur;
     else delete merged[k];

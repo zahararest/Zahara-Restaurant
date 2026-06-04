@@ -1,5 +1,5 @@
 ---
-import { pick, home as copy }    from '../../data/i18n';
+import { pick, home as copy, global as globals } from '../../data/i18n';
 import { RESTAURANT }              from '../../data/restaurant';
 import { path }                    from '../../lib/paths';
 import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
@@ -13,8 +13,9 @@ export interface Props {
 
 const { lang, photo } = Astro.props;
 const t = pick(copy, lang);
+const g = pick(globals, lang);
 
-const scrollLabel = lang === 'he' ? 'גלול' : 'Scroll';
+const scrollLabel = g.scrollToNext;
 
 const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
 ---
@@ -61,7 +62,7 @@ const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
   </div>
 
   <button class="scroll-cue" type="button" data-scroll-cue
-          aria-label={lang === 'he' ? 'גלול לקטע הבא' : 'Scroll to next section'}>
+          aria-label={g.scrollToNext}>
     <span class="scroll-cue__label">{scrollLabel}</span>
     <span class="scroll-cue__arrow" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
@@ -77,11 +78,16 @@ const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
     var cue = document.querySelector('[data-scroll-cue]');
     if (!cue) return;
     cue.addEventListener('click', function () {
-      // Jump to the SECOND full-screen section (the info-strip + story).
+      // Scroll to the exact top of the SECOND full-screen section (info-strip
+      // + story). We compute the absolute document position rather than using
+      // scrollIntoView, which was landing short (scroll-padding + the sticky
+      // header were clipping it partway).
       var sections = document.querySelectorAll('[data-section-name]');
       var target = sections[1];
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+      var top = target
+        ? Math.round(target.getBoundingClientRect().top + window.scrollY)
+        : Math.round(window.innerHeight);
+      window.scrollTo({ top: top, behavior: 'smooth' });
     });
   })();
 </script>

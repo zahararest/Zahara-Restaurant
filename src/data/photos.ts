@@ -45,6 +45,14 @@ export const PHOTOS = {
     alt: { he: 'אווירה', en: 'Atmosphere' },
   },
 
+  // Framed photo that reveals (gold curtain-wipe) beside the story text on
+  // the home page. Its own key so the chef can swap it independently;
+  // falls back to the `interior` override until a dedicated one is uploaded.
+  storyFeature: {
+    src: `${base}/story-feature.jpg`,
+    alt: { he: 'רגע מתוך זהרה', en: 'A moment inside Zahara' },
+  },
+
   // ── Moody / dark backgrounds — used behind editorial text sections
   // on the home page. Dramatic lighting + darkening overlay reads as
   // cinematic editorial backdrops.

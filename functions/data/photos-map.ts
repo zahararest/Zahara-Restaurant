@@ -75,6 +75,8 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Gallery 9 · Extra', where: 'Optional 9th home-gallery photo — shows only if uploaded' },
   { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true, mobile: true,
     label: 'Gallery 10 · Extra', where: 'Optional 10th home-gallery photo — shows only if uploaded' },
+  { key: 'storyFeature', filename: 'story-feature.jpg', group: 'home', fallbackKey: 'interior',
+    label: 'Story — feature image', where: 'Framed photo that reveals (curtain wipe) beside the story text' },
   { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home',
     label: 'Events — photo block', where: 'Beside the events text near the footer' },
 

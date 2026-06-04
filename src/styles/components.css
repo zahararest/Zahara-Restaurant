@@ -1116,12 +1116,58 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 }
 .story-scene__body {
   flex: 1;
-  display: flex;
-  align-items: center;
-}
-.story-scene__body > .section {
-  width: 100%;
+  display: grid;
+  align-content: center;
+  gap: clamp(var(--space-l), 5vw, var(--space-2xl));
   padding-block: clamp(var(--space-l), 6vh, var(--space-2xl));
+}
+@media (min-width: 900px) {
+  /* Text + framed feature image side by side. The image sits on the
+     inline-end so the reading column leads. */
+  .story-scene__body { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); align-items: center; }
+}
+.story-scene__text { color: var(--paper-on-photo); }
+.story-scene__text .prose { margin-block-start: var(--space-m); display: grid; gap: var(--space-m); }
+.story-scene__text .prose p { margin: 0; }
+
+/* ── Story feature image — gold curtain-wipe reveal (Pop&Pope-style) ──── */
+.story-feature { margin: 0; }
+.story-feature__frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  border-radius: 2px;
+  box-shadow: 0 30px 70px -34px color-mix(in srgb, var(--shadow) 80%, transparent);
+}
+.story-feature__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scale(1.12);
+  transition: transform 1.5s var(--ease-out);
+}
+.story-feature__wipe {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: inline-end;
+  transition: transform 0.85s var(--ease-out);
+}
+html[dir="rtl"] .story-feature__wipe { transform-origin: inline-start; }
+.story-feature.is-in-view .story-feature__img  { transform: scale(1); }
+.story-feature.is-in-view .story-feature__wipe { transform: scaleX(0); transition-delay: 0.1s; }
+.story-feature__caption {
+  margin-block-start: 0.85rem;
+  font-family: var(--font-body);
+  font-size: var(--step--2);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-feature__img { transform: none; transition: none; }
+  .story-feature__wipe { display: none; }
 }
 /* The info strip, when it sits on the dark photo, drops its paper band and
    reads in cream — so it belongs to the photo instead of cutting across it. */
@@ -1344,9 +1390,51 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
    follow the same rules as every .btn on the site: --ink fill / --paper
    glyph at rest, accent fill / --paper-on-photo glyph on hover. Token
    pairs flip cleanly in dark mode. */
+/* ── Floating Reserve CTA — the primary action, persistent at the
+   inline-end corner (replaces the old header Reserve link). ──────────── */
+.floating-reserve {
+  position: fixed;
+  inset-block-end: 1.4rem;
+  inset-inline-end: 1.4rem;
+  z-index: 76;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.3rem;
+  background: var(--accent);
+  color: var(--paper-on-photo);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: var(--step--1);
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  text-transform: uppercase;
+  text-decoration: none;
+  line-height: 1;
+  box-shadow: 0 14px 34px -14px color-mix(in srgb, var(--shadow) 60%, transparent);
+  transition: background 0.25s ease, transform 0.25s var(--ease-out), box-shadow 0.25s ease;
+}
+.floating-reserve:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px -14px color-mix(in srgb, var(--shadow) 65%, transparent);
+}
+.floating-reserve:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 3px; }
+.floating-reserve__icon { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
+html[lang="he"] .floating-reserve { letter-spacing: 0.04em; text-transform: none; font-weight: 700; }
+/* On small phones, collapse to an icon-only round button to save room. */
+@media (max-width: 560px) {
+  .floating-reserve { padding: 0.85rem; border-radius: 50%; }
+  .floating-reserve__label { display: none; }
+  .floating-reserve__icon { width: 1.25rem; height: 1.25rem; }
+}
+
 .scroll-top {
   position: fixed;
-  inset-block-end: 1.5rem;
+  /* Stacked above the floating Reserve pill. */
+  inset-block-end: 5rem;
   inset-inline-end: 1.5rem;
   z-index: 75;
   width: 48px;

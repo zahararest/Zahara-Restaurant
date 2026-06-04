@@ -27,10 +27,17 @@ export const header = {
   reserve:     { he: 'הזמנה',          en: 'Reserve'   },
   rooftop:     { he: 'Nucha Rooftop', en: 'Nucha Rooftop' },
   rooftopSoon: { he: 'בקרוב',         en: 'Soon'         },
+  brandText:   { he: 'זהרה',            en: 'Zahara'     },
   langToggle:  { he: 'EN',             en: 'עברית'     },
   themeToggle: { he: 'שינוי ערכת נושא', en: 'Toggle theme' },
   themeLight:  { he: 'בהיר',           en: 'Light'        },
   themeDark:   { he: 'כהה',            en: 'Dark'         },
+  burgerAria:  { he: 'תפריט ניווט',   en: 'Navigation menu' },
+  navAria:     { he: 'ניווט ראשי',     en: 'Primary'          },
+  brandAria:   { he: 'זהרה — עמוד הבית', en: 'Zahara — Home' },
+  langToggleAria: { he: 'English',      en: 'עברית'           },
+  instagramAria: { he: 'אינסטגרם',      en: 'Instagram'       },
+  facebookAria:  { he: 'פייסבוק',       en: 'Facebook'        },
 };
 
 // ── Footer ───────────────────────────────────────────────────────────────────
@@ -42,6 +49,8 @@ export const footer = {
   hotelNote:     { he: "במלון נוצ׳ה, רחוב בן סירא", en: 'Inside Nucha Hotel, Ben Sira Street' },
   contact:       { he: 'יצירת קשר',             en: 'Contact'           },
   follow:        { he: 'עקבו אחרינו',           en: 'Follow'            },
+  instagram:     { he: 'Instagram',               en: 'Instagram'         },
+  facebook:      { he: 'Facebook',                en: 'Facebook'          },
   reserve:       { he: 'הזמנת מקום',            en: 'Reserve'           },
   rights:        { he: 'כל הזכויות שמורות',     en: 'All rights reserved' },
   accessibility: { he: 'הצהרת נגישות',          en: 'Accessibility'     },
@@ -65,6 +74,22 @@ export const menuEmbed = {
   ariaLabel:   { he: 'תפריט המסעדה',                                        en: 'Restaurant menu'         },
 };
 
+export const layout = {
+  defaultDescription: {
+    he: "זהרה — מסעדת שף כשרה במלון נוצ׳ה, ירושלים. מטבח ים-תיכוני עכשווי, טכניקה צרפתית והשפעות אסייתיות. שף רועי אחדות.",
+    en: "Zahara — a kosher chef's restaurant inside Nucha Hotel, Jerusalem. Contemporary Mediterranean kitchen with French technique and Asian influences. Chef Roi Achdut.",
+  },
+  skipToContent: { he: 'דלג לתוכן', en: 'Skip to content' },
+};
+
+export const global = {
+  pageNavigation: { he: 'ניווט בעמוד', en: 'Page navigation' },
+  scrollToTop:    { he: 'גלילה למעלה', en: 'Scroll to top' },
+  scrollToNext:   { he: 'גלול לקטע הבא', en: 'Scroll to next section' },
+  previousPhoto:  { he: 'תמונה קודמת', en: 'Previous photo' },
+  nextPhoto:      { he: 'תמונה הבאה',  en: 'Next photo' },
+};
+
 // ── Home page ─────────────────────────────────────────────────────────────────
 
 export const home = {
@@ -80,6 +105,37 @@ export const home = {
 
   heroCtaReserve: { he: 'הזמינו מקום',    en: 'Reserve a table' },
   heroCtaMenu:    { he: 'לתפריט',         en: 'See the menu'    },
+  pageTitle:      { he: 'בית',             en: 'Home'            },
+  pageDescription:{ he: 'זהרה — מסעדת שף כשרה במלון נוצ׳ה, ירושלים. מטבח ים-תיכוני עכשווי עם השפעות צרפתיות ואסייתיות.',
+                    en: 'Zahara — a kosher chef restaurant inside Nucha Hotel, Jerusalem. Contemporary Mediterranean dishes with French and Asian influences.' },
+  kitchenCaption: { he: 'המטבח של זהרה',   en: 'The Zahara kitchen' },
+  secHero:        { he: 'בית',             en: 'Open'            },
+  secStory:       { he: 'סיפור',           en: 'Story'           },
+  secKitchen:     { he: 'מטבח',            en: 'Kitchen'         },
+  secMenu:        { he: 'תפריט',           en: 'Menu'            },
+  secGallery:     { he: 'גלריה',           en: 'Gallery'         },
+  secInstagram:   { he: 'אינסטגרם',       en: 'Instagram'       },
+  secEvents:      { he: 'אירועים',         en: 'Events'          },
+  menuIntroEyebrow:{ he: 'התפריט',         en: 'The menu'       },
+  chapterCountLabel:{ he: 'פרקים',        en: 'Chapters'       },
+  fullMenuLabelFood: { he: 'לתפריט המלא ↗', en: 'See the full menu ↗' },
+  fullMenuLabelCocktails: { he: 'לקוקטיילים המלאים ↗', en: 'See all cocktails ↗' },
+  fullMenuLabelDessert:  { he: 'לקינוחים המלאים ↗', en: 'See all desserts ↗' },
+  emptyLabel:     { he: 'נטען…',          en: 'Loading…'        },
+  updatesComingSoon:{ he: 'יתעדכן בקרוב', en: 'Updates coming soon' },
+
+  homeChapterStartEyebrow: { he: 'פתיחה',       en: 'First course'   },
+  homeChapterStartTitle:   { he: 'משהו להתחלה', en: 'Beginnings'     },
+  homeChapterStartTocLine: { he: 'מנות שמשנות את הערב.', en: 'Dishes that set the tone.' },
+  homeChapterMainEyebrow:  { he: 'עיקריות',     en: 'Mains'          },
+  homeChapterMainTitle:    { he: 'כמעט הגענו',  en: 'Almost there'   },
+  homeChapterMainTocLine:  { he: 'המסע ממשיך עם טעמים עמוקים.', en: 'The journey continues with deeper flavours.' },
+  homeChapterCocktailsEyebrow: { he: 'בר',     en: 'Bar'            },
+  homeChapterCocktailsTitle:   { he: 'קוקטיילים', en: 'Cocktails'      },
+  homeChapterCocktailsTocLine: { he: 'הכנה טרייה, תנועה קלה.', en: 'Freshly mixed, easy-going.' },
+  homeChapterDessertEyebrow:   { he: 'קינוח',   en: 'Dessert'        },
+  homeChapterDessertTitle:     { he: 'סוף מתוק',  en: 'Sweet finish'   },
+  homeChapterDessertTocLine:   { he: 'הסיום הקשה ביותר של הערב.', en: 'The sweetest end of the night.' },
 
   infoHoursLabel:   { he: 'שעות',              en: 'Hours'        },
   infoHoursValue:   { he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
@@ -115,6 +171,7 @@ export const home = {
     he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
     en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.',
   },
+  storyFeatureCaption: { he: 'ערב אצלנו', en: 'An evening with us' },
 
   kitchenEyebrow: { he: 'המטבח',           en: 'The kitchen'     },
   kitchenHeading: { he: 'חומר גלם, לפני הכל.', en: 'Ingredients first.' },
@@ -140,6 +197,13 @@ export const home = {
 
   galleryEyebrow: { he: 'גלריה',         en: 'Gallery'                   },
   galleryHeading: { he: 'הצצה לערב.',    en: 'A glimpse of the evening.' },
+  igEyebrow:      { he: 'אינסטגרם',      en: 'Instagram'                 },
+  igHeading:      { he: 'רגעים מהמטבח.',  en: 'Moments from the kitchen.' },
+  igFollow:       { he: 'עקבו אחרינו',    en: 'Follow us'                 },
+  igLoading:      { he: 'טוען...',         en: 'Loading…'                  },
+  igEmpty:        { he: 'עקבו אחרינו באינסטגרם', en: 'Follow us on Instagram' },
+  igAriaStrip:    { he: 'פיד אינסטגרם של זהרה', en: 'Zahara Instagram feed' },
+  igHandle:       { he: '@zahara.restaurant', en: '@zahara.restaurant' },
 
   // ── Menu split — the full-frame "how the table is built" section that
   // replaced the in-page menu preview. One photo, the four parts of the
@@ -187,7 +251,117 @@ export const home = {
   tocEyebrow:  { he: 'בערב הזה',  en: 'On the menu tonight' },
   tocHeading:  { he: 'ארבעה פרקים.', en: 'Four chapters.'    },
 };
+export const menuPage = {
+  pageTitle: { he: 'תפריט',            en: 'Menu' },
+  pageDescription: {
+    he: 'התפריט של זהרה במלון נוצ׳ה — מטבח ים-תיכוני מודרני, מנות שף כשרות, קוקטיילים וקינוחים.',
+    en: 'Zahara menu at Nucha Hotel — modern kosher Mediterranean cuisine, chef-driven dishes, cocktails, and desserts.',
+  },
+};
 
+export const aboutPage = {
+  pageTitle: { he: 'אודות', en: 'About' },
+  pageDescription: {
+    he: 'מידע על זהרה: כתובת, שעות פתיחה, נגישות, קשר ומסלול הגעה ממלון נוצ׳ה, ירושלים.',
+    en: 'Learn about Zahara: location, opening hours, accessibility, contact details, and directions from Nucha Hotel in Jerusalem.',
+  },
+};
+
+export const eventsPage = {
+  pageTitle: { he: 'אירועים', en: 'Events' },
+  pageDescription: {
+    he: 'אירועים פרטיים ועסקיים בזהרה — קונספט כשר, תפריטים אישיים ושירות אירועים במלון נוצ׳ה, ירושלים.',
+    en: 'Private and corporate events at Zahara — kosher chef menus, bespoke catering, and event service at Nucha Hotel, Jerusalem.',
+  },
+};
+
+export const accessibilityPage = {
+  pageTitle: { he: 'הצהרת נגישות', en: 'Accessibility statement' },
+  pageDescription: {
+    he: 'הצהרת נגישות של הזהרה — מידע על התאמות האתר והנגישות לטובת אנשים עם מוגבלות.',
+    en: 'Zahara accessibility statement — details about website and venue accessibility for people with disabilities.',
+  },
+  pageEyebrow: { he: 'נגישות', en: 'Accessibility' },
+  updatedLabel: { he: 'עודכן לאחרונה', en: 'Last updated' },
+  standardHeading: { he: 'תקן הנגישות', en: 'Accessibility standard' },
+  standardText: {
+    he: 'האתר נבנה לפי הנחיות תקן ישראלי 5568 ברמת AA, התואם להנחיות ה־WCAG 2.0 של ארגון ה־W3C.',
+    en: 'The site is built to Israeli Standard 5568 Level AA, which mirrors the W3C’s WCAG 2.0 Level AA recommendations.',
+  },
+  availabilityHeading: { he: 'אמצעי נגישות באתר', en: 'What’s available on this site' },
+  availabilityItem1: { he: 'תפריט התאמות נגישות הזמין באייקון ♿ בפינה התחתונה של כל עמוד.', en: 'An on-page adjustments panel accessible via the ♿ button in the bottom corner of every page.' },
+  availabilityItem2: { he: 'הגדלה והקטנה של גופן ללא פגיעה בפריסת התוכן.', en: 'Font-size increase / decrease without breaking the layout.' },
+  availabilityItem3: { he: 'מצב ניגודיות גבוהה — שחור על לבן עם תוספת דגש על קישורים וגבולות.', en: 'High-contrast mode — black on white with strong link + border emphasis.' },
+  availabilityItem4: { he: 'הדגשת קישורים בקו תחתון בכל מקום באתר.', en: 'Underline-every-link mode.' },
+  availabilityItem5: { he: 'עצירת אנימציות ומעברי מסך לבעלי רגישות לתנועה.', en: 'Stop-animations mode for visitors with motion sensitivity.' },
+  availabilityItem6: { he: 'הדגשת כותרות במסגרת ויזואלית.', en: 'Heading-outline mode.' },
+  availabilityItem7: { he: 'תמיכה מלאה בניווט באמצעות מקלדת (Tab / Shift+Tab / Enter / Esc).', en: 'Full keyboard navigation (Tab / Shift+Tab / Enter / Esc).' },
+  availabilityItem8: { he: 'טקסט חלופי (alt) לכל התמונות.', en: 'Alt text on every image.' },
+  availabilityItem9: { he: 'קישור דילוג לתוכן (Skip to content) בראש העמוד.', en: 'Skip-to-content link at the top of every page.' },
+  availabilityItem10: { he: 'שמירה אוטומטית של ההעדפות בדפדפן.', en: 'Your preferences are stored locally in your browser between visits.' },
+  navigationHeading: { he: 'אופן הניווט באתר', en: 'How the site is structured' },
+  navigationText: { he: 'האתר תוכנן לתמוך בניווט באמצעות מקלדת בלבד וקורא מסך. כותרות העמוד מסודרות בהיררכיה לוגית, אזורי הניווט מסומנים בתפקידים מתאימים (role="navigation", role="main"), וכל הטפסים מקושרים לתוויות מתאימות.', en: 'Pages use semantic HTML headings in a logical hierarchy. Landmark regions (nav, main, contentinfo) are explicitly tagged so screen readers can jump between them. All form fields have associated labels.' },
+  limitationsHeading: { he: 'סייגים והגבלות ידועות', en: 'Known limitations' },
+  limitationsText: { he: 'אנו פועלים באופן רציף לשיפור הנגישות. עם זאת, ייתכן וחלק מהפריטים באתר אינם נגישים במלואם, בעיקר תוכן צד שלישי המוטמע באתר (כגון מפת Google, מערכת ההזמנות החיצונית).', en: 'We work continuously to improve accessibility. Some embedded third-party content (Google Maps, the external reservation system) may not be fully accessible.' },
+  contactHeading: { he: 'פנייה בנושאי נגישות', en: 'Contact us about accessibility' },
+  contactText: { he: 'אם נתקלתם בקושי או יש לכם הצעה לשיפור הנגישות, נשמח לדעת. ניתן ליצור קשר עם רכז הנגישות:', en: 'If you’ve run into a barrier or have a suggestion, please let us know. You can reach our accessibility coordinator at:' },
+  responseText: { he: 'אנו נשתדל לחזור לכל פנייה תוך 14 ימי עבודה.', en: 'We will respond within 14 working days.' },
+  contactPhoneLabel: { he: 'טלפון', en: 'Phone' },
+  contactEmailLabel: { he: 'אימייל', en: 'Email' },
+  contactAddressLabel: { he: 'כתובת', en: 'Address' },
+};
+
+export const privacyPage = {
+  pageTitle: { he: 'מדיניות פרטיות', en: 'Privacy policy' },
+  pageDescription: {
+    he: 'מדיניות פרטיות של זהרה — איך אנו משתמשים במידע שנאסף דרך טופס יצירת קשר באתר.',
+    en: 'Zahara privacy policy — how we collect and use personal information submitted through the website contact form.',
+  },
+  pageEyebrow: { he: 'פרטיות', en: 'Privacy' },
+  updatedLabel: { he: 'עודכן לאחרונה', en: 'Last updated' },
+  dataHeading: { he: 'המידע שאנו אוספים', en: 'What data we collect' },
+  dataIntro: { he: 'אנו אוספים מידע אישי רק כאשר אתם שולחים לנו פנייה דרך טופס יצירת הקשר באתר. המידע כולל:', en: 'We only collect personal data when you submit an inquiry through the contact form on this website. This includes:' },
+  dataItem1: { he: 'שם מלא', en: 'Full name' },
+  dataItem2: { he: 'מספר טלפון', en: 'Phone number' },
+  dataItem3: { he: 'כתובת דואר אלקטרוני', en: 'Email address' },
+  dataItem4: { he: 'פרטי הפנייה (תאריך אירוע, סוג, מספר סועדים, הודעה חופשית)', en: 'Inquiry details (event date, type, guest count, free-text message)' },
+  dataPrivacyNote: { he: 'אנו לא מפעילים עוגיות (cookies) ייעודיות, ולא משתמשים בכלי מעקב שיווקי. העדפות אישיות (ערכת נושא, נגישות) נשמרות באופן מקומי בדפדפן בלבד ואינן מועברות לשרתינו.', en: 'We do not use tracking or marketing cookies. Personal preferences (theme, accessibility settings) are stored locally in your browser only and are never transmitted to our servers.' },
+  usageHeading: { he: 'השימוש במידע', en: 'How we use the data' },
+  usageIntro: { he: 'המידע שנאסף משמש אך ורק למטרות הבאות:', en: 'Data collected is used solely to:' },
+  usageItem1: { he: 'מענה לפנייתכם ויצירת קשר חוזר', en: 'Respond to your inquiry and follow up' },
+  usageItem2: { he: 'תיאום אירועים ומפגשים', en: 'Coordinate events and bookings' },
+  usageNote: { he: 'אנו לא משתמשים במידע לצורכי שיווק ולא מוכרים אותו לצדדים שלישיים.', en: 'We do not use this data for marketing and do not sell it to third parties.' },
+  thirdPartyHeading: { he: 'העברת מידע לצדדים שלישיים', en: 'Third-party services' },
+  thirdPartyParagraph1: { he: 'לצורך משלוח הפנייה שלכם אלינו, אנו משתמשים בשירות <strong>Resend</strong> (חברה אמריקאית) לשליחת דואר אלקטרוני. המידע שמועבר לשירות זה כולל את שמכם, טלפונכם, כתובת האימייל ותוכן הפנייה. Resend כפוף לתקנות GDPR ו-SOC 2 Type II.', en: 'To deliver your inquiry to us, we use <strong>Resend</strong> (a US-based company) for email delivery. Your name, phone, email address, and inquiry content are passed to this service. Resend is GDPR-compliant and SOC 2 Type II certified.' },
+  thirdPartyParagraph2: { he: 'אתר המסעדה כולל מפה מוטמעת של Google Maps בדף המיקום. טעינת המפה עשויה לגרום ל-Google לרשום את כתובת ה-IP שלכם בהתאם למדיניות הפרטיות שלה.', en: 'The location page of this site includes an embedded Google Maps map. Loading the map may cause Google to log your IP address in accordance with its own privacy policy.' },
+  retentionHeading: { he: 'שמירת המידע', en: 'Data retention' },
+  retentionText: { he: 'הפניות שנשלחות אלינו נשמרות בתיבת הדואר של המסעדה לצורך מתן מענה. אנו שומרים מידע זה לא יותר מ-24 חודשים, אלא אם קיימת סיבה עסקית או חוקית לשמירה ממושכת יותר.', en: 'Inquiries sent to us are stored in the restaurant’s inbox to allow us to respond. We retain this data for no longer than 24 months unless a business or legal reason requires longer retention.' },
+  rightsHeading: { he: 'זכויותיכם', en: 'Your rights' },
+  rightsText: { he: 'בהתאם לחוק הגנת הפרטיות, יש לכם זכות לעיין במידע האישי שאנו מחזיקים עליכם, לתקן אותו או לבקש את מחיקתו. לממש זכויות אלו, פנו אלינו:', en: 'Under the Israeli Privacy Protection Law, you have the right to access, correct, or request deletion of any personal data we hold about you. To exercise these rights, please contact us:' },
+  rightsResponse: { he: 'אנו נשתדל לחזור לכל בקשה תוך 30 ימים.', en: 'We will respond to all requests within 30 days.' },
+  changesHeading: { he: 'שינויים במדיניות', en: 'Changes to this policy' },
+  changesText: { he: 'אנו עשויים לעדכן מדיניות זו מעת לעת. השינויים ייכנסו לתוקף עם פרסומם בדף זה. אנו ממליצים לבדוק עמוד זה מדי פעם.', en: 'We may update this policy from time to time. Changes take effect when published on this page. We recommend checking this page periodically.' },
+  contactHeading: { he: 'יצירת קשר', en: 'Contact' },
+  contactText: { he: 'לשאלות בנוגע למדיניות פרטיות זו, ניתן לפנות אלינו:', en: 'For questions about this privacy policy, please reach us at:' },
+  contactRestaurant: { he: 'מסעדת', en: 'Zahara Restaurant' },
+  contactAddressLabel: { he: 'כתובת', en: 'Address' },
+  contactPhoneLabel: { he: 'טלפון', en: 'Phone' },
+  contactEmailLabel: { he: 'אימייל', en: 'Email' },
+};
+
+export const a11y = {
+  toggle:     { he: 'נגישות',          en: 'Accessibility' },
+  panelLabel: { he: 'לוח התאמות נגישות', en: 'Accessibility adjustments' },
+  fontInc:    { he: 'הגדלת טקסט',      en: 'Larger text' },
+  fontDec:    { he: 'הקטנת טקסט',      en: 'Smaller text' },
+  contrast:   { he: 'ניגודיות גבוהה',  en: 'High contrast' },
+  links:      { he: 'הדגשת קישורים',    en: 'Underline links' },
+  stopAnim:   { he: 'עצירת אנימציות',   en: 'Stop animations' },
+  headings:   { he: 'הדגשת כותרות',     en: 'Highlight headings' },
+  reset:      { he: 'איפוס',           en: 'Reset' },
+  statement:  { he: 'הצהרת נגישות',    en: 'Accessibility statement' },
+  close:      { he: 'סגירה',           en: 'Close' },
+};
 // ── Location page ─────────────────────────────────────────────────────────────
 
 export const location = {
@@ -250,6 +424,10 @@ export const menu = {
   tabEvents:    { he: 'אירועים',       en: 'Events'    },
   priceBottle:  { he: 'בקבוק',         en: 'Bottle'    },
   priceGlass:   { he: 'כוס',           en: 'Glass'     },
+  updatedLabel: { he: 'עודכן',         en: 'Updated'   },
+  noCocktails:  { he: 'אין קוקטיילים זמינים כעת', en: 'No cocktails available' },
+  categoryNavigation: { he: 'ניווט קטגוריות', en: 'Category navigation' },
+  menuCategories: { he: 'קטגוריות תפריט', en: 'Menu categories' },
   openTab:      { he: 'פתח בכרטיסייה ↗', en: 'Open in tab ↗' },
   download:     { he: 'הורד PDF',       en: 'Download PDF' },
   notReady:     { he: 'התפריט עדיין לא הועלה', en: 'Menu coming soon' },

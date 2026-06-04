@@ -13,25 +13,13 @@
 // Plus: a permanent visible link to /accessibility/ (the statement page),
 // which Israeli law requires every public-facing site to provide.
 
+import { pick, a11y as copy } from '../data/i18n';
+import { path } from '../lib/paths';
 import type { Lang } from '../data/i18n';
 
 export interface Props { lang?: Lang }
 const { lang = 'he' } = Astro.props;
-const isHe = lang === 'he';
-
-const t = {
-  toggle:     isHe ? 'נגישות'          : 'Accessibility',
-  panelLabel: isHe ? 'לוח התאמות נגישות' : 'Accessibility adjustments',
-  fontInc:    isHe ? 'הגדלת טקסט'      : 'Larger text',
-  fontDec:    isHe ? 'הקטנת טקסט'      : 'Smaller text',
-  contrast:   isHe ? 'ניגודיות גבוהה'  : 'High contrast',
-  links:      isHe ? 'הדגשת קישורים'    : 'Underline links',
-  stopAnim:   isHe ? 'עצירת אנימציות'   : 'Stop animations',
-  headings:   isHe ? 'הדגשת כותרות'     : 'Highlight headings',
-  reset:      isHe ? 'איפוס'           : 'Reset',
-  statement:  isHe ? 'הצהרת נגישות'    : 'Accessibility statement',
-  close:      isHe ? 'סגירה'           : 'Close',
-};
+const t = pick(copy, lang);
 ---
 
 <!-- Toggle button — fixed bottom-start corner, RTL-aware.
@@ -99,7 +87,7 @@ const t = {
 
     <button class="a11y-btn a11y-btn--reset" type="button" data-a11y-action="reset">{t.reset}</button>
 
-    <a class="a11y-statement-link" href={isHe ? '/accessibility/' : '/en/accessibility/'}>{t.statement} ↗</a>
+    <a class="a11y-statement-link" href={path('accessibility', lang)}>{t.statement} ↗</a>
   </div>
 </aside>
 

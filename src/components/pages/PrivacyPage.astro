@@ -5,188 +5,77 @@
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { RESTAURANT } from '../../data/restaurant';
+import { pick, privacyPage as pageCopy } from '../../data/i18n';
 import type { Lang } from '../../data/i18n';
 
 export interface Props { lang: Lang }
 const { lang } = Astro.props;
-const isHe = lang === 'he';
-
-const title = isHe ? 'מדיניות פרטיות' : 'Privacy policy';
+const page = pick(pageCopy, lang);
 const today = new Date().toISOString().slice(0, 10);
+const phoneDial = lang === 'he' ? RESTAURANT.phone.dialHe : RESTAURANT.phone.dialEn;
+const phoneText = lang === 'he' ? RESTAURANT.phone.display : RESTAURANT.phone.intlDisplay;
 ---
 
-<BaseLayout title={title} lang={lang}>
+<BaseLayout title={page.pageTitle} lang={lang} description={page.pageDescription}>
   <article class="privacy-page wrap">
     <header class="privacy-page__head">
-      <p class="eyebrow">{isHe ? 'פרטיות' : 'Privacy'}</p>
-      <h1 class="display">{title}</h1>
+      <p class="eyebrow">{page.pageEyebrow}</p>
+      <h1 class="display">{page.pageTitle}</h1>
       <p class="privacy-page__updated">
-        {isHe ? 'עודכן לאחרונה' : 'Last updated'} · {today}
+        {page.updatedLabel} · {today}
       </p>
     </header>
 
-    {isHe ? (
-      <section class="privacy-page__body prose">
-        <p>
-          <strong>{RESTAURANT.name.he}</strong> ("אנחנו", "המסעדה") מחויבת להגן על
-          פרטיותכם. מדיניות זו מסבירה אילו מידע אישי אנו אוספים, כיצד אנו משתמשים
-          בו ומה זכויותיכם, בהתאם לחוק הגנת הפרטיות, תשמ"א-1981, ולתקנות שהותקנו
-          מכוחו.
-        </p>
+    <section class="privacy-page__body prose">
+      <p>
+        <strong>{RESTAURANT.name[lang]}</strong> {page.dataIntro}
+      </p>
 
-        <h2>המידע שאנו אוספים</h2>
-        <p>
-          אנו אוספים מידע אישי רק כאשר אתם שולחים לנו פנייה דרך טופס יצירת הקשר
-          באתר. המידע כולל:
-        </p>
-        <ul>
-          <li>שם מלא</li>
-          <li>מספר טלפון</li>
-          <li>כתובת דואר אלקטרוני</li>
-          <li>פרטי הפנייה (תאריך אירוע, סוג, מספר סועדים, הודעה חופשית)</li>
-        </ul>
-        <p>
-          אנו לא מפעילים עוגיות (cookies) ייעודיות, ולא משתמשים בכלי מעקב שיווקי.
-          העדפות אישיות (ערכת נושא, נגישות) נשמרות באופן מקומי בדפדפן בלבד ואינן
-          מועברות לשרתינו.
-        </p>
+      <h2>{page.dataHeading}</h2>
+      <p>{page.dataIntro}</p>
+      <ul>
+        <li>{page.dataItem1}</li>
+        <li>{page.dataItem2}</li>
+        <li>{page.dataItem3}</li>
+        <li>{page.dataItem4}</li>
+      </ul>
+      <p>{page.dataPrivacyNote}</p>
 
-        <h2>השימוש במידע</h2>
-        <p>המידע שנאסף משמש אך ורק למטרות הבאות:</p>
-        <ul>
-          <li>מענה לפנייתכם ויצירת קשר חוזר</li>
-          <li>תיאום אירועים ומפגשים</li>
-        </ul>
-        <p>אנו לא משתמשים במידע לצורכי שיווק ולא מוכרים אותו לצדדים שלישיים.</p>
+      <h2>{page.usageHeading}</h2>
+      <p>{page.usageIntro}</p>
+      <ul>
+        <li>{page.usageItem1}</li>
+        <li>{page.usageItem2}</li>
+      </ul>
+      <p>{page.usageNote}</p>
 
-        <h2>העברת מידע לצדדים שלישיים</h2>
-        <p>
-          לצורך משלוח הפנייה שלכם אלינו, אנו משתמשים בשירות <strong>Resend</strong>
-          (חברה אמריקאית) לשליחת דואר אלקטרוני. המידע שמועבר לשירות זה כולל את שמכם,
-          טלפונכם, כתובת האימייל ותוכן הפנייה. Resend כפוף לתקנות GDPR ו-SOC 2 Type II.
-        </p>
-        <p>
-          אתר המסעדה כולל מפה מוטמעת של Google Maps בדף המיקום. טעינת המפה
-          עשויה לגרום ל-Google לרשום את כתובת ה-IP שלכם בהתאם למדיניות הפרטיות שלה.
-        </p>
+      <h2>{page.thirdPartyHeading}</h2>
+      <p set:html={page.thirdPartyParagraph1} />
+      <p>{page.thirdPartyParagraph2}</p>
 
-        <h2>שמירת המידע</h2>
-        <p>
-          הפניות שנשלחות אלינו נשמרות בתיבת הדואר של המסעדה לצורך מתן מענה. אנו
-          שומרים מידע זה לא יותר מ-24 חודשים, אלא אם קיימת סיבה עסקית או חוקית
-          לשמירה ממושכת יותר.
-        </p>
+      <h2>{page.retentionHeading}</h2>
+      <p>{page.retentionText}</p>
 
-        <h2>זכויותיכם</h2>
-        <p>
-          בהתאם לחוק הגנת הפרטיות, יש לכם זכות לעיין במידע האישי שאנו מחזיקים
-          עליכם, לתקן אותו או לבקש את מחיקתו. לממש זכויות אלו, פנו אלינו:
-        </p>
-        <ul>
-          <li>טלפון: <a href={`tel:${RESTAURANT.phone.dialHe}`}>{RESTAURANT.phone.display}</a></li>
-          <li>אימייל: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
-        </ul>
-        <p>אנו נשתדל לחזור לכל בקשה תוך 30 ימים.</p>
+      <h2>{page.rightsHeading}</h2>
+      <p>{page.rightsText}</p>
+      <ul>
+        <li>{page.contactPhoneLabel}: <a href={`tel:${phoneDial}`}>{phoneText}</a></li>
+        <li>{page.contactEmailLabel}: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
+      </ul>
+      <p>{page.rightsResponse}</p>
 
-        <h2>שינויים במדיניות</h2>
-        <p>
-          אנו עשויים לעדכן מדיניות זו מעת לעת. השינויים ייכנסו לתוקף עם פרסומם
-          בדף זה. אנו ממליצים לבדוק עמוד זה מדי פעם.
-        </p>
+      <h2>{page.changesHeading}</h2>
+      <p>{page.changesText}</p>
 
-        <h2>יצירת קשר</h2>
-        <p>
-          לשאלות בנוגע למדיניות פרטיות זו, ניתן לפנות אלינו:
-        </p>
-        <ul>
-          <li><strong>מסעדת {RESTAURANT.name.he}</strong></li>
-          <li>כתובת: {RESTAURANT.address.he}</li>
-          <li>טלפון: <a href={`tel:${RESTAURANT.phone.dialHe}`}>{RESTAURANT.phone.display}</a></li>
-          <li>אימייל: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
-        </ul>
-      </section>
-    ) : (
-      <section class="privacy-page__body prose">
-        <p>
-          <strong>{RESTAURANT.name.en}</strong> ("we", "the restaurant") is committed to
-          protecting your privacy. This policy explains what personal data we collect,
-          how we use it, and your rights, in accordance with the Israeli Privacy Protection
-          Law, 5741–1981, and its accompanying regulations.
-        </p>
-
-        <h2>What data we collect</h2>
-        <p>
-          We only collect personal data when you submit an inquiry through the contact
-          form on this website. This includes:
-        </p>
-        <ul>
-          <li>Full name</li>
-          <li>Phone number</li>
-          <li>Email address</li>
-          <li>Inquiry details (event date, type, guest count, free-text message)</li>
-        </ul>
-        <p>
-          We do not use tracking or marketing cookies. Personal preferences (theme,
-          accessibility settings) are stored locally in your browser only and are never
-          transmitted to our servers.
-        </p>
-
-        <h2>How we use the data</h2>
-        <p>Data collected is used solely to:</p>
-        <ul>
-          <li>Respond to your inquiry and follow up</li>
-          <li>Coordinate events and bookings</li>
-        </ul>
-        <p>We do not use this data for marketing and do not sell it to third parties.</p>
-
-        <h2>Third-party services</h2>
-        <p>
-          To deliver your inquiry to us, we use <strong>Resend</strong> (a US-based
-          company) for email delivery. Your name, phone, email address, and inquiry
-          content are passed to this service. Resend is GDPR-compliant and SOC 2
-          Type II certified.
-        </p>
-        <p>
-          The location page of this site includes an embedded Google Maps map. Loading
-          the map may cause Google to log your IP address in accordance with its own
-          privacy policy.
-        </p>
-
-        <h2>Data retention</h2>
-        <p>
-          Inquiries sent to us are stored in the restaurant's inbox to allow us to
-          respond. We retain this data for no longer than 24 months unless a business
-          or legal reason requires longer retention.
-        </p>
-
-        <h2>Your rights</h2>
-        <p>
-          Under the Israeli Privacy Protection Law, you have the right to access,
-          correct, or request deletion of any personal data we hold about you. To
-          exercise these rights, please contact us:
-        </p>
-        <ul>
-          <li>Phone: <a href={`tel:${RESTAURANT.phone.dialEn}`}>{RESTAURANT.phone.intlDisplay}</a></li>
-          <li>Email: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
-        </ul>
-        <p>We will respond to all requests within 30 days.</p>
-
-        <h2>Changes to this policy</h2>
-        <p>
-          We may update this policy from time to time. Changes take effect when
-          published on this page. We recommend checking this page periodically.
-        </p>
-
-        <h2>Contact</h2>
-        <p>For questions about this privacy policy, please reach us at:</p>
-        <ul>
-          <li><strong>{RESTAURANT.name.en} Restaurant</strong></li>
-          <li>Address: {RESTAURANT.address.en}</li>
-          <li>Phone: <a href={`tel:${RESTAURANT.phone.dialEn}`}>{RESTAURANT.phone.intlDisplay}</a></li>
-          <li>Email: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
-        </ul>
-      </section>
-    )}
+      <h2>{page.contactHeading}</h2>
+      <p>{page.contactText}</p>
+      <ul>
+        <li><strong>{page.contactRestaurant} {RESTAURANT.name[lang]}</strong></li>
+        <li>{page.contactAddressLabel}: {RESTAURANT.address[lang]}</li>
+        <li>{page.contactPhoneLabel}: <a href={`tel:${phoneDial}`}>{phoneText}</a></li>
+        <li>{page.contactEmailLabel}: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
+      </ul>
+    </section>
   </article>
 </BaseLayout>
 

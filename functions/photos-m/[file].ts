@@ -50,6 +50,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env, next, requ
     }
   }
 
-  // No R2 at all — fall through to a (likely absent) static asset.
-  return next();
+  // No override available — fall back to the regular /photos/ route.
+  const fallbackUrl = new URL(request.url);
+  fallbackUrl.pathname = `/photos/${file}`;
+  return fetch(fallbackUrl.href, request);
 };

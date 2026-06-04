@@ -2,7 +2,7 @@
 import BaseLayout    from '../../layouts/BaseLayout.astro';
 import MenuEmbed     from '../MenuEmbed.astro';
 import IntroPhoto    from '../sections/IntroPhoto.astro';
-import { pick, menu as copy } from '../../data/i18n';
+import { pick, menu as copy, menuPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
 import type { Lang } from '../../data/i18n';
 
@@ -10,10 +10,12 @@ export interface Props { lang: Lang }
 
 const { lang } = Astro.props;
 const t        = pick(copy, lang);
-const title    = lang === 'he' ? 'תפריט' : 'Menu';
+const page     = pick(pageCopy, lang);
+const title    = page.pageTitle;
+const description = page.pageDescription;
 ---
 
-<BaseLayout title={title} lang={lang} transparentHeader>
+<BaseLayout title={title} lang={lang} transparentHeader description={description}>
   <IntroPhoto
     lang={lang}
     photo={PHOTOS.menuIntro}
