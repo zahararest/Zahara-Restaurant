@@ -157,6 +157,24 @@ const schema = {
       (function () {
         var root = document.documentElement;
 
+        // ── 0. Animation-ready gate (LCP-safe) ────────────────────
+        // Reveal animations (word/line masks, fade-up, .reveal-on-scroll)
+        // start from a HIDDEN state. If that hidden state shipped in the
+        // static HTML, the hero headline — the LCP element — would be
+        // invisible until JS ran, and Lighthouse would report NO_LCP.
+        //
+        // So the hidden states are scoped under `html.anim-ready`, which we
+        // add HERE, synchronously, before first paint — but ONLY when JS is
+        // running AND the visitor hasn't asked for reduced motion. Result:
+        //   • JS on, motion ok  → class present → elements hide then animate.
+        //   • JS off / reduced  → class absent  → everything paints visible
+        //                          immediately, so LCP is the hero text.
+        try {
+          if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            root.classList.add('anim-ready');
+          }
+        } catch (_) { /* matchMedia unsupported — leave content visible */ }
+
         // ── 1. Theme (two states only: light + dark) ──────────────
         try {
           var saved = localStorage.getItem('zahara-theme');

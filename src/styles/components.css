@@ -317,7 +317,12 @@
   padding-block: var(--space-xl) var(--space-m);
   border-block-start: 1px solid var(--rule-soft);
   margin-block-start: var(--space-2xl);
-  background: var(--paper-deep);
+  /* Quiet warm vertical gradient so the page settles into a slightly deeper
+     paper at the very bottom instead of a single flat band. Both stops are
+     paper tones — no colour shift, just depth. */
+  background: linear-gradient(180deg,
+    var(--paper-deep) 0%,
+    color-mix(in srgb, var(--paper-deep) 88%, var(--shadow)) 100%);
 }
 .footer-grid {
   display: grid;
@@ -479,6 +484,13 @@ html[dir="rtl"] .field select {
 
 .page-intro {
   padding-block: clamp(4.5rem, 10vw, 7rem) clamp(2rem, 5vw, 3.5rem);
+  /* Faint warm wash from the inline-start top so the flat cream intro band
+     above the first photo doesn't read as empty. Barely perceptible — paper
+     warmed by a breath of accent, fading out well before the text. */
+  background:
+    radial-gradient(120% 90% at 0% 0%,
+      color-mix(in srgb, var(--accent) 7%, transparent),
+      transparent 55%);
 }
 .page-intro h1 {
   font-size: var(--step-5);
@@ -635,7 +647,11 @@ html[dir="rtl"] .bleed-photo--caption::after { transform: translateX(50%); }
   font-weight: 500;
 }
 
-.fade-up {
+/* Visible by default; the hidden-then-rise only when animation is armed.
+   Keeps fade-up elements paintable on first load (LCP-safe) and gives a
+   clean static fallback for no-JS / reduced-motion. */
+.fade-up { opacity: 1; transform: none; }
+html.anim-ready .fade-up {
   opacity: 0;
   transform: translateY(1.5rem);
   animation: fadeUp 1s var(--ease-out) forwards;
@@ -1126,8 +1142,8 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 .story-diptych {
   width: 100%;
   max-width: 46rem;        /* narrower column — vertical, not wide */
-  margin-inline-start: auto; /* pin the column to the inline-end (right on LTR,
-                                left on RTL) instead of centring it */
+  margin-inline-end: auto;  /* pin to the inline-start edge: right on the
+                               Hebrew/RTL page, left on the English/LTR page */
   display: grid;
   gap: clamp(0.75rem, 2vw, 1.25rem);
   align-items: start;       /* each box sizes to its own content height */
@@ -1688,9 +1704,12 @@ html[lang="he"] .floating-reserve { letter-spacing: 0.04em; text-transform: none
 }
 .word-mask__inner {
   display: inline-block;
-  transform: translateY(110%);
   transition: transform 1s var(--ease-out);
 }
+/* Hidden start-state only when JS-driven animation is armed (see the
+   `anim-ready` gate in BaseLayout). Without it the words paint in place,
+   so the hero H1 is a valid LCP element on first paint. */
+html.anim-ready .word-mask__inner { transform: translateY(110%); }
 /* Promote to its own layer ONLY while the word is still waiting to rise.
    Once revealed we drop the hint so the compositor can collapse the
    layer — a permanent `will-change` left every revealed word on its own
@@ -1709,9 +1728,9 @@ html[lang="he"] .floating-reserve { letter-spacing: 0.04em; text-transform: none
 }
 .line-mask__inner {
   display: block;
-  transform: translateY(110%);
   transition: transform 1.05s var(--ease-out);
 }
+html.anim-ready .line-mask__inner { transform: translateY(110%); }
 /* Same one-shot promotion as .word-mask__inner — drop will-change once
    the line has risen so the layer doesn't linger and smear on scroll. */
 .line-mask:not(.is-in) .line-mask__inner { will-change: transform; }

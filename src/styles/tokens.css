@@ -70,6 +70,13 @@
   --err:            #A53623;
   --shadow:         #0A0806;
 
+  /* ── Warm diagonal gradient used on dark "atmosphere" sections (events
+        intro, and other full-width bands that would otherwise read flat).
+        Two stops: a lighter top-start and a deeper bottom-end. A fixed dark
+        wash is layered over them in CSS for text contrast. */
+  --grad-warm-from: #4A3A2D;
+  --grad-warm-to:   #1F1812;
+
   /* ── Home cinematic-strip palette. Each menu chapter on the home page
         is a full-bleed photo with text overlaid; these tokens colour
         that text independently of the rest of the site so the chef can
@@ -213,6 +220,10 @@ html[data-theme="dark"] {
   --cinema-divider:    #3D372C;
   --cinema-count:      #ACA388;
   --cinema-cta:        #F4ECCF;
+
+  /* Warm gradient — a touch deeper in dark mode. */
+  --grad-warm-from: #3A2D23;
+  --grad-warm-to:   #161009;
   color-scheme: dark;
 }
 html[data-theme="light"] { color-scheme: light; }

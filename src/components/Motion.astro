@@ -171,28 +171,39 @@ const scrollTopLabel = t.scrollToTop;
         //  the paper-cream text readable over any background.)
 
         if (!reduce) {
-          // Hero parallax — wrapper drifts at 0.28× scroll speed.
+          // Phones skip the per-frame parallax transforms entirely — moving a
+          // full-bleed image layer every scroll frame is the main source of
+          // mobile scroll-jank, and the effect is barely visible on a small
+          // screen. We still update the cheap bits (cue show/hide below).
+          const isMobile = window.innerWidth <= 600;
+
           const hero = heroSection();
           if (hero) {
             const h = hero.offsetHeight || 1;
             const progress = Math.max(0, Math.min(1, y / h));
-            heroWrappers().forEach((el) => {
-              el.style.transform = `translate3d(0, ${(y * 0.28).toFixed(1)}px, 0)`;
-            });
-            const inner = heroInner();
-            if (inner) inner.style.setProperty('--hero-progress', progress.toFixed(3));
+            if (!isMobile) {
+              // Hero parallax — wrapper drifts at 0.28× scroll speed.
+              heroWrappers().forEach((el) => {
+                el.style.transform = `translate3d(0, ${(y * 0.28).toFixed(1)}px, 0)`;
+              });
+              const inner = heroInner();
+              if (inner) inner.style.setProperty('--hero-progress', progress.toFixed(3));
+            }
+            // Cue hide/show is cheap and useful on every device.
             const cue = scrollCue();
             if (cue) cue.classList.toggle('is-hidden', progress > 0.08);
           }
 
-          // Generic [data-parallax="0.2"]
-          genericPx().forEach((el) => {
-            const speed   = parseFloat(el.dataset.parallax || '0.15');
-            const rect    = el.getBoundingClientRect();
-            const center  = rect.top + rect.height / 2;
-            const offset  = (window.innerHeight / 2) - center;
-            el.style.setProperty('--parallax-y', (offset * speed).toFixed(1) + 'px');
-          });
+          if (!isMobile) {
+            // Generic [data-parallax="0.2"]
+            genericPx().forEach((el) => {
+              const speed   = parseFloat(el.dataset.parallax || '0.15');
+              const rect    = el.getBoundingClientRect();
+              const center  = rect.top + rect.height / 2;
+              const offset  = (window.innerHeight / 2) - center;
+              el.style.setProperty('--parallax-y', (offset * speed).toFixed(1) + 'px');
+            });
+          }
         }
 
         ticking = false;
@@ -473,19 +484,50 @@ const scrollTopLabel = t.scrollToTop;
     }
 
     // ── Boot ────────────────────────────────────────────────────
-    function boot() {
-      // buildLineReveals tags hosts with `.is-reveal-host`, so it must
-      // run BEFORE setup() — which observes REVEAL_SELECTOR including
-      // that class.
-      buildLineReveals();
+    // Split into a CRITICAL phase (cheap, needed for the first screen) and
+    // a DEFERRED phase (the expensive bits) to keep Total Blocking Time low
+    // on mobile. The deferred work — line-reveal layout reflows, the section
+    // HUD / rail, the scroll-top button — is purely below-the-fold polish,
+    // so running it at idle after paint costs the user nothing visible.
+    var whenIdle = window.requestIdleCallback
+      ? function (fn) { window.requestIdleCallback(fn, { timeout: 1500 }); }
+      : function (fn) { setTimeout(fn, 1); };
+
+    function bootCritical() {
+      // setup() builds word reveals + arms the IntersectionObserver and
+      // activates anything already on screen (the hero). This is the only
+      // part the first paint depends on.
       setup();
-      setupSectionHud();
-      setupScrollTop();
       setupActiveNavScrollTop();
-      watchTabIndicator();
       onScroll();
       window.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('resize', onScroll, { passive: true });
+    }
+
+    function bootDeferred() {
+      // buildLineReveals re-measures + rewrites innerHTML (forced reflow) —
+      // the single most expensive boot operation, and never above the fold.
+      // It tags hosts with `.is-reveal-host`; re-arm the observer for those.
+      buildLineReveals();
+      document.querySelectorAll('.is-reveal-host').forEach((el) => {
+        if (el.classList.contains('is-in-view') || el.classList.contains('reveal--off')) return;
+        if (!reduce && observer) {
+          const r = el.getBoundingClientRect();
+          if (r.top > window.innerHeight * 0.85) el.classList.add('reveal--off');
+          else activate(el);
+          observer.observe(el);
+        } else {
+          activate(el);
+        }
+      });
+      setupSectionHud();
+      setupScrollTop();
+      watchTabIndicator();
+    }
+
+    function boot() {
+      bootCritical();
+      whenIdle(bootDeferred);
     }
 
     if (document.readyState === 'loading') {

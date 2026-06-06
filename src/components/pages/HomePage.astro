@@ -724,31 +724,34 @@ const emptyLabel = t.emptyLabel;
       color-mix(in srgb, var(--shadow) 22%, transparent) 42%,
       transparent 68%);
   }
-  /* The wipe is the SAME dark wash as the photo's own overlay — not a gold
-     curtain. It reads as the photo developing in, not a coloured panel
-     sliding off. */
-  .menu-tile__wipe {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    background: color-mix(in srgb, var(--shadow) 85%, transparent);
-    transform-origin: inline-end;
-    transition: transform 0.9s var(--ease-out);
+  /* Old curtain-wipe element is retired — the reveal is now a per-tile
+     slide-up + fade (see below). Keep the span out of the layout. */
+  .menu-tile__wipe { display: none; }
+
+  /* Reveal — each tile rises into place and fades in, one after the other,
+     like the photos settling onto the page. Reads as a camera/editorial
+     move, not a UI curtain. The image keeps its slow settle-from-zoom.
+
+     The hidden start-state is gated on `html.anim-ready` (set before paint
+     only when JS runs + motion is allowed). So with no JS / reduced motion
+     the tiles are simply visible — never stuck invisible behind a reveal. */
+  .menu-tiles__item {
+    transition:
+      opacity 0.8s var(--ease-out),
+      transform 0.9s var(--ease-out);
   }
-  html[dir="rtl"] .menu-tile__wipe { transform-origin: inline-start; }
-  .menu-tiles.is-in-view .menu-tile__img  { transform: scale(1); }
-  .menu-tiles.is-in-view .menu-tile__wipe { transform: scaleX(0); }
-  /* One after the other — wider, even gaps so each tile clearly develops
-     in turn rather than all at once. The image settle is staggered to match
-     so the whole tile arrives as a unit. */
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) .menu-tile__wipe { transition-delay: 0.05s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) .menu-tile__wipe { transition-delay: 0.30s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) .menu-tile__wipe { transition-delay: 0.55s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) .menu-tile__wipe { transition-delay: 0.80s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) .menu-tile__img { transition-delay: 0.05s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) .menu-tile__img { transition-delay: 0.30s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) .menu-tile__img { transition-delay: 0.55s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) .menu-tile__img { transition-delay: 0.80s; }
+  :global(html.anim-ready) .menu-tiles__item {
+    opacity: 0;
+    transform: translateY(2rem);
+  }
+  .menu-tiles.is-in-view .menu-tiles__item { opacity: 1; transform: none; }
+  .menu-tiles.is-in-view .menu-tile__img   { transform: scale(1); }
+  /* One after the other — even ~0.12s cadence so the row arrives like a
+     hand of cards being laid down. */
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) { transition-delay: 0.05s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) { transition-delay: 0.17s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) { transition-delay: 0.29s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) { transition-delay: 0.41s; }
 
   .menu-tile__foot {
     position: absolute;
@@ -800,9 +803,22 @@ const emptyLabel = t.emptyLabel;
 
   @media (prefers-reduced-motion: reduce) {
     .menu-tile__img { transform: none !important; transition: none; }
-    .menu-tile__wipe { display: none; }
+    /* No slide-up when motion is reduced — tiles are simply present. */
+    .menu-tiles__item {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
   }
   @media (max-width: 860px) {
     .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  }
+  @media (max-width: 600px) {
+    /* Don't lock the menu split to a full screen on phones — let the intro
+       and the 2×2 tiles size to content with comfortable padding, so it
+       scrolls naturally instead of cramming into one viewport. */
+    .menu-split { min-height: 0; }
+    .menu-split__inner { padding-block: var(--space-xl); }
+    .menu-tiles { margin-block-start: var(--space-l); }
   }
 </style>

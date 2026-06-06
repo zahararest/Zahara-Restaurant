@@ -1338,16 +1338,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   </header>
   <main>
     <p class="lead">
-      Every photo on the site, grouped by page and listed in the order you
-      meet it as you scroll. Drag a file straight onto a thumbnail, or use
-      <strong>Upload</strong> to drop in a replacement as-is, or
-      <strong>Edit &amp; adjust</strong> to crop, recolour, and resize.
-      <strong>Remove override</strong> reverts to the original. Full-screen
-      photos also have a <strong>Mobile photo (portrait)</strong> slot — upload
-      a tall crop there to control exactly what phones show.
-      In the editor: <code>S</code> save · <code>R</code> reset ·
-      <code>B</code> toggle B&amp;W · hold <code>Space</code> to compare.
-      Accepts JPG / PNG / WebP up to 10&nbsp;MB.
+      Every photo, grouped by page. Drag a file onto a thumbnail, or use
+      <strong>Upload</strong> to replace it, or <strong>Edit &amp; adjust</strong>
+      to crop and recolour. <strong>Remove override</strong> restores the
+      original. Full-screen photos have a <strong>Mobile (portrait)</strong> slot
+      for what phones show. JPG / PNG / WebP, up to 10&nbsp;MB.
     </p>
     ${missingBanner}
     ${groupHtml}

@@ -39,7 +39,7 @@ const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFul
 
   <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} height="clamp(280px, 50vh, 480px)" />
 
-  <section class="section-tight">
+  <section class="section-tight events-benefits-band">
     <div class="wrap">
       <ul class="benefits stagger reveal-on-scroll">
         {benefits.map((label, i) => (
@@ -51,6 +51,34 @@ const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFul
       </ul>
     </div>
   </section>
+
+  <style>
+    /* Warm diagonal gradient band behind the event benefits — two editable
+       colour stops (--grad-warm-*) under a fixed dark wash for contrast.
+       The text inside flips to the on-photo cream so it reads on the dark
+       ground. */
+    .events-benefits-band {
+      background:
+        linear-gradient(180deg,
+          color-mix(in srgb, var(--shadow) 32%, transparent) 0%,
+          color-mix(in srgb, var(--shadow) 16%, transparent) 30%,
+          color-mix(in srgb, var(--shadow) 58%, transparent) 100%),
+        linear-gradient(135deg, var(--grad-warm-from), var(--grad-warm-to));
+      color: var(--paper-on-photo);
+    }
+    .events-benefits-band .benefit__num { color: var(--gold); }
+    .events-benefits-band .benefit__text { color: var(--paper-on-photo); }
+    /* Hairline grid lines flip to the on-photo tone so they read as quiet
+       dividers on the dark gradient instead of disappearing. */
+    .events-benefits-band .benefits {
+      border-block-start-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
+      border-inline-start-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
+    }
+    .events-benefits-band .benefit {
+      border-block-end-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
+      border-inline-end-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
+    }
+  </style>
 
   <ContactForm lang={lang} defaultMode="event" showToggle={false} />
 </BaseLayout>

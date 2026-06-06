@@ -180,14 +180,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   </header>
   <main>
     <p class="lead">
-      Every field shows the <strong>current</strong> live text — edit any of
-      them and press <strong>Save changes</strong>. <strong>Clear a field and
-      save to HIDE that text</strong> on the site; the faded placeholder keeps
-      showing the original wording, so retype it to bring the text back.
-      Fields tagged <strong>HTML</strong> accept simple inline markup —
+      Edit any field and press <strong>Save changes</strong>. Clear a field to
+      hide that text on the site. <strong>HTML</strong> fields accept
       <code>&lt;br&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;strong&gt;</code>.
-      Gallery photo captions are edited per photo in the
-      <a href="/admin/images/">Images</a> tab.
+      Photo captions live in the <a href="/admin/images/">Images</a> tab.
     </p>
     ${groupsHtml}
   </main>

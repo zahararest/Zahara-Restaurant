@@ -853,7 +853,9 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
      buttons that share a row, and a smaller scroll cue. */
   .hero-bleed { height: 100vh; height: 100dvh; }
   .hero-bleed__inner {
-    padding-block: calc(var(--header-h) + var(--space-m)) var(--space-l);
+    /* Extra bottom padding leaves a clear lane for the scroll cue below the
+       CTA buttons so the two never overlap. */
+    padding-block: calc(var(--header-h) + var(--space-m)) calc(var(--space-l) + 2.5rem);
     gap: 0;
   }
   .hero-bleed__title {
@@ -865,7 +867,17 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
   .hero-bleed__lede  { font-size: var(--step-0); max-width: 90vw; }
   .hero-bleed .btn-row { gap: 0.6rem; flex-wrap: wrap; }
   .hero-bleed .btn-row .btn { flex: 1 1 auto; justify-content: center; }
-  .scroll-cue { display: none; }
+  /* Keep the scroll cue ON phones (it was hidden before) — visitors need the
+     "there's more below" signal most on a small screen. Drop the word label
+     to save room, shrink the ring, and lift it above the iOS/Android browser
+     chrome with the safe-area inset so it never sits under the toolbar. */
+  .scroll-cue {
+    inset-block-end: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    gap: 0;
+    padding: 0.3rem;
+  }
+  .scroll-cue__label { display: none; }
+  .scroll-cue__arrow { width: 2.2rem; height: 2.2rem; }
 
   .intro-photo { height: clamp(360px, 62vh, 520px); }
   .intro-photo__title { font-size: clamp(2rem, 9vw, 3rem); }
@@ -877,4 +889,50 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
   .section-on-photo .editorial__paragraphs { font-size: var(--step-0); }
   .issue-stamp { overflow: hidden; }
   .issue-stamp__inner { flex-wrap: wrap; gap: 0.25rem; }
+
+  /* ── Story section — calmer on phones ─────────────────────────────────
+     The story scene crammed an info-strip + two glass boxes + big headings
+     into a single locked 100dvh frame, which read as overwhelming. On phones
+     let it breathe: size to content (no forced full-height), add vertical
+     room, and dial the glass boxes down — smaller titles, lighter padding,
+     less blur weight. The diptych stacks to one column naturally. */
+  .story-scene {
+    min-height: 0;
+    justify-content: flex-start;
+    padding-block-end: var(--space-l);
+  }
+  .story-scene__body { padding-block: var(--space-m); }
+  .story-diptych { max-width: 100%; gap: 0.85rem; }
+  .story-box__title { font-size: var(--step-2); }
+  .story-box--static { padding: 1.15rem 1.2rem; }
+  .story-box__head { padding: 1.1rem 1.2rem; }
+  .story-box--toggle .story-box__text { padding-inline: 1.2rem; }
+  .story-box--toggle.is-open .story-box__text { padding-block-end: 1.2rem; }
+  .story-box__text p { font-size: var(--step-0); }
+  /* Lighter blur on mobile GPUs — backdrop-filter is costly on phones and
+     a heavy frosted stack over a dark photo reads muddy at small sizes. */
+  .story-box { backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+
+  /* Header blur is one of the most expensive things to repaint per scroll
+     frame on phones. Halve the radius on inner pages (home is gradient-only,
+     no blur) — visually near-identical, much cheaper to scroll. */
+  .site-header {
+    backdrop-filter: blur(9px) saturate(130%);
+    -webkit-backdrop-filter: blur(9px) saturate(130%);
+  }
+
+  /* The slow background-position drift on photo sections repaints a full-
+     screen image continuously — fine on desktop, a battery/jank tax on
+     phones. Freeze it; the photo is still full-bleed and beautiful. */
+  .section-on-photo::before { animation: none; }
+
+  /* Parallax is disabled on phones (see Motion.astro), so the hero/intro
+     media no longer needs the -8%/116% overscan that gave the drift room.
+     Fill the frame exactly so no part of the composition is cropped off. */
+  .hero-bleed__media,
+  .intro-photo__media {
+    inset: 0;
+    height: 100%;
+    will-change: auto;
+  }
 }
