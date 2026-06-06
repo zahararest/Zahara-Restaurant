@@ -1,0 +1,21 @@
+{
+  "name": "Zahara — זהרה",
+  "short_name": "Zahara",
+  "description": "Contemporary dining at Zahara — reservations, menu, and private events.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "he",
+  "dir": "rtl",
+  "background_color": "#1A1410",
+  "theme_color": "#F4EDDF",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -50,30 +50,30 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       ))}
     </nav>
 
-    {/* Brand + the rooftop reveal arrow. Clicking the ‹ chevron opens a
-        small "Nucha Rooftop" panel; it auto-peeks once per session so
-        visitors notice it. */}
-    <div class="brand-group">
-      <a href={path('home', lang)} class="brand" aria-label={t.brandAria}>
+    {/* Venue switcher — a segmented pill: Zahara (here, highlighted) ↔ Nucha
+        Rooftop. Tapping Zahara when already home scrolls to the top. The
+        highlight is the active segment's own background, so it's always
+        perfectly aligned. */}
+    <div class="site-switch" role="group" aria-label={t.switchVenue}>
+      <a href={path('home', lang)} class="site-switch__seg site-switch__seg--brand is-active"
+         data-switch-home aria-label={t.brandAria}>
         {t.brandText}
       </a>
-      <button class="rooftop-toggle" type="button" id="rooftop-toggle"
-              aria-expanded="false" aria-controls="rooftop-reveal" aria-label={t.rooftop}>
-        <svg class="rooftop-toggle__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polyline points="15 5 8 12 15 19" />
-        </svg>
-      </button>
-      <div class="rooftop-reveal" id="rooftop-reveal" aria-hidden="true">
-        {rooftopUrl
-          ? <a class="rooftop-reveal__link" href={rooftopUrl} target="_blank" rel="noopener">{t.rooftop}</a>
-          : (
-            <span class="rooftop-reveal__link rooftop-reveal__link--soon">
-              {t.rooftop}<span class="rooftop-reveal__badge">{t.rooftopSoon}</span>
-            </span>
-          )
-        }
-      </div>
+      {rooftopUrl
+        ? (
+          <a href={rooftopUrl} class="site-switch__seg" target="_blank" rel="noopener">
+            <span class="site-switch__name">{t.rooftop}</span>
+          </a>
+        )
+        : (
+          <button class="site-switch__seg site-switch__seg--soon" type="button"
+                  data-switch-rooftop
+                  aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
+            <span class="site-switch__name">{t.rooftop}</span>
+            <span class="site-switch__soon">{t.rooftopSoon}</span>
+          </button>
+        )
+      }
     </div>
 
     <div class="header-cta">
@@ -202,32 +202,38 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     if (e.key === 'Escape' && drawer?.classList.contains('is-open')) closeNav();
   });
 
-  // ── Nucha Rooftop reveal (the ‹ arrow beside the brand) ──────────────
-  // Click to open/close a small "Nucha Rooftop" panel. Twist: it auto-peeks
-  // once per browser session so visitors discover it while browsing.
-  const rtToggle = document.getElementById('rooftop-toggle');
-  const rtReveal = document.getElementById('rooftop-reveal');
-  function rtOpen()  { rtReveal?.classList.add('is-open');    rtReveal?.setAttribute('aria-hidden', 'false'); rtToggle?.setAttribute('aria-expanded', 'true'); }
-  function rtClose() { rtReveal?.classList.remove('is-open'); rtReveal?.setAttribute('aria-hidden', 'true');  rtToggle?.setAttribute('aria-expanded', 'false'); }
-  if (rtToggle && rtReveal) {
-    rtToggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (rtReveal.classList.contains('is-open')) rtClose(); else rtOpen();
-    });
-    document.addEventListener('click', (e) => {
-      const target = e.target as Element | null;
-      if (rtReveal.classList.contains('is-open') && target && !target.closest('.brand-group')) rtClose();
-    });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') rtClose(); });
-    try {
-      if (!sessionStorage.getItem('zahara-rooftop-peeked')) {
-        window.setTimeout(() => {
-          rtOpen();
-          window.setTimeout(rtClose, 2600);
-          try { sessionStorage.setItem('zahara-rooftop-peeked', '1'); } catch (_) {}
-        }, 3800);
+  // ── Venue switcher — clicking the active (Zahara) segment when already on
+  // its page scrolls to the top instead of reloading. ─────────────────────
+  const switchHome = document.querySelector<HTMLAnchorElement>('[data-switch-home]');
+  if (switchHome) {
+    switchHome.addEventListener('click', (e) => {
+      const norm = (s: string) => s.replace(/\/$/, '') || '/';
+      const here   = norm(window.location.pathname);
+      const target = norm(new URL(switchHome.href).pathname);
+      if (here === target) {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    } catch (_) {}
+    });
+  }
+
+  // ── Rooftop segment — dual-purpose while the rooftop site isn't live yet:
+  //   • scrolled past the first screen → scroll back to the top
+  //   • already at the very top        → this is where it WILL switch sites;
+  //     for now it's a no-op (rooftopUrl is null).
+  // Once RESTAURANT.rooftopUrl is set the segment renders as a plain <a>
+  // and this handler no longer exists. ─────────────────────────────────────
+  const switchRooftop = document.querySelector<HTMLButtonElement>('[data-switch-rooftop]');
+  if (switchRooftop) {
+    // "First part of the page" = roughly the first viewport. Anything past
+    // that and a tap means "take me back up".
+    const pastFirstScreen = () => window.scrollY > window.innerHeight * 0.6;
+    switchRooftop.addEventListener('click', () => {
+      if (pastFirstScreen()) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      // else: at the top — reserved for the future site switch. No-op for now.
+    });
   }
 
   // ── Theme toggle (two states: light ↔ dark) ──────────────────────────

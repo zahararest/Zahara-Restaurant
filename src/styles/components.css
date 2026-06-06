@@ -1118,17 +1118,25 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   flex: 1;
   display: grid;
   align-content: center;
-  justify-items: start;
   padding-block: clamp(var(--space-l), 6vh, var(--space-2xl));
 }
 
-/* ── "Our Story" box — transparent glass over the photo, expands the text
-   on click. The twist: a gold top-line that draws in + a frame that lights
-   up, and the text reveals with a height + fade. ─────────────────────────── */
+/* ── "Our Story" — two transparent glass boxes (a diptych). Box A is always
+   open; box B opens on click (crossfade, no height-expand). ──────────────── */
+.story-diptych {
+  width: 100%;
+  max-width: 46rem;        /* narrower column — vertical, not wide */
+  margin-inline-start: auto; /* pin the column to the inline-end (right on LTR,
+                                left on RTL) instead of centring it */
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+  align-items: start;       /* each box sizes to its own content height */
+}
+
 .story-box {
   position: relative;
-  width: 100%;
-  max-width: 56ch;
+  display: flex;
+  flex-direction: column;
   color: var(--paper-on-photo);
   border: 1px solid color-mix(in srgb, var(--paper-on-photo) 24%, transparent);
   background: color-mix(in srgb, var(--shadow) 24%, transparent);
@@ -1222,26 +1230,28 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 .story-box__icon::after { transform: translate(-50%, -50%) rotate(90deg); }
 .story-box.is-open .story-box__icon::after { transform: translate(-50%, -50%) rotate(0deg); opacity: 0; }
 
-/* The reveal: animate height via the 0fr→1fr grid-rows trick. */
-.story-box__reveal {
+/* Toggle box reveal — a real height collapse so a closed box is only as tall
+   as its title bar. The reveal uses a 0fr→1fr grid row (animatable height)
+   plus an opacity crossfade. This section is a centred 100svh scene, so the
+   height change settles the diptych vertically without shifting anything
+   below it. */
+.story-box--toggle .story-box__reveal {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows 0.55s var(--ease-out);
 }
-.story-box.is-open .story-box__reveal { grid-template-rows: 1fr; }
-.story-box__text {
+.story-box--toggle.is-open .story-box__reveal { grid-template-rows: 1fr; }
+.story-box--toggle .story-box__text {
   overflow: hidden;
   min-height: 0;
-  padding-inline: clamp(1.3rem, 3.2vw, 2.2rem);
+  padding: 0 clamp(1.3rem, 3.2vw, 2.2rem);
   opacity: 0;
-  transform: translateY(0.4rem);
-  transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+  transition: opacity 0.4s var(--ease-out), padding 0.55s var(--ease-out);
 }
-.story-box.is-open .story-box__text {
+.story-box--toggle.is-open .story-box__text {
   opacity: 1;
-  transform: translateY(0);
-  transition-delay: 0.15s;
   padding-block-end: clamp(1.3rem, 3.2vw, 2.2rem);
+  transition: opacity 0.5s var(--ease-out) 0.1s, padding 0.55s var(--ease-out);
 }
 .story-box__text p {
   margin: 0 0 var(--space-m);
@@ -1249,7 +1259,8 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 }
 .story-box__text p:last-child { margin-block-end: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .story-box__reveal, .story-box__text { transition: none; }
+  .story-box--toggle .story-box__reveal,
+  .story-box--toggle .story-box__text { transition: none; }
 }
 /* The info strip, when it sits on the dark photo, drops its paper band and
    reads in cream — so it belongs to the photo instead of cutting across it. */
@@ -1495,7 +1506,17 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   text-decoration: none;
   line-height: 1;
   box-shadow: 0 14px 34px -14px color-mix(in srgb, var(--shadow) 60%, transparent);
-  transition: background 0.25s ease, transform 0.25s var(--ease-out), box-shadow 0.25s ease;
+  /* Hidden until revealed on scroll (see BaseLayout script). */
+  opacity: 0;
+  transform: translateY(14px) scale(0.94);
+  pointer-events: none;
+  transition: opacity 0.35s var(--ease-out), transform 0.35s var(--ease-out),
+              background 0.25s ease, box-shadow 0.25s ease;
+}
+.floating-reserve.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 .floating-reserve:hover {
   background: var(--accent-deep);

@@ -213,29 +213,44 @@ const emptyLabel = t.emptyLabel;
     <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
       <InfoStrip lang={lang} />
       <div class="story-scene__body wrap">
-        {/* A transparent "Our Story" box that expands the text on click —
-            the box stays see-through over the photo; the twist is the
-            curtain-style reveal + the frame that lights up on open. */}
-        <div class="story-box reveal-on-scroll" data-story-box>
-          {/* ARIA accordion pattern: a real <h2> wraps the disclosure button
-              (keeps a crawlable section heading + valid, accessible markup). */}
-          <h2 class="story-box__h">
-            <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-text">
+        {/* Two transparent glass boxes over the photo. Box A (the approach)
+            is open by default but closable; box B (the story) is closed by
+            default and collapses to just its title until opened. Both reveal
+            with a crossfade, NOT a height-expand, so the page never shifts. */}
+        <div class="story-diptych">
+          <div class="story-box story-box--toggle is-open reveal-on-scroll" data-story-box>
+            <button class="story-box__head" type="button" aria-expanded="true" aria-controls="story-approach">
               <span class="story-box__heading">
                 <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{t.storyEyebrow}</span>
                 <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={t.storyHeading} />
+              </span>
+              <span class="story-box__cue" aria-hidden="true">
+                <span class="story-box__icon"></span>
+              </span>
+            </button>
+            <div class="story-box__reveal" id="story-approach" role="region" aria-label={t.storyHeading}>
+              <div class="story-box__text">
+                <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
+                <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
+              </div>
+            </div>
+          </div>
+
+          <div class="story-box story-box--toggle reveal-on-scroll" data-story-box>
+            <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-more">
+              <span class="story-box__heading">
+                <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyMoreEyebrow">{t.storyMoreEyebrow}</span>
+                <span class="display story-box__title" data-content-key="home.storyMoreTitle">{t.storyMoreTitle}</span>
               </span>
               <span class="story-box__cue" aria-hidden="true">
                 <span class="story-box__cue-text" data-content-key="home.storyReadMore">{t.storyReadMore}</span>
                 <span class="story-box__icon"></span>
               </span>
             </button>
-          </h2>
-          <div class="story-box__reveal" id="story-text" role="region" aria-label={t.storyEyebrow}>
-            <div class="story-box__text">
-              <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
-              <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
-              <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
+            <div class="story-box__reveal" id="story-more" role="region" aria-label={t.storyMoreTitle}>
+              <div class="story-box__text">
+                <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
+              </div>
             </div>
           </div>
         </div>
@@ -709,21 +724,31 @@ const emptyLabel = t.emptyLabel;
       color-mix(in srgb, var(--shadow) 22%, transparent) 42%,
       transparent 68%);
   }
+  /* The wipe is the SAME dark wash as the photo's own overlay — not a gold
+     curtain. It reads as the photo developing in, not a coloured panel
+     sliding off. */
   .menu-tile__wipe {
     position: absolute;
     inset: 0;
     z-index: 2;
-    background: var(--accent);
+    background: color-mix(in srgb, var(--shadow) 85%, transparent);
     transform-origin: inline-end;
-    transition: transform 0.7s var(--ease-out);
+    transition: transform 0.9s var(--ease-out);
   }
   html[dir="rtl"] .menu-tile__wipe { transform-origin: inline-start; }
   .menu-tiles.is-in-view .menu-tile__img  { transform: scale(1); }
   .menu-tiles.is-in-view .menu-tile__wipe { transform: scaleX(0); }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) .menu-tile__wipe { transition-delay: 0.06s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) .menu-tile__wipe { transition-delay: 0.16s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) .menu-tile__wipe { transition-delay: 0.26s; }
-  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) .menu-tile__wipe { transition-delay: 0.36s; }
+  /* One after the other — wider, even gaps so each tile clearly develops
+     in turn rather than all at once. The image settle is staggered to match
+     so the whole tile arrives as a unit. */
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) .menu-tile__wipe { transition-delay: 0.05s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) .menu-tile__wipe { transition-delay: 0.30s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) .menu-tile__wipe { transition-delay: 0.55s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) .menu-tile__wipe { transition-delay: 0.80s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(1) .menu-tile__img { transition-delay: 0.05s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(2) .menu-tile__img { transition-delay: 0.30s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(3) .menu-tile__img { transition-delay: 0.55s; }
+  .menu-tiles.is-in-view .menu-tiles__item:nth-child(4) .menu-tile__img { transition-delay: 0.80s; }
 
   .menu-tile__foot {
     position: absolute;

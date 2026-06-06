@@ -84,10 +84,13 @@ const schema = {
     <meta name="generator" content={Astro.generator} />
     <link rel="icon"             type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon"                     href="/favicon.svg" />
+    <link rel="manifest"                             href="/site.webmanifest" />
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
-    <meta name="theme-color"   content="#F4EDDF" />
+    {/* Match the system theme: cream chrome in light, dark in dark mode. */}
+    <meta name="theme-color" content="#F4EDDF" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1A1410" media="(prefers-color-scheme: dark)" />
     <meta name="format-detection" content="telephone=yes" />
 
     <link rel="canonical"      href={Astro.url.href} />
@@ -261,6 +264,27 @@ const schema = {
       </svg>
       <span class="floating-reserve__label">{reserveLabel}</span>
     </a>
+    <script is:inline>
+      (function () {
+        var fr = document.querySelector('.floating-reserve');
+        if (!fr) return;
+        var heroBtn = document.querySelector('[data-hero-reserve]');
+        if (heroBtn && 'IntersectionObserver' in window) {
+          // Home: show the floating button only once the hero's "Reserve a
+          // table" button has scrolled out of view.
+          new IntersectionObserver(function (entries) {
+            fr.classList.toggle('is-visible', !entries[0].isIntersecting);
+          }, { threshold: 0 }).observe(heroBtn);
+        } else {
+          // Inner pages (no hero reserve): reveal after a little scrolling.
+          var onScroll = function () {
+            fr.classList.toggle('is-visible', window.scrollY > window.innerHeight * 0.5);
+          };
+          onScroll();
+          window.addEventListener('scroll', onScroll, { passive: true });
+        }
+      })();
+    </script>
 
     {/* Editable-copy overlay. The middleware injects the owner's saved
         text as a <script id="zahara-content"> JSON blob in <head>; this

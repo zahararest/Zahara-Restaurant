@@ -6,7 +6,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "dev:cf": "npm run build && NODE_OPTIONS=--max-old-space-size=4096 wrangler pages dev ./dist --binding ADMIN_USER=owner --binding ADMIN_PASSWORD=test123"
   },
   "dependencies": {
     "astro": "^6.3.8"

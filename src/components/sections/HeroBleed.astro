@@ -56,7 +56,7 @@ const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
     </h1>
     <!-- <p class="hero-bleed__lede fade-up" set:html={t.heroLede} /> -->
     <div class="btn-row fade-up">
-      <a class="btn"          href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.heroCtaReserve}</a>
+      <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-hero-reserve>{t.heroCtaReserve}</a>
       <a class="btn btn--ghost" href={path('menu', lang)}>{t.heroCtaMenu}</a>
     </div>
   </div>

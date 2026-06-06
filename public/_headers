@@ -1,0 +1,32 @@
+# Cloudflare Pages — response headers.
+# Docs: https://developers.cloudflare.com/pages/configuration/headers/
+# Order matters: most specific rules should win; CF applies all matching rules.
+
+# ── Security hardening (all routes) ──────────────────────────────────────
+# We intentionally do NOT set a restrictive script-src CSP: the site relies on
+# many inlined scripts (Astro inlines them) plus optionally-injected Google
+# Ads/Analytics, so a strict policy would break the page. We still get the
+# high-value protections below, including clickjacking defence via
+# frame-ancestors (the modern replacement for X-Frame-Options).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: frame-ancestors 'self'
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-DNS-Prefetch-Control: on
+
+# ── Caching ──────────────────────────────────────────────────────────────
+# Hashed, immutable build assets (Astro emits content-hashed filenames).
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Self-hosted fonts never change at a given URL.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The admin panel must never be cached or framed by anyone.
+/admin/*
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow

@@ -1,0 +1,76 @@
+---
+// Custom 404. Cloudflare Pages serves this single /404.html for ANY unmatched
+// path — including English ones — so it can't rely on the URL to pick a
+// language. It leads with Hebrew (the site default) and mirrors the key copy
+// in English underneath, with links into both locales.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { pick, notFound as copy } from '../data/i18n';
+import { path } from '../lib/paths';
+
+const he = pick(copy, 'he');
+const en = pick(copy, 'en');
+---
+
+<BaseLayout title={he.pageTitle} lang="he" description={he.body}>
+  <section class="notfound wrap">
+    <p class="notfound__code" aria-hidden="true">{he.code}</p>
+    <h1 class="display notfound__title">{he.title}</h1>
+    <p class="notfound__body">{he.body}</p>
+    <div class="btn-row notfound__actions">
+      <a class="btn" href={path('home', 'he')}>{he.ctaHome}</a>
+      <a class="btn btn--ghost" href={path('menu', 'he')}>{he.ctaMenu}</a>
+    </div>
+
+    <p class="notfound__en" lang="en" dir="ltr">
+      <span class="notfound__en-title">{en.title}.</span>
+      {en.body}
+      <a href={path('home', 'en')}>{en.ctaHome}</a>
+    </p>
+  </section>
+</BaseLayout>
+
+<style>
+  .notfound {
+    min-height: clamp(60vh, 70vh, 80vh);
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    text-align: center;
+    gap: var(--space-s);
+    padding-block: var(--space-2xl);
+  }
+  .notfound__code {
+    font-family: var(--font-display);
+    font-size: clamp(4rem, 16vw, 9rem);
+    line-height: 0.9;
+    margin: 0;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .notfound__title {
+    font-size: var(--step-4);
+    margin: 0;
+  }
+  .notfound__body {
+    max-width: 38ch;
+    color: var(--ink-soft);
+    font-weight: 300;
+    line-height: 1.6;
+    margin: 0;
+  }
+  .notfound__actions {
+    margin-block-start: var(--space-s);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .notfound__en {
+    margin-block-start: var(--space-l);
+    max-width: 46ch;
+    font-size: var(--step--1);
+    color: var(--ink-muted);
+    line-height: 1.6;
+  }
+  .notfound__en-title { color: var(--ink-soft); font-weight: 600; }
+  .notfound__en a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  .notfound__en a:hover { color: var(--accent-deep); }
+</style>

@@ -57,6 +57,25 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Warm ambient gradient behind everything — soft gold glows + a paper →
+   paper-deep wash give the background depth instead of flat cream, without
+   fighting the editorial look. A fixed pseudo-element (not background-
+   attachment:fixed, which iOS mishandles) keeps it ambient on scroll. Sits
+   behind all content; transparent sections let it show through. Token-based,
+   so it warms dark mode too. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 55% at 50% -8%,   color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%),
+    radial-gradient(78% 58% at 108% 104%, color-mix(in srgb, var(--gold) 9%, transparent),   transparent 58%),
+    radial-gradient(72% 52% at -8% 32%,   color-mix(in srgb, var(--accent) 6%, transparent),  transparent 55%),
+    linear-gradient(176deg, var(--paper) 0%, var(--paper-deep) 100%);
+}
+
 img, svg, video { display: block; max-width: 100%; height: auto; }
 a { color: inherit; text-decoration: none; touch-action: manipulation; }
 button { font: inherit; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; touch-action: manipulation; }

@@ -72,7 +72,9 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'home.storyP3', label: 'Paragraph 3', html: true, multiline: true,
       he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
       en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.' },
-    { key: 'home.storyReadMore', label: 'Story box — "read more" label', he: 'קראו את הסיפור', en: 'Read our story' },
+    { key: 'home.storyMoreEyebrow', label: 'Story box 2 — eyebrow', he: 'הגישה', en: 'Our approach' },
+    { key: 'home.storyMoreTitle',   label: 'Story box 2 — title',  he: 'Sharing is caring', en: 'Sharing is caring' },
+    { key: 'home.storyReadMore',    label: 'Story box 2 — "read more" label', he: 'קראו עוד', en: 'Read more' },
   ] },
   { title: 'Menu section', fields: [
     { key: 'home.menuSplitEyebrow', label: 'Eyebrow', he: 'התפריט', en: 'The menu' },

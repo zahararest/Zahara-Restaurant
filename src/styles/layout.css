@@ -73,120 +73,85 @@
 /* On phones the header CTA cluster is hidden; social moves into the drawer. */
 @media (max-width: 860px) { .header-social { display: none; } }
 
-.brand-group {
+/* ── Venue switcher (segmented pill) — Zahara ↔ Nucha Rooftop ─────────── */
+.site-switch {
   justify-self: center;
-  position: relative;
   display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-/* Invisible spacer the same width as the rooftop arrow, so the brand stays
-   visually centred instead of being pushed off by the arrow on its end. */
-.brand-group::before {
-  content: '';
-  flex: 0 0 1.65rem;
-}
-.brand {
-  color: var(--ink);
-  line-height: 1;
-  transition: opacity 0.3s ease, letter-spacing 0.3s ease, color 0.06s linear;
-  display: inline-block;
-}
-.brand:hover { opacity: 0.7; }
-
-/* ── Nucha Rooftop reveal — the ‹ arrow beside the brand ─────────────── */
-.rooftop-toggle {
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  width: 1.65rem;
-  height: 1.65rem;
-  display: inline-grid;
-  place-items: center;
-  cursor: pointer;
-  color: var(--ink-soft);
-  border-radius: 50%;
-  transition: color 0.2s ease, background 0.2s ease;
-  animation: rooftopNudge 3.4s var(--ease-out) infinite;
-}
-.rooftop-toggle:hover { color: var(--accent); background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.rooftop-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.rooftop-toggle__chev { width: 0.95rem; height: 0.95rem; transition: transform 0.4s var(--ease-out); }
-.rooftop-toggle[aria-expanded="true"] { animation: none; color: var(--accent); }
-.rooftop-toggle[aria-expanded="true"] .rooftop-toggle__chev { transform: rotate(180deg); }
-html[dir="rtl"] .rooftop-toggle__chev { transform: scaleX(-1); }
-html[dir="rtl"] .rooftop-toggle[aria-expanded="true"] .rooftop-toggle__chev { transform: scaleX(-1) rotate(180deg); }
-@keyframes rooftopNudge {
-  0%, 85%, 100% { transform: translateX(0); }
-  90% { transform: translateX(-0.16rem); }
-  95% { transform: translateX(0); }
-}
-@media (prefers-reduced-motion: reduce) { .rooftop-toggle { animation: none; } }
-
-.site-header.is-on-photo .rooftop-toggle { color: color-mix(in srgb, var(--paper-on-photo) 80%, transparent); }
-.site-header.is-on-photo .rooftop-toggle:hover { color: var(--paper-on-photo); background: color-mix(in srgb, var(--paper-on-photo) 12%, transparent); }
-.site-header.is-on-photo .rooftop-toggle[aria-expanded="true"] { color: var(--paper-on-photo); }
-
-.rooftop-reveal {
-  position: absolute;
-  inset-block-start: calc(100% + 0.55rem);
-  left: 50%;
-  transform: translate(-50%, -0.4rem);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
-  z-index: 5;
-}
-.rooftop-reveal.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
-.rooftop-reveal__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  white-space: nowrap;
-  padding: 0.55rem 1rem;
-  border: 1px solid var(--rule);
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
   border-radius: 999px;
-  background: var(--paper-card);
-  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  max-width: 100%;
+}
+.site-switch__seg {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 0.32rem 0.95rem;
   font-family: var(--font-body);
   font-size: var(--step--1);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  text-decoration: none;
-  box-shadow: var(--shadow-2);
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  transition: color 0.25s ease, background 0.25s ease;
 }
-a.rooftop-reveal__link:hover { color: var(--ink); border-color: var(--accent); }
-.rooftop-reveal__badge {
-  font-size: 0.62em;
-  letter-spacing: 0.12em;
+.site-switch__seg:hover { color: var(--ink); }
+.site-switch__seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.site-switch__seg--brand {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+}
+/* The active venue's highlight IS the segment's own background, so it is
+   always perfectly aligned on the segment (no separate sliding pill). */
+.site-switch__seg.is-active,
+.site-switch__seg.is-active:hover { background: var(--accent); color: var(--shadow); }
+/* Clickable while the rooftop site is pre-launch: a tap scrolls back to the
+   top once you've left the first screen (site-switch handler in Header). */
+.site-switch__seg--soon { cursor: pointer; }
+.site-switch__soon {
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   font-weight: 600;
-  color: var(--paper-on-photo);
-  background: var(--accent);
-  padding: 0.2em 0.5em;
+  padding: 0.14em 0.45em;
   border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  color: var(--ink-muted);
 }
 
-html[lang="he"] .brand {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  font-weight: 500;
-  letter-spacing: 0.16em;
+/* On the photo-hero header — read in cream over the dark gradient. */
+.site-header.is-on-photo .site-switch {
+  border-color: color-mix(in srgb, var(--paper-on-photo) 30%, transparent);
+  background: color-mix(in srgb, var(--shadow) 22%, transparent);
 }
-html[lang="en"] .brand {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  letter-spacing: 0.45em;
-  text-transform: uppercase;
-  font-weight: 400;
-  padding-inline-start: 0.45em;
+.site-header.is-on-photo .site-switch__seg { color: color-mix(in srgb, var(--paper-on-photo) 75%, transparent); }
+.site-header.is-on-photo .site-switch__seg:hover { color: var(--paper-on-photo); }
+.site-header.is-on-photo .site-switch__seg--brand { color: var(--paper-on-photo); }
+.site-header.is-on-photo .site-switch__seg.is-active,
+.site-header.is-on-photo .site-switch__seg.is-active:hover { background: var(--accent); color: var(--shadow); }
+.site-header.is-on-photo .site-switch__soon {
+  background: color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
+  color: color-mix(in srgb, var(--paper-on-photo) 82%, transparent);
 }
 
-.site-header.is-on-photo .brand,
+@media (max-width: 560px) {
+  .site-switch__seg { padding: 0.3rem 0.7rem; font-size: var(--step--2); }
+  .site-switch__seg--brand { font-size: 1rem; }
+  .site-switch__soon { display: none; }
+}
+
 .site-header.is-on-photo .nav a,
 .site-header.is-on-photo .header-reserve,
-.site-header.is-on-photo .header-rooftop,
 .site-header.is-on-photo .lang-toggle,
 .site-header.is-on-photo .theme-toggle,
 .site-header.is-on-photo .burger span {
@@ -867,8 +832,7 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
   }
   /* Hide nav links and primary CTA buttons; keep utils (theme + lang) */
   .nav-row,
-  .header-cta .header-reserve,
-  .header-cta .header-rooftop { display: none; }
+  .header-cta .header-reserve { display: none; }
   /* Remove separator on mobile since only utils remain */
   .header-utils {
     padding-inline-start: 0;
@@ -876,8 +840,6 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
     gap: 0.5rem;
   }
   .burger { display: flex; justify-self: start; }
-  html[lang="he"] .brand { font-size: 1.3rem; letter-spacing: 0.06em; }
-  html[lang="en"] .brand { font-size: 1rem;   letter-spacing: 0.36em; }
   .mobile-nav { display: block; }
 }
 

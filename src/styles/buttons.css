@@ -122,59 +122,5 @@ html[lang="he"] .header-reserve {
   border-color: var(--paper-on-photo);
 }
 
-/* Rooftop — a bordered pill button. Links to the rooftop site when live,
-   or to the home page while "coming soon". */
-.header-rooftop {
-  position: relative;
-  font-size: var(--step--1);
-  font-family: var(--font-body);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--ink-soft);
-  text-decoration: none;
-  transition: color 0.2s, background 0.2s, border-color 0.2s;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  /* Bordered pill — distinct from the plain Reserve ghost button */
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
-}
-.header-rooftop:hover {
-  color: var(--ink);
-  border-color: var(--ink);
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-}
-
-.header-rooftop__badge {
-  font-size: 0.62em;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--paper-on-photo);
-  background: var(--accent);
-  padding: 0.18em 0.5em;
-  border-radius: 999px;
-  line-height: 1.4;
-}
-
-/* On photo: bordered pill in paper-on-photo tones */
-.site-header.is-on-photo .header-rooftop {
-  color: var(--paper-on-photo);
-  border-color: color-mix(in srgb, var(--paper-on-photo) 45%, transparent);
-}
-.site-header.is-on-photo .header-rooftop:hover {
-  border-color: var(--paper-on-photo);
-  background: color-mix(in srgb, var(--paper-on-photo) 12%, transparent);
-}
-
 /* Mobile drawer rooftop button keeps .btn--ghost look; just center it */
 .mobile-nav__rooftop-soon { text-align: center; }
-
-/* Hide on mobile — appears in the mobile drawer instead */
-@media (max-width: 860px) {
-  .header-rooftop { display: none; }
-}

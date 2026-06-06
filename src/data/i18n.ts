@@ -25,8 +25,9 @@ export const header = {
   events:      { he: 'אירועים',        en: 'Events'    },
   about:       { he: 'אודות',          en: 'About'     },
   reserve:     { he: 'הזמנה',          en: 'Reserve'   },
-  rooftop:     { he: 'Nucha Rooftop', en: 'Nucha Rooftop' },
+  rooftop:     { he: 'Rooftop', en: 'Rooftop' },
   rooftopSoon: { he: 'בקרוב',         en: 'Soon'         },
+  switchVenue: { he: 'מעבר בין המתחמים', en: 'Switch venue' },
   brandText:   { he: 'זהרה',            en: 'Zahara'     },
   langToggle:  { he: 'EN',             en: 'עברית'     },
   themeToggle: { he: 'שינוי ערכת נושא', en: 'Toggle theme' },
@@ -171,7 +172,9 @@ export const home = {
     he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
     en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.',
   },
-  storyReadMore: { he: 'קראו את הסיפור', en: 'Read our story' },
+  storyReadMore:    { he: 'קראו עוד',  en: 'Read more' },
+  storyMoreEyebrow: { he: 'הגישה',      en: 'Our approach' },
+  storyMoreTitle:   { he: 'Sharing is caring', en: 'Sharing is caring' },
 
   kitchenEyebrow: { he: 'המטבח',           en: 'The kitchen'     },
   kitchenHeading: { he: 'חומר גלם, לפני הכל.', en: 'Ingredients first.' },
@@ -546,4 +549,15 @@ export const contact = {
   reachUsEyebrow: { he: 'דרכים נוספות', en: 'Other ways to reach us' },
   reachUsPhoneLabel: { he: 'טלפון',  en: 'Phone'   },
   reachUsEmailLabel: { he: 'אימייל', en: 'Email'   },
+};
+
+/* ── 404 / not-found page ────────────────────────────────────────────── */
+export const notFound = {
+  code:      { he: '404',                          en: '404'                          },
+  title:     { he: 'הדף לא נמצא',                   en: 'Page not found'               },
+  body:      { he: 'נראה שהקישור שביקשתם אינו קיים או שהדף הוסר. בואו נחזיר אתכם לדרך הנכונה.',
+               en: "The link you followed may be broken, or the page may have been removed. Let's get you back on track." },
+  ctaHome:   { he: 'חזרה לעמוד הבית',               en: 'Back to home'                 },
+  ctaMenu:   { he: 'לתפריט',                        en: 'View the menu'                },
+  pageTitle: { he: 'הדף לא נמצא',                   en: 'Page not found'               },
 };
