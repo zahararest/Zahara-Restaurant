@@ -82,23 +82,27 @@ const nextLabel = g.nextPhoto;
       </div>
     ))}
 
-    {/* Optional slides — start `is-pending` (excluded from the carousel).
-        The script reveals each one whose image loads and drops any whose
-        image 404s, so empty admin slots never appear as blank frames. */}
+    {/* Optional slides — start `is-pending` (excluded from the carousel) and
+        carry NO image src. They have no shipped file, so a server-rendered
+        src would 404 for every empty slot. Instead the URLs live in data-*
+        attributes; the script asks /api/gallery which slots actually exist in
+        R2 and only then promotes those to a real src. Empty slots are removed
+        without ever being fetched. */}
     {optionalPhotos.map((p, i) => (
       <div
         class="gallery-film__slide is-pending"
         data-optional
+        data-filename={p.src.split('/').pop()}
         role="group"
         aria-roledescription="slide"
         aria-hidden="true"
       >
         <picture>
-          <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
+          <source media="(max-width: 600px)" data-srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
           <img
             class="gallery-film__img"
-            src={resized(p.src, 1600)}
-            srcset={resizedSrcset(p.src, WIDTHS)}
+            data-src={resized(p.src, 1600)}
+            data-srcset={resizedSrcset(p.src, WIDTHS)}
             sizes="100vw"
             alt={p.alt[lang]}
             loading="lazy"
@@ -203,19 +207,47 @@ const nextLabel = g.nextPhoto;
       setTimeout(() => { isAnimating = false; }, DURATION);
     }
 
-    // ── Probe optional slots — reveal on load, drop on error ──────────────
-    film.querySelectorAll('.gallery-film__slide[data-optional]').forEach((slide) => {
-      const img = slide.querySelector('img');
-      if (!img) { slide.remove(); return; }
+    // ── Optional slots — confirm via API, then load only what exists ──────
+    // Ask the server which optional gallery slots actually have an image in
+    // R2. Only those get their real src promoted from data-*; the rest are
+    // removed WITHOUT ever being fetched, so empty slots never 404.
+    const optionalSlides = Array.from(
+      film.querySelectorAll('.gallery-film__slide[data-optional]'));
+
+    function promote(slide) {
+      const img    = slide.querySelector('img');
+      const source = slide.querySelector('source');
+      if (!img) { slide.remove(); refreshMeta(); return; }
+      // Move the deferred URLs into the live attributes → triggers the fetch.
+      if (source && source.dataset.srcset) source.srcset = source.dataset.srcset;
+      if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+      if (img.dataset.src)    img.src    = img.dataset.src;
       const keep = () => { slide.classList.remove('is-pending'); refreshMeta(); };
       const drop = () => { slide.remove(); refreshMeta(); };
-      if (img.complete) {
-        if (img.naturalWidth > 0) keep(); else drop();
-      } else {
+      if (img.complete) { img.naturalWidth > 0 ? keep() : drop(); }
+      else {
         img.addEventListener('load',  keep, { once: true });
         img.addEventListener('error', drop, { once: true });
       }
-    });
+    }
+
+    if (optionalSlides.length) {
+      fetch('/api/gallery', { headers: { 'Accept': 'application/json' } })
+        .then((r) => (r.ok ? r.json() : { filenames: [] }))
+        .then((data) => {
+          const have = new Set((data && data.filenames) || []);
+          optionalSlides.forEach((slide) => {
+            if (have.has(slide.dataset.filename)) promote(slide);
+            else slide.remove();
+          });
+          refreshMeta();
+        })
+        .catch(() => {
+          // API unreachable — drop the optional slots rather than risk 404s.
+          optionalSlides.forEach((slide) => slide.remove());
+          refreshMeta();
+        });
+    }
 
     refreshMeta();
 

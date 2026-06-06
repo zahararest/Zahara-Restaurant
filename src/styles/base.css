@@ -57,6 +57,34 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ── Ambient warmth ───────────────────────────────────────────────────
+   A fixed, soft warm wash behind ALL content so the plain background
+   sections (PhotoBlock bands, Instagram, intros, any transparent .section)
+   never read as a single flat slab — especially in dark mode. Two diagonal
+   accent glows plus a gentle vertical deepening. It's fixed (not
+   background-attachment) so it composites on its own layer and never
+   repaints during scroll — mobile-safe. Photo sections paint over it. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    /* gold glow, top inline-start */
+    radial-gradient(80% 60% at 15% 4%,
+      color-mix(in srgb, var(--accent) 13%, transparent), transparent 58%),
+    /* gold glow, bottom inline-end */
+    radial-gradient(75% 60% at 95% 96%,
+      color-mix(in srgb, var(--accent) 11%, transparent), transparent 60%),
+    /* full-viewport diagonal wash: warm at top, deepening to the bottom so
+       even the middle of a plain section carries tone, not a flat slab */
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--accent) 5%, transparent) 0%,
+      transparent 38%,
+      color-mix(in srgb, var(--shadow) 12%, transparent) 100%);
+}
+
 /* Warm ambient gradient behind everything — soft gold glows + a paper →
    paper-deep wash give the background depth instead of flat cream, without
    fighting the editorial look. A fixed pseudo-element (not background-
