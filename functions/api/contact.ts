@@ -1,13 +1,14 @@
 // /functions/api/contact.ts
 //
-// Receives the events contact form and emails the owner via Resend.
+// Receives the contact/events form and emails the owner via Resend.
 // Handles both JS fetch (returns plain text) and no-JS form submission
-// (redirects to the refering events page with ?submitted=1).
+// (redirects to the referring page with ?submitted=1).
 //
-// Required Cloudflare Pages secrets:
-//   RESEND_API_KEY     — from resend.com
-//   CONTACT_TO_EMAIL   — owner's inbox
-//   CONTACT_FROM_EMAIL — must be on a Resend-verified domain
+// Cloudflare Pages secrets (Settings → Environment Variables):
+//   RESEND_API_KEY     — from resend.com (required)
+//   CONTACT_TO_EMAIL   — destination inbox; defaults to info@zahara.rest
+//   CONTACT_FROM_EMAIL — must be a Resend-verified sender address
+//                        e.g. noreply@zahara.rest (after verifying zahara.rest in Resend)
 
 interface Env {
   RESEND_API_KEY:     string;
@@ -120,7 +121,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     },
     body: JSON.stringify({
       from:     env.CONTACT_FROM_EMAIL,
-      to:       env.CONTACT_TO_EMAIL,
+      to:       env.CONTACT_TO_EMAIL || 'info@zahara.rest',
       reply_to: email,
       subject,
       html,

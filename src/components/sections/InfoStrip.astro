@@ -35,25 +35,23 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
         <a class="info-strip__sub"     href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-content-key="info.reservTabit">{t.infoTabit}</a>
       </div>
 
-      {/* Kosher cell — hover shows a preview thumbnail; click opens the
-          certificate in a full lightbox on the same page. */}
       <div class="info-strip__cell info-strip__cell--kosher" data-kosher-cell>
         <div class="meta-block__label" data-content-key="info.kosherLabel">{t.infoKosherLabel}</div>
         <button class="meta-block__value info-kosher__trigger" type="button"
                 data-kosher-open data-content-key="info.kosherValue">{t.infoKosherValue}</button>
         <button class="info-strip__sub info-kosher__sub" type="button"
                 data-kosher-open data-content-key="info.kosherView">{t.infoKosherView}</button>
-
-        {/* Hover preview — visible on :hover/:focus-within of the cell */}
-        <span class="info-kosher__preview" aria-hidden="true">
-          <img class="info-kosher__thumb" src={kosherCert} alt="" loading="lazy" decoding="async" />
-        </span>
       </div>
     </div>
   </div>
 </div>
 
-{/* Lightbox — showModal() places it in the top layer above everything */}
+{/* Hover/peek preview — position: fixed so overflow:hidden on parent cannot clip it */}
+<div class="info-kosher__preview" id="kosher-preview" aria-hidden="true">
+  <img class="info-kosher__thumb" src={kosherCert} alt="" loading="lazy" decoding="async" />
+</div>
+
+{/* Lightbox dialog */}
 <dialog class="kosher-dialog" id="kosher-dialog" aria-label={t.infoKosherLabel}>
   <button class="kosher-dialog__close" type="button" aria-label={closeLabel} data-kosher-close>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
@@ -66,46 +64,103 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
 
 <script>
   (() => {
-    const dialog    = document.getElementById('kosher-dialog') as HTMLDialogElement | null;
-    const cell      = document.querySelector('[data-kosher-cell]');
-    const openers   = Array.from(document.querySelectorAll('[data-kosher-open]'));
-    const closers   = Array.from(document.querySelectorAll('[data-kosher-close]'));
+    const dialog  = document.getElementById('kosher-dialog')  as HTMLDialogElement | null;
+    const preview = document.getElementById('kosher-preview') as HTMLElement | null;
+    const cell    = document.querySelector('[data-kosher-cell]') as HTMLElement | null;
 
-    if (!dialog || !cell) return;
+    if (!dialog || !preview || !cell) return;
 
-    const certSrc = dialog.querySelector('img')?.src;
+    // Non-null after the guard — reassert so closures inherit the narrowed type.
+    const _preview = preview!;
+    const _cell    = cell!;
 
-    // Probe: if the cert hasn't been uploaded yet, hide all cert UI entirely.
-    const probe = new Image();
+    // ── Probe: if cert not uploaded yet, hide all cert UI ──────────────────
+    const certSrc = (dialog.querySelector('img') as HTMLImageElement)?.src;
+    const probe   = new Image();
     probe.onerror = () => {
-      (cell as HTMLElement).style.display = 'none';
+      _cell.style.display = 'none';
+      _preview.remove();
       dialog.remove();
     };
     probe.src = certSrc ?? '';
 
-    // Open
-    openers.forEach((btn) => {
+    // Anchor element — the "View certificate" link. The preview is always
+    // pinned directly beneath it (it's position:fixed, so we track the
+    // anchor's live rect and keep the preview glued under it as you scroll).
+    const anchor = (_cell.querySelector('.info-kosher__sub') as HTMLElement) ?? _cell;
+
+    function positionPreview() {
+      const r        = anchor.getBoundingClientRect();
+      const previewW = _preview.offsetWidth || 200;
+      const gap      = 10;
+
+      const halfW = previewW / 2;
+      let left = r.left + r.width / 2;    // centred on the link (transform -50%)
+      left = Math.max(halfW + 8, Math.min(left, window.innerWidth - halfW - 8));
+
+      _preview.style.top  = `${r.bottom + gap}px`;
+      _preview.style.left = `${left}px`;
+    }
+
+    let peekTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function showPreview() {
+      positionPreview();
+      _preview.classList.add('is-visible');
+    }
+    function hidePreview() {
+      _preview.classList.remove('is-visible');
+      if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
+    }
+    function peekFor(ms: number) {
+      if (peekTimer) clearTimeout(peekTimer);
+      showPreview();
+      peekTimer = setTimeout(hidePreview, ms);
+    }
+
+    // ── Hover — only on pointer devices (suppress on touch) ────────────────
+    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      _cell.addEventListener('mouseenter', showPreview);
+      _cell.addEventListener('mouseleave', hidePreview);
+    }
+    // Keep the preview pinned beneath the "View certificate" link as the
+    // page scrolls, so it stays attached rather than drifting off.
+    window.addEventListener('scroll', () => {
+      if (_preview.classList.contains('is-visible')) positionPreview();
+    }, { passive: true });
+
+    // ── Click → open lightbox ───────────────────────────────────────────────
+    _cell.querySelectorAll('[data-kosher-open]').forEach((btn) => {
       btn.addEventListener('click', () => dialog.showModal());
     });
 
-    // Close button
-    closers.forEach((btn) => {
+    // ── Close lightbox ──────────────────────────────────────────────────────
+    dialog.querySelectorAll('[data-kosher-close]').forEach((btn) => {
       btn.addEventListener('click', () => dialog.close());
     });
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 
-    // Click on backdrop (outside the image area) closes
-    dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) dialog.close();
-    });
-
-    // Esc is handled natively by <dialog>
+    // ── Auto-peek once, while the kosher cell is fully on screen ───────────
+    // Firing here (rather than after the strip scrolls away) means the
+    // preview can anchor directly beneath the cell the visitor is looking at.
+    if ('IntersectionObserver' in window) {
+      let fired = false;
+      const io = new IntersectionObserver((entries) => {
+        if (fired) return;
+        const entry = entries[0];
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.99) {
+          fired = true;
+          peekFor(3000);
+          io.disconnect();
+        }
+      }, { threshold: [0, 0.5, 0.99, 1] });
+      io.observe(_cell);
+    }
   })();
 </script>
 
 <style>
-  /* ── Kosher cell — hover preview ──────────────────────────────────────── */
-  .info-strip__cell--kosher { position: relative; }
-
+  /* ── Kosher trigger buttons ───────────────────────────────────────────── */
   .info-kosher__trigger,
   .info-kosher__sub {
     background: none;
@@ -126,12 +181,11 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
   }
   .info-kosher__sub:hover { color: var(--accent-deep); }
 
+  /* ── Preview — fixed so overflow:hidden parents can't clip it ─────────── */
   .info-kosher__preview {
-    position: absolute;
-    bottom: calc(100% + 0.85rem);
-    left: 50%;
+    position: fixed;
     transform: translateX(-50%) translateY(0.5rem);
-    width: clamp(160px, 22vw, 220px);
+    width: clamp(160px, 20vw, 210px);
     background: var(--paper-card);
     border: 1px solid var(--rule);
     padding: 0.4rem;
@@ -139,10 +193,9 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.22s ease, transform 0.22s ease;
-    z-index: 60;
+    z-index: 200;
   }
-  .info-strip__cell--kosher:hover .info-kosher__preview,
-  .info-strip__cell--kosher:focus-within .info-kosher__preview {
+  .info-kosher__preview.is-visible {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
   }
@@ -179,10 +232,10 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
   }
   .kosher-dialog__close {
     position: absolute;
-    top: 0.65rem;
-    inset-inline-end: 0.65rem;
-    width: 2.2rem;
-    height: 2.2rem;
+    top: 0.5rem;
+    inset-inline-end: 0.5rem;
+    width: 2.75rem;   /* 44px touch target */
+    height: 2.75rem;
     display: grid;
     place-items: center;
     background: color-mix(in srgb, var(--shadow) 45%, transparent);
@@ -196,13 +249,14 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
   .kosher-dialog__close:hover { background: color-mix(in srgb, var(--shadow) 65%, transparent); }
   .kosher-dialog__close svg { width: 1rem; height: 1rem; }
 
-  /* Story-scene variant — buttons inherit on-photo colour */
+  @media (max-width: 480px) {
+    .kosher-dialog { width: 95vw; }
+    /* Preview too wide for narrow screens — shrink it */
+    .info-kosher__preview { width: min(160px, 44vw); }
+  }
+
+  /* Story-scene colour overrides */
   :global(.story-scene) .info-kosher__trigger { color: var(--paper-on-photo); }
   :global(.story-scene) .info-kosher__sub     { color: var(--gold); }
   :global(.story-scene) .info-kosher__sub:hover { color: var(--paper-on-photo); }
-  :global(.story-scene) .info-strip__cell--kosher:hover .info-kosher__preview,
-  :global(.story-scene) .info-strip__cell--kosher:focus-within .info-kosher__preview {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
 </style>

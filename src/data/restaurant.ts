@@ -15,7 +15,7 @@ export const RESTAURANT = {
     dialEn:  '+972773034180',
   },
 
-  email: 'info@zahara-jerusalem.co.il',
+  email: 'info@zahara.rest',
 
   address: {
     he:            'בן סירא, ירושלים',
