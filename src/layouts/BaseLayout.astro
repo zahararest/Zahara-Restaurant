@@ -6,6 +6,8 @@ import Motion        from '../components/Motion.astro';
 import Accessibility from '../components/Accessibility.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
+import type { PhotoEntry } from '../data/photos';
+import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../lib/photo';
 import { pick, layout as labels, header as headerLabels } from '../data/i18n';
 
 // ── Analytics / Ads — opt-in via Cloudflare Pages environment variables ──
@@ -25,16 +27,24 @@ const gtagId          = googleAdsId || gaMeasurementId;
 
 export interface Props {
   title:           string;
+  /** Full <title> override — keyword-led, used verbatim. Falls back to
+   *  "{title} — {brand}" when omitted. */
+  seoTitle?:       string;
   description?:    string;
   lang?:           'he' | 'en';
   /** Set true on pages whose hero is a full-bleed photo behind the header. */
   transparentHeader?: boolean;
+  /** When set, emit a responsive high-priority preload for this page's LCP
+   *  hero image so it downloads during head parse (reliable, early LCP). */
+  heroImage?:      PhotoEntry;
 }
 
 const {
   title,
+  seoTitle,
   lang = 'he',
   transparentHeader = false,
+  heroImage,
 } = Astro.props;
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
@@ -42,7 +52,7 @@ const t = pick(labels, lang);
 const description = Astro.props.description || t.defaultDescription;
 const keywords    = t.keywords;
 const brandName   = RESTAURANT.name[lang];
-const fullTitle   = `${title} — ${brandName}`;
+const fullTitle   = seoTitle || `${title} — ${brandName}`;
 const reserveLabel = pick(headerLabels, lang).reserve;
 
 const path    = Astro.url.pathname;
@@ -50,42 +60,93 @@ const altPath = lang === 'he'
   ? (path === '/' ? '/en/' : `/en${path}`)
   : (path.replace(/^\/en/, '') || '/');
 
+const origin   = Astro.url.origin;
+const heroUrl  = new URL(PHOTOS.hero.src, origin).href;
+const imageUrls = [PHOTOS.hero, PHOTOS.moodDining, PHOTOS.contact]
+  .map((p) => new URL(p.src, origin).href);
+
+// A @graph so the page can describe the restaurant (primary), the website,
+// AND its sister restaurant Angelica — they're run by the same team, and the
+// cross-reference helps the page surface for "Angelica" searches too.
 const schema = {
   '@context': 'https://schema.org',
-  '@type':    'Restaurant',
-  '@id':      `${Astro.url.origin}/#restaurant`,
-  name:             RESTAURANT.name.en,
-  alternateName:    [RESTAURANT.name.he, 'מסעדת זהרה', 'Zahara Jerusalem'],
-  description,
-  url:              `${Astro.url.origin}/`,
-  image:            new URL(PHOTOS.hero.src, Astro.url.origin).href,
-  address: {
-    '@type':         'PostalAddress',
-    streetAddress:   RESTAURANT.address.streetAddress,
-    addressLocality: RESTAURANT.address.city,
-    addressRegion:   'Jerusalem District',
-    addressCountry:  RESTAURANT.address.country,
-  },
-  telephone:           `+972-${RESTAURANT.phone.display.replace(/^0/, '')}`,
-  email:               RESTAURANT.email,
-  servesCuisine:       ['Contemporary Mediterranean', 'French', 'Asian', 'Kosher', 'כשרה'],
-  acceptsReservations: 'True',
-  priceRange:          '$$$',
-  hasMenu:             `${Astro.url.origin}/menu/`,
-  hasMap:              `https://maps.google.com/?q=${encodeURIComponent(RESTAURANT.address.maps)}`,
-  amenityFeature: [
-    { '@type': 'LocationFeatureSpecification', name: 'Kosher',        value: true },
-    { '@type': 'LocationFeatureSpecification', name: 'Reservations',  value: true },
-    { '@type': 'LocationFeatureSpecification', name: 'כשרה',          value: true },
+  '@graph': [
+    {
+      '@type':       'Restaurant',
+      '@id':         `${origin}/#restaurant`,
+      name:          RESTAURANT.name.en,
+      alternateName: ['זהרה', 'מסעדת זהרה', 'Zahara Jerusalem', 'Zahara Restaurant'],
+      description:   t.defaultDescription,
+      slogan:        lang === 'he' ? 'אחותה הצעירה של אנג׳ליקה' : "Angelica's younger sister",
+      url:           `${origin}/`,
+      image:         imageUrls,
+      logo:          `${origin}/favicon.svg`,
+      address: {
+        '@type':         'PostalAddress',
+        streetAddress:   RESTAURANT.address.streetAddress,
+        addressLocality: RESTAURANT.address.city,
+        addressRegion:   'Jerusalem District',
+        addressCountry:  RESTAURANT.address.country,
+      },
+      geo: {
+        '@type':    'GeoCoordinates',
+        latitude:   RESTAURANT.geo.lat,
+        longitude:  RESTAURANT.geo.lng,
+      },
+      areaServed:          { '@type': 'City', name: 'Jerusalem', alternateName: 'ירושלים' },
+      telephone:           `+972-${RESTAURANT.phone.display.replace(/^0/, '')}`,
+      email:               RESTAURANT.email,
+      servesCuisine:       ['Kosher', 'Contemporary Mediterranean', 'French', 'Asian', 'כשרה'],
+      acceptsReservations: 'True',
+      priceRange:          '$$$',
+      currenciesAccepted:  'ILS',
+      paymentAccepted:     'Cash, Credit Card',
+      keywords,
+      hasMenu:             `${origin}/menu/`,
+      hasMap:              `https://maps.google.com/?q=${encodeURIComponent(RESTAURANT.address.maps)}`,
+      amenityFeature: [
+        { '@type': 'LocationFeatureSpecification', name: 'Kosher',       value: true },
+        { '@type': 'LocationFeatureSpecification', name: 'כשרה',         value: true },
+        { '@type': 'LocationFeatureSpecification', name: 'Reservations', value: true },
+        { '@type': 'LocationFeatureSpecification', name: 'Accessible',   value: true },
+      ],
+      employee: {
+        '@type':        'Person',
+        name:           RESTAURANT.chef.en,
+        alternateName:  RESTAURANT.chef.he,
+        jobTitle:       lang === 'he' ? 'שף' : 'Chef',
+      },
+      openingHoursSpecification: [{
+        '@type':    'OpeningHoursSpecification',
+        dayOfWeek:  [...RESTAURANT.hours.days],
+        opens:      RESTAURANT.hours.opens,
+        closes:     RESTAURANT.hours.closes,
+      }],
+      isPartOf:  { '@type': 'Hotel', name: RESTAURANT.hotel.en, '@id': `${origin}/#hotel` },
+      sameAs:    [RESTAURANT.instagram],
+      mainEntityOfPage: `${origin}/`,
+    },
+    {
+      '@type':       'Restaurant',
+      '@id':         `${origin}/#angelica`,
+      name:          RESTAURANT.sisterName.en,
+      alternateName: ['אנג׳ליקה', 'מסעדת אנג׳ליקה', 'Angelica Jerusalem'],
+      description:   lang === 'he'
+        ? 'אנג׳ליקה — מוסד קולינרי ותיק בירושלים, המסעדה האחות של זהרה.'
+        : 'Angelica — a longstanding Jerusalem culinary institution and the sister restaurant of Zahara.',
+      areaServed:    { '@type': 'City', name: 'Jerusalem' },
+      servesCuisine: ['Mediterranean', 'Kosher'],
+    },
+    {
+      '@type':       'WebSite',
+      '@id':         `${origin}/#website`,
+      name:          'Zahara',
+      alternateName: ['זהרה', 'מסעדת זהרה'],
+      url:           `${origin}/`,
+      inLanguage:    lang === 'he' ? 'he-IL' : 'en-US',
+      publisher:     { '@id': `${origin}/#restaurant` },
+    },
   ],
-  sameAs: [RESTAURANT.instagram],
-  openingHoursSpecification: [{
-    '@type':    'OpeningHoursSpecification',
-    dayOfWeek:  [...RESTAURANT.hours.days],
-    opens:      RESTAURANT.hours.opens,
-    closes:     RESTAURANT.hours.closes,
-  }],
-  isPartOf: { '@type': 'Hotel', name: RESTAURANT.hotel.en, '@id': `${Astro.url.origin}/#hotel` },
 };
 ---
 
@@ -98,6 +159,21 @@ const schema = {
     <link rel="icon"             type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon"                     href="/favicon.svg" />
     <link rel="manifest"                             href="/site.webmanifest" />
+
+    {/* LCP hero preload — art-directed to match HeroBleed's <picture> exactly,
+        so the browser starts the hero download during head parse rather than
+        when the parser reaches the <img>. Makes the LCP fire early and
+        reliably (it was intermittently slipping past the metric window). */}
+    {heroImage && (
+      <>
+        <link rel="preload" as="image" fetchpriority="high"
+              imagesrcset={resizedMobileCoverSrcset(heroImage.src, [[640, 1180], [820, 1500], [1080, 1980]])}
+              imagesizes="100vw" media="(max-width: 600px)" />
+        <link rel="preload" as="image" fetchpriority="high"
+              imagesrcset={resizedSrcset(heroImage.src, [800, 1200, 1800, 2400])}
+              imagesizes="100vw" media="(min-width: 601px)" />
+      </>
+    )}
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />

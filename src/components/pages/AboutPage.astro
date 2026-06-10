@@ -37,7 +37,7 @@ const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
 const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
 ---
 
-<BaseLayout title={title} lang={lang} description={description}>
+<BaseLayout title={title} seoTitle={page.seoTitle} lang={lang} description={description}>
   <div class="about-page">
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">
@@ -132,7 +132,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
 
   {/* Hover/peek preview — position: fixed so overflow:hidden on parent cannot clip it */}
   <div class="info-kosher__preview" id="kosher-preview" aria-hidden="true">
-    <img class="info-kosher__thumb" src={kosherCert} alt="" loading="lazy" decoding="async" />
+    <img class="info-kosher__thumb" src={kosherCert} alt="" width="210" height="297" loading="lazy" decoding="async" />
   </div>
 
   {/* Lightbox dialog */}

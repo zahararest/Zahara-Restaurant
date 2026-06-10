@@ -17,27 +17,27 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
   <div class="wrap">
     <div class="footer-grid stagger">
       <div class="footer-block">
-        <h4>{t.hours}</h4>
+        <h2>{t.hours}</h2>
         <p>{t.weekdays}</p>
         <p class="footer-note">{t.closedNote}</p>
         <p class="footer-note">{t.hotelNote}</p>
       </div>
 
       <div class="footer-block">
-        <h4>{t.contact}</h4>
+        <h2>{t.contact}</h2>
         <a href={`tel:${dial}`}>{phoneTxt}</a>
         <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a>
         <a href={path('about', lang)}>{RESTAURANT.address[lang]}</a>
       </div>
 
       <div class="footer-block">
-        <h4>{t.follow}</h4>
+        <h2>{t.follow}</h2>
         <a href={RESTAURANT.instagram} target="_blank" rel="noopener">{t.instagram}</a>
         <a href={RESTAURANT.facebook}  target="_blank" rel="noopener">{t.facebook}</a>
       </div>
 
       <div class="footer-block">
-        <h4>{t.reserve}</h4>
+        <h2>{t.reserve}</h2>
         <a href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">Tabit ↗</a>
         <a href={path('menu', lang)}>{t.menuLink}</a>
       </div>

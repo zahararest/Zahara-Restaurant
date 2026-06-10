@@ -26,6 +26,14 @@ export const RESTAURANT = {
     country:       'IL',
   },
 
+  // Approximate coordinates for Ben Sira St / Nucha Hotel (Zion Square area),
+  // Jerusalem — used for the GeoCoordinates in schema.org (a local-SEO signal).
+  // The map pin itself comes from Google Business Profile; confirm/refine these
+  // against the verified GBP listing when available.
+  geo: { lat: 31.7806, lng: 35.2177 },
+
+  established: '2024',
+
   // Mon–Thu, 18:00–22:00
   hours: {
     he:     'ב׳–ה׳ · 18:00–22:00',

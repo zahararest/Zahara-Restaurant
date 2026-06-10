@@ -192,17 +192,27 @@ const t = pick(copy, lang);
   }
   .ig-card:hover .ig-card__img { transform: scale(1.04); }
 
+  /* Shimmer via a translated highlight band (transform = GPU-composited).
+     The old version animated background-position, which can't be composited
+     and PageSpeed flagged as a non-composited animation. */
   .ig-card--skeleton .ig-card__img {
-    background: linear-gradient(90deg, var(--paper-deep) 25%, var(--paper-edge) 50%, var(--paper-deep) 75%);
-    background-size: 200% 100%;
+    background: var(--paper-deep);
+    position: relative;
+    overflow: hidden;
+  }
+  .ig-card--skeleton .ig-card__img::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, var(--paper-edge) 50%, transparent 100%);
+    transform: translateX(-100%);
     animation: igSkeleton 1.5s ease infinite;
   }
   @keyframes igSkeleton {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    100% { transform: translateX(100%); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .ig-card--skeleton .ig-card__img { animation: none; }
+    .ig-card--skeleton .ig-card__img::after { animation: none; }
   }
 
   .ig-card__badge {

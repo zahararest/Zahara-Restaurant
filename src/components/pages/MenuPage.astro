@@ -15,7 +15,7 @@ const title    = page.pageTitle;
 const description = page.pageDescription;
 ---
 
-<BaseLayout title={title} lang={lang} transparentHeader description={description}>
+<BaseLayout title={title} seoTitle={page.seoTitle} lang={lang} transparentHeader description={description}>
   <IntroPhoto
     lang={lang}
     photo={PHOTOS.menuIntro}

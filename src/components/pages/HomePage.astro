@@ -188,12 +188,11 @@ const hydrationPayload = chapters.map((c) => ({
 const emptyLabel = t.emptyLabel;
 ---
 
-<BaseLayout title={title} lang={lang} transparentHeader description={description}>
-  {/* The hero photo (the LCP) is already loaded eager + fetchpriority=high
-      inside HeroBleed, so it needs no extra <link rel=preload>. We used to
-      preload a cinematic-chapter photo here, but that section is gone — the
-      preload just fetched an unused image (and 415'd for any photo without
-      an R2 override), so it was removed. */}
+<BaseLayout title={title} seoTitle={t.seoTitle} lang={lang} transparentHeader
+            description={description} heroImage={PHOTOS.hero}>
+  {/* The hero photo is the LCP. BaseLayout emits an art-directed
+      <link rel=preload as=image> for it (matching HeroBleed's <picture>), so
+      it downloads during head parse and the LCP fires early + reliably. */}
 
   <div data-section-name={sec.hero}>
     <HeroBleed lang={lang} photo={PHOTOS.hero} />
@@ -425,6 +424,8 @@ const emptyLabel = t.emptyLabel;
                   src={resized(part.photo.src, 800)}
                   srcset={resizedSrcset(part.photo.src, [360, 540, 760, 1080])}
                   sizes="(max-width: 860px) 45vw, 24vw"
+                  width="360"
+                  height="540"
                   alt=""
                   loading="lazy"
                   decoding="async"

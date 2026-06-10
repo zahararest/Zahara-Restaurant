@@ -22,7 +22,7 @@ const description = page.pageDescription;
 const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFull];
 ---
 
-<BaseLayout title={title} lang={lang} description={description}>
+<BaseLayout title={title} seoTitle={page.seoTitle} lang={lang} description={description}>
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">
       <p class="eyebrow">{t.eventsPageEyebrow}</p>

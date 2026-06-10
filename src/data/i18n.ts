@@ -77,12 +77,12 @@ export const menuEmbed = {
 
 export const layout = {
   defaultDescription: {
-    he: "מסעדת זהרה — מסעדת שף כשרה במלון נוצ׳ה, בן סירא ירושלים. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות. שף רועי אחדות. ערב כשר, מנות לשיתוף, בלב ירושלים.",
-    en: "Zahara Restaurant — kosher chef's restaurant inside Nucha Hotel, Ben Sira Street, Jerusalem. Contemporary Mediterranean kitchen with French technique and Asian influences. Chef Roi Achdut. Dinner reservations.",
+    he: "מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות: מטבח ים-תיכוני עכשווי עם טכניקה צרפתית והשפעות אסייתיות, מנות לשיתוף וערב כשר בלתי נשכח. הזמינו שולחן.",
+    en: "Zahara — a kosher chef's restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica's younger sister, led by chef Roi Achdut: contemporary Mediterranean cooking with French technique and Asian influences, plates made for sharing. Book a table.",
   },
   keywords: {
-    he: "מסעדת זהרה, מסעדה כשרה ירושלים, מסעדת שף כשרה, מטבח ים-תיכוני כשר, שף רועי אחדות, מלון נוצ׳ה ירושלים, בן סירא, מסעדה יוקרתית כשרה, ארוחת ערב כשרה ירושלים, מנות לשיתוף, מסעדה כשרה בירושלים",
-    en: "Zahara restaurant Jerusalem, kosher restaurant Jerusalem, kosher chef restaurant, Mediterranean kosher, Chef Roi Achdut, Nucha Hotel Jerusalem, Ben Sira Street restaurant, kosher fine dining Jerusalem, sharing plates kosher",
+    he: "מסעדת זהרה, זהרה ירושלים, אנג׳ליקה, מסעדת אנג׳ליקה, אנג׳ליקה ירושלים, מסעדה כשרה ירושלים, מסעדת שף כשרה, מסעדת שף ירושלים, מטבח ים-תיכוני כשר, שף רועי אחדות, מלון נוצ׳ה, בן סירא ירושלים, מסעדה כשרה מרכז העיר, ארוחת ערב כשרה ירושלים, מסעדה רומנטית ירושלים, מנות לשיתוף, כיכר ציון, מסעדות מומלצות בירושלים",
+    en: "Zahara restaurant Jerusalem, Zahara Jerusalem, Angelica, Angelica restaurant Jerusalem, kosher restaurant Jerusalem, kosher chef restaurant, chef restaurant Jerusalem, kosher Mediterranean, Chef Roi Achdut, Nucha Hotel, Ben Sira Street, kosher fine dining Jerusalem, romantic restaurant Jerusalem, sharing plates, Zion Square dining, best restaurants Jerusalem",
   },
   skipToContent: { he: 'דלג לתוכן', en: 'Skip to content' },
 };
@@ -111,8 +111,13 @@ export const home = {
   heroCtaReserve: { he: 'הזמינו מקום',    en: 'Reserve a table' },
   heroCtaMenu:    { he: 'לתפריט',         en: 'See the menu'    },
   pageTitle:      { he: 'בית',             en: 'Home'            },
-  pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה במלון נוצ׳ה, בן סירא ירושלים. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות. שף רועי אחדות. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
-                    en: 'Zahara Restaurant — kosher chef\'s restaurant inside Nucha Hotel, Ben Sira Street, Jerusalem. Contemporary Mediterranean kitchen, French technique, Asian influences. Chef Roi Achdut. Book your table.' },
+  // Full <title> override — keyword-led rather than "Home — Zahara".
+  seoTitle: {
+    he: 'מסעדת זהרה | מסעדת שף כשרה בירושלים — מלון נוצ׳ה',
+    en: 'Zahara | Kosher Chef Restaurant in Jerusalem — Nucha Hotel',
+  },
+  pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות, מנות לשיתוף. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
+                    en: 'Zahara Restaurant — a kosher chef\'s restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica\'s younger sister, led by chef Roi Achdut. Contemporary Mediterranean kitchen, French technique, Asian influences, plates for sharing. Book your table.' },
   kitchenCaption: { he: 'המטבח של זהרה',   en: 'The Zahara kitchen' },
   secHero:        { he: 'בית',             en: 'Open'            },
   secStory:       { he: 'סיפור',           en: 'Story'           },
@@ -261,25 +266,37 @@ export const home = {
 };
 export const menuPage = {
   pageTitle: { he: 'תפריט',            en: 'Menu' },
+  seoTitle: {
+    he: 'תפריט מסעדת זהרה | מטבח שף כשר בירושלים',
+    en: 'Menu | Zahara — Kosher Chef Restaurant in Jerusalem',
+  },
   pageDescription: {
-    he: 'התפריט של זהרה במלון נוצ׳ה — מטבח ים-תיכוני מודרני, מנות שף כשרות, קוקטיילים וקינוחים.',
-    en: 'Zahara menu at Nucha Hotel — modern kosher Mediterranean cuisine, chef-driven dishes, cocktails, and desserts.',
+    he: 'התפריט של מסעדת זהרה במלון נוצ׳ה, ירושלים — מטבח ים-תיכוני כשר ברוחה של אנג׳ליקה, מנות שף לשיתוף, דגים, בשר, קוקטיילים וקינוחים מאת השף רועי אחדות.',
+    en: 'The menu at Zahara, Nucha Hotel, Jerusalem — kosher Mediterranean cooking in the spirit of Angelica, chef-driven plates for sharing, fish, meat, cocktails and desserts by chef Roi Achdut.',
   },
 };
 
 export const aboutPage = {
   pageTitle: { he: 'אודות', en: 'About' },
+  seoTitle: {
+    he: 'אודות זהרה | מסעדת שף כשרה, מלון נוצ׳ה ירושלים',
+    en: 'About Zahara | Kosher Chef Restaurant, Nucha Hotel Jerusalem',
+  },
   pageDescription: {
-    he: 'מידע על זהרה: כתובת, שעות פתיחה, נגישות, קשר ומסלול הגעה ממלון נוצ׳ה, ירושלים.',
-    en: 'Learn about Zahara: location, opening hours, accessibility, contact details, and directions from Nucha Hotel in Jerusalem.',
+    he: 'הסיפור של מסעדת זהרה — אחותה הצעירה של אנג׳ליקה, מסעדת שף כשרה במלון נוצ׳ה ברחוב בן סירא, ירושלים. שעות פתיחה, כתובת, מסלול הגעה, חניה ונגישות.',
+    en: 'The story of Zahara — Angelica\'s younger sister, a kosher chef\'s restaurant inside Nucha Hotel on Ben Sira Street, Jerusalem. Hours, address, directions, parking and accessibility.',
   },
 };
 
 export const eventsPage = {
   pageTitle: { he: 'אירועים', en: 'Events' },
+  seoTitle: {
+    he: 'אירועים פרטיים | מסעדת זהרה ירושלים — קונספט כשר',
+    en: 'Private Events | Zahara Jerusalem — Kosher Chef Dining',
+  },
   pageDescription: {
-    he: 'אירועים פרטיים ועסקיים בזהרה — קונספט כשר, תפריטים אישיים ושירות אירועים במלון נוצ׳ה, ירושלים.',
-    en: 'Private and corporate events at Zahara — kosher chef menus, bespoke catering, and event service at Nucha Hotel, Jerusalem.',
+    he: 'אירועים פרטיים ועסקיים במסעדת זהרה, ירושלים — תפריטי שף כשרים, קבלות פנים וערבי אירוח במלון נוצ׳ה, מהצוות שמאחורי אנג׳ליקה.',
+    en: 'Private and corporate events at Zahara, Jerusalem — kosher chef menus, receptions and hosted evenings at Nucha Hotel, from the team behind Angelica.',
   },
 };
 
