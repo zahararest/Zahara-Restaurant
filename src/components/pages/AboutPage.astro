@@ -234,9 +234,16 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
       _cell.addEventListener('mouseenter', showPreview);
       _cell.addEventListener('mouseleave', hidePreview);
     }
-    // Keep it pinned beneath the button as the page scrolls.
+    // Keep it pinned beneath the button as the page scrolls — rAF-throttled
+    // so the layout read runs at most once per frame.
+    let rafPending = false;
     window.addEventListener('scroll', () => {
-      if (_preview.classList.contains('is-visible')) positionPreview();
+      if (rafPending || !_preview.classList.contains('is-visible')) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (_preview.classList.contains('is-visible')) positionPreview();
+      });
     }, { passive: true });
 
     // ── Click → open lightbox (same page, no new tab) ──────────────────────

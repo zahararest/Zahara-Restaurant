@@ -124,9 +124,17 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
       _cell.addEventListener('mouseleave', hidePreview);
     }
     // Keep the preview pinned beneath the "View certificate" link as the
-    // page scrolls, so it stays attached rather than drifting off.
+    // page scrolls. rAF-throttled so the getBoundingClientRect read happens
+    // at most once per frame instead of synchronously on every scroll event
+    // (which forced a reflow per event and stuttered near this section).
+    let rafPending = false;
     window.addEventListener('scroll', () => {
-      if (_preview.classList.contains('is-visible')) positionPreview();
+      if (rafPending || !_preview.classList.contains('is-visible')) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        if (_preview.classList.contains('is-visible')) positionPreview();
+      });
     }, { passive: true });
 
     // ── Click → open lightbox ───────────────────────────────────────────────

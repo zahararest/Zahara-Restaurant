@@ -1097,9 +1097,13 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
     color-mix(in srgb, var(--shadow) 60%, transparent) 100%);
   pointer-events: none;
 }
+/* Transform-only so the drift is GPU-composited — animating background-position
+   instead forced a full repaint of the 100vh image every frame, which (stacked
+   under the info-strip + story-box backdrop-filters) stuttered badly on mobile.
+   Constant 4%+ overscan keeps the translate from ever exposing an edge. */
 @keyframes onPhotoDrift {
-  0%   { background-position: center 40%; transform: scale(1);    }
-  100% { background-position: center 60%; transform: scale(1.04); }
+  0%   { transform: scale(1.04) translateY(-1%); }
+  100% { transform: scale(1.06) translateY(1%);  }
 }
 .section-on-photo,
 .section-on-photo h1,
@@ -1128,12 +1132,20 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 
 /* ── Story scene — info strip + editorial story as ONE full-screen unit ── */
 .story-scene {
-  justify-content: flex-start;       /* info strip pinned to the top */
+  justify-content: flex-start;       /* info strip band sits at the top */
 }
+/* The story boxes get their OWN full-window frame — the info strip is a
+   separate band above it, sharing the same photo but NOT eating into the
+   frame. The body's height is fixed (not "remaining after the strip") and the
+   scene's inherited overflow:hidden means opening/closing a box never extends
+   the frame or re-fits (zooms) the background photo. */
 .story-scene__body {
-  flex: 1;
+  flex: 0 0 auto;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   display: grid;
-  align-content: center;
+  grid-template-rows: 1fr;           /* the diptych fills the frame height */
   padding-block: clamp(var(--space-l), 6vh, var(--space-2xl));
 }
 
@@ -1144,16 +1156,17 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   max-width: 29rem;        /* narrow column so each box reads as a tall card */
   margin-inline-end: auto;  /* pin to the inline-start edge: right on the
                                Hebrew/RTL page, left on the English/LTR page */
-  display: grid;
+  /* Fill the scene's body so the two boxes share one fixed height. The open
+     box flex-grows to take the remaining space; the closed box stays a
+     compact title bar. Opening therefore only re-distributes space WITHIN
+     this column — it never changes the column's (or the section's) height,
+     so the background frame can't zoom or re-fit. */
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* centre the pair in the frame's spare room */
   gap: clamp(0.75rem, 2vw, 1.25rem);
-  align-items: start;       /* each box sizes to its own content height */
-}
-/* Desktop: floor the OPEN box's height ABOVE the column width (~29rem) so it's
-   reliably taller than wide — a portrait card, not a banner. The collapsed
-   box stays a short title bar; content sits at the top with quiet breathing
-   room below. */
-@media (min-width: 880px) {
-  .story-box--toggle.is-open { min-height: clamp(34rem, 50vh, 44rem); }
 }
 
 .story-box {
@@ -1167,8 +1180,15 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   -webkit-backdrop-filter: blur(7px);
   border-radius: 3px;
   overflow: hidden;
+  /* Sizes to its own content (closed = title bar, open = title + text). The
+     pair is centred in the frame. The open box may shrink and scroll its
+     text internally ONLY if the content can't fit the frame — so it never
+     pushes the frame taller. */
+  flex: 0 0 auto;
+  min-height: 0;
   transition: border-color 0.4s var(--ease-out), background 0.4s var(--ease-out);
 }
+.story-box--toggle.is-open { flex-shrink: 1; }
 /* Gold accent line across the top — draws in on hover/open (the "twist"). */
 .story-box::before {
   content: '';
@@ -1261,9 +1281,16 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 .story-box--toggle .story-box__reveal {
   display: grid;
   grid-template-rows: 0fr;
+  min-height: 0;        /* let the cap propagate so the text can scroll */
   transition: grid-template-rows 0.55s var(--ease-out);
 }
-.story-box--toggle.is-open .story-box__reveal { grid-template-rows: 1fr; }
+/* Open: the reveal flex-fills the grown box so the text area is bounded by
+   the fixed frame, and long copy scrolls inside the box instead of extending
+   the scene. */
+.story-box--toggle.is-open .story-box__reveal {
+  grid-template-rows: 1fr;
+  min-height: 0;
+}
 .story-box--toggle .story-box__text {
   overflow: hidden;
   min-height: 0;
@@ -1273,6 +1300,7 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 }
 .story-box--toggle.is-open .story-box__text {
   opacity: 1;
+  overflow-y: auto;
   padding-block-end: clamp(1.3rem, 3.2vw, 2.2rem);
   transition: opacity 0.5s var(--ease-out) 0.1s, padding 0.55s var(--ease-out);
 }
@@ -1305,6 +1333,29 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
 .story-scene .info-strip__cell a.meta-block__value:hover { color: var(--gold); }
 .story-scene .info-strip__sub { color: var(--gold); }
 .story-scene .info-strip__sub:hover { color: var(--paper-on-photo); }
+
+/* Mobile: a 100vh photo section with THREE stacked backdrop-filter blurs (the
+   info strip + both story boxes) over a perpetually-animating background is
+   far too expensive for mobile GPUs — it stutters on every scroll frame near
+   this section. Drop the live blur (use a more opaque fill so legibility is
+   unchanged) and stop the ambient drift. Desktop keeps the full effect. */
+@media (max-width: 768px) {
+  .section-on-photo::before { animation: none; }
+  .story-scene .info-strip {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: color-mix(in srgb, var(--shadow) 74%, transparent);
+  }
+  .story-box,
+  .story-box:hover,
+  .story-box.is-open {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .story-box { background: color-mix(in srgb, var(--shadow) 52%, transparent); }
+  .story-box:hover,
+  .story-box.is-open { background: color-mix(in srgb, var(--shadow) 60%, transparent); }
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Floating, viewport-pinned UI
