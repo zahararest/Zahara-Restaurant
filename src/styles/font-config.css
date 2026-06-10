@@ -16,18 +16,17 @@
    --font-body-he     Body sans-serif for Hebrew paragraph text and UI
    --font-body-en     Body sans-serif for English paragraph text and UI
 
-   CURRENT CHOICE — AlenbiSerif (English) + Alef (Hebrew).
+   CURRENT CHOICE — AlenbiSerif (both languages).
    ────────────────
-   • AlenbiSerif — Serif display face by Hagilda. Two weights: Regular (400)
-     for body/paragraphs and Bold (700) for headings/titles. English only.
-   • Alef — Bilingual Hebrew + Latin sans by HaGilda. Covers both Hebrew
-     display and body text. Two weights: Regular (400) and Bold (700).
+   • AlenbiSerif — Bilingual serif face by HaGilda covering both Hebrew and
+     Latin. Two weights: Regular (400) for body/paragraphs and Bold (700) for
+     headings/titles. Used for English and Hebrew alike.
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --font-display-he: 'Alef', system-ui, sans-serif;
+  --font-display-he: 'AlenbiSerif', 'Arial Hebrew', system-ui, sans-serif;
   --font-display-en: 'AlenbiSerif', Georgia, serif;
-  --font-body-he:    'Alef', system-ui, sans-serif;
+  --font-body-he:    'AlenbiSerif', 'Arial Hebrew', system-ui, sans-serif;
   --font-body-en:    'AlenbiSerif', Georgia, serif;
 
   /* Shorthand aliases — resolve to HE by default; lang-specific overrides

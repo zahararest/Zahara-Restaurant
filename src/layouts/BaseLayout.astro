@@ -151,24 +151,17 @@ const schema = {
     )}
 
     {/* Fonts are self-hosted in /public/fonts/ via src/styles/font-faces.css.
-        Single bilingual family (Alef, Regular + Bold) covers display + body
-        for both languages. No Google CDN requests — no third-party IP
-        logging on page load. To change fonts: edit src/styles/font-config.css */}
+        Single bilingual family (AlenbiSerif, Regular + Bold) covers display +
+        body for both Hebrew and English. No Google CDN requests — no
+        third-party IP logging on page load. To change fonts: edit
+        src/styles/font-config.css */}
 
-    {/* Preload the above-the-fold font for this page's language.
-        HE → Alef hebrew 400 (covers headline, nav, eyebrows).
-        EN → AlenbiSerif Regular 400 (body + display on English pages). */}
-    {lang === 'he' ? (
-      <link rel="preload" href="/fonts/alef-hebrew-400.woff2"
-            as="font" type="font/woff2" crossorigin />
-    ) : (
-      <>
-        <link rel="preload" href="/fonts/AlenbiSerifRegular_web/AlenbiSerif-Regular.woff2"
-              as="font" type="font/woff2" crossorigin />
-        <link rel="preload" href="/fonts/AlenbiSerifBold_web/AlenbiSerif-Bold.woff2"
-              as="font" type="font/woff2" crossorigin />
-      </>
-    )}
+    {/* Preload the above-the-fold faces — AlenbiSerif Regular (body) and
+        Bold (display), used on every page regardless of language. */}
+    <link rel="preload" href="/fonts/AlenbiSerifRegular_web/AlenbiSerif-Regular.woff2"
+          as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/AlenbiSerifBold_web/AlenbiSerif-Bold.woff2"
+          as="font" type="font/woff2" crossorigin />
 
     {/* Theme + palette pre-paint — runs SYNCHRONOUSLY before <body>
         renders so the page paints once in the visitor's chosen theme

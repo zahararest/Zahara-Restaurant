@@ -143,14 +143,10 @@ input, select, textarea { min-height: 44px; }
 
 .display {
   font-family: var(--font-display);
-  font-weight: 400;
-  line-height: 1.02;
-  letter-spacing: -0.018em;
-}
-
-html[lang="en"] .display {
   font-weight: 700;
   font-variation-settings: normal;
+  line-height: 1.02;
+  letter-spacing: -0.018em;
 }
 
 .display em, .serif-italic {

@@ -565,13 +565,22 @@ const emptyLabel = t.emptyLabel;
 
   hydrationPayload.forEach(hydrateChapter);
 
-  // ── "Our Story" box — click the head to expand/collapse the text ──
-  document.querySelectorAll('[data-story-box]').forEach((box) => {
+  // ── "Our Story" boxes — accordion: opening one closes the others ──
+  const storyBoxes = Array.from(document.querySelectorAll('[data-story-box]'));
+  storyBoxes.forEach((box) => {
     const head = box.querySelector('.story-box__head');
     if (!head) return;
     head.addEventListener('click', () => {
-      const open = box.classList.toggle('is-open');
-      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      const willOpen = !box.classList.contains('is-open');
+      // Close every box first, then open the clicked one if it was closed.
+      storyBoxes.forEach((other) => {
+        other.classList.remove('is-open');
+        other.querySelector('.story-box__head')?.setAttribute('aria-expanded', 'false');
+      });
+      if (willOpen) {
+        box.classList.add('is-open');
+        head.setAttribute('aria-expanded', 'true');
+      }
     });
   });
 
