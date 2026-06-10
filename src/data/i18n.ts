@@ -77,8 +77,12 @@ export const menuEmbed = {
 
 export const layout = {
   defaultDescription: {
-    he: "זהרה — מסעדת שף כשרה במלון נוצ׳ה, ירושלים. מטבח ים-תיכוני עכשווי, טכניקה צרפתית והשפעות אסייתיות. שף רועי אחדות.",
-    en: "Zahara — a kosher chef's restaurant inside Nucha Hotel, Jerusalem. Contemporary Mediterranean kitchen with French technique and Asian influences. Chef Roi Achdut.",
+    he: "מסעדת זהרה — מסעדת שף כשרה במלון נוצ׳ה, בן סירא ירושלים. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות. שף רועי אחדות. ערב כשר, מנות לשיתוף, בלב ירושלים.",
+    en: "Zahara Restaurant — kosher chef's restaurant inside Nucha Hotel, Ben Sira Street, Jerusalem. Contemporary Mediterranean kitchen with French technique and Asian influences. Chef Roi Achdut. Dinner reservations.",
+  },
+  keywords: {
+    he: "מסעדת זהרה, מסעדה כשרה ירושלים, מסעדת שף כשרה, מטבח ים-תיכוני כשר, שף רועי אחדות, מלון נוצ׳ה ירושלים, בן סירא, מסעדה יוקרתית כשרה, ארוחת ערב כשרה ירושלים, מנות לשיתוף, מסעדה כשרה בירושלים",
+    en: "Zahara restaurant Jerusalem, kosher restaurant Jerusalem, kosher chef restaurant, Mediterranean kosher, Chef Roi Achdut, Nucha Hotel Jerusalem, Ben Sira Street restaurant, kosher fine dining Jerusalem, sharing plates kosher",
   },
   skipToContent: { he: 'דלג לתוכן', en: 'Skip to content' },
 };
@@ -107,8 +111,8 @@ export const home = {
   heroCtaReserve: { he: 'הזמינו מקום',    en: 'Reserve a table' },
   heroCtaMenu:    { he: 'לתפריט',         en: 'See the menu'    },
   pageTitle:      { he: 'בית',             en: 'Home'            },
-  pageDescription:{ he: 'זהרה — מסעדת שף כשרה במלון נוצ׳ה, ירושלים. מטבח ים-תיכוני עכשווי עם השפעות צרפתיות ואסייתיות.',
-                    en: 'Zahara — a kosher chef restaurant inside Nucha Hotel, Jerusalem. Contemporary Mediterranean dishes with French and Asian influences.' },
+  pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה במלון נוצ׳ה, בן סירא ירושלים. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות. שף רועי אחדות. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
+                    en: 'Zahara Restaurant — kosher chef\'s restaurant inside Nucha Hotel, Ben Sira Street, Jerusalem. Contemporary Mediterranean kitchen, French technique, Asian influences. Chef Roi Achdut. Book your table.' },
   kitchenCaption: { he: 'המטבח של זהרה',   en: 'The Zahara kitchen' },
   secHero:        { he: 'בית',             en: 'Open'            },
   secStory:       { he: 'סיפור',           en: 'Story'           },
@@ -147,6 +151,7 @@ export const home = {
   infoChefLabel:    { he: 'השף',               en: 'Chef'         },
   infoKosherLabel:  { he: 'כשרות',             en: 'Kosher'       },
   infoKosherValue:  { he: 'רבנות ירושלים',     en: 'Rabbanut Yerushalayim' },
+  infoKosherView:   { he: 'הצגת התעודה ↗',     en: 'View certificate ↗' },
 
   storyEyebrow: { he: 'הסיפור', en: 'The story' },
 
@@ -495,6 +500,15 @@ export const contact = {
     he: '<strong>מרפסת פתוחה:</strong> ישיבה בחוץ באוויר הפתוח, מתאימה לעישון — לערבים שבהם רוצים את השמיים מעל.',
     en: '<strong>Open terrace:</strong> open-air outdoor seating, smoking welcome — for the nights you want the sky overhead.',
   },
+
+  // ── About page: kashrut certificate (Rabbanut Yerushalayim) ─────────────────
+  kosherEyebrow: { he: 'כשרות', en: 'Kosher' },
+  kosherHeading: { he: 'מטבח כשר.', en: 'A kosher kitchen.' },
+  kosherNote: {
+    he: 'המטבח מפוקח בכשרות רבנות ירושלים. תוכלו לעיין בתעודת הכשרות המעודכנת בכל עת.',
+    en: 'The kitchen is certified kosher by the Rabbanut Yerushalayim. The current certificate is available to view at any time.',
+  },
+  kosherCertCta: { he: 'הצגת תעודת הכשרות ↗', en: 'View kosher certificate ↗' },
 
   // ── Events page identity (dedicated event-inquiry page) ─────────────────────
   eventsPageEyebrow: { he: 'אירועים פרטיים', en: 'Private events' },

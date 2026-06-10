@@ -25,6 +25,11 @@ const description = page.pageDescription;
 
 const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
 
+// Kashrut certificate — opens full size (no crop) via the override-aware
+// /photos route. No shipped default; the block hides itself client-side until
+// the owner uploads the certificate in /admin/images.
+const kosherCert = PHOTOS.kosherCert.src;
+
 // ── Map + directions (folded in from the old Location page) ──────────────
 const encoded  = encodeURIComponent(RESTAURANT.address.maps);
 const wazeUrl  = `https://waze.com/ul?q=${encoded}`;
@@ -107,6 +112,24 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     </div>
   </section>
 
+  {/* ── Kashrut certificate ────────────────────────────────────────────
+      A clear, restrained way for guests to see the certificate while
+      browsing. Hidden client-side until the owner uploads it. */}
+  <section class="section wrap" data-kosher-block>
+    <div class="about-kosher stagger reveal-on-scroll">
+      <p class="eyebrow">{t.kosherEyebrow}</p>
+      <h2
+        class="display"
+        data-word-reveal
+        data-word-reveal-delay="0.06"
+        data-word-reveal-step="0.06"
+      >{t.kosherHeading}</h2>
+      <p class="lede-prose">{t.kosherNote}</p>
+      <a class="btn btn--ghost about-kosher__cta" href={kosherCert}
+         target="_blank" rel="noopener" data-kosher-cert>{t.kosherCertCta}</a>
+    </div>
+  </section>
+
   <hr class="rule" />
 
   {/* General contact form. Event inquiries now live on the dedicated
@@ -114,6 +137,22 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
   <ContactForm lang={lang} showToggle={false} />
   </div>
 </BaseLayout>
+
+<script>
+  // The kashrut certificate has no shipped default. Probe it once; if it
+  // hasn't been uploaded yet (404), hide the whole certificate section rather
+  // than leave a broken "View certificate" link.
+  (() => {
+    const link  = document.querySelector('a[data-kosher-cert]');
+    const block = document.querySelector('[data-kosher-block]');
+    if (!link || !block) return;
+    const href = link.getAttribute('href');
+    if (!href) return;
+    const probe = new Image();
+    probe.onerror = () => { (block as HTMLElement).hidden = true; };
+    probe.src = href;
+  })();
+</script>
 
 <style>
   /* The About page stacks several full sections; the default --space-2xl
@@ -128,6 +167,20 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
   .about-page :global(.section-tight:last-of-type) {
     padding-block-end: var(--space-l);
   }
+
+  /* Kashrut certificate — a centered editorial block (eyebrow → heading →
+     note → ghost link), in the same restrained vocabulary as the rest of
+     the page. */
+  .about-kosher {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: var(--space-s);
+    max-width: var(--readable-max);
+    margin-inline: auto;
+  }
+  .about-kosher .lede-prose { margin-inline: auto; }
+  .about-kosher__cta { margin-block-start: var(--space-xs, 0.5rem); }
 
   .map-wrapper { position: relative; }
   .map-frame {

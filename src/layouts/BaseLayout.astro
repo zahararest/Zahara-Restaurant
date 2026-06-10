@@ -40,6 +40,7 @@ const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
 
 const description = Astro.props.description || t.defaultDescription;
+const keywords    = t.keywords;
 const brandName   = RESTAURANT.name[lang];
 const fullTitle   = `${title} — ${brandName}`;
 const reserveLabel = pick(headerLabels, lang).reserve;
@@ -52,27 +53,39 @@ const altPath = lang === 'he'
 const schema = {
   '@context': 'https://schema.org',
   '@type':    'Restaurant',
+  '@id':      `${Astro.url.origin}/#restaurant`,
   name:             RESTAURANT.name.en,
-  alternateName:    RESTAURANT.name.he,
+  alternateName:    [RESTAURANT.name.he, 'מסעדת זהרה', 'Zahara Jerusalem'],
   description,
+  url:              `${Astro.url.origin}/`,
+  image:            new URL(PHOTOS.hero.src, Astro.url.origin).href,
   address: {
     '@type':         'PostalAddress',
     streetAddress:   RESTAURANT.address.streetAddress,
     addressLocality: RESTAURANT.address.city,
+    addressRegion:   'Jerusalem District',
     addressCountry:  RESTAURANT.address.country,
   },
   telephone:           `+972-${RESTAURANT.phone.display.replace(/^0/, '')}`,
-  servesCuisine:       ['Contemporary', 'Mediterranean', 'French', 'Asian'],
+  email:               RESTAURANT.email,
+  servesCuisine:       ['Contemporary Mediterranean', 'French', 'Asian', 'Kosher', 'כשרה'],
   acceptsReservations: 'True',
   priceRange:          '$$$',
   hasMenu:             `${Astro.url.origin}/menu/`,
+  hasMap:              `https://maps.google.com/?q=${encodeURIComponent(RESTAURANT.address.maps)}`,
+  amenityFeature: [
+    { '@type': 'LocationFeatureSpecification', name: 'Kosher',        value: true },
+    { '@type': 'LocationFeatureSpecification', name: 'Reservations',  value: true },
+    { '@type': 'LocationFeatureSpecification', name: 'כשרה',          value: true },
+  ],
+  sameAs: [RESTAURANT.instagram],
   openingHoursSpecification: [{
     '@type':    'OpeningHoursSpecification',
     dayOfWeek:  [...RESTAURANT.hours.days],
     opens:      RESTAURANT.hours.opens,
     closes:     RESTAURANT.hours.closes,
   }],
-  isPartOf: { '@type': 'Hotel', name: RESTAURANT.hotel.en },
+  isPartOf: { '@type': 'Hotel', name: RESTAURANT.hotel.en, '@id': `${Astro.url.origin}/#hotel` },
 };
 ---
 
@@ -88,6 +101,7 @@ const schema = {
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+    <meta name="keywords"    content={keywords} />
     {/* Match the system theme: cream chrome in light, dark in dark mode. */}
     <meta name="theme-color" content="#F4EDDF" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1A1410" media="(prefers-color-scheme: dark)" />
@@ -140,6 +154,18 @@ const schema = {
         Single bilingual family (Alef, Regular + Bold) covers display + body
         for both languages. No Google CDN requests — no third-party IP
         logging on page load. To change fonts: edit src/styles/font-config.css */}
+
+    {/* Preload the ONE above-the-fold font for this page's language (weight
+        400 covers the hero headline, eyebrow, nav and CTAs). This pulls the
+        real typeface forward so the hero text settles fast instead of
+        swapping late. The other weights/scripts load on demand. */}
+    <link
+      rel="preload"
+      href={lang === 'he' ? '/fonts/alef-hebrew-400.woff2' : '/fonts/alef-latin-400.woff2'}
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
 
     {/* Theme + palette pre-paint — runs SYNCHRONOUSLY before <body>
         renders so the page paints once in the visitor's chosen theme

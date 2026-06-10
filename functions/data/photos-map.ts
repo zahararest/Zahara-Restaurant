@@ -38,6 +38,8 @@ export interface PhotoMeta {
   reserved?:    boolean;      // defined but not currently shown on the site
   optional?:    boolean;      // optional slot — only appears once an image is
                               // uploaded; an empty slot is hidden, not broken
+  note?:        string;       // custom help text for an optional/empty slot
+                              // (overrides the default gallery-specific note)
   mobile?:      boolean;      // full-screen photo that supports a separate
                               // portrait crop for phones (served via /photos-m)
 }
@@ -101,6 +103,9 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'About — intro photo', where: 'Full-width band near the top of the About page' },
   { key: 'location', filename: 'location-page.jpg', group: 'about', fallbackKey: 'interior',
     label: 'About — location photo', where: 'Photo beside the directions on the About page' },
+  { key: 'kosherCert', filename: 'kosher-certificate.jpg', group: 'about', optional: true,
+    label: 'Kosher certificate', where: 'Opens when a visitor clicks “Rabbanut Yerushalayim” in the home info-strip, or “View kosher certificate” on the About page',
+    note: 'Empty — the certificate links stay hidden until you upload it. A clear photo or scan of the kashrut certificate (JPG/PNG) works best.' },
 ];
 
 /** Map from /photos/{filename} back to its catalogue entry. Used by the

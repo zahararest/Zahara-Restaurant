@@ -12,6 +12,26 @@
    3. Update the font-family value(s) in src/styles/font-config.css
    ══════════════════════════════════════════════════════════════════════════ */
 
+/* ── AlenbiSerif Regular (400) — English display + body ─────────────── */
+@font-face {
+  font-family: 'AlenbiSerif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/AlenbiSerifRegular_web/AlenbiSerif-Regular.woff2') format('woff2'),
+       url('/fonts/AlenbiSerifRegular_web/AlenbiSerif-Regular.woff') format('woff');
+}
+
+/* ── AlenbiSerif Bold (700) — English headings and titles ────────────── */
+@font-face {
+  font-family: 'AlenbiSerif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/AlenbiSerifBold_web/AlenbiSerif-Bold.woff2') format('woff2'),
+       url('/fonts/AlenbiSerifBold_web/AlenbiSerif-Bold.woff') format('woff');
+}
+
 /* ── Alef Regular (400) ──────────────────────────────────────────────── */
 @font-face {
   font-family: 'Alef';

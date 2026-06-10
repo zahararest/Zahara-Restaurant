@@ -1186,7 +1186,7 @@ function renderCard(
           No image stored — visitors see a broken photo here. Upload one to fix.
         </p>
         <p class="card__optional-note" data-optional-note ${showOptionalNote ? '' : 'hidden'}>
-          Optional slot — empty. Upload a photo to add it to the home gallery.
+          ${esc(p.note ?? 'Optional slot — empty. Upload a photo to add it to the home gallery.')}
         </p>
       </header>
       <div class="card__actions">

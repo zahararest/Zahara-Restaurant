@@ -1,6 +1,7 @@
 ---
 import { pick, home as copy } from '../../data/i18n';
 import { RESTAURANT }          from '../../data/restaurant';
+import { PHOTOS }              from '../../data/photos';
 import { path }                from '../../lib/paths';
 import type { Lang }           from '../../data/i18n';
 
@@ -10,6 +11,9 @@ const { lang } = Astro.props;
 const t        = pick(copy, lang);
 const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
 const display  = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
+
+const kosherCert = PHOTOS.kosherCert.src;
+const closeLabel = lang === 'he' ? 'סגור' : 'Close';
 ---
 
 <div class="info-strip">
@@ -31,10 +35,174 @@ const display  = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
         <a class="info-strip__sub"     href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-content-key="info.reservTabit">{t.infoTabit}</a>
       </div>
 
-      <div class="info-strip__cell">
+      {/* Kosher cell — hover shows a preview thumbnail; click opens the
+          certificate in a full lightbox on the same page. */}
+      <div class="info-strip__cell info-strip__cell--kosher" data-kosher-cell>
         <div class="meta-block__label" data-content-key="info.kosherLabel">{t.infoKosherLabel}</div>
-        <div class="meta-block__value" data-content-key="info.kosherValue">{t.infoKosherValue}</div>
+        <button class="meta-block__value info-kosher__trigger" type="button"
+                data-kosher-open data-content-key="info.kosherValue">{t.infoKosherValue}</button>
+        <button class="info-strip__sub info-kosher__sub" type="button"
+                data-kosher-open data-content-key="info.kosherView">{t.infoKosherView}</button>
+
+        {/* Hover preview — visible on :hover/:focus-within of the cell */}
+        <span class="info-kosher__preview" aria-hidden="true">
+          <img class="info-kosher__thumb" src={kosherCert} alt="" loading="lazy" decoding="async" />
+        </span>
       </div>
     </div>
   </div>
 </div>
+
+{/* Lightbox — showModal() places it in the top layer above everything */}
+<dialog class="kosher-dialog" id="kosher-dialog" aria-label={t.infoKosherLabel}>
+  <button class="kosher-dialog__close" type="button" aria-label={closeLabel} data-kosher-close>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18 6 6 18M6 6l12 12"/>
+    </svg>
+  </button>
+  <img class="kosher-dialog__img" src={kosherCert} alt={t.infoKosherLabel} />
+</dialog>
+
+<script>
+  (() => {
+    const dialog    = document.getElementById('kosher-dialog') as HTMLDialogElement | null;
+    const cell      = document.querySelector('[data-kosher-cell]');
+    const openers   = Array.from(document.querySelectorAll('[data-kosher-open]'));
+    const closers   = Array.from(document.querySelectorAll('[data-kosher-close]'));
+
+    if (!dialog || !cell) return;
+
+    const certSrc = dialog.querySelector('img')?.src;
+
+    // Probe: if the cert hasn't been uploaded yet, hide all cert UI entirely.
+    const probe = new Image();
+    probe.onerror = () => {
+      (cell as HTMLElement).style.display = 'none';
+      dialog.remove();
+    };
+    probe.src = certSrc ?? '';
+
+    // Open
+    openers.forEach((btn) => {
+      btn.addEventListener('click', () => dialog.showModal());
+    });
+
+    // Close button
+    closers.forEach((btn) => {
+      btn.addEventListener('click', () => dialog.close());
+    });
+
+    // Click on backdrop (outside the image area) closes
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+
+    // Esc is handled natively by <dialog>
+  })();
+</script>
+
+<style>
+  /* ── Kosher cell — hover preview ──────────────────────────────────────── */
+  .info-strip__cell--kosher { position: relative; }
+
+  .info-kosher__trigger,
+  .info-kosher__sub {
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    text-align: center;
+  }
+  .info-kosher__sub {
+    font-size: var(--step--2);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    transition: color 0.2s ease;
+  }
+  .info-kosher__sub:hover { color: var(--accent-deep); }
+
+  .info-kosher__preview {
+    position: absolute;
+    bottom: calc(100% + 0.85rem);
+    left: 50%;
+    transform: translateX(-50%) translateY(0.5rem);
+    width: clamp(160px, 22vw, 220px);
+    background: var(--paper-card);
+    border: 1px solid var(--rule);
+    padding: 0.4rem;
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--shadow) 40%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    z-index: 60;
+  }
+  .info-strip__cell--kosher:hover .info-kosher__preview,
+  .info-strip__cell--kosher:focus-within .info-kosher__preview {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .info-kosher__thumb {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* ── Lightbox dialog ───────────────────────────────────────────────────── */
+  .kosher-dialog {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    padding: 0;
+    border: 0;
+    width: min(90vw, 560px);
+    max-height: min(90svh, 800px);
+    background: var(--paper-card);
+    box-shadow: 0 32px 100px color-mix(in srgb, var(--shadow) 58%, transparent);
+    overflow: hidden;
+    border-radius: 2px;
+  }
+  .kosher-dialog::backdrop {
+    background: color-mix(in srgb, var(--shadow) 70%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .kosher-dialog__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .kosher-dialog__close {
+    position: absolute;
+    top: 0.65rem;
+    inset-inline-end: 0.65rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--shadow) 45%, transparent);
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 25%, transparent);
+    border-radius: 50%;
+    color: var(--paper-on-photo);
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.2s ease;
+  }
+  .kosher-dialog__close:hover { background: color-mix(in srgb, var(--shadow) 65%, transparent); }
+  .kosher-dialog__close svg { width: 1rem; height: 1rem; }
+
+  /* Story-scene variant — buttons inherit on-photo colour */
+  :global(.story-scene) .info-kosher__trigger { color: var(--paper-on-photo); }
+  :global(.story-scene) .info-kosher__sub     { color: var(--gold); }
+  :global(.story-scene) .info-kosher__sub:hover { color: var(--paper-on-photo); }
+  :global(.story-scene) .info-strip__cell--kosher:hover .info-kosher__preview,
+  :global(.story-scene) .info-strip__cell--kosher:focus-within .info-kosher__preview {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>

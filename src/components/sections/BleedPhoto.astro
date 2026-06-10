@@ -15,7 +15,8 @@ export interface Props {
 
 const { lang, photo, caption, height, eager = false } = Astro.props;
 const classList = caption ? 'bleed-photo bleed-photo--caption' : 'bleed-photo';
-const BLEED_WIDTHS = [800, 1200, 1800, 2400] as const;
+// Finer steps so a ~1400px-wide bleed picks ~1400, not the 1800 variant.
+const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
 ---
 
 <figure class={classList} data-caption={caption} style={height ? `height: ${height};` : undefined}>

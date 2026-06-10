@@ -149,7 +149,8 @@ input, select, textarea { min-height: 44px; }
 }
 
 html[lang="en"] .display {
-  font-variation-settings: 'opsz' 144, 'SOFT' 30;
+  font-weight: 700;
+  font-variation-settings: normal;
 }
 
 .display em, .serif-italic {

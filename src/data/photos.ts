@@ -118,6 +118,16 @@ export const PHOTOS = {
     alt: { he: 'פנים המסעדה', en: 'Restaurant interior' },
   },
 
+  // Kashrut certificate (Rabbanut Yerushalayim). Not shown inline anywhere —
+  // it opens in a new tab when a visitor clicks the "Rabbanut Yerushalayim"
+  // line in the home info-strip or the "View kosher certificate" link on the
+  // About page. No shipped default: the links only appear once the owner
+  // uploads the certificate via /admin/images. Swap it there at any time.
+  kosherCert: {
+    src: `${base}/kosher-certificate.jpg`,
+    alt: { he: 'תעודת כשרות — רבנות ירושלים', en: 'Kosher certificate — Rabbanut Yerushalayim' },
+  },
+
   // ── Extra home-gallery slots (5–10). These have NO shipped default file;
   // each only appears in the home-page gallery once an admin uploads an
   // image for it via /admin/images. The gallery hides any slot whose photo

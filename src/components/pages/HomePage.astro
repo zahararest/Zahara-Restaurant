@@ -41,7 +41,10 @@ import type { Lang } from '../../data/i18n';
 // and DPR; we never need the full 6000px original — even 2400 is well
 // over what a 4K display shows. 800 covers mobile, 1200 most laptops,
 // 1800 retina, 2400 4K.
-const CHAPTER_WIDTHS = [800, 1200, 1800, 2400] as const;
+// Finer width steps so the browser can pick a variant close to the actual
+// displayed size instead of jumping (e.g. a ~1400px-wide full-bleed image
+// was pulling the 1800 variant). Each width is a separate cached CF transform.
+const CHAPTER_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
 
 export interface Props { lang: Lang }
 
@@ -406,25 +409,7 @@ const emptyLabel = t.emptyLabel;
     <div class="menu-split__overlay" aria-hidden="true"></div>
 
     <div class="menu-split__inner wrap">
-      <div class="menu-split__intro reveal-on-scroll">
-        <p class="eyebrow eyebrow--on-photo" data-content-key="home.menuSplitEyebrow">{t.menuSplitEyebrow}</p>
-        <h2
-          class="display menu-split__title"
-          data-word-reveal
-          data-word-reveal-delay="0.08"
-          data-word-reveal-step="0.06"
-          data-content-key="home.menuSplitHeading"
-          data-content-html
-          set:html={t.menuSplitHeading}
-        />
-        <p class="menu-split__lede" data-content-key="home.menuSplitLede">{t.menuSplitLede}</p>
-        <a class="menu-split__full" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
-      </div>
-
-      {/* Four image tiles — each navigates to its menu section. A gold
-          curtain-wipe reveals them one after another (matches the story
-          section's motif), the photo settles from a slight zoom, and a
-          circular arrow slides in on hover. */}
+      {/* Four image tiles — each navigates to its menu section. */}
       <ol class="menu-tiles reveal-on-scroll">
         {[
           { label: t.menuSplitFood,      tab: 'food',      photo: PHOTOS.menuFood      },
@@ -438,8 +423,8 @@ const emptyLabel = t.emptyLabel;
                 <img
                   class="menu-tile__img"
                   src={resized(part.photo.src, 800)}
-                  srcset={resizedSrcset(part.photo.src, [500, 800, 1100])}
-                  sizes="(max-width: 860px) 45vw, 22vw"
+                  srcset={resizedSrcset(part.photo.src, [360, 540, 760, 1080])}
+                  sizes="(max-width: 860px) 45vw, 24vw"
                   alt=""
                   loading="lazy"
                   decoding="async"
@@ -458,6 +443,10 @@ const emptyLabel = t.emptyLabel;
           </li>
         ))}
       </ol>
+
+      <div class="menu-split__cta reveal-on-scroll">
+        <a class="btn menu-split__btn" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
+      </div>
     </div>
   </section>
 
@@ -636,60 +625,47 @@ const emptyLabel = t.emptyLabel;
     object-fit: cover;
     display: block;
   }
-  /* Dark, slightly warm wash so the cream type reads in any theme. The
-     gradient is heavier toward the inline-start where the text sits. */
+  /* Even dark wash — no text to anchor it left, so keep it uniform. */
   .menu-split__overlay {
     position: absolute;
     inset: 0;
     z-index: -1;
-    background:
-      linear-gradient(to bottom, rgba(18, 13, 9, 0.55), rgba(18, 13, 9, 0.78)),
-      radial-gradient(120% 120% at 0% 50%, rgba(18, 13, 9, 0.5), transparent 60%);
+    background: linear-gradient(to bottom, rgba(18, 13, 9, 0.45), rgba(18, 13, 9, 0.70));
   }
   .menu-split__inner {
     color: var(--paper-on-photo);
-    padding-block: clamp(var(--space-xl), 11vh, var(--space-3xl));
-  }
-  .menu-split__intro { max-width: 50ch; }
-  .menu-split__title {
-    color: var(--paper-on-photo);
-    margin-block: 0.4em 0.5em;
-  }
-  .menu-split__lede {
-    color: color-mix(in srgb, var(--paper-on-photo) 88%, transparent);
-    font-size: var(--step-0);
-    max-width: 46ch;
-    margin: 0;
+    padding-block: clamp(var(--space-l), 8vh, var(--space-2xl));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
-  /* Full-menu link — an understated text link, not a boxed button. */
-  .menu-split__full {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5em;
-    margin-block-start: var(--space-m);
-    font-family: var(--font-body);
-    font-size: var(--step--1);
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--paper-on-photo);
-    text-decoration: none;
-    border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 55%, transparent);
-    padding-block-end: 0.3rem;
-    transition: color 0.2s ease, border-color 0.2s ease;
+  /* CTA button beneath the tiles */
+  .menu-split__cta {
+    margin-block-start: clamp(var(--space-m), 4vh, var(--space-l));
   }
-  .menu-split__full:hover { color: var(--gold); border-color: var(--gold); }
-  .menu-split__full:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 4px; }
+  .menu-split__btn {
+    background: transparent;
+    color: var(--paper-on-photo);
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 65%, transparent);
+    transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+  }
+  .menu-split__btn:hover {
+    background: color-mix(in srgb, var(--paper-on-photo) 12%, transparent);
+    border-color: var(--paper-on-photo);
+  }
 
   /* ── Four image tiles (Pop&Pope-style): each photo tile is the link to
      its menu section. Gold curtain-wipe reveal, photo settle, hover arrow. */
   .menu-tiles {
     list-style: none;
-    margin: clamp(var(--space-l), 5vh, var(--space-xl)) 0 0;
+    margin: clamp(var(--space-l), 5vh, var(--space-xl)) auto 0;
     padding: 0;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: clamp(0.5rem, 1.4vw, 1rem);
+    width: 100%;
+    max-width: min(94rem, 92vw);
   }
   .menu-tiles__item { margin: 0; }
   .menu-tile {
@@ -702,7 +678,7 @@ const emptyLabel = t.emptyLabel;
     position: relative;
     display: block;
     overflow: hidden;
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 2 / 3;
     border-radius: 2px;
     background: color-mix(in srgb, var(--shadow) 40%, transparent);
   }
@@ -814,11 +790,7 @@ const emptyLabel = t.emptyLabel;
     .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   }
   @media (max-width: 600px) {
-    /* Don't lock the menu split to a full screen on phones — let the intro
-       and the 2×2 tiles size to content with comfortable padding, so it
-       scrolls naturally instead of cramming into one viewport. */
     .menu-split { min-height: 0; }
-    .menu-split__inner { padding-block: var(--space-xl); }
-    .menu-tiles { margin-block-start: var(--space-l); }
+    .menu-split__inner { padding-block: var(--space-l); }
   }
 </style>

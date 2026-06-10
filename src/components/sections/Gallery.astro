@@ -32,7 +32,7 @@ const {
 } = Astro.props;
 const g = pick(globals, lang);
 
-const WIDTHS = [800, 1200, 1600, 2400] as const;
+const WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
 const prevLabel = g.previousPhoto;
 const nextLabel = g.nextPhoto;
 ---
@@ -68,12 +68,12 @@ const nextLabel = g.nextPhoto;
           <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER)} sizes="100vw" />
           <img
             class="gallery-film__img"
-            src={resized(p.src, 1600)}
+            src={resized(p.src, 1400)}
             srcset={resizedSrcset(p.src, WIDTHS)}
             sizes="100vw"
             alt={p.alt[lang]}
-            loading={i === 0 ? 'eager' : 'lazy'}
-            decoding={i === 0 ? 'sync' : 'async'}
+            loading="lazy"
+            decoding="async"
           />
         </picture>
         {captionKeys[i] && (
@@ -231,7 +231,7 @@ const nextLabel = g.nextPhoto;
       }
     }
 
-    if (optionalSlides.length) {
+    function confirmOptional() {
       fetch('/api/gallery', { headers: { 'Accept': 'application/json' } })
         .then((r) => (r.ok ? r.json() : { filenames: [] }))
         .then((data) => {
@@ -247,6 +247,20 @@ const nextLabel = g.nextPhoto;
           optionalSlides.forEach((slide) => slide.remove());
           refreshMeta();
         });
+    }
+
+    if (optionalSlides.length) {
+      // Defer the confirm call until the gallery nears the viewport — it sits
+      // low on the page, so calling it on load only lengthens the initial
+      // critical request chain (hurts LCP).
+      if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+          if (entries.some((e) => e.isIntersecting)) { io.disconnect(); confirmOptional(); }
+        }, { rootMargin: '600px 0px' });
+        io.observe(film);
+      } else {
+        confirmOptional();
+      }
     }
 
     refreshMeta();

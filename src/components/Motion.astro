@@ -130,10 +130,15 @@ const scrollTopLabel = t.scrollToTop;
 
       // Initial state: arm below-the-fold so it animates in; activate
       // above-the-fold immediately so the first paint shows content.
+      //
+      // Batched to avoid layout thrash: read ALL bounding rects first, then
+      // do all the class writes. Interleaving read/write per element forced a
+      // reflow on every iteration (a real chunk of the boot's blocking time).
       const fold = window.innerHeight * 0.85;
-      document.querySelectorAll(REVEAL_SELECTOR).forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.top > fold) {
+      const els  = Array.from(document.querySelectorAll(REVEAL_SELECTOR));
+      const tops = els.map((el) => el.getBoundingClientRect().top); // READ phase
+      els.forEach((el, i) => {                                       // WRITE phase
+        if (tops[i] > fold) {
           el.classList.add('reveal--off');  // off-state defaults to "from below"
         } else {
           el.classList.add('is-in-view');
@@ -509,17 +514,19 @@ const scrollTopLabel = t.scrollToTop;
       // the single most expensive boot operation, and never above the fold.
       // It tags hosts with `.is-reveal-host`; re-arm the observer for those.
       buildLineReveals();
-      document.querySelectorAll('.is-reveal-host').forEach((el) => {
-        if (el.classList.contains('is-in-view') || el.classList.contains('reveal--off')) return;
-        if (!reduce && observer) {
-          const r = el.getBoundingClientRect();
-          if (r.top > window.innerHeight * 0.85) el.classList.add('reveal--off');
+      const hosts = Array.from(document.querySelectorAll('.is-reveal-host'))
+        .filter((el) => !el.classList.contains('is-in-view') && !el.classList.contains('reveal--off'));
+      if (!reduce && observer) {
+        const fold = window.innerHeight * 0.85;
+        const tops = hosts.map((el) => el.getBoundingClientRect().top); // READ phase
+        hosts.forEach((el, i) => {                                       // WRITE phase
+          if (tops[i] > fold) el.classList.add('reveal--off');
           else activate(el);
           observer.observe(el);
-        } else {
-          activate(el);
-        }
-      });
+        });
+      } else {
+        hosts.forEach((el) => activate(el));
+      }
       setupSectionHud();
       setupScrollTop();
       watchTabIndicator();

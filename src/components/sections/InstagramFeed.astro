@@ -81,6 +81,19 @@ const t = pick(copy, lang);
       scroll.scrollLeft = scrollLeft - (e.pageX - scroll.offsetLeft - startX) * 1.4;
     });
 
+    // Defer the network call until the strip is near the viewport. It sits
+    // near the bottom of the page, so fetching it on load only adds to the
+    // initial critical request chain (hurts LCP) for content nobody has
+    // scrolled to yet.
+    function whenNear(el, cb) {
+      if (!('IntersectionObserver' in window)) { cb(); return; }
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { io.disconnect(); cb(); }
+      }, { rootMargin: '600px 0px' });
+      io.observe(el);
+    }
+
+    async function loadFeed() {
     try {
       const res = await fetch('/api/instagram', { cache: 'default' });
       if (!res.ok) throw new Error('no feed');
@@ -118,6 +131,9 @@ const t = pick(copy, lang);
           </div>
         </a>`;
     }
+    }
+
+    whenNear(scroll.closest('.ig-section') || scroll, loadFeed);
   })();
 </script>
 

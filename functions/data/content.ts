@@ -116,6 +116,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'info.reservTabit',  label: 'Reservations — Tabit link text', he: 'הזמנה בטאביט ↗', en: 'Book on Tabit ↗' },
     { key: 'info.kosherLabel',  label: 'Kosher — label', he: 'כשרות',          en: 'Kosher' },
     { key: 'info.kosherValue',  label: 'Kosher — value', he: 'רבנות ירושלים',  en: 'Rabbanut Yerushalayim' },
+    { key: 'info.kosherView',   label: 'Kosher — certificate link text', he: 'הצגת התעודה ↗', en: 'View certificate ↗' },
   ] },
 ];
 

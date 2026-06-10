@@ -1141,12 +1141,19 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
    open; box B opens on click (crossfade, no height-expand). ──────────────── */
 .story-diptych {
   width: 100%;
-  max-width: 46rem;        /* narrower column — vertical, not wide */
+  max-width: 29rem;        /* narrow column so each box reads as a tall card */
   margin-inline-end: auto;  /* pin to the inline-start edge: right on the
                                Hebrew/RTL page, left on the English/LTR page */
   display: grid;
   gap: clamp(0.75rem, 2vw, 1.25rem);
   align-items: start;       /* each box sizes to its own content height */
+}
+/* Desktop: floor the OPEN box's height ABOVE the column width (~29rem) so it's
+   reliably taller than wide — a portrait card, not a banner. The collapsed
+   box stays a short title bar; content sits at the top with quiet breathing
+   room below. */
+@media (min-width: 880px) {
+  .story-box--toggle.is-open { min-height: clamp(34rem, 50vh, 44rem); }
 }
 
 .story-box {
@@ -1278,19 +1285,21 @@ html[lang="he"] .menu-cinema__cta { font-family: var(--font-body-he); letter-spa
   .story-box--toggle .story-box__reveal,
   .story-box--toggle .story-box__text { transition: none; }
 }
-/* The info strip, when it sits on the dark photo, drops its paper band and
-   reads in cream — so it belongs to the photo instead of cutting across it. */
+/* The info strip, when it sits on the dark photo, gets a dark glass band so
+   it reads clearly as a defined element rather than floating over the image. */
 .story-scene .info-strip {
-  background: transparent;
-  border-block: 0;
+  background: color-mix(in srgb, var(--shadow) 52%, transparent);
+  backdrop-filter: blur(10px) saturate(1.2);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  border-block: 1px solid color-mix(in srgb, var(--paper-on-photo) 14%, transparent);
   width: 100%;
 }
 .story-scene .info-strip__grid {
-  padding-block: clamp(var(--space-s), 3vh, var(--space-m));
-  border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 22%, transparent);
+  padding-block: clamp(var(--space-s), 3.5vh, var(--space-m));
+  border-block-end: 0;
 }
 .story-scene .meta-block__label {
-  color: color-mix(in srgb, var(--paper-on-photo) 72%, transparent);
+  color: color-mix(in srgb, var(--paper-on-photo) 88%, transparent);
 }
 .story-scene .info-strip .meta-block__value { color: var(--paper-on-photo); }
 .story-scene .info-strip__cell a.meta-block__value:hover { color: var(--gold); }
