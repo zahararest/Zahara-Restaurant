@@ -68,5 +68,16 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
   const headers = new Headers(res.headers);
   headers.delete('content-length'); // body length changed; let the platform set it
+
+  // The site is also served at *.pages.dev (the production alias + every
+  // preview deployment). Tell search engines not to index those copies, so
+  // they don't compete with zahara.rest as duplicate content. We noindex
+  // rather than redirect, so preview deployments stay usable for QA.
+  try {
+    if (new URL(ctx.request.url).hostname !== 'zahara.rest') {
+      headers.set('X-Robots-Tag', 'noindex');
+    }
+  } catch { /* malformed URL — leave headers untouched */ }
+
   return new Response(html, { status: res.status, statusText: res.statusText, headers });
 };

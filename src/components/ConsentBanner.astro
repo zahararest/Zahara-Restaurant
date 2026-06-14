@@ -1,0 +1,155 @@
+---
+// Cookie consent banner — a quiet, paper-toned bottom bar shown only when a
+// Google tag is active (BaseLayout gates it on gtagId). Consent Mode v2 in
+// <head> defaults every storage type to DENIED; this bar lets the visitor
+// grant or decline.
+//
+// Design note: pillar 6 ("deliberately absent") forbids popovers/modals on
+// entry. A cookie banner is a legal requirement, so this is the restrained
+// editorial form of it — a non-blocking bottom strip in the paper palette,
+// a 1px edge rule (no shadow), accent only on the accept action, and a
+// fade-in that honours prefers-reduced-motion. It never blocks the page.
+
+import { pick, consent as copy } from '../data/i18n';
+import type { Lang } from '../data/i18n';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = pick(copy, lang);
+const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
+---
+
+<aside id="zahara-consent" class="consent" role="region" aria-label={c.ariaLabel} hidden>
+  <div class="consent__inner">
+    <p class="consent__text">
+      {c.message}
+      {' '}
+      <a class="consent__link" href={privacyHref}>{c.learnMore}</a>
+    </p>
+    <div class="consent__actions">
+      <button type="button" class="consent__btn consent__btn--ghost"  data-consent-decline>{c.decline}</button>
+      <button type="button" class="consent__btn consent__btn--accept" data-consent-accept>{c.accept}</button>
+    </div>
+  </div>
+</aside>
+
+<script is:inline>
+  (function () {
+    var KEY = 'zahara-consent';
+    var el  = document.getElementById('zahara-consent');
+    if (!el) return;
+
+    var stored = null;
+    try { stored = localStorage.getItem(KEY); } catch (_) {}
+    if (stored === 'granted' || stored === 'denied') return; // already chosen — stay quiet
+
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+
+    function close(granted) {
+      try { localStorage.setItem(KEY, granted ? 'granted' : 'denied'); } catch (_) {}
+      if (granted) {
+        gtag('consent', 'update', {
+          ad_storage:         'granted',
+          analytics_storage:  'granted',
+          ad_user_data:       'granted',
+          ad_personalization: 'granted',
+        });
+      }
+      el.classList.remove('is-visible');
+      var done = function () { el.hidden = true; };
+      // Drop from the a11y tree after the fade; fall back if no transition runs.
+      var t = setTimeout(done, 900);
+      el.addEventListener('transitionend', function () { clearTimeout(t); done(); }, { once: true });
+    }
+
+    var accept  = el.querySelector('[data-consent-accept]');
+    var decline = el.querySelector('[data-consent-decline]');
+    if (accept)  accept.addEventListener('click',  function () { close(true);  });
+    if (decline) decline.addEventListener('click', function () { close(false); });
+
+    el.hidden = false;
+    // Two frames so the element is laid out before the fade-in transition starts.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { el.classList.add('is-visible'); });
+    });
+  })();
+</script>
+
+<style>
+  .consent {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 70;
+    background: var(--paper);
+    border-block-start: 1px solid var(--rule-soft);
+    opacity: 0;
+    transform: translateY(100%);
+    transition:
+      opacity   0.8s var(--ease-out),
+      transform 0.8s var(--ease-out);
+  }
+  .consent.is-visible { opacity: 1; transform: translateY(0); }
+
+  .consent__inner {
+    max-width: var(--readable-max);
+    margin-inline: auto;
+    padding: var(--space-s) var(--space-l);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-s) var(--space-l);
+  }
+
+  .consent__text {
+    margin: 0;
+    max-width: 48ch;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    font-weight: 300;
+    color: var(--ink-soft);
+  }
+  .consent__link {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .consent__link:hover { color: var(--accent-deep); }
+
+  .consent__actions {
+    display: flex;
+    gap: var(--space-s);
+    flex-shrink: 0;
+  }
+  .consent__btn {
+    font: inherit;
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    padding: 0.5rem 1.2rem;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: color 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+  }
+  .consent__btn--ghost:hover { color: var(--ink); }
+  .consent__btn--accept {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .consent__btn--accept:hover {
+    color: var(--accent-deep);
+    border-color: var(--accent-deep);
+  }
+
+  /* Camera, not interface — honour reduced motion: no slide, just a short fade. */
+  @media (prefers-reduced-motion: reduce) {
+    .consent {
+      transform: none;
+      transition: opacity 0.2s linear;
+    }
+  }
+</style>

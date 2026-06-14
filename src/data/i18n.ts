@@ -350,7 +350,7 @@ export const privacyPage = {
   dataItem2: { he: 'מספר טלפון', en: 'Phone number' },
   dataItem3: { he: 'כתובת דואר אלקטרוני', en: 'Email address' },
   dataItem4: { he: 'פרטי הפנייה (תאריך אירוע, סוג, מספר סועדים, הודעה חופשית)', en: 'Inquiry details (event date, type, guest count, free-text message)' },
-  dataPrivacyNote: { he: 'אנו לא מפעילים עוגיות (cookies) ייעודיות, ולא משתמשים בכלי מעקב שיווקי. העדפות אישיות (ערכת נושא, נגישות) נשמרות באופן מקומי בדפדפן בלבד ואינן מועברות לשרתינו.', en: 'We do not use tracking or marketing cookies. Personal preferences (theme, accessibility settings) are stored locally in your browser only and are never transmitted to our servers.' },
+  dataPrivacyNote: { he: 'העדפות אישיות (ערכת נושא, הגדרות נגישות) נשמרות באופן מקומי בדפדפן בלבד ואינן מועברות לשרתינו. עוגיות מדידה ופרסום של Google (Google Analytics ו-Google Ads) נכתבות אך ורק לאחר קבלת הסכמתכם דרך באנר העוגיות; אם תבחרו לסרב, לא ייכתבו עוגיות מעקב. ניתן לשנות את הבחירה בכל עת על ידי ניקוי נתוני הדפדפן.', en: 'Personal preferences (theme, accessibility settings) are stored locally in your browser only and are never transmitted to our servers. Google measurement and advertising cookies (Google Analytics and Google Ads) are set only after you opt in via the cookie banner; if you decline, no tracking cookies are set. You can change your choice at any time by clearing your browser data.' },
   usageHeading: { he: 'השימוש במידע', en: 'How we use the data' },
   usageIntro: { he: 'המידע שנאסף משמש אך ורק למטרות הבאות:', en: 'Data collected is used solely to:' },
   usageItem1: { he: 'מענה לפנייתכם ויצירת קשר חוזר', en: 'Respond to your inquiry and follow up' },
@@ -403,6 +403,11 @@ export const location = {
   call:    { he: 'חייגו 077-303-4180', en: 'Call +972 77 303 4180' },
   mapTitle:{ he: 'מפת הגעה לזהרה',    en: 'Map to Zahara'         },
 
+  // Click-to-load map facade — the Google embed (and its cookies / IP log)
+  // loads only after the visitor taps. No third-party request on page load.
+  mapLoad:    { he: 'הצגת המפה',       en: 'Show the map'          },
+  mapPrivacy: { he: 'המפה נטענת מ-Google. לחיצה תטען אותה ועשויה לרשום את כתובת ה-IP שלכם.', en: 'The map loads from Google. Tapping it loads the map and may log your IP address.' },
+
   infoEyebrow: { he: 'חניה והגעה',          en: 'Parking & transit'    },
 
   // [HTML] contains <br />
@@ -431,6 +436,20 @@ export const location = {
     he: '<strong>אירוח קטן:</strong> זהרה היא מסעדה אינטימית. אנו ממליצים בחום להזמין מקום מראש דרך טאביט.',
     en: '<strong>Booking:</strong> Zahara is an intimate room. We strongly recommend reserving via Tabit in advance.',
   },
+};
+
+// ── Cookie consent banner ───────────────────────────────────────────────────────
+// Shown only when a Google tag is configured. Kept short — the privacy page
+// carries the full detail; this is a quiet bottom bar, not a wall of legalese.
+export const consent = {
+  message: {
+    he: 'אנו משתמשים בעוגיות מדידה (Google Analytics / Ads) כדי להבין כיצד משתמשים באתר — רק לאחר הסכמתכם.',
+    en: 'We use measurement cookies (Google Analytics / Ads) to understand how the site is used — only with your consent.',
+  },
+  learnMore: { he: 'מדיניות הפרטיות', en: 'Privacy policy' },
+  accept:    { he: 'אישור',           en: 'Accept'         },
+  decline:   { he: 'סירוב',           en: 'Decline'        },
+  ariaLabel: { he: 'הודעת עוגיות',     en: 'Cookie notice'  },
 };
 
 // ── Menu page ─────────────────────────────────────────────────────────────────
@@ -571,6 +590,7 @@ export const contact = {
   statusSuccess:    { he: 'הפנייה התקבלה. נחזור אליכם תוך יום עסקים.',           en: "Thanks. We'll get back to you within one business day." },
   statusErrNetwork: { he: 'שגיאת רשת. נסו שוב.',                                  en: 'Network error. Please try again.'              },
   statusErrGeneral: { he: 'שגיאה בשליחה. נסו שוב או חייגו אלינו.',               en: 'Something went wrong. Please try again or call us.' },
+  statusErrEmail:   { he: 'כתובת אימייל לא תקינה. בדקו ונסו שוב.',               en: 'Please enter a valid email address.'           },
 
   benefitPrivate: { he: 'חדר פרטי לקבוצות אינטימיות',     en: 'Private room for intimate groups' },
   benefitChef:    { he: 'התפריט נבנה אישית עם השף',        en: 'Menu built personally with the chef' },

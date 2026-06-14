@@ -4,6 +4,7 @@ import Header        from '../components/Header.astro';
 import Footer        from '../components/Footer.astro';
 import Motion        from '../components/Motion.astro';
 import Accessibility from '../components/Accessibility.astro';
+import ConsentBanner from '../components/ConsentBanner.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
 import type { PhotoEntry } from '../data/photos';
@@ -126,7 +127,28 @@ const schema = {
         closes:     RESTAURANT.hours.closes,
       }],
       isPartOf:  { '@type': 'Hotel', name: RESTAURANT.hotel.en, '@id': `${origin}/#hotel` },
-      sameAs:    [RESTAURANT.instagram],
+      // Official profiles — strengthens entity recognition (knowledge panel)
+      // and ties the site to the restaurant's social presence.
+      sameAs:    [RESTAURANT.instagram, RESTAURANT.facebook].filter(Boolean),
+      // Lets Google surface a "Reserve a table" action that deep-links to the
+      // Tabit booking page — a high-value affordance for local restaurant search.
+      potentialAction: {
+        '@type': 'ReserveAction',
+        target: {
+          '@type':        'EntryPoint',
+          urlTemplate:    RESTAURANT.reservationUrl,
+          inLanguage:     lang === 'he' ? 'he-IL' : 'en-US',
+          actionPlatform: [
+            'http://schema.org/DesktopWebPlatform',
+            'http://schema.org/IOSPlatform',
+            'http://schema.org/AndroidPlatform',
+          ],
+        },
+        result: {
+          '@type': 'FoodEstablishmentReservation',
+          name:    lang === 'he' ? 'הזמנת שולחן' : 'Table reservation',
+        },
+      },
       mainEntityOfPage: `${origin}/`,
     },
     {
@@ -224,6 +246,33 @@ const schema = {
         <script is:inline define:vars={{ gtagId, googleAdsId, gaMeasurementId }}>
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
+
+          // Consent Mode v2 — default DENIED so Google writes no analytics or
+          // advertising cookies until the visitor opts in via the consent
+          // banner. Required for EU/EEA visitors (GDPR + ePrivacy) and aligns
+          // with the informed-consent expectation under Israel's Privacy
+          // Protection Law. gtag.js still loads (cookieless ping only) so
+          // measurement can resume the instant consent is granted.
+          gtag('consent', 'default', {
+            ad_storage:         'denied',
+            analytics_storage:  'denied',
+            ad_user_data:       'denied',
+            ad_personalization: 'denied',
+            wait_for_update:    500,
+          });
+          // Replay a returning visitor's prior acceptance so they aren't
+          // re-prompted and tracking resumes on this very page load.
+          try {
+            if (localStorage.getItem('zahara-consent') === 'granted') {
+              gtag('consent', 'update', {
+                ad_storage:         'granted',
+                analytics_storage:  'granted',
+                ad_user_data:       'granted',
+                ad_personalization: 'granted',
+              });
+            }
+          } catch (_) { /* storage blocked — stay denied */ }
+
           gtag('js', new Date());
           if (googleAdsId) gtag('config', googleAdsId);
           if (gaMeasurementId && gaMeasurementId !== googleAdsId) gtag('config', gaMeasurementId);
@@ -442,5 +491,11 @@ const schema = {
 
     {/* Accessibility toolkit — required on Israeli public-facing sites. */}
     <Accessibility lang={lang} />
+
+    {/* Cookie consent — only rendered when a Google tag is active. Until the
+        visitor accepts, Consent Mode v2 (set in <head>) keeps analytics/ads
+        cookies off, so a site with no gtag never shows this and sets no
+        tracking cookies at all. */}
+    {gtagId && <ConsentBanner lang={lang} />}
   </body>
 </html>

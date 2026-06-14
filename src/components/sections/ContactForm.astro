@@ -185,6 +185,7 @@ const eventTypes: { value: string; label: string }[] = [
   msgSuccess:    t.statusSuccess,
   msgErrNetwork: t.statusErrNetwork,
   msgErrGeneral: t.statusErrGeneral,
+  msgErrEmail:   t.statusErrEmail,
 }}>
   // ── Mode toggle (general / event) ─────────────────────────────────────────
   const toggleBtns   = Array.from(document.querySelectorAll('[data-contact-mode]'));
@@ -266,6 +267,19 @@ const eventTypes: { value: string; label: string }[] = [
   if (form && status) {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      // Validate the email client-side before sending — mirrors the server
+      // check in functions/api/contact.ts so a bad address is caught instantly
+      // (the server still re-validates; this is convenience, not the gate).
+      const emailField = form.querySelector('#email');
+      const emailVal   = (emailField?.value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+        status.textContent = msgErrEmail;
+        status.className   = 'form-status err';
+        emailField?.focus();
+        return;
+      }
+
       status.textContent = msgSending;
       status.className   = 'form-status';
 

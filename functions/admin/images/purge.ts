@@ -4,7 +4,7 @@
 // local edge to refetch from R2 without waiting for max-age.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { checkAuth, type AuthEnv } from '../auth';
+import { checkAccess, type AuthEnv } from '../auth';
 import { purgeAllPhotoCache, type CachePurgeEnv } from './cache';
 
 type Env = AuthEnv & CachePurgeEnv;
@@ -20,7 +20,7 @@ function json(body: object, status = 200): Response {
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  if (!checkAuth(request, env)) return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
   const origin = new URL(request.url).origin;
   const count = await purgeAllPhotoCache(origin, env);
   return json({ ok: true, count });

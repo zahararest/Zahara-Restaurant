@@ -14,7 +14,7 @@
 // site tab can refresh.
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
-import { checkAuth, unauthorized, type AuthEnv } from './auth';
+import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
 import {
   readContent, galleryCaptionKey, GALLERY_CAPTION_KEYS,
@@ -1245,7 +1245,7 @@ function renderCard(
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  if (!checkAuth(request, env)) return unauthorized();
+  if (!(await checkAccess(request, env))) return unauthorized();
 
   // Look up which keys have an override in R2 right now. Mobile variants are
   // stored as `{key}__mobile`; track them separately.

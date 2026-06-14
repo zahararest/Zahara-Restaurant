@@ -70,16 +70,35 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
       <p class="lede-prose">{l.lede}</p>
     </div>
 
-    {/* Map loads lazily — a visitor who never scrolls here doesn't ping Google. */}
+    {/* Click-to-load map — the Google embed (and its cookies / IP logging)
+        loads only after the visitor taps the facade. No third-party request
+        on page load, so the map never tracks a visitor who didn't ask for it. */}
     <div class="reveal-on-scroll map-wrapper">
-      <iframe
-        class="map-frame"
-        src={mapEmbed}
-        loading="lazy"
-        referrerpolicy="no-referrer-when-downgrade"
-        title={l.mapTitle}
-      ></iframe>
+      <button
+        type="button"
+        class="map-facade"
+        data-map-embed={mapEmbed}
+        data-map-title={l.mapTitle}
+      >
+        <span class="map-facade__label">{l.mapLoad}</span>
+        <span class="map-facade__note">{l.mapPrivacy}</span>
+      </button>
     </div>
+    <script is:inline>
+      (function () {
+        var facade = document.querySelector('.map-facade');
+        if (!facade) return;
+        facade.addEventListener('click', function () {
+          var iframe = document.createElement('iframe');
+          iframe.className = 'map-frame';
+          iframe.src = facade.getAttribute('data-map-embed');
+          iframe.title = facade.getAttribute('data-map-title') || '';
+          iframe.loading = 'lazy';
+          iframe.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+          facade.parentNode.replaceChild(iframe, facade);
+        });
+      })();
+    </script>
 
     <div class="directions-grid stagger reveal-on-scroll">
       <a class="btn btn--block btn--ghost" href={wazeUrl}  target="_blank" rel="noopener">{l.waze}</a>
@@ -365,6 +384,40 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     min-height: 400px;
     border: 0;
     border-radius: 2px;
+  }
+
+  /* Click-to-load facade — paper placeholder shown until the visitor taps,
+     at which point the real Google iframe replaces it. */
+  .map-facade {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-height: 400px;
+    padding: var(--space-l);
+    border: 1px solid var(--rule-soft);
+    border-radius: 2px;
+    background: var(--paper-deep);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.3s var(--ease-out);
+  }
+  .map-facade:hover { border-color: var(--rule); }
+  .map-facade__label {
+    font-family: var(--font-display-he);
+    font-size: var(--step-1);
+    color: var(--accent);
+  }
+  html[lang="en"] .map-facade__label { font-family: var(--font-display-en); }
+  .map-facade__note {
+    max-width: 42ch;
+    font-size: var(--step--2);
+    letter-spacing: 0.03em;
+    line-height: 1.5;
+    color: var(--ink-muted);
   }
 
   /* Direct contact block — email + phone as icon-prefixed links */

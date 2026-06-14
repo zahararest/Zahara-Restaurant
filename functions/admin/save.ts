@@ -1,7 +1,7 @@
 // POST /admin/save — writes menu JSON to KV. Basic-auth gated.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { checkAuth, type AuthEnv } from './auth';
+import { checkAccess, type AuthEnv } from './auth';
 import { VALID_SLUGS }              from '../data/menu-slugs';
 import type { MenuSection }         from '../data/menu-defaults';
 
@@ -32,7 +32,7 @@ function normalize(raw: unknown): MenuPayload | null {
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  if (!checkAuth(request, env)) return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
 
   let body: { slug?: string; data?: unknown };
   try {

@@ -7,7 +7,7 @@
 // caption inputs in /admin/images.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { checkAuth, type AuthEnv } from '../auth';
+import { checkAccess, type AuthEnv } from '../auth';
 import { readContent, writeContent, mergeContent, type ContentEnv } from '../../data/content';
 
 type Env = AuthEnv & ContentEnv;
@@ -23,7 +23,7 @@ function json(body: object, status = 200): Response {
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  if (!checkAuth(request, env)) return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
 
   let body: unknown;
   try {

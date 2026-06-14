@@ -1,4 +1,4 @@
-// GET /admin/content — Basic-auth gated. A self-contained editor for the
+// GET /admin/content — Cloudflare Access gated. A self-contained editor for the
 // site's homepage + info-strip copy. Each field has HE + EN inputs,
 // pre-filled with the saved override (blank → the built-in default is used
 // on the live site). "Save changes" POSTs the whole map to
@@ -6,7 +6,7 @@
 // middleware injects into every page.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { checkAuth, unauthorized, type AuthEnv } from './auth';
+import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import {
   CONTENT_GROUPS, readContent,
   type ContentEnv, type ContentMap, type ContentField,
@@ -141,7 +141,7 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
-  if (!checkAuth(request, env)) return unauthorized();
+  if (!(await checkAccess(request, env))) return unauthorized();
 
   const overrides = await readContent(env);
 

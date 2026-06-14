@@ -10,7 +10,7 @@
 // than diffing).
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { checkAuth, type AuthEnv } from '../auth';
+import { checkAccess, type AuthEnv } from '../auth';
 import { writePalette, type PaletteEnv } from '../../data/palette';
 
 type Env = AuthEnv & PaletteEnv;
@@ -26,7 +26,7 @@ function json(body: object, status = 200): Response {
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
-  if (!checkAuth(request, env)) return json({ ok: false, error: 'Unauthorized' }, 401);
+  if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
 
   let body: unknown;
   try {
