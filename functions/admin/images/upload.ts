@@ -62,11 +62,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // Optional mobile (portrait) variant — stored separately and served on
-  // phones via /photos-m. Only allowed for photos flagged `mobile`.
+  // phones via /photos-m. Allowed for ANY photo: the owner can give any image
+  // a portrait crop, and a card with no mobile upload simply falls back to the
+  // desktop photo (see functions/photos-m/[file].ts). Whether a given photo's
+  // on-page component actually requests the /photos-m crop is up to that
+  // component — full-bleed photos (HeroBleed, Gallery, BleedPhoto, the home
+  // menu-split) do; small inline/tile photos fall back to desktop on phones.
   const isMobile   = String(form.get('variant') || '') === 'mobile';
-  if (isMobile && !meta.mobile) {
-    return json({ ok: false, error: 'This photo has no mobile variant' }, 400);
-  }
   const objectKey  = isMobile ? `${key}__mobile` : key;
 
   // The Workers type lib types FormData values as `string`, with no `File`

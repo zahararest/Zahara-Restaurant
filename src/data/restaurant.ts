@@ -45,9 +45,18 @@ export const RESTAURANT = {
 
   reservationUrl: 'https://tabitisrael.co.il/site/noocha-hotel-zahara',
   instagram:      'https://www.instagram.com/zahara.restaurant/',
-  facebook:       'https://www.facebook.com/',
+  facebook:       'https://www.facebook.com/profile.php?id=61582628067264',
 
   // Rooftop bar — coming soon. Update this URL when the site is live.
   // Set to null to hide the header button entirely.
   rooftopUrl:     null as string | null,
 } as const;
+
+// Cloudflare Turnstile (free CAPTCHA) — spam protection on the contact form.
+// This is the PUBLIC site key; it is meant to appear in the page HTML, so it
+// is safe to commit. Paste the key from the Turnstile widget you create in the
+// Cloudflare dashboard (Turnstile → Add widget). Leave it '' to disable the
+// widget — the form keeps working, and server-side verification in
+// functions/api/contact.ts is likewise skipped unless TURNSTILE_SECRET_KEY
+// (a Pages SECRET, never committed) is set. Set BOTH to turn protection on.
+export const TURNSTILE_SITEKEY = '0x4AAAAAADkqnGDFoQixq-k3';

@@ -61,6 +61,9 @@ const altPath = lang === 'he'
   : (path.replace(/^\/en/, '') || '/');
 
 const origin   = Astro.url.origin;
+// The Hebrew (default-locale) URL of THIS page — used for x-default so the
+// fallback points at the same page's default version, not the home page.
+const heHref   = lang === 'he' ? Astro.url.href : new URL(altPath, origin).href;
 const heroUrl  = new URL(PHOTOS.hero.src, origin).href;
 const imageUrls = [PHOTOS.hero, PHOTOS.moodDining, PHOTOS.contact]
   .map((p) => new URL(p.src, origin).href);
@@ -166,11 +169,13 @@ const schema = {
         reliably (it was intermittently slipping past the metric window). */}
     {heroImage && (
       <>
+        {/* quality 70 must match HeroBleed.astro's HERO_QUALITY exactly, or
+            the preload URL won't match the <picture> and the bytes are wasted. */}
         <link rel="preload" as="image" fetchpriority="high"
-              imagesrcset={resizedMobileCoverSrcset(heroImage.src, [[640, 1180], [820, 1500], [1080, 1980]])}
+              imagesrcset={resizedMobileCoverSrcset(heroImage.src, [[640, 1180], [820, 1500], [1080, 1980]], 70)}
               imagesizes="100vw" media="(max-width: 600px)" />
         <link rel="preload" as="image" fetchpriority="high"
-              imagesrcset={resizedSrcset(heroImage.src, [800, 1200, 1800, 2400])}
+              imagesrcset={resizedSrcset(heroImage.src, [800, 1200, 1800, 2400], 70)}
               imagesizes="100vw" media="(min-width: 601px)" />
       </>
     )}
@@ -186,7 +191,7 @@ const schema = {
     <link rel="canonical"      href={Astro.url.href} />
     <link rel="alternate" hreflang={lang}                         href={Astro.url.href} />
     <link rel="alternate" hreflang={lang === 'he' ? 'en' : 'he'} href={new URL(altPath, Astro.url.origin).href} />
-    <link rel="alternate" hreflang="x-default"                   href={new URL('/', Astro.url.origin).href} />
+    <link rel="alternate" hreflang="x-default"                   href={heHref} />
 
     <meta property="og:type"           content="website" />
     <meta property="og:title"          content={fullTitle} />

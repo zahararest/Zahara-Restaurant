@@ -17,7 +17,14 @@ export default defineConfig({
   site: SITE,
 
   build: {
-    inlineStylesheets: 'always',
+    // 'auto' inlines only small (critical) stylesheets and emits the bulk as
+    // ONE hashed, immutable file under /_astro/ (cached a year via _headers,
+    // shared across every page). Previously 'always' inlined ~103KB of CSS
+    // into EVERY page — most unused per page (PageSpeed "reduce unused CSS")
+    // and bloating each HTML doc to ~213KB, which delayed the document parse
+    // and the LCP. The hero LCP image is preloaded with fetchpriority=high,
+    // so the one render-blocking CSS request doesn't gate it.
+    inlineStylesheets: 'auto',
   },
 
   integrations: [
@@ -42,7 +49,10 @@ export default defineConfig({
       },
       i18n: {
         defaultLocale: 'he',
-        locales: { he: 'he-IL', en: 'en-US' },
+        // Bare language codes to match the on-page <link hreflang> tags in
+        // BaseLayout.astro (he / en). Mixing he-IL here with he on the page is
+        // an avoidable inconsistency; we don't target regional variants.
+        locales: { he: 'he', en: 'en' },
       },
     }),
   ],

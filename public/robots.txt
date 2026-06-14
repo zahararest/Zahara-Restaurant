@@ -2,5 +2,10 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api/
+# Cloudflare Email Obfuscation rewrites mailto: links to this endpoint, which
+# only resolves client-side via JS — Googlebot crawling it gets a 404. Block
+# just the /l/ link path (NOT /cdn-cgi/image/, which serves our photos and
+# should stay crawlable for Google Images).
+Disallow: /cdn-cgi/l/
 
 Sitemap: https://zahara.rest/sitemap-index.xml

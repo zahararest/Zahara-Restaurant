@@ -45,16 +45,24 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env, next, requ
             headers: {
               'Content-Type':  contentType,
               'ETag':          etag,
-              // Short, NON-stale TTL. Admin uploads have to take effect on
-              // the live site quickly. This Cache-Control is what the
-              // Cloudflare Image Resizing layer (/cdn-cgi/image/…, the URLs
-              // the pages actually request) inherits for its own edge
-              // cache — so a long `stale-while-revalidate` here meant the
-              // RESIZED variants kept serving the old photo for up to a day,
-              // even after an upload + purge. We drop SWR entirely: after
-              // 60s the edge revalidates against R2 (cheap 304 via ETag) and
-              // picks up the new image everywhere within ~a minute.
-              'Cache-Control': 'public, max-age=60, must-revalidate',
+              // Long, stale-while-revalidate TTL. This Cache-Control is what
+              // the Cloudflare Image Resizing layer (/cdn-cgi/image/…, the
+              // URLs the pages actually request) inherits for its own edge
+              // cache. A short `must-revalidate` TTL here meant resized
+              // variants were constantly re-derived from the slow R2 origin
+              // (~2.2s for a 663KB source) — so a cold colo took up to ~5.6s
+              // to deliver the hero, slipping past Lighthouse's window and
+              // producing intermittent NO_LCP on mobile.
+              //
+              // Freshness no longer relies on a short TTL: every admin upload
+              // (a) bumps the asset-version token so EVERY resized URL in the
+              // HTML changes (functions/admin/images/upload.ts → bumpAssetVersion),
+              // and (b) purges the edge (purgePhotoCache). So old variants are
+              // simply never requested again. We can therefore cache long and
+              // serve stale-while-revalidate — a "stale" colo serves the warm
+              // bytes instantly (~0.3s) and refreshes in the background, which
+              // is exactly what keeps the LCP image fast and the metric stable.
+              'Cache-Control': 'public, max-age=86400, stale-while-revalidate=2592000',
             },
           });
         }

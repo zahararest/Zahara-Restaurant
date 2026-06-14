@@ -1,5 +1,5 @@
 ---
-import { resized, resizedSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -11,21 +11,40 @@ export interface Props {
   height?:  string;
   /** Promote to eager loading for above-the-fold bleed photos. */
   eager?:   boolean;
+  /** Phone [width, height] crop pairs for the portrait `/photos-m` variant
+   *  (admin-uploadable per photo; falls back to the desktop image when none
+   *  is set). Defaults to a full-screen tall crop — pass a wider set for
+   *  short bands so they don't request a too-tall image. */
+  mobileCrop?: readonly (readonly [number, number])[];
 }
 
-const { lang, photo, caption, height, eager = false } = Astro.props;
+const {
+  lang, photo, caption, height, eager = false,
+  // Matches the full-screen default height (100dvh) — same crop set as the hero.
+  mobileCrop = [[640, 1180], [820, 1500], [1080, 1980]] as const,
+} = Astro.props;
 const classList = caption ? 'bleed-photo bleed-photo--caption' : 'bleed-photo';
 // Finer steps so a ~1400px-wide bleed picks ~1400, not the 1800 variant.
 const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
 ---
 
 <figure class={classList} data-caption={caption} style={height ? `height: ${height};` : undefined}>
-  <img
-    src={resized(photo.src, 1800)}
-    srcset={resizedSrcset(photo.src, BLEED_WIDTHS)}
-    sizes="100vw"
-    alt={photo.alt[lang]}
-    loading={eager ? 'eager' : 'lazy'}
-    decoding="async"
-  />
+  <picture>
+    {/* Phones get a subject-aware portrait crop via /photos-m (the admin
+        mobile upload, or a crop of the desktop image when none is set), so a
+        full-bleed landscape photo isn't scaled up into a zoomed-in sliver. */}
+    <source
+      media="(max-width: 600px)"
+      srcset={resizedMobileCoverSrcset(photo.src, mobileCrop)}
+      sizes="100vw"
+    />
+    <img
+      src={resized(photo.src, 1800)}
+      srcset={resizedSrcset(photo.src, BLEED_WIDTHS)}
+      sizes="100vw"
+      alt={photo.alt[lang]}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+  </picture>
 </figure>

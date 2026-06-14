@@ -11,6 +11,7 @@
 
 import { pick, contact as copy } from '../../data/i18n';
 import type { Lang }            from '../../data/i18n';
+import { TURNSTILE_SITEKEY }    from '../../data/restaurant';
 
 export interface Props {
   lang: Lang;
@@ -139,6 +140,19 @@ const eventTypes: { value: string; label: string }[] = [
           <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
         </div>
 
+        {/* Cloudflare Turnstile (CAPTCHA). Renders only when a site key is
+            configured in src/data/restaurant.ts. The widget injects a hidden
+            `cf-turnstile-response` input into this form, which the server
+            verifies in functions/api/contact.ts. */}
+        {TURNSTILE_SITEKEY && (
+          <div
+            class="cf-turnstile form__turnstile"
+            data-sitekey={TURNSTILE_SITEKEY}
+            data-language={lang}
+            data-theme="auto"
+          ></div>
+        )}
+
         <div class="form-card__submit">
           <button
             class="btn"
@@ -153,6 +167,18 @@ const eventTypes: { value: string; label: string }[] = [
     </div>
   </div>
 </section>
+
+<style>
+  /* Cloudflare Turnstile widget — breathing room above the submit button. */
+  .form__turnstile { margin-block: 0.25rem 0.5rem; }
+</style>
+
+{/* Cloudflare Turnstile loader — only when a site key is configured. The
+    site CSP sets only frame-ancestors, so the challenge iframe/script load
+    without any allow-list change. */}
+{TURNSTILE_SITEKEY && (
+  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+)}
 
 <script define:vars={{
   msgSending:    t.statusSending,

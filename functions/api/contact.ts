@@ -14,6 +14,11 @@ interface Env {
   RESEND_API_KEY:     string;
   CONTACT_TO_EMAIL:   string;
   CONTACT_FROM_EMAIL: string;
+  // Optional: Cloudflare Turnstile secret key. When set, every submission must
+  // carry a valid Turnstile token (set the matching PUBLIC site key in
+  // src/data/restaurant.ts). When unset, the check is skipped so the form keeps
+  // working before Turnstile is configured.
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 function escape(s: string): string {
@@ -31,12 +36,23 @@ function isFetchRequest(request: Request): boolean {
 }
 
 function redirectBack(request: Request, param: string): Response {
-  const referer = request.headers.get('referer') || '/';
-  const isEn    = referer.includes('/en/');
-  const base    = isEn ? '/en/contact/' : '/contact/';
+  // Return the visitor to the page they submitted from (the form lives on
+  // /about/ and /events/, plus their /en/ variants). We only ever use the
+  // referer's PATH and rebuild a relative Location, so this can't become an
+  // open redirect. /contact/ was folded into /about/ in 2026, so fall back
+  // there — never redirect to /contact/, which would just 301 again.
+  const referer = request.headers.get('referer');
+  const isEn    = (referer || '').includes('/en/');
+  let path = isEn ? '/en/about/' : '/about/';
+  if (referer) {
+    try {
+      const p = new URL(referer).pathname;
+      if (p && !p.startsWith('/contact')) path = p;
+    } catch { /* malformed referer — keep the /about/ fallback */ }
+  }
   return new Response(null, {
     status:  303,
-    headers: { Location: `${base}?${param}` },
+    headers: { Location: `${path}?${param}` },
   });
 }
 
@@ -72,6 +88,35 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     isFetch
       ? new Response(isEn ? msgEn : msgHe, { status })
       : redirectBack(request, 'error=1');
+
+  // Cloudflare Turnstile — enforced only when the secret is configured, so the
+  // form works before Turnstile is set up. Reject a missing/invalid token here,
+  // before we spend a Resend send on a bot submission.
+  if (env.TURNSTILE_SECRET_KEY) {
+    const token = String(form.get('cf-turnstile-response') || '');
+    let human = false;
+    if (token) {
+      try {
+        const verify = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            secret:   env.TURNSTILE_SECRET_KEY,
+            response: token,
+            remoteip: request.headers.get('CF-Connecting-IP') || '',
+          }),
+        });
+        const outcome = await verify.json() as { success?: boolean };
+        human = outcome.success === true;
+      } catch {
+        human = false;
+      }
+    }
+    if (!human) {
+      return err('אימות אנושי נכשל. רעננו את הדף ונסו שוב.',
+                 'Human verification failed. Please refresh and try again.', 403);
+    }
+  }
 
   if (!name || !phone || !email) {
     return err('שדות חובה חסרים', 'Required fields missing', 400);

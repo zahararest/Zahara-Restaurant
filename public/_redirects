@@ -12,3 +12,7 @@
 /en/menu/v2/  /en/menu/      301
 /menu/v3/     /menu/         301
 /en/menu/v3/  /en/menu/      301
+
+# security.txt — canonical location is /.well-known/ (RFC 9116). Redirect the
+# legacy root path so scanners that probe /security.txt still find it.
+/security.txt  /.well-known/security.txt  301

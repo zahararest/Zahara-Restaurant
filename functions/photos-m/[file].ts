@@ -40,7 +40,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ params, env, next, requ
             headers: {
               'Content-Type':  contentType,
               'ETag':          etag,
-              'Cache-Control': 'public, max-age=60, must-revalidate',
+              // Long + stale-while-revalidate so the Image Resizing layer keeps
+              // the hero's mobile (portrait) variant warm and never blocks on a
+              // cold ~5.6s re-derive from the slow R2 origin — the NO_LCP cause.
+              // Freshness rides the asset-version token bump + purge on upload
+              // (see functions/photos/[file].ts for the full rationale).
+              'Cache-Control': 'public, max-age=86400, stale-while-revalidate=2592000',
             },
           });
         }

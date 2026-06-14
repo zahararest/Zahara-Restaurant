@@ -3,7 +3,7 @@
 // but uses the same overlay treatment so a transparent header sits nicely
 // on top of it.
 
-import { resized, resizedSrcset }  from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset }  from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -18,20 +18,31 @@ export interface Props {
 
 const { lang, photo, eyebrow, heading, lede } = Astro.props;
 const INTRO_WIDTHS = [800, 1200, 1800, 2400] as const;
+// On phones .intro-photo is ~62vh (clamp 360–520px) → roughly 3:4. Request a
+// subject-aware portrait crop via /photos-m (the admin mobile upload, or a crop
+// of the desktop image when none is set) sized to that aspect.
+const INTRO_MOBILE_COVER = [[640, 850], [820, 1090], [1080, 1440]] as const;
 ---
 
 <section class="intro-photo" aria-label={eyebrow}>
   <div class="intro-photo__media" data-hero-parallax aria-hidden="true">
-    <img
-      class="intro-photo__img ken-burns"
-      src={resized(photo.src, 1800)}
-      srcset={resizedSrcset(photo.src, INTRO_WIDTHS)}
-      sizes="100vw"
-      alt={photo.alt[lang]}
-      loading="eager"
-      fetchpriority="high"
-      decoding="async"
-    />
+    <picture>
+      <source
+        media="(max-width: 600px)"
+        srcset={resizedMobileCoverSrcset(photo.src, INTRO_MOBILE_COVER)}
+        sizes="100vw"
+      />
+      <img
+        class="intro-photo__img ken-burns"
+        src={resized(photo.src, 1800)}
+        srcset={resizedSrcset(photo.src, INTRO_WIDTHS)}
+        sizes="100vw"
+        alt={photo.alt[lang]}
+        loading="eager"
+        fetchpriority="high"
+        decoding="async"
+      />
+    </picture>
   </div>
   <div class="intro-photo__overlay" aria-hidden="true"></div>
   <div class="intro-photo__inner">

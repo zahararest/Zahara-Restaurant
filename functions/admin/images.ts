@@ -1214,7 +1214,9 @@ function renderCard(
                  value="${esc(caption.en ?? '')}" placeholder="Caption (English)" />
           <p class="card__caption-status" data-caption-status></p>
         </div>` : ''}
-        ${p.mobile ? `
+        ${/* Mobile (portrait) slot on EVERY card. A card with no mobile upload
+              falls back to the desktop photo (functions/photos-m/[file].ts);
+              the on-page component decides whether to request the crop. */''}
         <div class="card__mobile" data-mobile-block>
           <p class="card__mobile-label">
             Mobile photo (portrait) <span class="card__mobile-badge ${hasMobile ? 'is-set' : ''}" data-mobile-badge>${hasMobile ? 'Set' : 'Using desktop'}</span>
@@ -1236,7 +1238,7 @@ function renderCard(
               <p class="card__mobile-status" data-mobile-status></p>
             </div>
           </div>
-        </div>` : ''}
+        </div>
       </div>
     </article>
   `;

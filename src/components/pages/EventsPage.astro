@@ -37,7 +37,9 @@ const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFul
     </div>
   </section>
 
-  <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} height="clamp(280px, 50vh, 480px)" />
+  {/* Band height (~50vh) → near-square mobile crop, not the full-screen tall default. */}
+  <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} height="clamp(280px, 50vh, 480px)"
+              mobileCrop={[[640, 680], [820, 870], [1080, 1150]]} />
 
   <section class="section-tight events-benefits-band">
     <div class="wrap">

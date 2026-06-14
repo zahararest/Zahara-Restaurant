@@ -18,6 +18,11 @@ const g = pick(globals, lang);
 const scrollLabel = g.scrollToNext;
 
 const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
+// The hero is the LCP image — shave its weight with a slightly lower AVIF
+// quality (78→70 ≈ 113KB→~80KB on mobile) for a faster mobile LCP. Kept in
+// sync with the preload in BaseLayout.astro, which MUST emit identical URLs
+// or the preloaded bytes are wasted and the image downloads twice.
+const HERO_QUALITY = 70;
 ---
 
 <section class="hero-bleed" aria-label="Zahara">
@@ -27,13 +32,13 @@ const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
           isn't scaled up + cropped into a "zoomed-in" sliver. */}
       <source
         media="(max-width: 600px)"
-        srcset={resizedMobileCoverSrcset(photo.src, [[640, 1180], [820, 1500], [1080, 1980]])}
+        srcset={resizedMobileCoverSrcset(photo.src, [[640, 1180], [820, 1500], [1080, 1980]], HERO_QUALITY)}
         sizes="100vw"
       />
       <img
         class="hero-bleed__img ken-burns"
-        src={resized(photo.src, 1800)}
-        srcset={resizedSrcset(photo.src, HERO_WIDTHS)}
+        src={resized(photo.src, 1800, HERO_QUALITY)}
+        srcset={resizedSrcset(photo.src, HERO_WIDTHS, HERO_QUALITY)}
         sizes="100vw"
         alt={photo.alt[lang]}
         loading="eager"

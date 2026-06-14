@@ -62,10 +62,10 @@ export function resized(src: string, width: number, quality = 78): string {
  *  the device's pixel density and viewport.
  *  When the resize layer is disabled, returns `undefined` so Astro omits
  *  the `srcset` attribute entirely and the browser falls back to `src`. */
-export function resizedSrcset(src: string, widths: readonly number[]): string | undefined {
+export function resizedSrcset(src: string, widths: readonly number[], quality = 78): string | undefined {
   if (!RESIZE_ENABLED) return undefined;
   return widths
-    .map((w) => `${resized(src, w)} ${w}w`)
+    .map((w) => `${resized(src, w, quality)} ${w}w`)
     .join(', ');
 }
 
@@ -106,7 +106,8 @@ export function resizedMobileCover(src: string, width: number, height: number, q
 export function resizedMobileCoverSrcset(
   src: string,
   sizes: readonly (readonly [number, number])[],
+  quality = 78,
 ): string | undefined {
   if (!RESIZE_ENABLED) return undefined;
-  return sizes.map(([w, h]) => `${resizedMobileCover(src, w, h)} ${w}w`).join(', ');
+  return sizes.map(([w, h]) => `${resizedMobileCover(src, w, h, quality)} ${w}w`).join(', ');
 }
