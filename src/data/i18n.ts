@@ -77,12 +77,12 @@ export const menuEmbed = {
 
 export const layout = {
   defaultDescription: {
-    he: "מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות: מטבח ים-תיכוני עכשווי עם טכניקה צרפתית והשפעות אסייתיות, מנות לשיתוף וערב כשר בלתי נשכח. הזמינו שולחן.",
-    en: "Zahara — a kosher chef's restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica's younger sister, led by chef Roi Achdut: contemporary Mediterranean cooking with French technique and Asian influences, plates made for sharing. Book a table.",
+    he: "מסעדת זהרה - Zahara מסעדת שף כשרה בלב ירושלים, בתוך מלון נוצ׳ה ברחוב בן סירא 16, דקות הליכה מכיכר ציון, מדרחוב בן יהודה וממילא. אחותה הצעירה של אנג׳ליקה, שבה השף רועי אחדות מבשל מטבח ים-תיכוני עכשווי עם טכניקה צרפתית ונגיעות אסייתיות — מנות שנועדו לחלוק.",
+    en: "Zahara — a kosher chef's restaurant in the heart of Jerusalem, in Nucha Hotel on Ben Sira 16 Street, steps from Zion Square, the Ben Yehuda mall and Mamilla. Angelica's younger sister, where chef Roi Achdut cooks contemporary Mediterranean with French technique and Asian accents — plates made for sharing.",
   },
   keywords: {
-    he: "מסעדת זהרה, זהרה ירושלים, אנג׳ליקה, מסעדת אנג׳ליקה, אנג׳ליקה ירושלים, מסעדה כשרה ירושלים, מסעדת שף כשרה, מסעדת שף ירושלים, מטבח ים-תיכוני כשר, שף רועי אחדות, מלון נוצ׳ה, בן סירא ירושלים, מסעדה כשרה מרכז העיר, ארוחת ערב כשרה ירושלים, מסעדה רומנטית ירושלים, מנות לשיתוף, כיכר ציון, מסעדות מומלצות בירושלים",
-    en: "Zahara restaurant Jerusalem, Zahara Jerusalem, Angelica, Angelica restaurant Jerusalem, kosher restaurant Jerusalem, kosher chef restaurant, chef restaurant Jerusalem, kosher Mediterranean, Chef Roi Achdut, Nucha Hotel, Ben Sira Street, kosher fine dining Jerusalem, romantic restaurant Jerusalem, sharing plates, Zion Square dining, best restaurants Jerusalem",
+    he: "מסעדת זהרה, זהרה ירושלים, מסעדת אנג׳ליקה, אנג׳ליקה ירושלים, מסעדה כשרה ירושלים, מסעדת שף כשרה, מטבח ים-תיכוני כשר, שף רועי אחדות, מלון נוצ׳ה, רחוב בן סירא 16, כיכר ציון, מדרחוב בן יהודה, ממילא, מסעדה כשרה מרכז העיר, מסעדות מומלצות בירושלים, Zahara",
+    en: "Zahara restaurant Jerusalem, Zahara Jerusalem, Angelica restaurant Jerusalem, kosher restaurant Jerusalem, kosher chef restaurant, kosher Mediterranean, Chef Roi Achdut, Nucha Hotel, Ben Sira 16 Street, Zion Square, Ben Yehuda, Mamilla, kosher fine dining Jerusalem, best restaurants Jerusalem",
   },
   skipToContent: { he: 'דלג לתוכן', en: 'Skip to content' },
 };
