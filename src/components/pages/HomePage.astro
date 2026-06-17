@@ -445,12 +445,27 @@ const emptyLabel = t.emptyLabel;
         ))}
       </ol>
 
-      <div class="menu-split__cta reveal-on-scroll">
+      <!-- <div class="menu-split__cta reveal-on-scroll">
         <a class="btn menu-split__btn" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
-      </div>
+      </div> -->
     </div>
   </section>
-
+<div data-section-name={sec.events}>
+    <PhotoBlock
+      lang={lang}
+      photo={PHOTOS.detail2}
+      eyebrow={t.eventsEyebrow}
+      heading={t.eventsHeading}
+      paragraphs={[t.eventsP1, t.eventsP2]}
+      cta={{ label: t.eventsCta, href: path('events', lang), key: 'home.eventsCta' }}
+      cta2={{ label: t.eventsContactCta, href: `${path('about', lang)}#contact`, key: 'home.eventsContactCta' }}
+      eyebrowKey="home.eventsEyebrow"
+      headingKey="home.eventsHeading"
+      paragraphKeys={['home.eventsP1', 'home.eventsP2']}
+      reverse
+    />
+   </div> 
+   
   <div data-section-name={sec.gallery}>
     <Gallery
       lang={lang}
@@ -465,21 +480,7 @@ const emptyLabel = t.emptyLabel;
     />
   </div>
 
-   <div data-section-name={sec.events}>
-    <PhotoBlock
-      lang={lang}
-      photo={PHOTOS.detail2}
-      eyebrow={t.eventsEyebrow}
-      heading={t.eventsHeading}
-      paragraphs={[t.eventsP1, t.eventsP2]}
-      cta={{ label: t.eventsCta, href: path('events', lang), key: 'home.eventsCta' }}
-      cta2={{ label: t.eventsContactCta, href: `${path('about', lang)}#contact`, key: 'home.eventsContactCta' }}
-      eyebrowKey="home.eventsEyebrow"
-      headingKey="home.eventsHeading"
-      paragraphKeys={['home.eventsP1', 'home.eventsP2']}
-      reverse
-    />
-   </div>
+   
    
   <div data-section-name={sec.instagram}>
     <InstagramFeed lang={lang} />
