@@ -469,6 +469,23 @@ const schema = {
         var data;
         try { data = JSON.parse(tag.textContent || '{}'); } catch (e) { return; }
         var lang = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'he';
+
+        // Safe inline formatter for owner-edited copy. Escapes EVERYTHING first,
+        // then re-allows only: **bold**, *italic*, line breaks, and a tiny tag
+        // whitelist (so older raw <strong>/<em>/<br> overrides keep working).
+        // Nothing else can reach innerHTML, so this stays XSS-safe on admin
+        // input. Keep in sync with the editor hint in functions/admin/content.ts.
+        function formatRich(s) {
+          var h = String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          h = h.replace(/&lt;(\/?)(br|strong|em|b|i)\s*\/?&gt;/gi, function (_m, sl, tg) {
+            return '<' + sl + tg.toLowerCase() + '>';
+          });
+          h = h.replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
+          h = h.replace(/(^|[^*])\*(\S(?:[^*\n]*\S)?)\*(?!\*)/g, '$1<em>$2</em>');
+          return h.replace(/\r?\n/g, '<br>');
+        }
+
         var nodes = document.querySelectorAll('[data-content-key]');
         for (var i = 0; i < nodes.length; i++) {
           var node = nodes[i];
@@ -476,10 +493,11 @@ const schema = {
           if (!entry) continue;
           var v = entry[lang];
           // A present override is applied even when empty — an explicit ''
-          // means the owner cleared the field to HIDE this text.
+          // means the owner cleared the field to HIDE this text. Every field
+          // now renders through the safe formatter (bold / italic / line breaks
+          // work anywhere), so data-content-html is no longer needed here.
           if (typeof v !== 'string') continue;
-          if (node.hasAttribute('data-content-html')) node.innerHTML = v;
-          else node.textContent = v;
+          node.innerHTML = formatRich(v);
         }
       })();
     </script>

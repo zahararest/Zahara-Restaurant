@@ -35,7 +35,7 @@ export const header = {
   themeDark:   { he: 'כהה',            en: 'Dark'         },
   burgerAria:  { he: 'תפריט ניווט',   en: 'Navigation menu' },
   navAria:     { he: 'ניווט ראשי',     en: 'Primary'          },
-  brandAria:   { he: 'זהרה — עמוד הבית', en: 'Zahara — Home' },
+  brandAria:   { he: 'מסעדת זהרה', en: "Zahara's Restaurant" },
   langToggleAria: { he: 'English',      en: 'עברית'           },
   instagramAria: { he: 'אינסטגרם',      en: 'Instagram'       },
   facebookAria:  { he: 'פייסבוק',       en: 'Facebook'        },
@@ -150,7 +150,7 @@ export const home = {
   infoHoursLabel:   { he: 'שעות',              en: 'Hours'        },
   infoHoursValue:   { he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
   infoAddressLabel: { he: 'כתובת',             en: 'Address'      },
-  infoAddressValue: { he: 'בן סירא, ירושלים', en: 'Ben Sira St, Jerusalem' },
+  infoAddressValue: { he: '16 בן סירא, ירושלים', en: 'Ben Sira St, Jerusalem' },
   infoReservLabel:  { he: 'להזמנות',           en: 'Reservations' },
   infoTabit:        { he: 'הזמנה בטאביט ↗',     en: 'Book on Tabit ↗' },
   infoChefLabel:    { he: 'השף',               en: 'Chef'         },
@@ -179,6 +179,10 @@ export const home = {
 
   // [HTML] contains <em>
   storyP3: {
+    he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
+    en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.',
+  },
+  storyP4: {
     he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
     en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.',
   },

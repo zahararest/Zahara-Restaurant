@@ -72,6 +72,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'home.storyP3', label: 'Paragraph 3', html: true, multiline: true,
       he: 'במקום הסדר השמרני של מנה ראשונה–עיקרית–קינוח, זהרה משחקת על הקונספט של <em>sharing is caring</em>. שולחן עליז, מנות עוברות, קצב דינמי, ובמרכז המסעדה — מטבח פתוח שכל סועד יכול לראות, ולהרגיש את החיבור בין הצלחת לאנשים שמכינים אותה.',
       en: 'Instead of the conventional starter–main–dessert order, Zahara plays on a <em>sharing is caring</em> concept. A joyful table, dishes moving between guests, dynamic rhythm — and at the heart of the room, an open kitchen visible to every diner, connecting the food to the people making it.' },
+      
     { key: 'home.storyMoreEyebrow', label: 'Story box 2 — eyebrow', he: 'הגישה', en: 'Our approach' },
     { key: 'home.storyMoreTitle',   label: 'Story box 2 — title',  he: 'Sharing is caring', en: 'Sharing is caring' },
     { key: 'home.storyReadMore',    label: 'Story box 2 — "read more" label', he: 'קראו עוד', en: 'Read more' },
@@ -110,7 +111,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'info.hoursLabel',   label: 'Hours — label',  he: 'שעות',                en: 'Hours' },
     { key: 'info.hoursValue',   label: 'Hours — value',  he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
     { key: 'info.addressLabel', label: 'Address — label', he: 'כתובת',              en: 'Address' },
-    { key: 'info.addressValue', label: 'Address — value', he: 'בן סירא, ירושלים',   en: 'Ben Sira St, Jerusalem' },
+    { key: 'info.addressValue', label: 'Address — value', he: '16 בן סירא, ירושלים',   en: 'Ben Sira 16 St, Jerusalem' },
     { key: 'info.reservLabel',  label: 'Reservations — label',  he: 'להזמנות',       en: 'Reservations' },
     { key: 'info.reservValue',  label: 'Reservations — phone',  he: '077-303-4180',  en: '+972 77 303 4180' },
     { key: 'info.reservTabit',  label: 'Reservations — Tabit link text', he: 'הזמנה בטאביט ↗', en: 'Book on Tabit ↗' },

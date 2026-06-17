@@ -62,7 +62,9 @@ const STYLE = `
   .col input, .col textarea { font: inherit; font-size: 0.86rem; width: 100%;
     padding: 0.5rem 0.6rem; border: 1px solid #d8ccae; background: #fff; color: #1a1410; border-radius: 0; }
   .col input:focus, .col textarea:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
-  .col textarea { min-height: 4.5rem; resize: vertical; line-height: 1.5; }
+  .col textarea { min-height: 2.4rem; resize: vertical; line-height: 1.5; }
+  .col textarea.is-multi { min-height: 4.5rem; }
+  .fmt-hint code { background: #f3eddc; border: 1px solid #e3d7b8; padding: 0.05rem 0.35rem; font-size: 0.8em; }
   .col [dir="rtl"] { direction: rtl; }
   .savebar { position: fixed; inset-block-end: 0; inset-inline: 0; z-index: 20;
     background: rgba(250,247,238,0.97); border-top: 1px solid #d8ccae;
@@ -122,17 +124,18 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
   // so the editor always shows the CURRENT live text rather than a blank box.
   const he  = esc(value?.he ?? f.he ?? '');
   const en  = esc(value?.en ?? f.en ?? '');
-  const tag = f.html ? '<span class="field__tag">HTML</span>' : '';
   // Placeholder = the built-in default, so a cleared (hidden) field still
   // shows what the default was — retype it to restore, leave blank to hide.
   const phHe = esc(f.he ?? '');
   const phEn = esc(f.en ?? '');
-  const input = (lang: 'he' | 'en', val: string, dir: string, ph: string) => f.multiline
-    ? `<textarea data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" placeholder="${ph}">${val}</textarea>`
-    : `<input type="text" data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" value="${val}" placeholder="${ph}" />`;
+  // Every field is a textarea so line breaks (and **bold** / *italic*) work
+  // anywhere; longer fields get extra height via the is-multi class.
+  const cls = f.multiline ? ' is-multi' : '';
+  const input = (lang: 'he' | 'en', val: string, dir: string, ph: string) =>
+    `<textarea class="field__input${cls}" data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" rows="${f.multiline ? 4 : 1}" placeholder="${ph}">${val}</textarea>`;
   return `
     <div class="field">
-      <div class="field__label">${esc(f.label)} ${tag}</div>
+      <div class="field__label">${esc(f.label)}</div>
       <div class="pair">
         <div class="col"><span class="col__lang">Hebrew</span>${input('he', he, 'rtl', phHe)}</div>
         <div class="col"><span class="col__lang">English</span>${input('en', en, 'ltr', phEn)}</div>
@@ -179,11 +182,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     <h1 class="top__title">Site text</h1>
   </header>
   <main>
-    <p class="lead">
+    <p class="lead fmt-hint">
       Edit any field and press <strong>Save changes</strong>. Clear a field to
-      hide that text on the site. <strong>HTML</strong> fields accept
-      <code>&lt;br&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;strong&gt;</code>.
-      Photo captions live in the <a href="/admin/images/">Images</a> tab.
+      hide that text on the site. Formatting works in <strong>every</strong> field:
+      type <code>**bold**</code> for bold, <code>*italic*</code> for italic, and
+      press <strong>Enter</strong> for a line break. Photo captions live in the
+      <a href="/admin/images/">Images</a> tab.
     </p>
     ${groupsHtml}
   </main>

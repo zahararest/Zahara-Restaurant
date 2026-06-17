@@ -118,15 +118,32 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
       peekTimer = setTimeout(hidePreview, ms);
     }
 
-    // ── Hover — only on pointer devices (suppress on touch) ────────────────
-    if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      _cell.addEventListener('mouseenter', showPreview);
-      _cell.addEventListener('mouseleave', hidePreview);
+    // ── Click → open lightbox (ALL devices) ──────────────────────────────────
+    _cell.querySelectorAll('[data-kosher-open]').forEach((btn) => {
+      btn.addEventListener('click', () => dialog.showModal());
+    });
+    dialog.querySelectorAll('[data-kosher-close]').forEach((btn) => {
+      btn.addEventListener('click', () => dialog.close());
+    });
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+
+    // ── Floating preview: POINTER (mouse) DEVICES ONLY ─────────────────────
+    // On touch, a position:fixed preview that JS-repositions to track the
+    // anchor on every scroll frame chases the compositor-driven scroll a frame
+    // behind — it lags, jitters and "jumps" past this section. Touch users get
+    // the full certificate by tapping (the lightbox above), so the preview adds
+    // nothing on phones. Restrict the hover/auto-peek/scroll-tracking to mouse
+    // devices and drop the node entirely on touch so there's nothing to chase.
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      _preview.remove();
+      return;
     }
-    // Keep the preview pinned beneath the "View certificate" link as the
-    // page scrolls. rAF-throttled so the getBoundingClientRect read happens
-    // at most once per frame instead of synchronously on every scroll event
-    // (which forced a reflow per event and stuttered near this section).
+
+    _cell.addEventListener('mouseenter', showPreview);
+    _cell.addEventListener('mouseleave', hidePreview);
+
+    // Keep the preview pinned beneath the link as the page scrolls. rAF-throttled
+    // so the getBoundingClientRect read happens at most once per frame.
     let rafPending = false;
     window.addEventListener('scroll', () => {
       if (rafPending || !_preview.classList.contains('is-visible')) return;
@@ -136,17 +153,6 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
         if (_preview.classList.contains('is-visible')) positionPreview();
       });
     }, { passive: true });
-
-    // ── Click → open lightbox ───────────────────────────────────────────────
-    _cell.querySelectorAll('[data-kosher-open]').forEach((btn) => {
-      btn.addEventListener('click', () => dialog.showModal());
-    });
-
-    // ── Close lightbox ──────────────────────────────────────────────────────
-    dialog.querySelectorAll('[data-kosher-close]').forEach((btn) => {
-      btn.addEventListener('click', () => dialog.close());
-    });
-    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 
     // ── Auto-peek once, while the kosher cell is fully on screen ───────────
     // Firing here (rather than after the strip scrolls away) means the

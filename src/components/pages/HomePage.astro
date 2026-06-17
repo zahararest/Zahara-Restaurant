@@ -220,8 +220,8 @@ const emptyLabel = t.emptyLabel;
             default and collapses to just its title until opened. Both reveal
             with a crossfade, NOT a height-expand, so the page never shifts. */}
         <div class="story-diptych">
-          <div class="story-box story-box--toggle is-open reveal-on-scroll" data-story-box>
-            <button class="story-box__head" type="button" aria-expanded="true" aria-controls="story-approach">
+          <div class="story-box story-box--toggle reveal-on-scroll" data-story-box>
+            <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-approach">
               <span class="story-box__heading">
                 <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{t.storyEyebrow}</span>
                 <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={t.storyHeading} />
@@ -238,8 +238,8 @@ const emptyLabel = t.emptyLabel;
             </div>
           </div>
 
-          <div class="story-box story-box--toggle reveal-on-scroll" data-story-box>
-            <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-more">
+          <div class="story-box story-box--toggle  is-open reveal-on-scroll"  data-story-box>
+            <button class="story-box__head" type="button" aria-expanded="true" aria-controls="story-more">
               <span class="story-box__heading">
                 <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyMoreEyebrow">{t.storyMoreEyebrow}</span>
                 <span class="display story-box__title" data-content-key="home.storyMoreTitle">{t.storyMoreTitle}</span>
@@ -258,7 +258,7 @@ const emptyLabel = t.emptyLabel;
         </div>
       </div>
     </div>
-    <BleedPhoto lang={lang} photo={PHOTOS.kitchen} caption={kitchenCaption} />
+    <BleedPhoto lang={lang} photo={PHOTOS.kitchen}  />
   </div>
 
   <!-- <div data-section-name={sec.kitchen}>
@@ -414,7 +414,7 @@ const emptyLabel = t.emptyLabel;
           { label: t.menuSplitFood,      tab: 'food',      photo: PHOTOS.menuFood      },
           { label: t.menuSplitWine,      tab: 'wine',      photo: PHOTOS.menuWine      },
           { label: t.menuSplitCocktails, tab: 'cocktails', photo: PHOTOS.menuCocktails },
-          { label: t.menuSplitDessert,   tab: 'dessert',   photo: PHOTOS.menuDessert   },
+          // { label: t.menuSplitDessert,   tab: 'dessert',   photo: PHOTOS.menuDessert   },
         ].map((part, i) => (
           <li class="menu-tiles__item">
             <a class="menu-tile" href={`${menuPath}#tab-${part.tab}`}>
