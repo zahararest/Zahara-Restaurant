@@ -18,9 +18,9 @@ export const RESTAURANT = {
   email: 'info@zahara.rest',
 
   address: {
-    he:             '16 בן סירא, ירושלים',
-    en:            'Ben Sira St, Jerusalem',
-    maps:          'Nucha Hotel, Ben Sira Street, Jerusalem',
+    he:             'ירושלים, בן סירא 16',
+    en:            'Ben Sira 16 St, Jerusalem',
+    maps:          'Nucha Hotel, Ben Sira 16 Street, Jerusalem',
     streetAddress: 'Ben Sira Street',
     city:          'Jerusalem',
     country:       'IL',

@@ -3464,34 +3464,72 @@ var onRequestGet4 = /* @__PURE__ */ __name(async ({ env }) => {
 }, "onRequestGet");
 
 // api/instagram.ts
-var onRequestGet5 = /* @__PURE__ */ __name(async ({ env }) => {
+export const onRequestGet = async ({ env }) => {
   const token = env.INSTAGRAM_ACCESS_TOKEN;
-  if (!token) {
-    return jsonResponse({ posts: [], configured: false }, 3600);
+  const userId = env.INSTAGRAM_USER_ID;
+
+  if (!token || !userId) {
+    return Response.json({ profile: null, stories: [], posts: [], configured: false }, { status: 500 });
   }
+
   try {
-    const fields = "id,media_type,media_url,thumbnail_url,permalink,caption,timestamp";
-    const url = `https://graph.instagram.com/me/media?fields=${fields}&limit=12&access_token=${token}`;
+    // 1. The Magic Field Expansion String
+    // We ask for profile fields, then nest the specific fields we want from stories and media.
+    // Notice how we can even apply the .limit(12) directly inside the nested media query!
+    const fields = [
+      "profile_picture_url",
+      "username",
+      "stories{id,media_type,media_url,thumbnail_url,permalink,timestamp}",
+      "media.limit(12){id,media_type,media_product_type,media_url,thumbnail_url,permalink,caption,timestamp}"
+    ].join(",");
+
+    const url = `https://graph.instagram.com/v25.0/${userId}?fields=${fields}&access_token=${token}`;
+
+    // 2. The Single Fetch
     const res = await fetch(url, { cf: { cacheTtl: 300 } });
-    if (!res.ok) {
-      const body = await res.text();
-      console.error("Instagram Graph API error:", res.status, body);
-      return jsonResponse({ posts: [], configured: true, error: "api_error" }, 60);
+if (!res.ok) {
+        // This is the magic line we need to read!
+        const errorBody = await res.text(); 
+        
+        console.error('\n🚨 META API REJECTION DETAILS 🚨');
+        console.error('Status:', res.status);
+        console.error('Reason:', errorBody);
+        console.error('----------------------------------\n');
+        
+        return emptyFallback();
     }
     const data = await res.json();
+
     if (data.error) {
-      console.error("Instagram API returned error:", data.error.message);
-      return jsonResponse({ posts: [], configured: true, error: data.error.message }, 60);
+      console.error("Meta API returned error:", data.error.message);
+      return Response.json({ profile: null, stories: [], posts: [], configured: true, error: "meta_internal_error" });
     }
-    const posts = (data.data ?? []).filter(
+
+    // 3. Destructure and Safely Parse the Unified Response
+    const profile = {
+      username: data.username,
+      avatarUrl: data.profile_picture_url
+    };
+
+    // Graph API nests expanded edges inside a 'data' array.
+    // If there are no stories, data.stories will be undefined, so we default to []
+    const stories = data.stories?.data ?? [];
+    
+    // Grab the media, default to empty array, and apply your safety filter
+    const posts = (data.media?.data ?? []).filter(
       (p) => p.media_type === "IMAGE" || p.media_type === "CAROUSEL_ALBUM" || p.media_type === "VIDEO"
     );
-    return jsonResponse({ posts, configured: true }, 300);
+
+    // 4. Return your perfect JSON payload
+    return Response.json({ profile, stories, posts, configured: true }, { 
+      headers: { "Cache-Control": "public, max-age=300" } 
+    });
+
   } catch (err) {
     console.error("Instagram fetch failed:", err);
-    return jsonResponse({ posts: [], configured: true, error: "fetch_failed" }, 60);
+    return Response.json({ profile: null, stories: [], posts: [], configured: true, error: "fetch_failed" });
   }
-}, "onRequestGet");
+};
 function jsonResponse(body, maxAge) {
   return new Response(JSON.stringify(body), {
     headers: {

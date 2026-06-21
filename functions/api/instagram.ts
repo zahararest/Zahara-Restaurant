@@ -4,27 +4,16 @@
 //   • `reels` — recent reels, revealed under a button on the box.
 //
 // Requires Cloudflare Pages secret:
-//   INSTAGRAM_ACCESS_TOKEN — a long-lived token from the Instagram Graph API
-//   for a Business/Creator account. Reading stories needs the
-//   `instagram_basic` + `instagram_manage_insights` permissions; without them
-//   the stories call 4xxs and we transparently fall back to the latest post.
-//
-// To obtain a token:
-//   1. developers.facebook.com → Create App → Business
-//   2. Add the Instagram product, connect the restaurant's Business/Creator IG
-//   3. Generate a long-lived token (valid 60 days, renewable)
-//   4. wrangler pages secret put INSTAGRAM_ACCESS_TOKEN
+//   INSTAGRAM_ACCESS_TOKEN — a long-lived EAA... token from the Meta Graph API
 //
 // Response shape:
-//   { stories: [...], item, kind: 'story'|'reel'|'post'|null, reels: [...], configured }
-//   `stories` holds EVERY live frame (the box lets the visitor switch between
-//   them); `item` is the latest post/reel used only when no story is live.
-//   When not configured: everything empty/null + configured:false.
+//   { profile, stories: [...], item, kind: 'story'|'reel'|'post'|null, reels: [...], configured }
 
 import type { PagesFunction } from '@cloudflare/workers-types';
 
 interface Env {
   INSTAGRAM_ACCESS_TOKEN?: string;
+  INSTAGRAM_USER_ID?: string;
 }
 
 type MediaType = 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
@@ -40,67 +29,97 @@ interface InstagramMedia {
   timestamp:           string;
 }
 
-interface GraphResponse {
-  data?:  InstagramMedia[];
-  error?: { message: string };
+interface GraphExpandedResponse {
+  username?:            string;
+  profile_picture_url?: string;
+  stories?:             { data: InstagramMedia[] };
+  media?:               { data: InstagramMedia[] };
+  error?:               { message: string };
 }
 
-const FIELDS = 'id,media_type,media_product_type,media_url,thumbnail_url,permalink,caption,timestamp';
-const BASE   = 'https://graph.instagram.com';
+const BASE = 'https://graph.instagram.com/v25.0';
 const MAX_REELS = 9;
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   const token = env.INSTAGRAM_ACCESS_TOKEN;
+  // Hardcoded as requested
+  const userId = env.INSTAGRAM_USER_ID;
+
   if (!token) {
-    return jsonResponse({ stories: [], item: null, kind: null, reels: [], configured: false }, 3600);
+    return emptyFallback(false);
   }
 
   try {
-    // Live stories (needs manage_insights perms) and the recent-media list run
-    // in parallel; the media list feeds both the post fallback and the reels.
-    const [storyList, media] = await Promise.all([
-      listFrom(`${BASE}/me/stories?fields=${FIELDS}&access_token=${token}`),
-      listFrom(`${BASE}/me/media?fields=${FIELDS}&limit=25&access_token=${token}`),
-    ]);
+    // Your exact query structure
+    const query = 'profile_picture_url,username,stories.limit(25){id,media_type,media_url,thumbnail_url,permalink,timestamp},media.limit(30){id,media_type,media_product_type,media_url,thumbnail_url,permalink,caption,timestamp}';
 
-    const stories = storyList.filter((m) => m.thumbnail_url || m.media_url).map(shape);
+    // We encode the query so the {} brackets pass safely through all HTTP protocols
+    const url = `${BASE}/${userId}?fields=${encodeURIComponent(query)}&access_token=${token}`;
+    
+    const res = await fetch(url, { cf: { cacheTtl: 60 } } as RequestInit);
+    
+    if (!res.ok) {
+        const errorBody = await res.text(); 
+        console.error('\n🚨 META API REJECTION DETAILS 🚨');
+        console.error('URL Attempted:', url);
+        console.error('Status:', res.status);
+        console.error('Reason:', errorBody);
+        console.error('----------------------------------\n');
+        return emptyFallback(true, 'api_error');
+    }
 
-    const reels = media
+    const data = await res.json() as GraphExpandedResponse;
+
+    if (data.error) {
+      console.error('Meta API returned error:', data.error.message);
+      return emptyFallback(true, 'meta_internal_error');
+    }
+
+    // Safely extract the nested arrays (Meta omits the edge completely if empty)
+    const rawStories = data.stories?.data || [];
+    const rawMedia = data.media?.data || [];
+
+    // Structure the profile data for the Zahara logo
+    const profile = data.profile_picture_url ? {
+      username: data.username || '',
+      avatarUrl: data.profile_picture_url
+    } : null;
+
+    // Process Stories
+    const stories = rawStories.filter((m) => m.thumbnail_url || m.media_url).map(shape);
+
+    // Process Reels
+    const reels = rawMedia
       .filter((m) => m.media_product_type === 'REELS' && (m.thumbnail_url || m.media_url))
       .slice(0, MAX_REELS)
       .map(shape);
 
+    // Determine the primary item to show (Story fallback logic)
     let item = null;
     let kind: 'story' | 'reel' | 'post' | null = null;
+    
     if (stories.length) {
       kind = 'story';
     } else {
-      const latest = media.find((m) => m.thumbnail_url || m.media_url);
+      const latest = rawMedia.find((m) => m.thumbnail_url || m.media_url);
       if (latest) {
         item = shape(latest);
         kind = latest.media_product_type === 'REELS' ? 'reel' : 'post';
       }
     }
 
-    return jsonResponse({ stories, item, kind, reels, configured: true }, 120);
+    return jsonResponse({ profile, stories, item, kind, reels, configured: true }, 120);
   } catch (err) {
-    console.error('Instagram fetch failed:', err);
-    return jsonResponse({ stories: [], item: null, kind: null, reels: [], configured: true, error: 'fetch_failed' }, 60);
+    console.error('Instagram fetch failed natively:', err);
+    return emptyFallback(true, 'fetch_failed');
   }
 };
 
-/** Fetch a Graph list endpoint, returning its raw items (or [] on any error —
- *  e.g. stories not permitted — so callers can fall back). */
-async function listFrom(url: string): Promise<InstagramMedia[]> {
-  try {
-    const res = await fetch(url, { cf: { cacheTtl: 60 } } as RequestInit);
-    if (!res.ok) return [];
-    const data: GraphResponse = await res.json();
-    if (data.error || !Array.isArray(data.data)) return [];
-    return data.data;
-  } catch {
-    return [];
-  }
+/** Helper to return a safe empty state on failure */
+function emptyFallback(configured: boolean = true, error: string | null = null) {
+    const body: any = { profile: null, stories: [], item: null, kind: null, reels: [], configured };
+    if (error) body.error = error;
+    return jsonResponse(body, 60);
 }
 
 /** Trim a Graph media object to just the fields the client renders. */

@@ -43,7 +43,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     </div>
 
     {/* Reels strip — hidden until the button under the box is pressed. */}
-    <div class="ig-reels" id="ig-reels" data-ig-reels hidden>
+    <div class="ig-reels" id="ig-reels" data-ig-reels is-open>
       <div class="ig-reels__scroll" data-ig-reels-scroll role="list" aria-label={t.igAriaStrip}></div>
     </div>
 
@@ -149,6 +149,9 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
 
       // Story-style progress bars across the very top — one segment per frame,
       // each with an inner fill the timer animates, like the real app.
+      const avatarHtml = (profile && profile.avatarUrl)
+        ? '<img src="' + escAttr(profile.avatarUrl) + '" alt="" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" />'
+        : escHtml(initial);
       const segs = isStory
         ? '<span class="ig-box__segs" aria-hidden="true">' +
             frames.map(() => '<span class="ig-box__seg"><i class="ig-box__seg-fill"></i></span>').join('') +
@@ -164,7 +167,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         : '';
       // Big play glyph only for reels (posts are stills; stories show chrome).
       const play = kind === 'reel'
-        ? '<span class="ig-box__play" aria-hidden="true"></span>'
+        ? '<span class="ig-box__play" aria-hidden="false"></span>'
         : '';
       // Full-height prev/next tap-zones — left third steps back, right steps
       // forward, exactly like tapping a story. Shown for any multi-frame story.
@@ -273,16 +276,17 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
           '<img class="ig-reel__img" src="' + escAttr(r.image) + '" alt=""' +
           ' loading="lazy" decoding="async" referrerpolicy="no-referrer"' +
           ' onerror="this.closest(\'.ig-reel\').remove()" />' +
-          '<span class="ig-reel__play" aria-hidden="true"></span>' +
+          '<span class="ig-reel__play" aria-hidden="false"></span>' +
         '</a>'
       ).join('');
 
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'ig-reels-toggle';
-      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-controls', 'ig-reels');
-      toggle.textContent = t.igShowReels;
+      toggle.textContent = t.igHideReels;
+      requestAnimationFrame(() => reelsWrap.classList.add('is-open'));
       feature.appendChild(toggle);
 
       toggle.addEventListener('click', () => {
@@ -290,7 +294,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         if (open) {
           reelsWrap.removeAttribute('hidden');
           // next frame so the unhidden element can transition in
-          requestAnimationFrame(() => reelsWrap.classList.add('is-open'));
+          // requestAnimationFrame(() => reelsWrap.classList.add('is-open'));
           toggle.setAttribute('aria-expanded', 'true');
           toggle.textContent = t.igHideReels;
         } else {
@@ -312,6 +316,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         .then((res) => { if (!res.ok) throw new Error('no feed'); return res.json(); })
         .then((data) => {
           if (!data) { renderFallback(); return; }
+          const profile = data.profile;
           const stories = Array.isArray(data.stories) ? data.stories.filter((s) => s && s.image) : [];
           if (stories.length) {
             renderBox(stories, 'story');
@@ -340,7 +345,14 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   })();
 </script>
 
-<style>
+<!-- is:global is REQUIRED here: the featured box, story chrome and reels are
+     built at runtime via innerHTML (see the script above), so those elements
+     never receive Astro's scoped data-astro-cid attribute. A normal scoped
+     <style> would compile to `.ig-box[data-astro-cid-…]` and silently fail to
+     match the JS-injected DOM — leaving the box a huge, unstyled image. Every
+     selector below is .ig-* prefixed (or under .ig-section), so going global
+     is safe. -->
+<style is:global>
   /* Quiet "follow us" moment near the foot of the page — a single small box,
      not a full editorial section. */
   section.ig-section {
@@ -366,7 +378,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     position: relative;
     display: block;
     width: auto;
-    max-width: clamp(150px, 40vw, 178px);
+    max-width: clamp(200px, 55vw, 225px);
     margin-inline: auto;
     aspect-ratio: 4 / 5;
     overflow: hidden;
@@ -378,11 +390,18 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   /* The story card keeps Instagram's rounded phone shape — an intentional
      break from the site's 2px rule, because here we *are* embedding the app. */
   .ig-box--story {
-    max-width: clamp(158px, 44vw, 188px);
+   width: 100%;
+    max-width: clamp(260px, 30vw, 340px); 
     aspect-ratio: 9 / 16;
-    max-height: min(58vh, 360px);
-    border-radius: 14px;
-    box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow) 18%, transparent);
+    
+    /* 2. Raised the ceiling so the width is actually allowed to grow */
+    max-height: min(85vh, 600px); 
+    
+    /* 3. Aesthetic tweaks: slightly softer corners and better depth */
+    border-radius: 16px; 
+    box-shadow: 
+      0 12px 32px -8px rgba(0, 0, 0, 0.6), /* Deeper, softer drop shadow */
+      0 0 0 1px rgba(255, 255, 255, 0.08);
   }
   .ig-box--media:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .ig-box__img {
@@ -515,22 +534,22 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   }
   .ig-box__nav--prev { inset-inline-start: 0; width: 34%; justify-items: start; padding-inline-start: 0.4rem; }
   .ig-box__nav--next { inset-inline-end: 0;  width: 66%; justify-items: end;   padding-inline-end: 0.4rem; }
+  /* Always-visible round switch buttons, like the arrows on a story carousel. */
   .ig-box__chev {
     display: grid;
     place-items: center;
     width: 1.05rem;
     height: 1.05rem;
     border-radius: 50%;
-    padding: 0.3rem;
-    background: color-mix(in srgb, var(--shadow) 42%, transparent);
+    padding: 0.34rem;
+    background: color-mix(in srgb, var(--shadow) 50%, transparent);
     backdrop-filter: blur(2px);
     box-sizing: content-box;
-    opacity: 0;
+    opacity: 0.92;
     transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
   }
   .ig-box__chev svg { width: 100%; height: 100%; }
-  .ig-box:hover .ig-box__nav .ig-box__chev { opacity: 0.85; }
-  .ig-box__nav:hover .ig-box__chev { opacity: 1; background: color-mix(in srgb, var(--accent) 80%, transparent); transform: scale(1.06); }
+  .ig-box__nav:hover .ig-box__chev { opacity: 1; background: color-mix(in srgb, var(--accent) 85%, transparent); transform: scale(1.08); }
   .ig-box__nav:focus-visible .ig-box__chev { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Bottom bar with the "open on Instagram" button. */
