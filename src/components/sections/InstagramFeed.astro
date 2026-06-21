@@ -138,7 +138,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     // avatar ring + handle + relative time. Posts/reels are a single still.
     const STORY_MS = 5000;
 
-    function renderBox(frames, kind) {
+    function renderBox(frames, kind, profile) {
       // `frames` is an array (stories may have many; posts/reels have one).
       let idx = 0;
       const multi = frames.length > 1;
@@ -160,7 +160,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       // Story header: gradient avatar ring + handle + relative time.
       const header = isStory
         ? '<span class="ig-box__head">' +
-            '<span class="ig-box__avatar" aria-hidden="true">' + escHtml(initial) + '</span>' +
+            '<span class="ig-box__avatar" aria-hidden="true">' + avatarHtml + '</span>' +
             '<span class="ig-box__handle">' + escHtml(handle.replace(/^@/, '')) + '</span>' +
             '<time class="ig-box__time"></time>' +
           '</span>'
@@ -290,20 +290,27 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       feature.appendChild(toggle);
 
       toggle.addEventListener('click', () => {
-        const open = reelsWrap.hasAttribute('hidden');
-        if (open) {
+        const isHidden = reelsWrap.hasAttribute('hidden');
+        
+        if (isHidden) {
+          // 1. Make it present immediately
           reelsWrap.removeAttribute('hidden');
-          // next frame so the unhidden element can transition in
-          // requestAnimationFrame(() => reelsWrap.classList.add('is-open'));
+          // 2. Force a repaint so the CSS transition triggers
+          void reelsWrap.offsetWidth; 
+          reelsWrap.classList.add('is-open');
+          
           toggle.setAttribute('aria-expanded', 'true');
           toggle.textContent = t.igHideReels;
         } else {
+          // 3. Start the exit transition
           reelsWrap.classList.remove('is-open');
           toggle.setAttribute('aria-expanded', 'false');
           toggle.textContent = t.igShowReels;
+          
+          // 4. Hide only after the transition finishes (matches your 450ms timeout)
           const hide = () => reelsWrap.setAttribute('hidden', '');
           reelsWrap.addEventListener('transitionend', hide, { once: true });
-          setTimeout(hide, 450);
+          setTimeout(hide, 450); 
         }
       });
     }
@@ -319,9 +326,9 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
           const profile = data.profile;
           const stories = Array.isArray(data.stories) ? data.stories.filter((s) => s && s.image) : [];
           if (stories.length) {
-            renderBox(stories, 'story');
+            renderBox(stories, 'story',profile);
           } else if (data.item && data.item.image) {
-            renderBox([data.item], data.kind || 'post');
+            renderBox([data.item], data.kind || 'post',profile);
           } else {
             renderFallback();
           }
