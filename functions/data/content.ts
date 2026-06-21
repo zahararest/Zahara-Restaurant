@@ -51,7 +51,24 @@ export interface ContentField {
   he?:        string;
   en?:        string;
 }
-export interface ContentGroup { title: string; note?: string; fields: ContentField[]; }
+export interface ContentGroup { title: string; note?: string; page: PageId; fields: ContentField[]; }
+
+/** Which site page a group of copy belongs to. Drives the page tabs in the
+ *  /admin/content editor (one button per page, like the Menu editor's tabs)
+ *  so the owner edits one page's text at a time instead of one long scroll. */
+export type PageId = 'home' | 'about' | 'events' | 'menu' | 'privacy' | 'accessibility';
+
+export interface PageTab { id: PageId; label: string; }
+
+/** Order + labels for the page tabs. */
+export const CONTENT_PAGES: PageTab[] = [
+  { id: 'home',          label: 'Home' },
+  { id: 'about',         label: 'About' },
+  { id: 'events',        label: 'Events' },
+  { id: 'menu',          label: 'Menu' },
+  { id: 'privacy',       label: 'Privacy' },
+  { id: 'accessibility', label: 'Accessibility' },
+];
 
 /** Gallery photo keys that get an editable caption. Mirrors the gallery in
  *  src/components/pages/HomePage.astro (base 4 + optional 6). */
@@ -65,12 +82,12 @@ export const galleryCaptionKey = (photoKey: string): string => `gallery.caption.
 /** Editor layout — groups of fields shown on /admin/content/. Field keys
  *  match the `data-content-key` attributes the components render. */
 export const CONTENT_GROUPS: ContentGroup[] = [
-  { title: 'Hero', fields: [
+  { title: 'Hero', page: 'home', fields: [
     { key: 'home.heroEyebrow',   label: 'Eyebrow',         he: 'מסעדת שף · ירושלים', en: 'Chef restaurant · Jerusalem' },
     { key: 'home.heroHeadline',  label: 'Headline',        he: 'הזרע המופלא של',      en: "Angelica's" },
     { key: 'home.heroTitleMark', label: 'Headline accent', he: 'זהרה Zahara',         en: 'younger sister.' },
   ] },
-  { title: 'Story', fields: [
+  { title: 'Story', page: 'home', fields: [
     { key: 'home.storyEyebrow', label: 'Eyebrow', he: 'הסיפור', en: 'The story' },
     { key: 'home.storyHeading', label: 'Heading', html: true, multiline: true,
       he: 'אחותה הצעירה<br />של אנג׳ליקה.', en: 'A new chapter,<br />one kitchen.' },
@@ -88,7 +105,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'home.storyMoreTitle',   label: 'Story box 2 — title',  he: 'Sharing is caring', en: 'Sharing is caring' },
     { key: 'home.storyReadMore',    label: 'Story box 2 — "read more" label', he: 'קראו עוד', en: 'Read more' },
   ] },
-  { title: 'Menu section', fields: [
+  { title: 'Menu section', page: 'home', fields: [
     { key: 'home.menuSplitEyebrow', label: 'Eyebrow', he: 'התפריט', en: 'The menu' },
     { key: 'home.menuSplitHeading', label: 'Heading', html: true,
       he: 'שולחן אחד,<br />ארבעה חלקים.', en: 'One table,<br />four parts.' },
@@ -97,11 +114,11 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       en: 'Built to share and split into four — food from the kitchen, wine, cocktails from the bar, and dessert. Everything moves around the table.' },
     { key: 'home.menuSplitCta', label: 'Button label', he: 'לתפריט המלא ↗', en: 'See the full menu ↗' },
   ] },
-  { title: 'Gallery', note: 'Per-photo captions are edited on each photo in the Images tab.', fields: [
+  { title: 'Gallery', page: 'home', note: 'Per-photo captions are edited on each photo in the Images tab.', fields: [
     { key: 'home.galleryEyebrow', label: 'Eyebrow', he: 'גלריה', en: 'Gallery' },
     { key: 'home.galleryHeading', label: 'Heading', he: 'הצצה לערב.', en: 'A glimpse of the evening.' },
   ] },
-  { title: 'Private events', fields: [
+  { title: 'Private events', page: 'home', fields: [
     { key: 'home.eventsEyebrow', label: 'Eyebrow', he: 'אירועים פרטיים', en: 'Private events' },
     { key: 'home.eventsHeading', label: 'Heading', html: true,
       he: 'חלל פרטי,<br />ערב פרטי.', en: 'Private space,<br />private night.' },
@@ -114,11 +131,11 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'home.eventsCta',        label: 'Primary button label',   he: 'לפנייה לאירועים ↗', en: 'Inquire about events ↗' },
     { key: 'home.eventsContactCta', label: 'Secondary button label', he: 'צרו קשר',           en: 'Contact us' },
   ] },
-  { title: 'Instagram', fields: [
+  { title: 'Instagram', page: 'home', fields: [
     { key: 'home.igEyebrow', label: 'Eyebrow', he: 'אינסטגרם',      en: 'Instagram' },
     { key: 'home.igHeading', label: 'Heading', he: 'רגעים מהמטבח.', en: 'Moments from the kitchen.' },
   ] },
-  { title: 'Info strip (the row under the hero)', fields: [
+  { title: 'Info strip (the row under the hero)', page: 'home', fields: [
     { key: 'info.hoursLabel',   label: 'Hours — label',  he: 'שעות',                en: 'Hours' },
     { key: 'info.hoursValue',   label: 'Hours — value',  he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
     { key: 'info.addressLabel', label: 'Address — label', he: 'כתובת',              en: 'Address' },
@@ -132,7 +149,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   ] },
 
   // ── About page ────────────────────────────────────────────────────────────
-  { title: 'About page · Intro', fields: [
+  { title: 'About page · Intro', page: 'about', fields: [
     { key: 'about.eyebrow', label: 'Eyebrow', he: 'אודות', en: 'About' },
     { key: 'about.heading', label: 'Heading', html: true, multiline: true,
       he: 'זהרה,<br />והדרך אלינו.', en: 'Zahara,<br />and how to find us.' },
@@ -140,7 +157,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       he: 'מסעדת שף ים-תיכונית כשרה בקומת הכניסה של מלון נוצ׳ה ברחוב בן סירא, ירושלים. כאן תמצאו את כל הפרטים — איך מגיעים, ואיך ליצור איתנו קשר.',
       en: 'A kosher Mediterranean chef restaurant on the ground floor of Nucha Hotel, Ben Sira Street, Jerusalem. Everything you need is here — how to reach us, and how to get in touch.' },
   ] },
-  { title: 'About page · Getting here', fields: [
+  { title: 'About page · Getting here', page: 'about', fields: [
     { key: 'about.locationEyebrow', label: 'Eyebrow', he: 'איך מגיעים', en: 'Getting here' },
     { key: 'about.locationHeading', label: 'Heading', he: 'לבוא אלינו.', en: 'Find us.' },
     { key: 'about.locationLede', label: 'Lede', multiline: true,
@@ -154,7 +171,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'about.gmaps', label: 'Button — Google Maps', he: 'פתחו ב-Google Maps', en: 'Open in Google Maps' },
     { key: 'about.call', label: 'Button — Call', he: 'חייגו 077-303-4180', en: 'Call +972 77 303 4180' },
   ] },
-  { title: 'About page · The space', fields: [
+  { title: 'About page · The space', page: 'about', fields: [
     { key: 'about.designEyebrow', label: 'Eyebrow', he: 'החלל', en: 'The space' },
     { key: 'about.designHeading', label: 'Heading', html: true, multiline: true,
       he: 'ארבע דרכים<br />לשבת.', en: 'Four ways<br />to sit.' },
@@ -174,7 +191,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       he: '<strong>מרפסת פתוחה:</strong> ישיבה בחוץ באוויר הפתוח, מתאימה לעישון — לערבים שבהם רוצים את השמיים מעל.',
       en: '<strong>Open terrace:</strong> open-air outdoor seating, smoking welcome — for the nights you want the sky overhead.' },
   ] },
-  { title: 'About page · Kosher + contact', fields: [
+  { title: 'About page · Kosher + contact', page: 'about', fields: [
     { key: 'about.kosherEyebrow', label: 'Kosher — eyebrow', he: 'כשרות', en: 'Kosher' },
     { key: 'about.kosherHeading', label: 'Kosher — heading', he: 'מטבח כשר.', en: 'A kosher kitchen.' },
     { key: 'about.kosherNote', label: 'Kosher — note', multiline: true,
@@ -185,7 +202,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   ] },
 
   // ── Events page ───────────────────────────────────────────────────────────
-  { title: 'Events page', fields: [
+  { title: 'Events page', page: 'events', fields: [
     { key: 'events.eyebrow', label: 'Eyebrow', he: 'אירועים פרטיים', en: 'Private events' },
     { key: 'events.heading', label: 'Heading', html: true, multiline: true,
       he: 'חלל פרטי,<br />ערב פרטי.', en: 'Private space,<br />private night.' },
@@ -199,18 +216,18 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   ] },
 
   // ── Page headers (Menu / Privacy / Accessibility) ───────────────────────────
-  { title: 'Menu page · Header', note: 'Menu items themselves are edited in the Menu editor tab.', fields: [
+  { title: 'Menu page · Header', page: 'menu', note: 'Menu items themselves are edited in the Menu editor tab.', fields: [
     { key: 'menu.eyebrow', label: 'Eyebrow', he: 'תפריט · מתעדכן יומי', en: 'Menu · Updated daily' },
     { key: 'menu.heading', label: 'Heading', he: 'מה יש היום.', en: "What's on today." },
     { key: 'menu.lede', label: 'Lede', multiline: true,
       he: 'התפריט משתנה עם מה שהגיע מהשוק בבוקר. רעננו את הדף לגרסה העדכנית.',
       en: 'Changes with the morning market. Refresh the page for the latest.' },
   ] },
-  { title: 'Privacy page · Header', fields: [
+  { title: 'Privacy page · Header', page: 'privacy', fields: [
     { key: 'privacy.eyebrow', label: 'Eyebrow', he: 'פרטיות', en: 'Privacy' },
     { key: 'privacy.heading', label: 'Heading', he: 'מדיניות פרטיות', en: 'Privacy policy' },
   ] },
-  { title: 'Accessibility page · Header', fields: [
+  { title: 'Accessibility page · Header', page: 'accessibility', fields: [
     { key: 'accessibility.eyebrow', label: 'Eyebrow', he: 'נגישות', en: 'Accessibility' },
     { key: 'accessibility.heading', label: 'Heading', he: 'הצהרת נגישות', en: 'Accessibility statement' },
   ] },

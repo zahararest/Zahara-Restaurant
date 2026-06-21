@@ -100,20 +100,41 @@ const t = pick(copy, lang);
       const { posts } = await res.json();
       if (!Array.isArray(posts) || posts.length === 0) throw new Error('empty');
 
-      scroll.innerHTML = posts.map((p, i) => `
+      // Render real <img> with referrerpolicy="no-referrer": Instagram's CDN
+      // (scontent.cdninstagram.com) refuses hotlinked requests that carry a
+      // foreign Referer, and the site sends one site-wide. A CSS
+      // background-image can't drop the referrer per element; an <img> can —
+      // so this is what actually makes the photos appear off-site.
+      const escAttr = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
+      scroll.innerHTML = posts.map((p, i) => {
+        const img = p.thumbnail_url || p.media_url;
+        if (!img) return '';
+        const label = p.caption ? p.caption.slice(0, 60) : t.igHandle;
+        const badge = p.media_type === 'VIDEO'
+          ? '<span class="ig-card__badge" aria-hidden="true">▶</span>'
+          : p.media_type === 'CAROUSEL_ALBUM'
+            ? '<span class="ig-card__badge" aria-hidden="true">⧉</span>'
+            : '';
+        return `
         <a
           class="ig-card"
-          href="${p.permalink}"
+          href="${escAttr(p.permalink)}"
           target="_blank"
           rel="noopener noreferrer"
           role="listitem"
-          aria-label="${p.caption ? p.caption.slice(0, 60) : t.igHandle}"
+          aria-label="${escAttr(label)}"
           style="--i:${i}"
         >
-          <div class="ig-card__img" style="background-image:url(${p.thumbnail_url || p.media_url})"></div>
-          ${p.media_type === 'VIDEO' ? '<span class="ig-card__badge" aria-hidden="true">▶</span>' : ''}
-          ${p.media_type === 'CAROUSEL_ALBUM' ? '<span class="ig-card__badge" aria-hidden="true">⧉</span>' : ''}
-        </a>`).join('');
+          <img class="ig-card__img" src="${escAttr(img)}" alt="${escAttr(label)}"
+               loading="lazy" decoding="async" referrerpolicy="no-referrer"
+               onerror="this.closest('.ig-card').remove()" />
+          ${badge}
+        </a>`;
+      }).join('');
+
+      // If every image failed to load (or none had a URL), fall back to the
+      // branded CTA rather than leaving an empty strip.
+      if (!scroll.querySelector('.ig-card')) throw new Error('no usable media');
     } catch {
       // Fallback: replace skeletons with branded follow CTA card
       scroll.innerHTML = `
@@ -189,6 +210,12 @@ const t = pick(copy, lang);
     background-size: cover;
     background-position: center;
     transition: transform 0.5s var(--ease-out);
+  }
+  /* Real post photos render as <img>; the skeleton keeps a plain div. */
+  img.ig-card__img {
+    display: block;
+    object-fit: cover;
+    background: var(--paper-deep);
   }
   .ig-card:hover .ig-card__img { transform: scale(1.04); }
 

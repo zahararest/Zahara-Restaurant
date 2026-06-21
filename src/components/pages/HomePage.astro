@@ -187,7 +187,14 @@ const tileSlugFor = (tab: 'food' | 'wine' | 'cocktails' | 'dessert'): string => 
   return lang === 'he' ? 'he' : 'en'; // food
 };
 const tileFavesLabel = t.menuTileFavesLabel;
-const tileViewFull   = t.menuTileViewFull;
+// Per-section link label ("see the food menu", "see the wine list", …),
+// picked by which tile is opened rather than a single generic "full menu".
+const tileViewFullFor = (tab: 'food' | 'wine' | 'cocktails' | 'dessert') => {
+  if (tab === 'wine')      return t.menuTileViewFullWine;
+  if (tab === 'cocktails') return t.menuTileViewFullCocktails;
+  if (tab === 'dessert')   return t.menuTileViewFullDessert;
+  return t.menuTileViewFullFood;
+};
 
 // Hydration payload for the inline script — keeps only the fields it needs.
 const hydrationPayload = chapters.map((c) => ({
@@ -468,7 +475,7 @@ const emptyLabel = t.emptyLabel;
               <div class="menu-tile__panel" id={`tile-panel-${part.tab}`} hidden>
                 <p class="menu-tile__panel-eyebrow">{tileFavesLabel}</p>
                 <ul class="menu-tile__faves" data-tile-faves aria-live="polite"></ul>
-                <a class="menu-tile__link" href={`${menuPath}#tab-${part.tab}`}>{tileViewFull}</a>
+                <a class="menu-tile__link" href={`${menuPath}#tab-${part.tab}`}>{tileViewFullFor(part.tab)}</a>
               </div>
             </div>
           </li>
@@ -621,7 +628,22 @@ const emptyLabel = t.emptyLabel;
         const featured = items.filter((it) => it && it.featured).slice(0, MAX_FAVES);
         if (featured.length) {
           list.innerHTML = featured
-            .map((it) => `<li class="menu-tile__fave">${esc(it.name)}</li>`)
+            .map((it) => {
+              const price = it.price ? `<span class="menu-tile__fave-price">${esc(it.price)}</span>` : '';
+              const desc  = it.description
+                ? `<span class="menu-tile__fave-desc">${esc(it.description)}</span>`
+                : '';
+              return (
+                `<li class="menu-tile__fave">` +
+                  `<span class="menu-tile__fave-row">` +
+                    `<span class="menu-tile__fave-name">${esc(it.name)}</span>` +
+                    `<span class="menu-tile__fave-dots" aria-hidden="true"></span>` +
+                    price +
+                  `</span>` +
+                  desc +
+                `</li>`
+              );
+            })
             .join('');
         } else {
           // Nothing starred — drop the "picks" eyebrow and leave just the link.
@@ -968,17 +990,56 @@ const emptyLabel = t.emptyLabel;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
   }
+  /* Each pick reads like one line of a printed menu: serif dish name on the
+     start edge, a hairline leader, terracotta price on the end edge, with an
+     optional one-line description tucked beneath. Items are separated by a
+     1px paper rule rather than floating with a gap. */
   .menu-tile__fave {
-    font-family: var(--font-display);
-    font-size: var(--step-0);
-    line-height: 1.2;
-    color: var(--tile-fave);
+    padding-block: 0.6rem;
+    border-top: 1px solid color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
     /* slight stagger-in once the panel opens */
     opacity: 0;
     transform: translateY(0.4rem);
     transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+  }
+  .menu-tile__fave:first-child { border-top: 0; padding-block-start: 0; }
+  .menu-tile__fave-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .menu-tile__fave-name {
+    font-family: var(--font-display);
+    font-size: var(--step-0);
+    line-height: 1.2;
+    color: var(--tile-fave);
+  }
+  .menu-tile__fave-dots {
+    flex: 1 1 auto;
+    align-self: flex-end;
+    margin-block-end: 0.28em;
+    border-bottom: 1px dotted color-mix(in srgb, var(--paper-on-photo) 34%, transparent);
+  }
+  .menu-tile__fave-price {
+    flex-shrink: 0;
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    letter-spacing: 0.04em;
+    color: var(--accent);
+  }
+  .menu-tile__fave-desc {
+    display: block;
+    margin-block-start: 0.2rem;
+    font-family: var(--font-body);
+    font-size: var(--step--2);
+    line-height: 1.45;
+    color: color-mix(in srgb, var(--tile-fave) 72%, transparent);
+    /* keep picks compact — one line, never a wall of text on the photo */
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .menu-tile.is-open .menu-tile__fave { opacity: 1; transform: none; }
   .menu-tile.is-open .menu-tile__fave:nth-child(2) { transition-delay: 0.07s; }

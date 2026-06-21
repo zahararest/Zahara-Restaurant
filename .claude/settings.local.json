@@ -7,7 +7,8 @@
       "Read(//Users/shr3kt/Downloads/**)",
       "Bash(python3 -c ' *)",
       "Bash(npx astro *)",
-      "PowerShell(cd \"c:\\\\Users\\\\gotsh\\\\Documents\\\\Zahara\\\\restaurant-site-2\"; \\(Get-Item src/pages/admin/colors.astro\\).Length)"
+      "PowerShell(cd \"c:\\\\Users\\\\gotsh\\\\Documents\\\\Zahara\\\\restaurant-site-2\"; \\(Get-Item src/pages/admin/colors.astro\\).Length)",
+      "Bash(awk -F: '$1>735')"
     ]
   }
 }

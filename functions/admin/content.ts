@@ -8,7 +8,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import {
-  CONTENT_GROUPS, readContent,
+  CONTENT_GROUPS, CONTENT_PAGES, readContent,
   type ContentEnv, type ContentMap, type ContentField,
 } from '../data/content';
 
@@ -42,7 +42,18 @@ const STYLE = `
   .top__site:hover { text-decoration: underline; }
   .top__title { margin: 0; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.22em;
     text-transform: uppercase; color: #6f6457; }
+  /* Page tabs — one button per site page, so the owner edits one page's copy
+     at a time (mirrors the Menu editor's tabbed layout). */
+  .pagetabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .pagetab { font: inherit; font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase;
+    font-weight: 600; color: #6f6457; background: transparent; cursor: pointer;
+    padding: 0.4rem 0.85rem; border: 1px solid #d8ccae; border-radius: 0;
+    transition: color .2s, border-color .2s, background .2s; }
+  .pagetab:hover { color: #1a1410; background: #f1e9d6; }
+  .pagetab.is-active { color: #faf7ee; background: #1a1410; border-color: #1a1410; }
   main { max-width: 920px; margin: 0 auto; padding: 2rem 1.5rem 7rem; }
+  .page { display: none; }
+  .page.is-active { display: block; }
   .lead { color: #6f6457; max-width: 64ch; margin: 0 0 2rem; }
   .group { margin-block-end: 2.5rem; }
   .group__head { display: flex; align-items: baseline; justify-content: space-between;
@@ -88,6 +99,29 @@ const STYLE = `
 const SCRIPT = `
   (function () {
     'use strict';
+    // ── Page tabs — show one page's groups at a time. All inputs stay in the
+    // DOM (just hidden), so collect() still gathers every page on save and
+    // switching tabs never loses an unsaved edit. ──
+    var tabs   = Array.prototype.slice.call(document.querySelectorAll('[data-page-tab]'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('[data-page]'));
+    function showPage(id) {
+      tabs.forEach(function (t) {
+        var on = t.getAttribute('data-page-tab') === id;
+        t.classList.toggle('is-active', on);
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panels.forEach(function (p) {
+        p.classList.toggle('is-active', p.getAttribute('data-page') === id);
+      });
+      try { history.replaceState(null, '', '#' + id); } catch (e) {}
+    }
+    tabs.forEach(function (t) {
+      t.addEventListener('click', function () { showPage(t.getAttribute('data-page-tab')); });
+    });
+    var initial = (location.hash || '').replace('#', '');
+    showPage(tabs.some(function (t) { return t.getAttribute('data-page-tab') === initial; })
+      ? initial : (tabs[0] && tabs[0].getAttribute('data-page-tab')));
+
     var saveBtn = document.getElementById('save');
     var statusEl = document.getElementById('status');
     function setStatus(msg, err) {
@@ -183,14 +217,24 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   const overrides = await readContent(env);
 
-  const groupsHtml = CONTENT_GROUPS.map((g) => `
+  const groupHtml = (g: (typeof CONTENT_GROUPS)[number]) => `
     <section class="group">
       <header class="group__head">
         <h2>${esc(g.title)}</h2>
         ${g.note ? `<small>${esc(g.note)}</small>` : ''}
       </header>
       ${g.fields.map((f) => fieldHtml(f, overrides[f.key])).join('')}
-    </section>`).join('');
+    </section>`;
+
+  // One tab + one panel per page. Pages with no groups are skipped.
+  const pages = CONTENT_PAGES.filter((p) => CONTENT_GROUPS.some((g) => g.page === p.id));
+  const tabsHtml = pages.map((p) =>
+    `<button class="pagetab" type="button" role="tab" data-page-tab="${esc(p.id)}">${esc(p.label)}</button>`
+  ).join('');
+  const pagesHtml = pages.map((p) => `
+    <div class="page" data-page="${esc(p.id)}" role="tabpanel">
+      ${CONTENT_GROUPS.filter((g) => g.page === p.id).map(groupHtml).join('')}
+    </div>`).join('');
 
   const html = `<!doctype html>
 <html lang="en" dir="ltr">
@@ -214,7 +258,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       <span class="top__spacer"></span>
       <a class="top__site" href="/" target="_blank">View site ↗</a>
     </nav>
-    <h1 class="top__title">Site text</h1>
+    <div class="pagetabs" role="tablist" aria-label="Pages">${tabsHtml}</div>
   </header>
   <main>
     <p class="lead fmt-hint">
@@ -224,7 +268,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       press <strong>Enter</strong> for a line break. Photo captions live in the
       <a href="/admin/images/">Images</a> tab.
     </p>
-    ${groupsHtml}
+    ${pagesHtml}
   </main>
   <div class="savebar">
     <p class="savebar__status" id="status"></p>

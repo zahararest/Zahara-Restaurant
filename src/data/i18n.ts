@@ -239,7 +239,11 @@ export const home = {
   // Tile expand: heading above the starred favourites, + the link through to
   // that part of the full menu.
   menuTileFavesLabel: { he: 'מומלצים', en: 'Chef’s picks' },
-  menuTileViewFull:   { he: 'לתפריט המלא ↗', en: 'See full menu ↗' },
+  // Per-section "see the full ___ menu" link, chosen by which tile was opened.
+  menuTileViewFullFood:      { he: 'לתפריט האוכל המלא ↗', en: 'See the food menu ↗' },
+  menuTileViewFullWine:      { he: 'לתפריט היין המלא ↗',  en: 'See the wine list ↗' },
+  menuTileViewFullCocktails: { he: 'לתפריט הקוקטיילים ↗', en: 'See the cocktail menu ↗' },
+  menuTileViewFullDessert:   { he: 'לתפריט הקינוחים ↗',   en: 'See the dessert menu ↗' },
 
   eventsEyebrow: { he: 'אירועים פרטיים', en: 'Private events' },
 
