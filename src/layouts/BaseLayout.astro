@@ -181,9 +181,15 @@ const schema = {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="generator" content={Astro.generator} />
+    {/* Favicons: a raster .ico/.png fallback for crawlers + engines that don't
+        render SVG (Bing, social scrapers, and Google's /favicon.ico fallback),
+        plus the crisp SVG for modern browsers. Raster files are generated from
+        favicon.svg by scripts/gen-favicons.mjs. */}
+    <link rel="icon"             href="/favicon.ico" sizes="32x32" />
+    <link rel="icon"             type="image/png"     sizes="96x96" href="/favicon-96.png" />
     <link rel="icon"             type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon"                     href="/favicon.svg" />
-    <link rel="manifest"                             href="/site.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180"      href="/apple-touch-icon.png" />
+    <link rel="manifest"                              href="/site.webmanifest" />
 
     {/* LCP hero preload — art-directed to match HeroBleed's <picture> exactly,
         so the browser starts the hero download during head parse rather than
@@ -486,6 +492,17 @@ const schema = {
           return h.replace(/\r?\n/g, '<br>');
         }
 
+        // Elements given a custom size — re-scaled on resize so the multiplier
+        // rides on top of the element's natural (responsive) font-size at each
+        // viewport instead of being pinned to one px value.
+        var scaled = [];
+        function applySize(node, scale) {
+          node.style.fontSize = '';                       // back to natural first
+          if (!scale || scale === 1) return;
+          var nat = parseFloat(getComputedStyle(node).fontSize);
+          if (nat) node.style.fontSize = (nat * scale) + 'px';
+        }
+
         var nodes = document.querySelectorAll('[data-content-key]');
         for (var i = 0; i < nodes.length; i++) {
           var node = nodes[i];
@@ -496,8 +513,22 @@ const schema = {
           // means the owner cleared the field to HIDE this text. Every field
           // now renders through the safe formatter (bold / italic / line breaks
           // work anywhere), so data-content-html is no longer needed here.
-          if (typeof v !== 'string') continue;
-          node.innerHTML = formatRich(v);
+          if (typeof v === 'string') node.innerHTML = formatRich(v);
+          // Optional owner-set font-size multiplier (independent of text).
+          if (typeof entry.size === 'number' && entry.size > 0 && entry.size !== 1) {
+            applySize(node, entry.size);
+            scaled.push({ node: node, scale: entry.size });
+          }
+        }
+
+        if (scaled.length) {
+          var rt;
+          window.addEventListener('resize', function () {
+            clearTimeout(rt);
+            rt = setTimeout(function () {
+              for (var j = 0; j < scaled.length; j++) applySize(scaled[j].node, scaled[j].scale);
+            }, 150);
+          }, { passive: true });
         }
       })();
     </script>

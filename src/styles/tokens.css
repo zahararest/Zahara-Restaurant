@@ -70,26 +70,25 @@
   --err:            #A53623;
   --shadow:         #0A0806;
 
-  /* ── Warm diagonal gradient used on dark "atmosphere" sections (events
-        intro, and other full-width bands that would otherwise read flat).
-        Two stops: a lighter top-start and a deeper bottom-end. A fixed dark
-        wash is layered over them in CSS for text contrast. */
-  --grad-warm-from: #4A3A2D;
-  --grad-warm-to:   #1F1812;
+  /* ── Events "benefits" band (the four-up strip on the Events page).
+        Fully self-contained tokens so the band can be tuned independently of
+        the rest of the palette. In LIGHT mode it's a quiet cream band that
+        sits in the paper family (no dark wash); dark mode keeps the warm
+        near-black atmosphere. Each part is editable on its own. */
+  --events-band-from:    #E8DFC8;  /* gradient — top/start */
+  --events-band-to:      #F2EAD5;  /* gradient — bottom/end */
+  --events-band-text:    #3D362E;  /* benefit text (= ink-soft) */
+  --events-band-num:     #A88947;  /* the 01–04 numerals (= accent) */
+  --events-band-divider: #CFC3A4;  /* the hairline grid lines (= rule) */
 
-  /* ── Home cinematic-strip palette. Each menu chapter on the home page
-        is a full-bleed photo with text overlaid; these tokens colour
-        that text independently of the rest of the site so the chef can
-        retune the cinematic strip without dragging body text along. */
-  --cinema-eyebrow:    #D2C9AF;
-  --cinema-num:        #A88947;
-  --cinema-title:      #F4ECCF;
-  --cinema-item-name:  #F4ECCF;
-  --cinema-item-desc:  #C2BAA1;
-  --cinema-item-price: #A88947;
-  --cinema-divider:    #3D372C;
-  --cinema-count:      #ACA388;
-  --cinema-cta:        #F4ECCF;
+  /* ── Home menu tiles (the food / wine / cocktails tiles in the home
+        "menu" section). They sit over a dark photo in BOTH themes, so these
+        stay light regardless of light/dark mode — and they're independent of
+        body text so the chef can retune the tiles on their own. */
+  --tile-label: #F4ECCF;  /* the section name (Food / Wine / …) */
+  --tile-num:   #C7BCA0;  /* the 01–04 numerals + "Chef's picks" eyebrow */
+  --tile-fave:  #F4ECCF;  /* the starred favourite dish names */
+  --tile-link:  #F4ECCF;  /* the "see full menu" link text */
 
   /* ── Typography — font families live in font-config.css; only scale here. */
   --step--2: clamp(0.70rem, 0.66rem + 0.18vw, 0.78rem);
@@ -208,22 +207,22 @@ html[data-theme="dark"] {
   --ok:             #5BA670;
   --err:            #E07060;
 
-  /* Cinematic-strip palette tuned for dark mode (gold lifted to match
-     the dark accent; everything else stays in the cream/dim family
-     since the strip sits over dark photography in both themes). */
-  --cinema-eyebrow:    #D2C9AF;
-  --cinema-num:        #C8A050;
-  --cinema-title:      #F4ECCF;
-  --cinema-item-name:  #F4ECCF;
-  --cinema-item-desc:  #C2BAA1;
-  --cinema-item-price: #C8A050;
-  --cinema-divider:    #3D372C;
-  --cinema-count:      #ACA388;
-  --cinema-cta:        #F4ECCF;
+  /* Menu tiles sit over a dark photo in both themes, so they keep the same
+     light values as light mode. */
+  --tile-label: #F4ECCF;
+  --tile-num:   #C7BCA0;
+  --tile-fave:  #F4ECCF;
+  --tile-link:  #F4ECCF;
 
-  /* Warm gradient — a touch deeper in dark mode. */
-  --grad-warm-from: #3A2D23;
-  --grad-warm-to:   #161009;
+  /* Shadow goes pure-black in dark mode (matches the editor's dark default). */
+  --shadow:         #000000;
+
+  /* Events band — keep the warm near-black atmosphere in dark mode. */
+  --events-band-from:    #3A2D23;
+  --events-band-to:      #161009;
+  --events-band-text:    #F4ECCF;
+  --events-band-num:     #D0B468;
+  --events-band-divider: #3A3020;
   color-scheme: dark;
 }
 html[data-theme="light"] { color-scheme: light; }

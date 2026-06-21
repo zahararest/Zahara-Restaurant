@@ -14,9 +14,13 @@ export interface Props {
   /** Heading text. May contain inline HTML (rendered with set:html). */
   heading: string;
   lede?:   string;
+  /** Optional admin-editable content keys (data-content-key) per text. */
+  eyebrowKey?: string;
+  headingKey?: string;
+  ledeKey?:    string;
 }
 
-const { lang, photo, eyebrow, heading, lede } = Astro.props;
+const { lang, photo, eyebrow, heading, lede, eyebrowKey, headingKey, ledeKey } = Astro.props;
 const INTRO_WIDTHS = [800, 1200, 1800, 2400] as const;
 // On phones .intro-photo is ~62vh (clamp 360–520px) → roughly 3:4. Request a
 // subject-aware portrait crop via /photos-m (the admin mobile upload, or a crop
@@ -46,14 +50,15 @@ const INTRO_MOBILE_COVER = [[640, 850], [820, 1090], [1080, 1440]] as const;
   </div>
   <div class="intro-photo__overlay" aria-hidden="true"></div>
   <div class="intro-photo__inner">
-    <p class="eyebrow eyebrow--on-photo fade-up">{eyebrow}</p>
+    <p class="eyebrow eyebrow--on-photo fade-up" data-content-key={eyebrowKey}>{eyebrow}</p>
     <h1
       class="display intro-photo__title"
       data-word-reveal
       data-word-reveal-delay="0.12"
       data-word-reveal-step="0.07"
+      data-content-key={headingKey}
       set:html={heading}
     />
-    {lede && <p class="intro-photo__lede fade-up">{lede}</p>}
+    {lede && <p class="intro-photo__lede fade-up" data-content-key={ledeKey}>{lede}</p>}
   </div>
 </section>

@@ -178,6 +178,17 @@ const menuPath = path('menu', lang);
 const ctaHrefFor = (tab: 'food' | 'cocktails' | 'dessert') =>
   `${menuPath}#tab-${tab}`;
 
+// Which API slug holds the starred favourites for each menu tile. Food + wine
+// are language-specific; cocktails share one slug across languages.
+const tileSlugFor = (tab: 'food' | 'wine' | 'cocktails' | 'dessert'): string => {
+  if (tab === 'wine')      return lang === 'he' ? 'wine' : 'wine_en';
+  if (tab === 'cocktails') return 'cocktails';
+  if (tab === 'dessert')   return lang === 'he' ? 'dessert' : 'dessert_en';
+  return lang === 'he' ? 'he' : 'en'; // food
+};
+const tileFavesLabel = t.menuTileFavesLabel;
+const tileViewFull   = t.menuTileViewFull;
+
 // Hydration payload for the inline script — keeps only the fields it needs.
 const hydrationPayload = chapters.map((c) => ({
   id:           c.id,
@@ -408,42 +419,63 @@ const emptyLabel = t.emptyLabel;
     <div class="menu-split__overlay" aria-hidden="true"></div>
 
     <div class="menu-split__inner wrap">
-      {/* Four image tiles — each navigates to its menu section. */}
-      <ol class="menu-tiles reveal-on-scroll">
-        {[
-          { label: t.menuSplitFood,      tab: 'food',      photo: PHOTOS.menuFood      },
-          { label: t.menuSplitWine,      tab: 'wine',      photo: PHOTOS.menuWine      },
-          { label: t.menuSplitCocktails, tab: 'cocktails', photo: PHOTOS.menuCocktails },
+      {(() => {
+        const parts = [
+          { label: t.menuSplitFood,      tab: 'food'      as const, photo: PHOTOS.menuFood      },
+          { label: t.menuSplitWine,      tab: 'wine'      as const, photo: PHOTOS.menuWine      },
+          { label: t.menuSplitCocktails, tab: 'cocktails' as const, photo: PHOTOS.menuCocktails },
           // { label: t.menuSplitDessert,   tab: 'dessert',   photo: PHOTOS.menuDessert   },
-        ].map((part, i) => (
+        ];
+        return (
+      <ol class="menu-tiles reveal-on-scroll" style={`--tile-count:${parts.length}`}>
+        {parts.map((part, i) => (
           <li class="menu-tiles__item">
-            <a class="menu-tile" href={`${menuPath}#tab-${part.tab}`}>
-              <span class="menu-tile__media">
-                <img
-                  class="menu-tile__img"
-                  src={resized(part.photo.src, 800)}
-                  srcset={resizedSrcset(part.photo.src, [360, 540, 760, 1080])}
-                  sizes="(max-width: 860px) 45vw, 24vw"
-                  width="360"
-                  height="540"
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="menu-tile__wipe" aria-hidden="true"></span>
-              </span>
-              <span class="menu-tile__foot">
-                <span class="menu-tile__num" aria-hidden="true">{`0${i + 1}`.slice(-2)}</span>
-                <span class="menu-tile__label">{part.label}</span>
-                <span class="menu-tile__go" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                       stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            {/* Click a tile to reveal the chef's starred picks for this part of
+                the menu, with a link through to the full section. Same behaviour
+                on desktop and mobile (no hover-only reveal). */}
+            <div class="menu-tile"
+                 data-menu-tile
+                 data-slug={tileSlugFor(part.tab)}>
+              <button
+                class="menu-tile__toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls={`tile-panel-${part.tab}`}
+              >
+                <span class="menu-tile__media">
+                  <img
+                    class="menu-tile__img"
+                    src={resized(part.photo.src, 800)}
+                    srcset={resizedSrcset(part.photo.src, [360, 540, 760, 1080])}
+                    sizes="(max-width: 600px) 88vw, (max-width: 860px) 45vw, 30vw"
+                    width="360"
+                    height="540"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </span>
-              </span>
-            </a>
+                <span class="menu-tile__foot">
+                  <span class="menu-tile__num" aria-hidden="true">{`0${i + 1}`.slice(-2)}</span>
+                  <span class="menu-tile__label">{part.label}</span>
+                  <span class="menu-tile__go" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                         stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </span>
+                </span>
+              </button>
+
+              <div class="menu-tile__panel" id={`tile-panel-${part.tab}`} hidden>
+                <p class="menu-tile__panel-eyebrow">{tileFavesLabel}</p>
+                <ul class="menu-tile__faves" data-tile-faves aria-live="polite"></ul>
+                <a class="menu-tile__link" href={`${menuPath}#tab-${part.tab}`}>{tileViewFull}</a>
+              </div>
+            </div>
           </li>
         ))}
       </ol>
+        );
+      })()}
 
       <!-- <div class="menu-split__cta reveal-on-scroll">
         <a class="btn menu-split__btn" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>
@@ -567,6 +599,92 @@ const emptyLabel = t.emptyLabel;
 
   hydrationPayload.forEach(hydrateChapter);
 
+  // ── Menu tiles — click a tile to reveal the chef's starred picks ──
+  // The picks are the items starred in /admin/menu (featured), capped at 3
+  // per part. Same interaction on desktop + mobile (no hover-only reveal).
+  (function setupMenuTiles() {
+    const tiles = Array.from(document.querySelectorAll('[data-menu-tile]'));
+    if (!tiles.length) return;
+    const MAX_FAVES = 3;
+
+    async function loadFaves(tile) {
+      if (tile.dataset.favesLoaded) return;
+      tile.dataset.favesLoaded = '1';
+      const slug = tile.dataset.slug;
+      const list = tile.querySelector('[data-tile-faves]');
+      const eyebrow = tile.querySelector('.menu-tile__panel-eyebrow');
+      if (!slug || !list) return;
+      try {
+        const data = await fetchMenu(slug);
+        const sections = Array.isArray(data) ? data : (data && data.sections) || [];
+        const items = sections.flatMap((s) => (s && s.items) || []);
+        const featured = items.filter((it) => it && it.featured).slice(0, MAX_FAVES);
+        if (featured.length) {
+          list.innerHTML = featured
+            .map((it) => `<li class="menu-tile__fave">${esc(it.name)}</li>`)
+            .join('');
+        } else {
+          // Nothing starred — drop the "picks" eyebrow and leave just the link.
+          if (eyebrow) eyebrow.hidden = true;
+          list.innerHTML = '';
+        }
+      } catch (err) {
+        if (eyebrow) eyebrow.hidden = true;
+        console.warn('[menu tiles] picks load failed for', slug, err);
+      }
+    }
+
+    function hideAfterFade(tile, panel) {
+      const hide = () => { if (!tile.classList.contains('is-open')) panel.hidden = true; };
+      panel.addEventListener('transitionend', hide, { once: true });
+      setTimeout(hide, 520);
+    }
+
+    function close(tile) {
+      if (!tile.classList.contains('is-open')) return;
+      tile.classList.remove('is-open');
+      tile.querySelector('.menu-tile__toggle')?.setAttribute('aria-expanded', 'false');
+      const panel = tile.querySelector('.menu-tile__panel');
+      if (panel) hideAfterFade(tile, panel);
+    }
+
+    tiles.forEach((tile) => {
+      const btn   = tile.querySelector('.menu-tile__toggle');
+      const panel = tile.querySelector('.menu-tile__panel');
+      if (!btn || !panel) return;
+      // Prefetch on hover so the first open is instant on desktop.
+      btn.addEventListener('pointerenter', () => loadFaves(tile));
+      btn.addEventListener('click', () => {
+        const willOpen = !tile.classList.contains('is-open');
+        tiles.forEach((t) => { if (t !== tile) close(t); });
+        if (willOpen) {
+          loadFaves(tile);
+          panel.hidden = false;
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => tile.classList.add('is-open')));
+          btn.setAttribute('aria-expanded', 'true');
+        } else {
+          close(tile);
+        }
+      });
+      // Tapping the panel background (anywhere but the link) closes the tile;
+      // the link itself still navigates to the full menu section.
+      panel.addEventListener('click', (e) => {
+        if (e.target.closest('.menu-tile__link')) return;
+        close(tile);
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') tiles.forEach(close);
+    });
+    // Click anywhere outside the tiles closes any open one.
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-menu-tile]')) return;
+      tiles.forEach(close);
+    });
+  })();
+
   // ── "Our Story" boxes — accordion: opening one closes the others ──
   const storyBoxes = Array.from(document.querySelectorAll('[data-story-box]'));
   storyBoxes.forEach((box) => {
@@ -673,17 +791,37 @@ const emptyLabel = t.emptyLabel;
     margin: clamp(var(--space-l), 5vh, var(--space-xl)) auto 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: clamp(0.5rem, 1.4vw, 1rem);
+    /* One column per tile (set inline from the data), so the row is always
+       centred and the tiles fill the width instead of leaving an empty
+       fourth column when a part is disabled. */
+    grid-template-columns: repeat(var(--tile-count, 4), minmax(0, 1fr));
+    gap: clamp(0.7rem, 1.6vw, 1.15rem);
     width: 100%;
-    max-width: min(94rem, 92vw);
+    /* Narrower track + fewer columns → each tile is a little bigger. */
+    max-width: min(74rem, 94vw);
+    justify-content: center;
   }
   .menu-tiles__item { margin: 0; }
   .menu-tile {
     position: relative;
     display: block;
-    text-decoration: none;
     color: var(--paper-on-photo);
+  }
+  /* The photo + label are a button now (click to reveal the picks). */
+  .menu-tile__toggle {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
   }
   .menu-tile__media {
     position: relative;
@@ -754,13 +892,13 @@ const emptyLabel = t.emptyLabel;
     font-family: var(--font-body);
     font-size: var(--step--2);
     letter-spacing: 0.14em;
-    color: color-mix(in srgb, var(--paper-on-photo) 62%, transparent);
+    color: var(--tile-num);
   }
   .menu-tile__label {
     font-family: var(--font-display);
     font-size: var(--step-1);
     line-height: 1.05;
-    color: var(--paper-on-photo);
+    color: var(--tile-label);
   }
   .menu-tile__go {
     margin-inline-start: auto;
@@ -776,17 +914,99 @@ const emptyLabel = t.emptyLabel;
     transform: translateY(0.4rem);
     transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out), background 0.25s ease;
   }
-  .menu-tile__go svg { width: 0.95rem; height: 0.95rem; }
-  html[dir="rtl"] .menu-tile__go svg { transform: scaleX(-1); }
-  .menu-tile:hover .menu-tile__img,
-  .menu-tile:focus-visible .menu-tile__img { transform: scale(1.05); }
-  .menu-tile:hover .menu-tile__go,
-  .menu-tile:focus-visible .menu-tile__go {
+  .menu-tile__go svg { width: 1.05rem; height: 1.05rem; transition: transform 0.35s var(--ease-out); }
+  .menu-tile__toggle:hover .menu-tile__img,
+  .menu-tile__toggle:focus-visible .menu-tile__img { transform: scale(1.05); }
+  .menu-tile__toggle:hover .menu-tile__go,
+  .menu-tile__toggle:focus-visible .menu-tile__go,
+  .menu-tile.is-open .menu-tile__go {
     opacity: 1;
     transform: translateY(0);
     background: color-mix(in srgb, var(--paper-on-photo) 16%, transparent);
   }
-  .menu-tile:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 3px; }
+  /* Chevron flips to point up once the picks are open. */
+  .menu-tile.is-open .menu-tile__go svg { transform: rotate(180deg); }
+  .menu-tile__toggle:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 3px; }
+
+  /* ── Picks panel — overlays the photo when the tile is opened ──────── */
+  .menu-tile__panel {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: clamp(1rem, 2.2vw, 1.6rem);
+    background: linear-gradient(to top,
+      color-mix(in srgb, var(--shadow) 88%, transparent) 0%,
+      color-mix(in srgb, var(--shadow) 72%, transparent) 60%,
+      color-mix(in srgb, var(--shadow) 58%, transparent) 100%);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.45s var(--ease-out), visibility 0s linear 0.45s;
+    pointer-events: none;
+  }
+  .menu-tile__panel[hidden] { display: none; }
+  .menu-tile.is-open .menu-tile__panel {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.45s var(--ease-out);
+    pointer-events: auto;
+  }
+  .menu-tile__panel-eyebrow {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: var(--step--2);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--tile-num);
+  }
+  .menu-tile__faves {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .menu-tile__fave {
+    font-family: var(--font-display);
+    font-size: var(--step-0);
+    line-height: 1.2;
+    color: var(--tile-fave);
+    /* slight stagger-in once the panel opens */
+    opacity: 0;
+    transform: translateY(0.4rem);
+    transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+  }
+  .menu-tile.is-open .menu-tile__fave { opacity: 1; transform: none; }
+  .menu-tile.is-open .menu-tile__fave:nth-child(2) { transition-delay: 0.07s; }
+  .menu-tile.is-open .menu-tile__fave:nth-child(3) { transition-delay: 0.14s; }
+  .menu-tile__fave--empty {
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    color: color-mix(in srgb, var(--tile-fave) 70%, transparent);
+  }
+  .menu-tile__link {
+    margin-top: auto;
+    align-self: flex-start;
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    color: var(--tile-link);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 80%, transparent);
+    padding-bottom: 1px;
+    transition: border-color 0.25s ease;
+  }
+  .menu-tile__link:hover { border-bottom-color: var(--tile-link); }
+  @media (prefers-reduced-motion: reduce) {
+    .menu-tile__panel,
+    .menu-tile__fave,
+    .menu-tile__go svg { transition: none; }
+    .menu-tile__fave { opacity: 1; transform: none; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .menu-tile__img { transform: none !important; transition: none; }
@@ -797,8 +1017,17 @@ const emptyLabel = t.emptyLabel;
       transition: none !important;
     }
   }
-  @media (max-width: 860px) {
-    .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  /* Tablet — two across, with a lone trailing tile centred instead of
+     stranded in the left column (e.g. the 3rd of three). */
+  @media (max-width: 860px) and (min-width: 561px) {
+    .menu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; max-width: 42rem; }
+    .menu-tiles__item:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .menu-tiles__item:last-child:nth-child(odd) .menu-tile { max-width: 50%; margin-inline: auto; }
+  }
+  /* Phone — one column, full width, generous portrait tiles. */
+  @media (max-width: 560px) {
+    .menu-tiles { grid-template-columns: 1fr; gap: 0.85rem; max-width: 24rem; }
+    .menu-tile__media { aspect-ratio: 4 / 5; }
   }
   @media (max-width: 600px) {
     .menu-split { min-height: 0; }

@@ -42,6 +42,16 @@ export interface PhotoMeta {
                               // (overrides the default gallery-specific note)
   mobile?:      boolean;      // full-screen photo that supports a separate
                               // portrait crop for phones (served via /photos-m)
+  /** Aspect ratio the photo is actually shown at on the site (desktop), e.g.
+   *  '2 / 3' for the menu tiles, '4 / 5' for editorial photo blocks, '16 / 9'
+   *  for full-bleed. The /admin/images thumbnail previews at THIS ratio with
+   *  object-fit:cover, so the owner sees the real crop instead of a generic
+   *  4:3 box. Defaults to '16 / 9' when unset. */
+  aspect?:      string;
+  /** How the photo sits in its frame on the site. Almost everything is
+   *  'cover' (cropped to fill); the kosher certificate is shown whole
+   *  ('contain'). Mirrored in the admin preview. Defaults to 'cover'. */
+  fit?:         'cover' | 'contain';
 }
 
 export const PHOTO_CATALOGUE: PhotoMeta[] = [
@@ -56,13 +66,13 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Menu-split background', where: 'Full-frame “the menu” section (food · wine · cocktails · dessert)' },
   // The four category image tiles inside the home "menu" section. Each
   // falls back to a gallery photo until a dedicated one is uploaded.
-  { key: 'menuFood',      filename: 'MOYAL-00029.jpg', group: 'home', fallbackKey: 'kitchen',
+  { key: 'menuFood',      filename: 'MOYAL-00029.jpg', group: 'home', fallbackKey: 'kitchen', aspect: '2 / 3',
     label: 'Menu tile · Food',      where: '“Food” tile in the home menu section' },
-  { key: 'menuWine',      filename: 'MOYAL-09817.jpg', group: 'home', fallbackKey: 'wine',
+  { key: 'menuWine',      filename: 'MOYAL-09817.jpg', group: 'home', fallbackKey: 'wine', aspect: '2 / 3',
     label: 'Menu tile · Wine',      where: '“Wine” tile in the home menu section' },
-  { key: 'menuCocktails', filename: 'MOYAL-09569.jpg', group: 'home', fallbackKey: 'bar',
+  { key: 'menuCocktails', filename: 'MOYAL-09569.jpg', group: 'home', fallbackKey: 'bar', aspect: '2 / 3',
     label: 'Menu tile · Cocktails', where: '“Cocktails” tile in the home menu section' },
-  { key: 'menuDessert',   filename: 'MOYAL-00084.jpg', group: 'home', fallbackKey: 'interior',
+  { key: 'menuDessert',   filename: 'MOYAL-00084.jpg', group: 'home', fallbackKey: 'interior', aspect: '2 / 3',
     label: 'Menu tile · Dessert',   where: '“Dessert” tile in the home menu section' },
   { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home', mobile: true,
     label: 'Gallery 1 · Interior', where: 'First photo of the home gallery' },
@@ -87,7 +97,7 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Gallery 9 · Extra', where: 'Optional 9th home-gallery photo — shows only if uploaded' },
   { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true, mobile: true,
     label: 'Gallery 10 · Extra', where: 'Optional 10th home-gallery photo — shows only if uploaded' },
-  { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home',
+  { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home', aspect: '4 / 5',
     label: 'Events — photo block', where: 'Beside the events text near the footer' },
 
   // ── MENU PAGES ─────────────────────────────────────────────────────
@@ -101,9 +111,9 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
   // ── ABOUT PAGE (formerly Contact + Location) ───────────────────────
   { key: 'contact', filename: 'contact-page.jpg', group: 'about', fallbackKey: 'interior',
     label: 'About — intro photo', where: 'Full-width band near the top of the About page' },
-  { key: 'location', filename: 'location-page.jpg', group: 'about', fallbackKey: 'interior',
+  { key: 'location', filename: 'location-page.jpg', group: 'about', fallbackKey: 'interior', aspect: '4 / 5',
     label: 'About — location photo', where: 'Photo beside the directions on the About page' },
-  { key: 'kosherCert', filename: 'kosher-certificate.jpg', group: 'about', optional: true,
+  { key: 'kosherCert', filename: 'kosher-certificate.jpg', group: 'about', optional: true, aspect: '5 / 7', fit: 'contain',
     label: 'Kosher certificate', where: 'Opens when a visitor clicks “Rabbanut Yerushalayim” in the home info-strip, or “View kosher certificate” on the About page',
     note: 'Empty — the certificate links stay hidden until you upload it. A clear photo or scan of the kashrut certificate (JPG/PNG) works best.' },
 ];

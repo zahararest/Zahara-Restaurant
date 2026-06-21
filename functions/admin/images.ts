@@ -341,6 +341,91 @@ const STYLE = `
   .card__mobile-status { margin: 0; min-height: 1.05em; font-size: 0.72rem; color: #4f6b47; }
   .card__mobile-status--err { color: #a53623; }
 
+  /* ── Picker modal (choose an existing image) ───────────────────── */
+  .picker {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    display: none;
+    align-items: stretch;
+    justify-content: center;
+    background: rgba(20, 16, 12, 0.55);
+    backdrop-filter: blur(3px);
+    padding: 4vh 1rem;
+    overflow: auto;
+  }
+  .picker.is-open { display: flex; }
+  .picker__panel {
+    background: #faf7ee;
+    border: 1px solid #d8ccae;
+    width: min(880px, 100%);
+    margin: auto;
+    padding: 1.1rem 1.3rem 1.5rem;
+    display: grid;
+    gap: 0.7rem;
+    align-content: start;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  .picker__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .picker__title {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #1a1410;
+  }
+  .picker__sub { margin: 0; font-size: 0.8rem; color: #6f6457; }
+  .picker__sub em { font-style: normal; font-weight: 600; color: #a88947; }
+  .picker__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.7rem;
+    margin-top: 0.3rem;
+  }
+  .picker__item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: 1px solid #d8ccae;
+    background: #fff;
+    cursor: pointer;
+    text-align: start;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  }
+  .picker__item:hover { border-color: #a88947; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+  .picker__item:active { transform: translateY(1px); }
+  .picker__item:disabled { opacity: 0.5; cursor: not-allowed; }
+  .picker__item-thumb {
+    aspect-ratio: 4 / 3;
+    width: 100%;
+    object-fit: cover;
+    display: block;
+    background: #ece3d0;
+  }
+  .picker__item-meta { padding: 0.45rem 0.55rem 0.55rem; display: grid; gap: 0.15rem; }
+  .picker__item-label { font-size: 0.76rem; font-weight: 600; color: #1a1410; line-height: 1.25; }
+  .picker__item-flag {
+    font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #a88947; font-weight: 600;
+  }
+  .picker__item-flag.is-default { color: #9a8d77; }
+  .picker__item-current {
+    position: absolute; inset-block-start: 0.4rem; inset-inline-end: 0.4rem;
+    background: #6f6457; color: #faf7ee; font-size: 0.58rem; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 0.1rem 0.35rem; border-radius: 2px;
+  }
+  .picker__status { margin: 0; min-height: 1.1em; font-size: 0.78rem; color: #4f6b47; }
+  .picker__status--err { color: #a53623; }
+  .picker__empty { color: #6f6457; font-size: 0.82rem; padding: 1rem 0; }
+
   /* ── Editor modal ────────────────────────────────────────────── */
   .editor {
     position: fixed;
@@ -535,6 +620,92 @@ const SCRIPT = `
 
     function fmtKB(b) { return Math.round(b / 1024) + ' KB'; }
 
+    // ── "Choose existing" picker — reuse an image already on the site ──
+    const picker      = document.getElementById('picker');
+    const pickerGrid  = document.getElementById('picker-grid');
+    const pickerTitle = document.getElementById('picker-title');
+    const pickerStat  = document.getElementById('picker-status');
+    const pickerClose = document.getElementById('picker-close');
+    let pickerCtx = null; // { key, label, onChosen }
+
+    function escA(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+    function setPickerStatus(msg, err) {
+      if (!pickerStat) return;
+      pickerStat.textContent = msg || '';
+      pickerStat.classList.toggle('picker__status--err', !!err);
+    }
+    function closePicker() {
+      if (!picker) return;
+      picker.classList.remove('is-open');
+      picker.setAttribute('aria-hidden', 'true');
+      pickerCtx = null;
+      setPickerStatus('');
+    }
+    if (pickerClose) pickerClose.addEventListener('click', closePicker);
+    if (picker) picker.addEventListener('click', (e) => { if (e.target === picker) closePicker(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && picker && picker.classList.contains('is-open')) closePicker();
+    });
+
+    window.ZAHARA_PICK = function (opts) {
+      if (!picker || !pickerGrid) return;
+      pickerCtx = opts;
+      if (pickerTitle) pickerTitle.textContent = 'Choose an image for · ' + (opts.label || opts.key);
+      const lib = (window.PICK_LIBRARY || []).filter((it) => it.key !== opts.key);
+      // Photos you've already uploaded first, then shipped defaults.
+      lib.sort((a, b) => (b.has ? 1 : 0) - (a.has ? 1 : 0));
+      if (!lib.length) {
+        pickerGrid.innerHTML = '<p class="picker__empty">No other images available to reuse yet.</p>';
+      } else {
+        pickerGrid.innerHTML = lib.map((it) => {
+          const thumb = '/photos/' + encodeURIComponent(it.filename) + '?t=' + (window.PICK_VERSION || '');
+          const flag = it.has
+            ? '<span class="picker__item-flag">Uploaded</span>'
+            : '<span class="picker__item-flag is-default">Default</span>';
+          return '<button type="button" class="picker__item" data-source="' + escA(it.key) + '">' +
+            '<img class="picker__item-thumb" src="' + escA(thumb) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2" />' +
+            '<span class="picker__item-meta">' +
+              '<span class="picker__item-label">' + escA(it.label) + '</span>' + flag +
+            '</span>' +
+          '</button>';
+        }).join('');
+      }
+      setPickerStatus('');
+      picker.classList.add('is-open');
+      picker.setAttribute('aria-hidden', 'false');
+    };
+
+    if (pickerGrid) {
+      pickerGrid.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.picker__item');
+        if (!btn || !pickerCtx) return;
+        const sourceKey = btn.dataset.source;
+        const ctx = pickerCtx;
+        const items = pickerGrid.querySelectorAll('.picker__item');
+        items.forEach((b) => { b.disabled = true; });
+        setPickerStatus('Applying…', false);
+        try {
+          const fd = new FormData();
+          fd.append('key', ctx.key);
+          fd.append('source', sourceKey);
+          const res = await fetch('/admin/images/apply', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Apply failed');
+          // Reflect the new override in the library so it's offered elsewhere.
+          (window.PICK_LIBRARY || []).forEach((it) => { if (it.key === ctx.key) it.has = true; });
+          if (ctx.onChosen) ctx.onChosen(data.size || 0);
+          closePicker();
+        } catch (err) {
+          setPickerStatus(String(err.message || err), true);
+          items.forEach((b) => { b.disabled = false; });
+        }
+      });
+    }
+
     // ── Per-card upload / remove wiring ───────────────────────────────
     const cards = document.querySelectorAll('[data-photo-card]');
     cards.forEach((card) => {
@@ -544,6 +715,7 @@ const SCRIPT = `
       const submit= card.querySelector('[data-btn-upload]');
       const editB = card.querySelector('[data-btn-edit]');
       const del   = card.querySelector('[data-btn-delete]');
+      const choose= card.querySelector('[data-btn-choose]');
       const status= card.querySelector('[data-status]');
       const badge = card.querySelector('[data-badge]');
       const thumb = card.querySelector('[data-thumb]');
@@ -678,6 +850,17 @@ const SCRIPT = `
           submit.disabled = false; del.disabled = false; editB.disabled = false;
         }
       });
+
+      // Choose an image already used elsewhere on the site for this slot.
+      if (choose) {
+        choose.addEventListener('click', () => {
+          window.ZAHARA_PICK({
+            key,
+            label: card.dataset.label || key,
+            onChosen: (size) => { markSaved(size); },
+          });
+        });
+      }
 
       // ── Mobile (portrait) variant wiring ──────────────────────────
       const mFile   = card.querySelector('[data-mobile-file]');
@@ -1167,13 +1350,19 @@ function renderCard(
   const showMissingNote  = !hasOverride && !fallbackFromLabel && !p.reserved && !p.optional;
   const showOptionalNote = !hasOverride && !!p.optional;
 
+  // Preview the photo at the SAME aspect + fit it actually uses on the site,
+  // so the admin thumbnail shows the real crop (not a generic 4:3 box).
+  const aspect = p.aspect || '16 / 9';
+  const fit    = p.fit || 'cover';
+
   return `
     <article class="card" data-photo-card="${esc(p.key)}" data-label="${esc(p.label)}"
              ${p.optional ? 'data-optional="1"' : ''}
              ${fallbackFromLabel ? `data-fallback-label="${esc('Using ' + fallbackFromLabel)}"` : ''}>
-      <div class="card__thumb" data-thumb-zone>
+      <div class="card__thumb" data-thumb-zone style="aspect-ratio: ${aspect}">
         <img data-thumb data-src="/photos/${esc(p.filename)}" data-fallback="${esc(fallback)}"
              src="${esc(src)}" alt="${esc(p.label)}" loading="lazy" decoding="async"
+             style="object-fit: ${fit}"
              onerror="this.style.opacity=0.25" />
         <span class="card__badge ${badgeClass}" data-badge>${esc(badgeText)}</span>
         ${tags.length ? `<div class="card__tags">${tags.join('')}</div>` : ''}
@@ -1200,7 +1389,8 @@ function renderCard(
           </div>
         </form>
         <div class="card__row">
-          <button class="btn btn--ghost" type="button" data-btn-delete>Remove override</button>
+          <button class="btn btn--ghost btn--sm" type="button" data-btn-choose>Choose existing</button>
+          <button class="btn btn--ghost btn--sm" type="button" data-btn-delete>Remove override</button>
         </div>
         <p class="card__status" data-status></p>
         ${caption ? `
@@ -1270,6 +1460,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   // Single version stamp so all thumbs cache-bust together on reload.
   const v = Date.now();
+
+  // Library for the "Choose existing" picker — every photo on the site that
+  // can be reused (skip slots not currently shown). `has` flags the ones the
+  // owner has already replaced via an upload, so they sort/label first.
+  const libraryJson = JSON.stringify(
+    PHOTO_CATALOGUE
+      .filter((p) => !p.reserved)
+      .map((p) => ({
+        key:      p.key,
+        filename: p.filename,
+        label:    p.label,
+        group:    p.group,
+        has:      overrideSet.has(p.key),
+      })),
+  );
 
   // Friendly label lookup for fallback-from messaging.
   const labelOf = (key: string) =>
@@ -1424,6 +1629,23 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     </div>
   </div>
 
+  <!-- Picker modal (single instance) — choose an image already on the site -->
+  <div class="picker" id="picker" aria-hidden="true">
+    <div class="picker__panel" role="dialog" aria-label="Choose an existing image">
+      <header class="picker__head">
+        <h2 class="picker__title" id="picker-title">Choose an existing image</h2>
+        <button type="button" class="btn btn--ghost btn--sm" id="picker-close">Close</button>
+      </header>
+      <p class="picker__sub">Pick a photo already used elsewhere on the site to reuse it here — no re-upload needed. Photos already replaced by you are marked <em>Uploaded</em>.</p>
+      <div class="picker__grid" id="picker-grid"></div>
+      <p class="picker__status" id="picker-status"></p>
+    </div>
+  </div>
+
+  <script>
+    window.PICK_LIBRARY = ${libraryJson};
+    window.PICK_VERSION = ${v};
+  </script>
   <script>${SCRIPT}</script>
 </body>
 </html>`;

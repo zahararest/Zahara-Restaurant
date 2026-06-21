@@ -19,21 +19,27 @@ const page     = pick(pageCopy, lang);
 const title    = page.pageTitle;
 const description = page.pageDescription;
 
-const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFull];
+const benefits = [
+  { label: t.benefitPrivate, key: 'events.benefit1' },
+  { label: t.benefitChef,    key: 'events.benefit2' },
+  { label: t.benefitKosher,  key: 'events.benefit3' },
+  { label: t.benefitFull,    key: 'events.benefit4' },
+];
 ---
 
 <BaseLayout title={title} seoTitle={page.seoTitle} lang={lang} description={description}>
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">
-      <p class="eyebrow">{t.eventsPageEyebrow}</p>
+      <p class="eyebrow" data-content-key="events.eyebrow">{t.eventsPageEyebrow}</p>
       <h1
         class="display"
         data-word-reveal
         data-word-reveal-delay="0.08"
         data-word-reveal-step="0.07"
+        data-content-key="events.heading"
         set:html={t.eventsPageHeading}
       />
-      <p class="lede-prose">{t.eventsPageLede}</p>
+      <p class="lede-prose" data-content-key="events.lede">{t.eventsPageLede}</p>
     </div>
   </section>
 
@@ -44,10 +50,10 @@ const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFul
   <section class="section-tight events-benefits-band">
     <div class="wrap">
       <ul class="benefits stagger reveal-on-scroll">
-        {benefits.map((label, i) => (
+        {benefits.map((b, i) => (
           <li class="benefit">
             <span class="benefit__num">0{i + 1}</span>
-            <span class="benefit__text">{label}</span>
+            <span class="benefit__text" data-content-key={b.key}>{b.label}</span>
           </li>
         ))}
       </ul>
@@ -55,30 +61,24 @@ const benefits = [t.benefitPrivate, t.benefitChef, t.benefitKosher, t.benefitFul
   </section>
 
   <style>
-    /* Warm diagonal gradient band behind the event benefits — two editable
-       colour stops (--grad-warm-*) under a fixed dark wash for contrast.
-       The text inside flips to the on-photo cream so it reads on the dark
-       ground. */
+    /* Events benefits band — fully driven by its own --events-band-* tokens
+       (editable individually in /admin/colors). Light mode keeps the band in
+       the cream family so it follows the page scheme; dark mode is a warm
+       near-black atmosphere. No shared --shadow / --paper-on-photo / --gold
+       here, so tuning the band never drags the rest of the site along. */
     .events-benefits-band {
-      background:
-        linear-gradient(180deg,
-          color-mix(in srgb, var(--shadow) 32%, transparent) 0%,
-          color-mix(in srgb, var(--shadow) 16%, transparent) 30%,
-          color-mix(in srgb, var(--shadow) 58%, transparent) 100%),
-        linear-gradient(135deg, var(--grad-warm-from), var(--grad-warm-to));
-      color: var(--paper-on-photo);
+      background: linear-gradient(160deg, var(--events-band-from), var(--events-band-to));
+      color: var(--events-band-text);
     }
-    .events-benefits-band .benefit__num { color: var(--gold); }
-    .events-benefits-band .benefit__text { color: var(--paper-on-photo); }
-    /* Hairline grid lines flip to the on-photo tone so they read as quiet
-       dividers on the dark gradient instead of disappearing. */
+    .events-benefits-band .benefit__num  { color: var(--events-band-num); }
+    .events-benefits-band .benefit__text { color: var(--events-band-text); }
     .events-benefits-band .benefits {
-      border-block-start-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
-      border-inline-start-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
+      border-block-start-color: var(--events-band-divider);
+      border-inline-start-color: var(--events-band-divider);
     }
     .events-benefits-band .benefit {
-      border-block-end-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
-      border-inline-end-color: color-mix(in srgb, var(--paper-on-photo) 20%, transparent);
+      border-block-end-color: var(--events-band-divider);
+      border-inline-end-color: var(--events-band-divider);
     }
   </style>
 

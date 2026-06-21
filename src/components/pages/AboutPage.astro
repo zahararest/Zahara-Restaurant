@@ -41,15 +41,16 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
   <div class="about-page">
   <section class="page-intro wrap">
     <div class="stagger reveal-on-scroll">
-      <p class="eyebrow">{t.aboutEyebrow}</p>
+      <p class="eyebrow" data-content-key="about.eyebrow">{t.aboutEyebrow}</p>
       <h1
         class="display"
         data-word-reveal
         data-word-reveal-delay="0.08"
         data-word-reveal-step="0.07"
+        data-content-key="about.heading"
         set:html={t.aboutHeading}
       />
-      <p class="lede-prose">{t.aboutLede}</p>
+      <p class="lede-prose" data-content-key="about.lede">{t.aboutLede}</p>
     </div>
   </section>
 
@@ -60,14 +61,15 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
   {/* ── Where we are ──────────────────────────────────────────────────── */}
   <section class="section-tight wrap">
     <div class="stagger reveal-on-scroll" style="margin-block-end: var(--space-l);">
-      <p class="eyebrow">{l.eyebrow}</p>
+      <p class="eyebrow" data-content-key="about.locationEyebrow">{l.eyebrow}</p>
       <h2
         class="display"
         data-word-reveal
         data-word-reveal-delay="0.06"
         data-word-reveal-step="0.06"
+        data-content-key="about.locationHeading"
       >{l.heading}</h2>
-      <p class="lede-prose">{l.lede}</p>
+      <p class="lede-prose" data-content-key="about.locationLede">{l.lede}</p>
     </div>
 
     {/* Click-to-load map — the Google embed (and its cookies / IP logging)
@@ -80,8 +82,8 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
         data-map-embed={mapEmbed}
         data-map-title={l.mapTitle}
       >
-        <span class="map-facade__label">{l.mapLoad}</span>
-        <span class="map-facade__note">{l.mapPrivacy}</span>
+        <span class="map-facade__label" data-content-key="about.mapLoad">{l.mapLoad}</span>
+        <span class="map-facade__note" data-content-key="about.mapPrivacy">{l.mapPrivacy}</span>
       </button>
     </div>
     <script is:inline>
@@ -101,9 +103,9 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     </script>
 
     <div class="directions-grid stagger reveal-on-scroll">
-      <a class="btn btn--block btn--ghost" href={wazeUrl}  target="_blank" rel="noopener">{l.waze}</a>
-      <a class="btn btn--block btn--ghost" href={gmapsUrl} target="_blank" rel="noopener">{l.gmaps}</a>
-      <a class="btn btn--block btn--ghost" href={`tel:${dial}`}>{l.call}</a>
+      <a class="btn btn--block btn--ghost" href={wazeUrl}  target="_blank" rel="noopener" data-content-key="about.waze">{l.waze}</a>
+      <a class="btn btn--block btn--ghost" href={gmapsUrl} target="_blank" rel="noopener" data-content-key="about.gmaps">{l.gmaps}</a>
+      <a class="btn btn--block btn--ghost" href={`tel:${dial}`} data-content-key="about.call">{l.call}</a>
     </div>
   </section>
 
@@ -115,19 +117,20 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
           <Photo src={PHOTOS.location.src} alt={PHOTOS.location.alt[lang]} aspect="4/5" />
         </div>
         <div class="photo-block__content stagger reveal-on-scroll">
-          <p class="eyebrow">{t.designEyebrow}</p>
+          <p class="eyebrow" data-content-key="about.designEyebrow">{t.designEyebrow}</p>
           <h2
             class="display"
             data-word-reveal
             data-word-reveal-delay="0.06"
             data-word-reveal-step="0.06"
+            data-content-key="about.designHeading"
             set:html={t.designHeading}
           />
-          <p class="lede-prose">{t.designLede}</p>
-          <p set:html={t.designInside} />
-          <p set:html={t.designBar} />
-          <p set:html={t.designClosed} />
-          <p set:html={t.designOpen} />
+          <p class="lede-prose" data-content-key="about.designLede">{t.designLede}</p>
+          <p data-content-key="about.designInside" set:html={t.designInside} />
+          <p data-content-key="about.designBar" set:html={t.designBar} />
+          <p data-content-key="about.designClosed" set:html={t.designClosed} />
+          <p data-content-key="about.designOpen" set:html={t.designOpen} />
         </div>
       </div>
     </div>
@@ -138,16 +141,17 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
       browsing. Hidden client-side until the owner uploads it. */}
   <section class="section wrap" data-kosher-block>
     <div class="about-kosher stagger reveal-on-scroll" data-kosher-cell>
-      <p class="eyebrow">{t.kosherEyebrow}</p>
+      <p class="eyebrow" data-content-key="about.kosherEyebrow">{t.kosherEyebrow}</p>
       <h2
         class="display"
         data-word-reveal
         data-word-reveal-delay="0.06"
         data-word-reveal-step="0.06"
+        data-content-key="about.kosherHeading"
       >{t.kosherHeading}</h2>
-      <p class="lede-prose">{t.kosherNote}</p>
+      <p class="lede-prose" data-content-key="about.kosherNote">{t.kosherNote}</p>
       <button class="btn btn--ghost about-kosher__cta" type="button"
-              data-kosher-open data-kosher-cert>{t.kosherCertCta}</button>
+              data-kosher-open data-kosher-cert data-content-key="about.kosherCertCta">{t.kosherCertCta}</button>
     </div>
   </section>
 
@@ -173,7 +177,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
   {/* Direct contact details — shown above the form so visitors can reach
       out directly without filling in the form if they prefer. */}
   <div class="section-tight wrap about-contact-direct reveal-on-scroll">
-    <p class="eyebrow">{lang === 'he' ? 'פנו אלינו ישירות' : 'Reach us directly'}</p>
+    <p class="eyebrow" data-content-key="about.reachEyebrow">{lang === 'he' ? 'פנו אלינו ישירות' : 'Reach us directly'}</p>
     <div class="about-contact-direct__links">
       <a href={`mailto:${RESTAURANT.email}`} class="about-contact-direct__link">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"

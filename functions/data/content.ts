@@ -22,7 +22,18 @@ export interface ContentEnv {
   PALETTE_DATA?: KVNamespace;
 }
 
-export type ContentValue = { he?: string; en?: string };
+// `size` is a language-independent font-size multiplier (1 = default). It lets
+// the owner bump a single piece of copy up/down without touching CSS — applied
+// as an inline, viewport-recomputed font-size on the live site.
+export type ContentValue = { he?: string; en?: string; size?: number };
+
+/** Clamp a posted size multiplier to a sane range; null if it's effectively
+ *  "default" (1) or not a usable number. */
+function cleanSize(raw: unknown): number | null {
+  if (typeof raw !== 'number' || !isFinite(raw) || raw <= 0) return null;
+  if (raw === 1) return null;
+  return Math.min(2.5, Math.max(0.6, raw));
+}
 export type ContentMap   = Record<string, ContentValue>;
 
 const KEY = '__content__';
@@ -119,6 +130,90 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'info.kosherValue',  label: 'Kosher — value', he: 'רבנות ירושלים',  en: 'Rabbanut Yerushalayim' },
     { key: 'info.kosherView',   label: 'Kosher — certificate link text', he: 'הצגת התעודה ↗', en: 'View certificate ↗' },
   ] },
+
+  // ── About page ────────────────────────────────────────────────────────────
+  { title: 'About page · Intro', fields: [
+    { key: 'about.eyebrow', label: 'Eyebrow', he: 'אודות', en: 'About' },
+    { key: 'about.heading', label: 'Heading', html: true, multiline: true,
+      he: 'זהרה,<br />והדרך אלינו.', en: 'Zahara,<br />and how to find us.' },
+    { key: 'about.lede', label: 'Lede', multiline: true,
+      he: 'מסעדת שף ים-תיכונית כשרה בקומת הכניסה של מלון נוצ׳ה ברחוב בן סירא, ירושלים. כאן תמצאו את כל הפרטים — איך מגיעים, ואיך ליצור איתנו קשר.',
+      en: 'A kosher Mediterranean chef restaurant on the ground floor of Nucha Hotel, Ben Sira Street, Jerusalem. Everything you need is here — how to reach us, and how to get in touch.' },
+  ] },
+  { title: 'About page · Getting here', fields: [
+    { key: 'about.locationEyebrow', label: 'Eyebrow', he: 'איך מגיעים', en: 'Getting here' },
+    { key: 'about.locationHeading', label: 'Heading', he: 'לבוא אלינו.', en: 'Find us.' },
+    { key: 'about.locationLede', label: 'Lede', multiline: true,
+      he: "זהרה יושבת בקומת הכניסה של מלון נוצ׳ה (Nucha by Fattal Colors) ברחוב בן סירא — דקות הליכה מגן העצמאות, מדרחוב בן יהודה, כיכר ציון, ממילא והעיר העתיקה.",
+      en: "Zahara sits on the ground floor of Nucha Hotel (Nucha by Fattal Colors) on Ben Sira Street — a few minutes' walk from Independence Garden, Ben Yehuda pedestrian mall, Zion Square, Mamilla and the Old City." },
+    { key: 'about.mapLoad', label: 'Map — “show map” label', he: 'הצגת המפה', en: 'Show the map' },
+    { key: 'about.mapPrivacy', label: 'Map — privacy note', multiline: true,
+      he: 'המפה נטענת מ-Google. לחיצה תטען אותה ועשויה לרשום את כתובת ה-IP שלכם.',
+      en: 'The map loads from Google. Tapping it loads the map and may log your IP address.' },
+    { key: 'about.waze', label: 'Button — Waze', he: 'פתחו ב-Waze', en: 'Open in Waze' },
+    { key: 'about.gmaps', label: 'Button — Google Maps', he: 'פתחו ב-Google Maps', en: 'Open in Google Maps' },
+    { key: 'about.call', label: 'Button — Call', he: 'חייגו 077-303-4180', en: 'Call +972 77 303 4180' },
+  ] },
+  { title: 'About page · The space', fields: [
+    { key: 'about.designEyebrow', label: 'Eyebrow', he: 'החלל', en: 'The space' },
+    { key: 'about.designHeading', label: 'Heading', html: true, multiline: true,
+      he: 'ארבע דרכים<br />לשבת.', en: 'Four ways<br />to sit.' },
+    { key: 'about.designLede', label: 'Lede', multiline: true,
+      he: 'תכננו את זהרה כך שלכל ערב יש פינה משלו — מהמטבח הפתוח בפנים ועד האוויר הפתוח בחוץ.',
+      en: 'Zahara is laid out so every evening finds its own corner — from the open kitchen inside to the open air outside.' },
+    { key: 'about.designInside', label: 'Indoor seating', html: true, multiline: true,
+      he: '<strong>ישיבה בפנים:</strong> אולם המסעדה סביב המטבח הפתוח — לב הבית, שבו רואים את השף עובד והצלחות יוצאות.',
+      en: '<strong>Indoor seating:</strong> the dining room wraps around the open kitchen — the heart of the house, where you watch the chef work and the plates leave the pass.' },
+    { key: 'about.designBar', label: 'At the bar', html: true, multiline: true,
+      he: '<strong>ישיבה בבר:</strong> כיסאות גבוהים מול הבר — המושב הראשון לקוקטייל או לכוס יין, לבד או בזוג.',
+      en: '<strong>At the bar:</strong> high stools facing the bar — the front-row seat for a cocktail or a glass of wine, alone or as a pair.' },
+    { key: 'about.designClosed', label: 'Enclosed terrace', html: true, multiline: true,
+      he: '<strong>מרפסת סגורה:</strong> ישיבה בחוץ בחלל מקורה ומחומם, ללא עישון — נעים לאורך כל השנה, גם בערבי החורף של ירושלים.',
+      en: "<strong>Enclosed terrace:</strong> covered, heated outdoor seating, non-smoking — comfortable year-round, even on Jerusalem's cooler evenings." },
+    { key: 'about.designOpen', label: 'Open terrace', html: true, multiline: true,
+      he: '<strong>מרפסת פתוחה:</strong> ישיבה בחוץ באוויר הפתוח, מתאימה לעישון — לערבים שבהם רוצים את השמיים מעל.',
+      en: '<strong>Open terrace:</strong> open-air outdoor seating, smoking welcome — for the nights you want the sky overhead.' },
+  ] },
+  { title: 'About page · Kosher + contact', fields: [
+    { key: 'about.kosherEyebrow', label: 'Kosher — eyebrow', he: 'כשרות', en: 'Kosher' },
+    { key: 'about.kosherHeading', label: 'Kosher — heading', he: 'מטבח כשר.', en: 'A kosher kitchen.' },
+    { key: 'about.kosherNote', label: 'Kosher — note', multiline: true,
+      he: 'המטבח מפוקח בכשרות רבנות ירושלים. תוכלו לעיין בתעודת הכשרות המעודכנת בכל עת.',
+      en: 'The kitchen is certified kosher by the Rabbanut Yerushalayim. The current certificate is available to view at any time.' },
+    { key: 'about.kosherCertCta', label: 'Kosher — button', he: 'הצגת תעודת הכשרות ↗', en: 'View kosher certificate ↗' },
+    { key: 'about.reachEyebrow', label: '“Reach us directly” eyebrow', he: 'פנו אלינו ישירות', en: 'Reach us directly' },
+  ] },
+
+  // ── Events page ───────────────────────────────────────────────────────────
+  { title: 'Events page', fields: [
+    { key: 'events.eyebrow', label: 'Eyebrow', he: 'אירועים פרטיים', en: 'Private events' },
+    { key: 'events.heading', label: 'Heading', html: true, multiline: true,
+      he: 'חלל פרטי,<br />ערב פרטי.', en: 'Private space,<br />private night.' },
+    { key: 'events.lede', label: 'Lede', multiline: true,
+      he: 'המסעדה ניתנת לסגירה לאירועים פרטיים ועסקיים — חדר אינטימי לקבוצות קטנות, החלל המורחב לאירועי חברה, או המסעדה כולה. השאירו פרטים ונחזור אליכם תוך יום עסקים.',
+      en: 'The restaurant is available for private and corporate events — an intimate room for small groups, an extended space for company gatherings, or the entire room. Leave your details and we’ll get back to you within one business day.' },
+    { key: 'events.benefit1', label: 'Benefit 1', he: 'חדר פרטי לקבוצות אינטימיות', en: 'Private room for intimate groups' },
+    { key: 'events.benefit2', label: 'Benefit 2', he: 'התפריט נבנה אישית עם השף', en: 'Menu built personally with the chef' },
+    { key: 'events.benefit3', label: 'Benefit 3', he: 'מטבח כשר · אופציות צמחוניות', en: 'Kosher kitchen · vegetarian options' },
+    { key: 'events.benefit4', label: 'Benefit 4', he: 'אפשרות לסגירת המסעדה כולה', en: 'Full restaurant buyouts available' },
+  ] },
+
+  // ── Page headers (Menu / Privacy / Accessibility) ───────────────────────────
+  { title: 'Menu page · Header', note: 'Menu items themselves are edited in the Menu editor tab.', fields: [
+    { key: 'menu.eyebrow', label: 'Eyebrow', he: 'תפריט · מתעדכן יומי', en: 'Menu · Updated daily' },
+    { key: 'menu.heading', label: 'Heading', he: 'מה יש היום.', en: "What's on today." },
+    { key: 'menu.lede', label: 'Lede', multiline: true,
+      he: 'התפריט משתנה עם מה שהגיע מהשוק בבוקר. רעננו את הדף לגרסה העדכנית.',
+      en: 'Changes with the morning market. Refresh the page for the latest.' },
+  ] },
+  { title: 'Privacy page · Header', fields: [
+    { key: 'privacy.eyebrow', label: 'Eyebrow', he: 'פרטיות', en: 'Privacy' },
+    { key: 'privacy.heading', label: 'Heading', he: 'מדיניות פרטיות', en: 'Privacy policy' },
+  ] },
+  { title: 'Accessibility page · Header', fields: [
+    { key: 'accessibility.eyebrow', label: 'Eyebrow', he: 'נגישות', en: 'Accessibility' },
+    { key: 'accessibility.heading', label: 'Heading', he: 'הצהרת נגישות', en: 'Accessibility statement' },
+  ] },
 ];
 
 /** Every key the editor (and gallery captions) may write. Anything outside
@@ -153,7 +248,9 @@ export function sanitiseContent(input: unknown): ContentMap {
       const s = (v as Record<string, unknown>)[lang];
       if (typeof s === 'string') val[lang] = s.slice(0, MAX_LEN);
     }
-    if (val.he !== undefined || val.en !== undefined) out[k] = val;
+    const sz = cleanSize((v as Record<string, unknown>).size);
+    if (sz !== null) val.size = sz;
+    if (val.he !== undefined || val.en !== undefined || val.size !== undefined) out[k] = val;
   }
   return out;
 }
@@ -177,7 +274,14 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
       if (t === defaultFor(k, lang)) delete cur[lang];   // matches default → no override
       else cur[lang] = t;                                 // override (incl. '' = hide)
     }
-    if (cur.he !== undefined || cur.en !== undefined) merged[k] = cur;
+    // Size: language-independent. Only present in the posted object when the
+    // size control was rendered; 1/absent clears any stored multiplier.
+    if ('size' in (v as Record<string, unknown>)) {
+      const sz = cleanSize((v as Record<string, unknown>).size);
+      if (sz === null) delete cur.size;
+      else cur.size = sz;
+    }
+    if (cur.he !== undefined || cur.en !== undefined || cur.size !== undefined) merged[k] = cur;
     else delete merged[k];
   }
   return merged;

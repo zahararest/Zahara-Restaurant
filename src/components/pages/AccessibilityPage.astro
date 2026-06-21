@@ -19,8 +19,8 @@ const today = new Date().toISOString().slice(0, 10);
 <BaseLayout title={page.pageTitle} lang={lang}>
   <article class="a11y-page wrap">
     <header class="a11y-page__head">
-      <p class="eyebrow">{page.pageEyebrow}</p>
-      <h1 class="display">{page.pageTitle}</h1>
+      <p class="eyebrow" data-content-key="accessibility.eyebrow">{page.pageEyebrow}</p>
+      <h1 class="display" data-content-key="accessibility.heading">{page.pageTitle}</h1>
       <p class="a11y-page__updated">
         {page.updatedLabel} · {today}
       </p>

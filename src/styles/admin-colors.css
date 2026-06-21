@@ -572,64 +572,41 @@
     }
     .sim__quote em { color: var(--gold, #B69A52); font-style: italic; }
 
-    /* MENU CINEMA — mirrors the real home-page chapter strip; every text
-       fragment binds to its own --cinema-* token so the user sees the
-       direct effect of editing them.  */
-    .sim__cinema {
-      position: relative;
-      background:
-        linear-gradient(180deg, rgba(10,8,6,.32) 0%, rgba(10,8,6,.16) 30%, rgba(10,8,6,.58) 100%),
-        linear-gradient(135deg, #4a3a2d, #1f1812);
-      padding: 1rem 1rem 0.95rem;
-      display: grid; gap: 0.55rem;
+    /* MENU TILES — mirrors the real home-page food/wine/cocktails tiles; each
+       text fragment binds to its own --tile-* token. The tiles sit over a dark
+       photo on the site, so the preview uses a dark ground. */
+    .sim__tiles {
+      display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 0.5rem;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, #2a2018, #14100b);
     }
-    .sim__cinema-eyebrow {
-      font-size: 0.58rem; letter-spacing: 0.26em; text-transform: uppercase; font-weight: 600;
-      font-family: 'Inter', sans-serif;
-      color: var(--cinema-eyebrow, #D2C9AF);
-      display: inline-flex; gap: 0.4rem; align-items: baseline;
+    .sim__tile {
+      position: relative; display: flex; flex-direction: column;
+      justify-content: flex-end; gap: 0.3rem; min-height: 5.5rem; padding: 0.6rem;
+      border: 1px solid rgba(244,236,207,.16); background: rgba(10,8,6,.35);
     }
-    .sim__cinema-num { color: var(--cinema-num, #A88947); font-family: Georgia, serif; font-weight: 500; }
-    .sim__cinema-sep { color: var(--cinema-num, #A88947); opacity: 0.6; }
-    .sim__cinema-title {
-      font-family: Georgia, serif; font-size: 1.3rem; letter-spacing: -0.02em;
-      line-height: 1; margin: 0;
-      color: var(--cinema-title, #F4ECCF);
+    .sim__tile--open { justify-content: center; gap: 0.25rem; background: rgba(10,8,6,.62); }
+    .sim__tile-num {
+      font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.14em;
+      color: var(--tile-num, #C7BCA0);
     }
-    .sim__cinema-item {
-      display: grid; grid-template-columns: 1fr auto; gap: 0.4rem 0.9rem;
-      align-items: baseline; padding-bottom: 0.45rem;
-      border-bottom: 1px solid var(--cinema-divider, #3D372C);
+    .sim__tile-label {
+      font-family: Georgia, serif; font-size: 1.1rem; line-height: 1;
+      color: var(--tile-label, #F4ECCF);
     }
-    .sim__cinema-item:last-of-type { border-bottom: 0; padding-bottom: 0; }
-    .sim__cinema-item-main { display: flex; flex-direction: column; gap: 0.18rem; min-width: 0; }
-    .sim__cinema-item-name {
-      font-family: Georgia, serif; font-weight: 500; font-size: 0.95rem;
-      color: var(--cinema-item-name, #F4ECCF);
+    .sim__tile-eyebrow {
+      font-family: 'Inter', sans-serif; font-size: 0.52rem; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--tile-num, #C7BCA0);
     }
-    .sim__cinema-item-desc {
-      font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 300;
-      color: var(--cinema-item-desc, #C2BAA1);
+    .sim__tile-fave {
+      font-family: Georgia, serif; font-size: 0.82rem; line-height: 1.15;
+      color: var(--tile-fave, #F4ECCF);
     }
-    .sim__cinema-item-price {
-      font-family: Georgia, serif; font-weight: 600; font-size: 0.88rem;
-      color: var(--cinema-item-price, #A88947);
-    }
-    .sim__cinema-foot {
-      display: flex; align-items: center; justify-content: space-between;
-      gap: 0.6rem; padding-top: 0.6rem;
-      border-top: 1px solid var(--cinema-divider, #3D372C);
-    }
-    .sim__cinema-count {
-      font-size: 0.58rem; letter-spacing: 0.26em; text-transform: uppercase; font-weight: 500;
-      font-family: 'Inter', sans-serif;
-      color: var(--cinema-count, #ACA388);
-    }
-    .sim__cinema-cta {
-      font-family: 'Inter', sans-serif; font-size: 0.57rem; letter-spacing: 0.2em;
-      text-transform: uppercase; font-weight: 500; padding: 0.4rem 0.8rem;
-      color: var(--cinema-cta, #F4ECCF);
-      border: 1px solid var(--cinema-cta, #F4ECCF);
+    .sim__tile-link {
+      margin-top: 0.3rem; align-self: flex-start; padding-bottom: 1px;
+      font-family: 'Inter', sans-serif; font-size: 0.56rem; letter-spacing: 0.08em;
+      color: var(--tile-link, #F4ECCF);
+      border-bottom: 1px solid color-mix(in srgb, var(--accent, #A88947) 80%, transparent);
     }
 
     /* TOC */

@@ -19,8 +19,8 @@ const phoneText = lang === 'he' ? RESTAURANT.phone.display : RESTAURANT.phone.in
 <BaseLayout title={page.pageTitle} lang={lang} description={page.pageDescription}>
   <article class="privacy-page wrap">
     <header class="privacy-page__head">
-      <p class="eyebrow">{page.pageEyebrow}</p>
-      <h1 class="display">{page.pageTitle}</h1>
+      <p class="eyebrow" data-content-key="privacy.eyebrow">{page.pageEyebrow}</p>
+      <h1 class="display" data-content-key="privacy.heading">{page.pageTitle}</h1>
       <p class="privacy-page__updated">
         {page.updatedLabel} · {today}
       </p>

@@ -236,6 +236,10 @@ export const home = {
   menuSplitCocktails: { he: 'קוקטיילים', en: 'Cocktails' },
   menuSplitDessert:   { he: 'קינוחים',   en: 'Dessert'   },
   menuSplitCta:       { he: 'לתפריט המלא ↗', en: 'See the full menu ↗' },
+  // Tile expand: heading above the starred favourites, + the link through to
+  // that part of the full menu.
+  menuTileFavesLabel: { he: 'מומלצים', en: 'Chef’s picks' },
+  menuTileViewFull:   { he: 'לתפריט המלא ↗', en: 'See full menu ↗' },
 
   eventsEyebrow: { he: 'אירועים פרטיים', en: 'Private events' },
 

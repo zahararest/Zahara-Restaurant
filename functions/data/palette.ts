@@ -48,9 +48,9 @@ export const ALLOWED_TOKENS: ReadonlySet<string> = new Set([
   '--gold',  '--c-green',    '--c-teal',     '--c-slate', '--c-mauve',
   '--ok',    '--err',
   '--shadow',
-  '--cinema-eyebrow', '--cinema-num',       '--cinema-title',
-  '--cinema-item-name', '--cinema-item-desc', '--cinema-item-price',
-  '--cinema-divider', '--cinema-count',     '--cinema-cta',
+  '--events-band-from', '--events-band-to', '--events-band-text',
+  '--events-band-num',  '--events-band-divider',
+  '--tile-label', '--tile-num', '--tile-fave', '--tile-link',
 ]);
 
 const HEX = /^#[0-9a-fA-F]{6}$/;

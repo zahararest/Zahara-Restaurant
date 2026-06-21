@@ -66,6 +66,13 @@ const STYLE = `
   .col textarea.is-multi { min-height: 4.5rem; }
   .fmt-hint code { background: #f3eddc; border: 1px solid #e3d7b8; padding: 0.05rem 0.35rem; font-size: 0.8em; }
   .col [dir="rtl"] { direction: rtl; }
+  .field__size { display: flex; align-items: center; gap: 0.5rem; margin-block-start: 0.4rem; }
+  .field__size label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 600; color: #9a8d77; }
+  .field__size select { font: inherit; font-size: 0.8rem; padding: 0.3rem 0.5rem;
+    border: 1px solid #d8ccae; background: #fff; color: #1a1410; border-radius: 0; }
+  .field__size select:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
+  .field__size select.is-set { border-color: #a88947; color: #6f5a2e; font-weight: 600; }
   .savebar { position: fixed; inset-block-end: 0; inset-inline: 0; z-index: 20;
     background: rgba(250,247,238,0.97); border-top: 1px solid #d8ccae;
     padding: 0.8rem 1.5rem; display: flex; align-items: center; gap: 1rem; justify-content: flex-end; }
@@ -95,8 +102,19 @@ const SCRIPT = `
         if (!map[key]) map[key] = {};
         map[key][lang] = el.value;
       });
+      document.querySelectorAll('[data-size-key]').forEach(function (el) {
+        var key = el.getAttribute('data-size-key');
+        if (!map[key]) map[key] = {};
+        map[key].size = parseFloat(el.value) || 1;
+      });
       return map;
     }
+    // Highlight a size control once it's set to anything but Default.
+    document.querySelectorAll('.field__sizesel').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        sel.classList.toggle('is-set', parseFloat(sel.value) !== 1);
+      });
+    });
     saveBtn.addEventListener('click', async function () {
       saveBtn.disabled = true;
       setStatus('Saving…', false);
@@ -133,12 +151,29 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
   const cls = f.multiline ? ' is-multi' : '';
   const input = (lang: 'he' | 'en', val: string, dir: string, ph: string) =>
     `<textarea class="field__input${cls}" data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" rows="${f.multiline ? 4 : 1}" placeholder="${ph}">${val}</textarea>`;
+
+  // Optional font-size control. Presets keep it simple; the saved value is
+  // pre-selected (and an off-preset value is added so it isn't lost).
+  const curSize = value?.size ?? 1;
+  const presets: Array<[number, string]> = [
+    [0.9, 'Smaller'], [1, 'Default'], [1.15, 'Larger'], [1.3, 'Largest'], [1.5, 'Huge'],
+  ];
+  if (!presets.some(([n]) => n === curSize)) presets.push([curSize, `Custom (${curSize}×)`]);
+  const sizeOpts = presets
+    .map(([n, lbl]) => `<option value="${n}"${n === curSize ? ' selected' : ''}>${esc(lbl)}</option>`)
+    .join('');
+  const sizeSet = curSize !== 1 ? ' is-set' : '';
+
   return `
     <div class="field">
       <div class="field__label">${esc(f.label)}</div>
       <div class="pair">
         <div class="col"><span class="col__lang">Hebrew</span>${input('he', he, 'rtl', phHe)}</div>
         <div class="col"><span class="col__lang">English</span>${input('en', en, 'ltr', phEn)}</div>
+      </div>
+      <div class="field__size">
+        <label>Text size</label>
+        <select class="field__sizesel${sizeSet}" data-size-key="${esc(f.key)}">${sizeOpts}</select>
       </div>
     </div>`;
 }

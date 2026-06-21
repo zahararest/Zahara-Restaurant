@@ -16,6 +16,7 @@
     "@astrojs/sitemap": "^3.7.3",
     "@cloudflare/workers-types": "^4.20260507.1",
     "chrome-devtools-mcp": "^1.1.1",
+    "sharp": "^0.34.5",
     "wrangler": "^4.95.0"
   }
 }

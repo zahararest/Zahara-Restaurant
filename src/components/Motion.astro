@@ -388,18 +388,34 @@ const scrollTopLabel = t.scrollToTop;
         railTicks.forEach((t, idx) => t.classList.toggle('is-active', idx === i));
       };
 
-      // One IntersectionObserver: a section becomes "active" once its
-      // top passes 35% from viewport top going down. Walking back up
-      // past that line restores the previous section.
-      const io = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-          if (!e.isIntersecting) continue;
-          const i = sections.indexOf(e.target);
-          if (i >= 0) { setActive(i); setRailActive(i); }
+      // Deterministic scroll-spy: the active section is the LAST one whose
+      // top has scrolled above an activation line at 38% of the viewport.
+      // This is robust to sections of very different heights and to
+      // reordering — unlike an IntersectionObserver band, where two
+      // tall/short neighbours can both be "intersecting" at once and which
+      // tick lights up then depends on the callback's entry order (the bug
+      // that made the strip show the wrong section after the home page was
+      // re-ordered).
+      let spyPending = false;
+      const computeActive = () => {
+        spyPending = false;
+        const line = window.innerHeight * 0.38;
+        let idx = 0;
+        for (let i = 0; i < sections.length; i++) {
+          if (sections[i].getBoundingClientRect().top <= line) idx = i;
+          else break;
         }
-      }, { rootMargin: '-35% 0px -55% 0px', threshold: 0 });
-
-      sections.forEach((s) => io.observe(s));
+        setActive(idx);
+        setRailActive(idx);
+      };
+      const onScrollSpy = () => {
+        if (spyPending) return;
+        spyPending = true;
+        requestAnimationFrame(computeActive);
+      };
+      window.addEventListener('scroll',  onScrollSpy, { passive: true });
+      window.addEventListener('resize', onScrollSpy, { passive: true });
+      computeActive();
     }
 
     // ── Scroll-to-top button ─────────────────────────────────────

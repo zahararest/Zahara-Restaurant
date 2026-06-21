@@ -921,12 +921,20 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
      a heavy frosted stack over a dark photo reads muddy at small sizes. */
   .story-box { backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 
-  /* Header blur is one of the most expensive things to repaint per scroll
-     frame on phones. Halve the radius on inner pages (home is gradient-only,
-     no blur) — visually near-identical, much cheaper to scroll. */
+  /* Drop the header blur entirely on phones. A backdrop-filter on a sticky bar
+     is both the most expensive thing to repaint per scroll frame AND, on many
+     mobile GPUs, leaves "stuck" ghost fragments of the content that scrolled
+     under it. Replace it with a near-opaque paper fill — legibility unchanged,
+     no trails, much cheaper. (Home's hero state stays gradient-only.) */
   .site-header {
-    backdrop-filter: blur(9px) saturate(130%);
-    -webkit-backdrop-filter: blur(9px) saturate(130%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .site-header:not(.is-on-photo) {
+    background-color: color-mix(in srgb, var(--paper) 96%, transparent);
+  }
+  .site-header:not(.is-on-photo).is-scrolled {
+    background: color-mix(in srgb, var(--paper) 97%, transparent);
   }
 
   /* The slow background-position drift on photo sections repaints a full-

@@ -125,9 +125,10 @@ const nextLabel = g.nextPhoto;
     >
       <svg class="gallery-film__chevron gallery-film__chevron--prev"
            viewBox="0 0 20 40" fill="none"
-           stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+           stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
            aria-hidden="true">
-        {/* LTR: ‹ points left; RTL (mirrored via CSS scaleX(-1)): points right */}
+        {/* Natural left-pointing chevron (mirrored to point right in RTL). Only
+            the navigation direction is reversed, not the icon. */}
         <polyline points="14,2 5,20 14,38" />
       </svg>
     </button>
@@ -140,8 +141,9 @@ const nextLabel = g.nextPhoto;
     >
       <svg class="gallery-film__chevron gallery-film__chevron--next"
            viewBox="0 0 20 40" fill="none"
-           stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"
+           stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
            aria-hidden="true">
+        {/* Natural right-pointing chevron (mirrored to point left in RTL). */}
         <polyline points="6,2 15,20 6,38" />
       </svg>
     </button>
@@ -149,8 +151,8 @@ const nextLabel = g.nextPhoto;
     {/* Photo counter — bottom corner. The total is updated client-side as
         optional slots are confirmed or dropped. */}
     <div class="gallery-film__counter" aria-live="polite" aria-atomic="true">
-      <span data-gallery-index>01</span>
-      <span class="gallery-film__counter-sep" aria-hidden="true"> · </span>
+      <span class="gallery-film__counter-index" data-gallery-index>01</span>
+      <span class="gallery-film__counter-sep" aria-hidden="true">/</span>
       <span class="gallery-film__counter-total" data-gallery-total>{String(photos.length).padStart(2, '0')}</span>
     </div>
   </div>
@@ -162,11 +164,9 @@ const nextLabel = g.nextPhoto;
     if (!film) return;
 
     let current     = 0;          // index into the *live* slide list
-    let isAnimating = false;
     const indexEl   = film.querySelector('[data-gallery-index]');
     const totalEl   = film.querySelector('[data-gallery-total]');
     const reduce    = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const DURATION  = reduce ? 0 : 700; // ms — crossfade length
 
     const pad = (n) => String(n).padStart(2, '0');
 
@@ -198,13 +198,14 @@ const nextLabel = g.nextPhoto;
       if (indexEl) indexEl.textContent = pad(current + 1);
     }
 
+    // No animation lock: the crossfade is a pure CSS opacity transition, so
+    // re-pressing simply retargets it — instant and responsive. (The old
+    // isAnimating guard swallowed taps for the full fade, which read as the
+    // buttons being unresponsive / "stuck" for a couple of seconds.)
     function goTo(next) {
-      if (isAnimating) return;
       const slides = live();
       if (slides.length < 2) return;
-      isAnimating = true;
       show(next);
-      setTimeout(() => { isAnimating = false; }, DURATION);
     }
 
     // ── Optional slots — confirm via API, then load only what exists ──────
@@ -265,16 +266,46 @@ const nextLabel = g.nextPhoto;
 
     refreshMeta();
 
-    // Prev / next buttons
-    film.querySelector('[data-gallery-prev]')
-        ?.addEventListener('click', () => goTo(current - 1));
-    film.querySelector('[data-gallery-next]')
-        ?.addEventListener('click', () => goTo(current + 1));
+    // ── Auto-advance — every 20s once the gallery is on screen ───────────
+    // Starts the moment the gallery scrolls into view; pauses when it scrolls
+    // away or the tab is hidden; honours reduced-motion (no auto-rotation);
+    // and any manual navigation resets the 20s countdown so a tap isn't yanked
+    // to the next slide a moment later.
+    const AUTO_MS = 20000;
+    let autoTimer = null;
+    let inView    = false;
+    function startAuto() {
+      if (reduce || autoTimer || !inView || document.hidden) return;
+      autoTimer = setInterval(() => goTo(current + 1), AUTO_MS);
+    }
+    function stopAuto()  { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } }
+    function resetAuto() { if (autoTimer) { stopAuto(); startAuto(); } }
+    // A user-driven move: navigate AND restart the countdown.
+    function userGoTo(n) { goTo(n); resetAuto(); }
 
-    // Keyboard (when gallery or its children are focused)
+    if (!reduce && 'IntersectionObserver' in window) {
+      new IntersectionObserver((entries) => {
+        inView = entries[0].isIntersecting;
+        if (inView) startAuto(); else stopAuto();
+      }, { threshold: 0.5 }).observe(film);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopAuto(); else startAuto();
+      });
+    }
+
+    // Prev / next buttons — REVERSED per request: the start-side button now
+    // advances, the end-side button goes back (chevron directions flipped to
+    // match in the markup above).
+    film.querySelector('[data-gallery-prev]')
+        ?.addEventListener('click', () => userGoTo(current + 1));
+    film.querySelector('[data-gallery-next]')
+        ?.addEventListener('click', () => userGoTo(current - 1));
+
+    // Keyboard (when gallery or its children are focused) — matches the
+    // physical arrows: left key drives the start-side (advance) button.
     film.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowLeft')  goTo(current - 1);
-      if (e.key === 'ArrowRight') goTo(current + 1);
+      if (e.key === 'ArrowLeft')  userGoTo(current + 1);
+      if (e.key === 'ArrowRight') userGoTo(current - 1);
     });
 
     // Touch / swipe
@@ -285,7 +316,7 @@ const nextLabel = g.nextPhoto;
     film.addEventListener('touchend', (e) => {
       const delta = touchX - e.changedTouches[0].clientX;
       if (Math.abs(delta) < 40) return; // ignore small movements
-      goTo(delta > 0 ? current + 1 : current - 1);
+      userGoTo(delta > 0 ? current + 1 : current - 1);
     }, { passive: true });
   })();
 </script>
@@ -413,33 +444,20 @@ const nextLabel = g.nextPhoto;
     user-select: none;
     -webkit-user-select: none;
   }
+  /* No edge gradient — the soft dark band the gradients painted along the
+     left/right edges read as a "blur" over the photo. The arrows are now
+     fully transparent until hovered, so the photography reaches the frame
+     edge cleanly. */
   .gallery-film__arrow--prev {
     inset-inline-start: 0;
     justify-content: flex-start;
     padding-inline-start: clamp(1rem, 3vw, 2.5rem);
-    background: linear-gradient(to right,
-      color-mix(in srgb, var(--shadow) 28%, transparent),
-      transparent);
-  }
-  html[dir="rtl"] .gallery-film__arrow--prev {
-    background: linear-gradient(to left,
-      color-mix(in srgb, var(--shadow) 28%, transparent),
-      transparent);
   }
   .gallery-film__arrow--next {
     inset-inline-end: 0;
     justify-content: flex-end;
     padding-inline-end: clamp(1rem, 3vw, 2.5rem);
-    background: linear-gradient(to left,
-      color-mix(in srgb, var(--shadow) 28%, transparent),
-      transparent);
   }
-  html[dir="rtl"] .gallery-film__arrow--next {
-    background: linear-gradient(to right,
-      color-mix(in srgb, var(--shadow) 28%, transparent),
-      transparent);
-  }
-  .gallery-film__arrow:hover { background: color-mix(in srgb, var(--shadow) 22%, transparent); }
   .gallery-film__arrow:focus-visible {
     outline: 2px solid var(--paper-on-photo);
     outline-offset: -4px;
@@ -455,11 +473,14 @@ const nextLabel = g.nextPhoto;
   }
 
   .gallery-film__chevron {
-    width: clamp(18px, 2.5vw, 28px);
+    width: clamp(20px, 2.4vw, 28px);
     height: auto;
-    opacity: 0.65;
-    transition: opacity 0.25s;
+    opacity: 0.85;
     flex-shrink: 0;
+    transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out);
+    /* A soft drop-shadow (no background plate) keeps the thin stroke legible
+       over any photo while staying clean and editorial. */
+    filter: drop-shadow(0 1px 6px color-mix(in srgb, var(--shadow) 60%, transparent));
   }
   .gallery-film__arrow:hover .gallery-film__chevron { opacity: 1; }
   /* In RTL the prev/next arrows swap visual direction */
@@ -467,19 +488,34 @@ const nextLabel = g.nextPhoto;
   html[dir="rtl"] .gallery-film__chevron--next { transform: scaleX(-1); }
 
   /* ── Counter ───────────────────────────────────────────────────── */
+  /* Bottom corner. Clean text with a soft shadow (no pill / backdrop), so it
+     reads ON the photo the same editorial way the title and caption do — just
+     larger and clearer than before, with the current index emphasised. */
   .gallery-film__counter {
     position: absolute;
-    inset-block-end: 1.25rem;
-    inset-inline-end: 1.75rem;
+    inset-block-end: clamp(1.5rem, 6vh, 3.5rem);
+    inset-inline-end: clamp(1.25rem, 4vw, 3rem);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
     font-family: var(--font-body);
-    font-size: var(--step--2);
-    letter-spacing: 0.22em;
+    font-size: var(--step-0);
+    letter-spacing: 0.12em;
     color: var(--paper-on-photo);
-    opacity: 0.8;
     z-index: 2;
     user-select: none;
-    /* Subtle text shadow so it reads on any photo */
-    text-shadow: 0 1px 4px color-mix(in srgb, var(--shadow) 55%, transparent);
+    text-shadow: 0 2px 14px color-mix(in srgb, var(--shadow) 55%, transparent);
   }
-  .gallery-film__counter-total { color: color-mix(in srgb, var(--paper-on-photo) 55%, transparent); }
+  .gallery-film__counter-index {
+    font-size: var(--step-2);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .gallery-film__counter-sep {
+    color: color-mix(in srgb, var(--paper-on-photo) 60%, transparent);
+  }
+  .gallery-film__counter-total {
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+  }
 </style>
