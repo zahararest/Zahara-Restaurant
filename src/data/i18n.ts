@@ -226,6 +226,11 @@ export const home = {
   igViewReel:     { he: 'לצפייה בריל ↗',   en: 'View reel ↗'   },
   igViewPost:     { he: 'לצפייה בפוסט ↗',  en: 'View post ↗'   },
   igLiveNow:      { he: 'סטורי עכשיו',      en: 'Story · live now' },
+  // Reels reveal + story navigation.
+  igShowReels:    { he: 'צפו בריאלز ↓',    en: 'Watch our reels ↓' },
+  igHideReels:    { he: 'הסתרת ריאלז',      en: 'Hide reels' },
+  igPrevStory:    { he: 'הסטורי הקודם',     en: 'Previous story' },
+  igNextStory:    { he: 'הסטורי הבא',       en: 'Next story' },
 
   // ── Menu split — the full-frame "how the table is built" section that
   // replaced the in-page menu preview. One photo, the four parts of the

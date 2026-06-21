@@ -1,11 +1,12 @@
 ---
-// InstagramFeed — one featured moment.
+// InstagramFeed — one small "moment" box + a reels reveal.
 //
-// Hydrates from /api/instagram, which returns the account's CURRENT story if
-// one is live, otherwise the latest post/reel. We show that single item as a
-// portrait card with a button that opens it on Instagram, labelled by what it
-// is ("Watch story" / "View reel" / "View post"). Falls back to a branded
-// "Follow us" CTA when nothing is available (or no token is configured).
+// Hydrates from /api/instagram:
+//   • stories[] — every live story frame; the box lets you switch between them.
+//   • item      — latest post/reel, shown only when no story is live.
+//   • reels[]   — recent reels, revealed under a button beneath the box.
+// Each box has a button that opens the shown item on Instagram, labelled by
+// what it is. Falls back to a branded "Follow us" box when nothing's available.
 
 import { pick, home as copy } from '../../data/i18n';
 import { RESTAURANT } from '../../data/restaurant';
@@ -32,17 +33,20 @@ const t = pick(copy, lang);
       >{t.igHeading}</h2>
     </div>
 
-    {/* Single featured card. Starts as a skeleton, then JS swaps in the live
-        story / latest post, or the follow-CTA fallback. */}
+    {/* Small featured box + (optional) reels toggle, all built by JS. Starts
+        as a skeleton box. */}
     <div class="ig-feature" data-ig-feature>
-      <a class="ig-feature__card ig-feature__card--skeleton"
-         href={RESTAURANT.instagram} target="_blank" rel="noopener noreferrer"
-         aria-label={`${t.igFollow} · ${t.igHandle}`}>
-        <span class="ig-feature__img" aria-hidden="true"></span>
-      </a>
+      <div class="ig-box ig-box--skeleton">
+        <span class="ig-box__img" aria-hidden="true"></span>
+      </div>
     </div>
 
-    {/* Profile handle, always present below the feature. */}
+    {/* Reels strip — hidden until the button under the box is pressed. */}
+    <div class="ig-reels" id="ig-reels" data-ig-reels hidden>
+      <div class="ig-reels__scroll" data-ig-reels-scroll role="list" aria-label={t.igAriaStrip}></div>
+    </div>
+
+    {/* Profile handle, always present. */}
     <div class="ig-follow reveal-on-scroll">
       <a
         class="ig-follow__link"
@@ -65,16 +69,17 @@ const t = pick(copy, lang);
 
 <script is:inline define:vars={{ instagramUrl: RESTAURANT.instagram, t }}>
   (function () {
-    const feature = document.querySelector('[data-ig-feature]');
+    const feature   = document.querySelector('[data-ig-feature]');
+    const reelsWrap = document.querySelector('[data-ig-reels]');
+    const reelsScroll = document.querySelector('[data-ig-reels-scroll]');
     if (!feature) return;
 
     const escAttr = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
     const escHtml = (s) => String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Defer the network call until the section is near the viewport — it sits
-    // near the bottom of the page, so fetching on load only lengthens the
-    // initial request chain for content nobody has scrolled to yet.
+    // Defer the call until the section nears the viewport (it sits low on the
+    // page; fetching on load only lengthens the initial request chain).
     function whenNear(el, cb) {
       if (!('IntersectionObserver' in window)) { cb(); return; }
       const io = new IntersectionObserver((entries) => {
@@ -83,63 +88,154 @@ const t = pick(copy, lang);
       io.observe(el);
     }
 
-    function renderFallback() {
-      feature.innerHTML =
-        '<a class="ig-feature__card ig-feature__card--cta" href="' + escAttr(instagramUrl) + '"' +
-        ' target="_blank" rel="noopener noreferrer" aria-label="' + escAttr(t.igFollow) + '">' +
-          '<span class="ig-feature__cta-inner">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
-              '<rect x="2" y="2" width="20" height="20" rx="5"/>' +
-              '<circle cx="12" cy="12" r="4"/>' +
-              '<circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>' +
-            '</svg>' +
-            '<span>' + escHtml(t.igEmpty) + '</span>' +
-            '<span class="ig-feature__cta-handle">' + escHtml(t.igHandle) + '</span>' +
-          '</span>' +
-        '</a>';
-    }
-
     function buttonLabel(kind) {
       if (kind === 'story') return t.igWatchStory;
       if (kind === 'reel')  return t.igViewReel;
       return t.igViewPost;
     }
 
-    function renderItem(item, kind) {
-      const href  = item.permalink || instagramUrl;
-      const label = buttonLabel(kind);
-      const isVideo = item.media_type === 'VIDEO' || kind === 'reel' || kind === 'story';
-      const liveTag = kind === 'story'
-        ? '<span class="ig-feature__live">' + escHtml(t.igLiveNow) + '</span>'
-        : '';
-      const playIcon = isVideo
-        ? '<span class="ig-feature__play" aria-hidden="true"></span>'
-        : '';
-
+    function renderFallback() {
       feature.innerHTML =
-        '<a class="ig-feature__card" href="' + escAttr(href) + '"' +
-        ' target="_blank" rel="noopener noreferrer" aria-label="' + escAttr(label) + '">' +
-          '<img class="ig-feature__img" src="' + escAttr(item.image) + '"' +
-          ' alt="' + escAttr(item.caption ? item.caption.slice(0, 80) : t.igHandle) + '"' +
-          ' loading="lazy" decoding="async" referrerpolicy="no-referrer" />' +
-          liveTag +
-          playIcon +
-          '<span class="ig-feature__bar">' +
-            '<span class="ig-feature__btn">' + escHtml(label) + '</span>' +
+        '<a class="ig-box ig-box--cta" href="' + escAttr(instagramUrl) + '"' +
+        ' target="_blank" rel="noopener noreferrer" aria-label="' + escAttr(t.igFollow) + '">' +
+          '<span class="ig-box__cta-inner">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
+              '<rect x="2" y="2" width="20" height="20" rx="5"/>' +
+              '<circle cx="12" cy="12" r="4"/>' +
+              '<circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>' +
+            '</svg>' +
+            '<span>' + escHtml(t.igEmpty) + '</span>' +
+            '<span class="ig-box__cta-handle">' + escHtml(t.igHandle) + '</span>' +
           '</span>' +
         '</a>';
+    }
 
-      // If the photo fails to load (expired/blocked CDN URL), drop to the CTA.
-      const img = feature.querySelector('.ig-feature__img');
-      if (img) img.addEventListener('error', renderFallback, { once: true });
+    // ── The featured box ──────────────────────────────────────────────────
+    function renderBox(frames, kind) {
+      // `frames` is an array (stories may have many; posts/reels have one).
+      let idx = 0;
+      const multi = frames.length > 1;
+      const isVideoKind = (kind === 'story' || kind === 'reel');
+      const label = buttonLabel(kind);
+
+      const segs = multi
+        ? '<span class="ig-box__segs" aria-hidden="true">' +
+            frames.map(() => '<span class="ig-box__seg"></span>').join('') +
+          '</span>'
+        : '';
+      const live = kind === 'story'
+        ? '<span class="ig-box__live">' + escHtml(t.igLiveNow) + '</span>'
+        : '';
+      const play = isVideoKind
+        ? '<span class="ig-box__play" aria-hidden="true"></span>'
+        : '';
+      const nav = multi
+        ? '<button type="button" class="ig-box__nav ig-box__nav--prev" aria-label="' + escAttr(t.igPrevStory) + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>' +
+          '</button>' +
+          '<button type="button" class="ig-box__nav ig-box__nav--next" aria-label="' + escAttr(t.igNextStory) + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>' +
+          '</button>'
+        : '';
+
+      const html =
+        '<div class="ig-box ig-box--media' + (multi ? ' is-multi' : '') + '">' +
+          segs +
+          '<img class="ig-box__img" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />' +
+          live + play + nav +
+          '<span class="ig-box__bar">' +
+            '<a class="ig-box__btn" target="_blank" rel="noopener noreferrer">' + escHtml(label) + '</a>' +
+          '</span>' +
+        '</div>';
+
+      feature.innerHTML = html;
+
+      const box   = feature.querySelector('.ig-box');
+      const img   = feature.querySelector('.ig-box__img');
+      const btn   = feature.querySelector('.ig-box__btn');
+      const segEls = Array.prototype.slice.call(feature.querySelectorAll('.ig-box__seg'));
+
+      function show(i) {
+        idx = (i + frames.length) % frames.length;
+        const f = frames[idx];
+        img.src = f.image;
+        btn.href = f.permalink || instagramUrl;
+        btn.setAttribute('aria-label', label);
+        segEls.forEach((s, n) => s.classList.toggle('is-active', n === idx));
+      }
+      // Any image failing (expired/blocked CDN URL) drops the box to the CTA.
+      img.addEventListener('error', renderFallback, { once: true });
+      show(0);
+
+      if (multi) {
+        feature.querySelector('.ig-box__nav--prev').addEventListener('click', () => show(idx - 1));
+        feature.querySelector('.ig-box__nav--next').addEventListener('click', () => show(idx + 1));
+        segEls.forEach((s, n) => s.addEventListener('click', () => show(n)));
+        // Arrow keys when the box is focused.
+        box.tabIndex = 0;
+        box.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight') { show(idx + 1); e.preventDefault(); }
+          if (e.key === 'ArrowLeft')  { show(idx - 1); e.preventDefault(); }
+        });
+      }
+    }
+
+    // ── Reels reveal ──────────────────────────────────────────────────────
+    function setupReels(reels) {
+      if (!reels || !reels.length || !reelsWrap || !reelsScroll) return;
+
+      reelsScroll.innerHTML = reels.map((r, i) =>
+        '<a class="ig-reel" href="' + escAttr(r.permalink || instagramUrl) + '"' +
+        ' target="_blank" rel="noopener noreferrer" role="listitem" style="--i:' + i + '"' +
+        ' aria-label="' + escAttr(r.caption ? r.caption.slice(0, 60) : t.igViewReel) + '">' +
+          '<img class="ig-reel__img" src="' + escAttr(r.image) + '" alt=""' +
+          ' loading="lazy" decoding="async" referrerpolicy="no-referrer"' +
+          ' onerror="this.closest(\'.ig-reel\').remove()" />' +
+          '<span class="ig-reel__play" aria-hidden="true"></span>' +
+        '</a>'
+      ).join('');
+
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'ig-reels-toggle';
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-controls', 'ig-reels');
+      toggle.textContent = t.igShowReels;
+      feature.appendChild(toggle);
+
+      toggle.addEventListener('click', () => {
+        const open = reelsWrap.hasAttribute('hidden');
+        if (open) {
+          reelsWrap.removeAttribute('hidden');
+          // next frame so the unhidden element can transition in
+          requestAnimationFrame(() => reelsWrap.classList.add('is-open'));
+          toggle.setAttribute('aria-expanded', 'true');
+          toggle.textContent = t.igHideReels;
+        } else {
+          reelsWrap.classList.remove('is-open');
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.textContent = t.igShowReels;
+          const hide = () => reelsWrap.setAttribute('hidden', '');
+          reelsWrap.addEventListener('transitionend', hide, { once: true });
+          setTimeout(hide, 450);
+        }
+      });
     }
 
     function loadFeature() {
       fetch('/api/instagram', { cache: 'default' })
         .then((res) => { if (!res.ok) throw new Error('no feed'); return res.json(); })
         .then((data) => {
-          if (data && data.item && data.item.image) renderItem(data.item, data.kind);
-          else renderFallback();
+          if (!data) { renderFallback(); return; }
+          const stories = Array.isArray(data.stories) ? data.stories.filter((s) => s && s.image) : [];
+          if (stories.length) {
+            renderBox(stories, 'story');
+          } else if (data.item && data.item.image) {
+            renderBox([data.item], data.kind || 'post');
+          } else {
+            renderFallback();
+          }
+          setupReels(Array.isArray(data.reels) ? data.reels.filter((r) => r && r.image) : []);
         })
         .catch(renderFallback);
     }
@@ -149,8 +245,8 @@ const t = pick(copy, lang);
 </script>
 
 <style>
-  /* Quiet "follow us" moment near the foot of the page — tighter than a main
-     editorial section, one featured photo rather than a strip of squares. */
+  /* Quiet "follow us" moment near the foot of the page — a single small box,
+     not a full editorial section. */
   section.ig-section {
     overflow: hidden;
     padding-block: var(--space-l) var(--space-m);
@@ -159,16 +255,18 @@ const t = pick(copy, lang);
   .ig-section .eyebrow { margin-block-end: 0.35rem; }
   .ig-section .display { font-size: var(--step-2); margin: 0; }
 
-  /* ── Featured card ──────────────────────────────────────────────────── */
+  /* ── Featured box (small) ───────────────────────────────────────────── */
   .ig-feature {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
   }
-  .ig-feature__card {
+  .ig-box {
     position: relative;
     display: block;
     width: 100%;
-    max-width: 22rem;
+    max-width: clamp(150px, 44vw, 200px);
     aspect-ratio: 4 / 5;
     overflow: hidden;
     border-radius: 2px;
@@ -176,11 +274,8 @@ const t = pick(copy, lang);
     text-decoration: none;
     color: var(--paper-on-photo);
   }
-  .ig-feature__card:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-  }
-  .ig-feature__img {
+  .ig-box--media:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .ig-box__img {
     display: block;
     width: 100%;
     height: 100%;
@@ -188,106 +283,198 @@ const t = pick(copy, lang);
     background: var(--paper-deep);
     transition: transform 0.7s var(--ease-out);
   }
-  .ig-feature__card:hover .ig-feature__img { transform: scale(1.03); }
+  .ig-box:hover .ig-box__img { transform: scale(1.03); }
 
-  /* Skeleton shimmer (GPU-composited translate, not background-position). */
-  .ig-feature__card--skeleton .ig-feature__img { position: relative; overflow: hidden; }
-  .ig-feature__card--skeleton .ig-feature__img::after {
+  /* Skeleton shimmer (GPU-composited translate). */
+  .ig-box--skeleton .ig-box__img { position: relative; overflow: hidden; }
+  .ig-box--skeleton .ig-box__img::after {
     content: '';
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     background: linear-gradient(90deg, transparent 0%, var(--paper-edge) 50%, transparent 100%);
     transform: translateX(-100%);
     animation: igSkeleton 1.5s ease infinite;
   }
   @keyframes igSkeleton { 100% { transform: translateX(100%); } }
-  @media (prefers-reduced-motion: reduce) {
-    .ig-feature__card--skeleton .ig-feature__img::after { animation: none; }
-    .ig-feature__card:hover .ig-feature__img { transform: none; }
-  }
 
-  /* "Story · live now" tag, top-start. */
-  .ig-feature__live {
+  /* Story segment bars (top). */
+  .ig-box__segs {
     position: absolute;
-    inset-block-start: 0.7rem;
-    inset-inline-start: 0.7rem;
-    z-index: 2;
+    inset-block-start: 0.4rem;
+    inset-inline: 0.4rem;
+    z-index: 3;
+    display: flex;
+    gap: 0.2rem;
+  }
+  .ig-box__seg {
+    flex: 1;
+    height: 2px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--paper-on-photo) 35%, transparent);
+    cursor: pointer;
+    transition: background 0.25s ease;
+  }
+  .ig-box__seg.is-active { background: var(--accent); }
+
+  /* "Story · live now" tag. */
+  .ig-box__live {
+    position: absolute;
+    inset-block-start: 0.85rem;
+    inset-inline-start: 0.5rem;
+    z-index: 3;
     font-size: var(--step--2);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--paper-on-photo);
     background: color-mix(in srgb, var(--accent) 88%, transparent);
-    padding: 0.25rem 0.6rem;
+    padding: 0.18rem 0.5rem;
     border-radius: 2px;
   }
 
-  /* Play glyph for video stories/reels (CSS triangle, no asset). */
-  .ig-feature__play {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: grid;
-    place-items: center;
-    pointer-events: none;
+  /* Play glyph for video stories/reels. */
+  .ig-box__play {
+    position: absolute; inset: 0; z-index: 2;
+    display: grid; place-items: center; pointer-events: none;
   }
-  .ig-feature__play::before {
+  .ig-box__play::before {
     content: '';
-    width: 3.2rem;
-    height: 3.2rem;
+    width: 2.6rem; height: 2.6rem;
     border-radius: 50%;
     background: color-mix(in srgb, var(--shadow) 45%, transparent);
     backdrop-filter: blur(2px);
   }
-  .ig-feature__play::after {
+  .ig-box__play::after {
     content: '';
     position: absolute;
-    width: 0;
-    height: 0;
+    width: 0; height: 0;
     border-style: solid;
-    border-width: 0.55rem 0 0.55rem 0.9rem;
+    border-width: 0.45rem 0 0.45rem 0.74rem;
     border-color: transparent transparent transparent var(--paper-on-photo);
-    margin-inline-start: 0.2rem;
+    margin-inline-start: 0.18rem;
   }
 
-  /* Bottom bar holding the type-labelled button. */
-  .ig-feature__bar {
+  /* Prev / next story arrows. */
+  .ig-box__nav {
+    position: absolute;
+    inset-block: 0;
+    z-index: 4;
+    width: 38%;
+    display: grid;
+    align-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--paper-on-photo);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .ig-box__nav svg { width: 1.5rem; height: 1.5rem; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6)); }
+  .ig-box__nav--prev { inset-inline-start: 0; justify-items: start; padding-inline-start: 0.3rem; }
+  .ig-box__nav--next { inset-inline-end: 0; justify-items: end; padding-inline-end: 0.3rem; }
+  .ig-box:hover .ig-box__nav,
+  .ig-box:focus-within .ig-box__nav { opacity: 0.9; }
+  .ig-box__nav:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  /* Bottom bar with the "open on Instagram" button. */
+  .ig-box__bar {
     position: absolute;
     inset-inline: 0;
     inset-block-end: 0;
-    z-index: 2;
+    z-index: 3;
     display: flex;
     justify-content: center;
-    padding: 1rem;
+    padding: 0.7rem;
     background: linear-gradient(to top,
-      color-mix(in srgb, var(--shadow) 82%, transparent) 0%,
-      transparent 100%);
+      color-mix(in srgb, var(--shadow) 82%, transparent) 0%, transparent 100%);
   }
-  .ig-feature__btn {
+  .ig-box__btn {
     font-size: var(--step--1);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     color: var(--paper-on-photo);
+    text-decoration: none;
     padding-bottom: 2px;
     border-bottom: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
     transition: border-color 0.25s ease;
   }
-  .ig-feature__card:hover .ig-feature__btn { border-bottom-color: var(--paper-on-photo); }
+  .ig-box__btn:hover { border-bottom-color: var(--paper-on-photo); }
 
-  /* Fallback CTA card */
-  .ig-feature__card--cta { display: grid; place-items: center; }
-  .ig-feature__cta-inner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
+  /* Fallback CTA box. */
+  .ig-box--cta { display: grid; place-items: center; }
+  .ig-box__cta-inner {
+    display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
     color: var(--ink-muted);
-    font-size: var(--step--1);
-    padding: var(--space-m);
+    font-size: var(--step--2);
+    padding: var(--space-s);
     text-align: center;
   }
-  .ig-feature__cta-inner svg { width: 2rem; height: 2rem; color: var(--ink-muted); }
-  .ig-feature__cta-handle { font-size: var(--step--2); color: var(--accent); letter-spacing: 0.05em; }
+  .ig-box__cta-inner svg { width: 1.8rem; height: 1.8rem; color: var(--ink-muted); }
+  .ig-box__cta-handle { color: var(--accent); letter-spacing: 0.05em; }
 
-  /* Follow link below the feature */
+  /* ── Reels reveal ───────────────────────────────────────────────────── */
+  .ig-reels-toggle {
+    font: inherit;
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    padding: 0.2rem 0.2rem;
+    transition: color 0.2s ease;
+  }
+  .ig-reels-toggle:hover { color: var(--ink); }
+  .ig-reels-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .ig-reels {
+    margin-block-start: var(--space-s);
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 0.4s var(--ease-out), opacity 0.4s var(--ease-out);
+  }
+  .ig-reels.is-open { max-height: 40vh; opacity: 1; }
+  .ig-reels__scroll {
+    display: flex;
+    gap: var(--space-2xs);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-inline: var(--space-m);
+    padding-block: 0.5rem var(--space-2xs);
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+  }
+  .ig-reels__scroll::-webkit-scrollbar { display: none; }
+  .ig-reel {
+    position: relative;
+    flex: 0 0 clamp(92px, 24vw, 120px);
+    aspect-ratio: 9 / 14;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--paper-deep);
+    scroll-snap-align: start;
+    text-decoration: none;
+  }
+  .ig-reel__img {
+    display: block; width: 100%; height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s var(--ease-out);
+  }
+  .ig-reel:hover .ig-reel__img { transform: scale(1.04); }
+  .ig-reel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ig-reel__play {
+    position: absolute; inset: 0;
+    display: grid; place-items: center; pointer-events: none;
+  }
+  .ig-reel__play::after {
+    content: '';
+    width: 0; height: 0;
+    border-style: solid;
+    border-width: 0.36rem 0 0.36rem 0.6rem;
+    border-color: transparent transparent transparent var(--paper-on-photo);
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+    margin-inline-start: 0.1rem;
+  }
+
+  /* Follow link below */
   .ig-follow {
     display: flex;
     justify-content: center;
@@ -306,4 +493,11 @@ const t = pick(copy, lang);
   .ig-follow__link:hover { color: var(--ink); }
   .ig-follow__icon { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
   .ig-follow__label { font-size: 0.8em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ig-box--skeleton .ig-box__img::after { animation: none; }
+    .ig-box:hover .ig-box__img,
+    .ig-reel:hover .ig-reel__img { transform: none; }
+    .ig-reels { transition: none; }
+  }
 </style>

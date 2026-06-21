@@ -629,17 +629,15 @@ const emptyLabel = t.emptyLabel;
         if (featured.length) {
           list.innerHTML = featured
             .map((it) => {
-              const price = it.price ? `<span class="menu-tile__fave-price">${esc(it.price)}</span>` : '';
-              const desc  = it.description
+              const desc = it.description
                 ? `<span class="menu-tile__fave-desc">${esc(it.description)}</span>`
                 : '';
+              // A small editorial card per pick — accent rule on the start
+              // edge, dish name, optional one-line note. No price here; the
+              // full prices live one tap away in the menu.
               return (
                 `<li class="menu-tile__fave">` +
-                  `<span class="menu-tile__fave-row">` +
-                    `<span class="menu-tile__fave-name">${esc(it.name)}</span>` +
-                    `<span class="menu-tile__fave-dots" aria-hidden="true"></span>` +
-                    price +
-                  `</span>` +
+                  `<span class="menu-tile__fave-name">${esc(it.name)}</span>` +
                   desc +
                 `</li>`
               );
@@ -990,50 +988,50 @@ const emptyLabel = t.emptyLabel;
     padding: 0;
     display: flex;
     flex-direction: column;
+    gap: 0.55rem;
   }
-  /* Each pick reads like one line of a printed menu: serif dish name on the
-     start edge, a hairline leader, terracotta price on the end edge, with an
-     optional one-line description tucked beneath. Items are separated by a
-     1px paper rule rather than floating with a gap. */
+  /* Each pick is a small editorial card sitting over the photo: a terracotta
+     accent rule on the start edge, a soft paper-glass fill, serif dish name,
+     and an optional one-line note. No price — the full menu is one tap away.
+     Kept restrained (2px radius, 1px border, no shadow) so it still reads as
+     part of the warm paper aesthetic, not a SaaS card. */
   .menu-tile__fave {
-    padding-block: 0.6rem;
-    border-top: 1px solid color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
+    position: relative;
+    padding: 0.6rem 0.8rem 0.6rem 0.85rem;
+    border-radius: 2px;
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 16%, transparent);
+    border-inline-start: 3px solid var(--accent);
+    background: color-mix(in srgb, var(--paper-on-photo) 9%, transparent);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    transition: background 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
     /* slight stagger-in once the panel opens */
     opacity: 0;
     transform: translateY(0.4rem);
-    transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
   }
-  .menu-tile__fave:first-child { border-top: 0; padding-block-start: 0; }
-  .menu-tile__fave-row {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
+  .menu-tile.is-open .menu-tile__fave {
+    transition:
+      opacity 0.4s var(--ease-out),
+      transform 0.4s var(--ease-out),
+      background 0.3s var(--ease-out),
+      border-color 0.3s var(--ease-out);
+  }
+  .menu-tile__fave:hover {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   }
   .menu-tile__fave-name {
+    display: block;
     font-family: var(--font-display);
     font-size: var(--step-0);
     line-height: 1.2;
     color: var(--tile-fave);
   }
-  .menu-tile__fave-dots {
-    flex: 1 1 auto;
-    align-self: flex-end;
-    margin-block-end: 0.28em;
-    border-bottom: 1px dotted color-mix(in srgb, var(--paper-on-photo) 34%, transparent);
-  }
-  .menu-tile__fave-price {
-    flex-shrink: 0;
-    font-family: var(--font-body);
-    font-size: var(--step--1);
-    letter-spacing: 0.04em;
-    color: var(--accent);
-  }
   .menu-tile__fave-desc {
-    display: block;
-    margin-block-start: 0.2rem;
+    margin-block-start: 0.22rem;
     font-family: var(--font-body);
     font-size: var(--step--2);
-    line-height: 1.45;
+    line-height: 1.4;
     color: color-mix(in srgb, var(--tile-fave) 72%, transparent);
     /* keep picks compact — one line, never a wall of text on the photo */
     display: -webkit-box;
