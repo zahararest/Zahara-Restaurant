@@ -1,10 +1,11 @@
 ---
-// InstagramFeed — horizontal story-style scroller.
+// InstagramFeed — one featured moment.
 //
-// Hydrates from /api/instagram which returns recent posts from the
-// Instagram Graph API when INSTAGRAM_ACCESS_TOKEN is set as a
-// Cloudflare Pages secret. Falls back to a branded "Follow us" CTA
-// when no token is configured.
+// Hydrates from /api/instagram, which returns the account's CURRENT story if
+// one is live, otherwise the latest post/reel. We show that single item as a
+// portrait card with a button that opens it on Instagram, labelled by what it
+// is ("Watch story" / "View reel" / "View post"). Falls back to a branded
+// "Follow us" CTA when nothing is available (or no token is configured).
 
 import { pick, home as copy } from '../../data/i18n';
 import { RESTAURANT } from '../../data/restaurant';
@@ -30,19 +31,18 @@ const t = pick(copy, lang);
         data-content-key="home.igHeading"
       >{t.igHeading}</h2>
     </div>
-  </div>
 
-  <div class="ig-scroll-wrap">
-    <div class="ig-scroll" data-ig-scroll role="list" aria-label={t.igAriaStrip}>
-      {/* Placeholder cards shown before hydration */}
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div class="ig-card ig-card--skeleton" role="listitem" aria-hidden="true" style={`--i:${i}`}>
-          <div class="ig-card__img"></div>
-        </div>
-      ))}
+    {/* Single featured card. Starts as a skeleton, then JS swaps in the live
+        story / latest post, or the follow-CTA fallback. */}
+    <div class="ig-feature" data-ig-feature>
+      <a class="ig-feature__card ig-feature__card--skeleton"
+         href={RESTAURANT.instagram} target="_blank" rel="noopener noreferrer"
+         aria-label={`${t.igFollow} · ${t.igHandle}`}>
+        <span class="ig-feature__img" aria-hidden="true"></span>
+      </a>
     </div>
 
-    {/* Profile CTA — shown as fallback and always visible below the strip */}
+    {/* Profile handle, always present below the feature. */}
     <div class="ig-follow reveal-on-scroll">
       <a
         class="ig-follow__link"
@@ -64,27 +64,17 @@ const t = pick(copy, lang);
 </section>
 
 <script is:inline define:vars={{ instagramUrl: RESTAURANT.instagram, t }}>
-  (async function () {
-    const scroll = document.querySelector('[data-ig-scroll]');
-    if (!scroll) return;
+  (function () {
+    const feature = document.querySelector('[data-ig-feature]');
+    if (!feature) return;
 
-    // Drag-scroll (same as gallery)
-    let startX = 0, scrollLeft = 0, dragging = false;
-    scroll.addEventListener('mousedown', (e) => {
-      dragging = true; startX = e.pageX - scroll.offsetLeft;
-      scrollLeft = scroll.scrollLeft; scroll.style.cursor = 'grabbing'; e.preventDefault();
-    });
-    scroll.addEventListener('mouseleave', () => { dragging = false; scroll.style.cursor = ''; });
-    scroll.addEventListener('mouseup',    () => { dragging = false; scroll.style.cursor = ''; });
-    scroll.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      scroll.scrollLeft = scrollLeft - (e.pageX - scroll.offsetLeft - startX) * 1.4;
-    });
+    const escAttr = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
+    const escHtml = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Defer the network call until the strip is near the viewport. It sits
-    // near the bottom of the page, so fetching it on load only adds to the
-    // initial critical request chain (hurts LCP) for content nobody has
-    // scrolled to yet.
+    // Defer the network call until the section is near the viewport — it sits
+    // near the bottom of the page, so fetching on load only lengthens the
+    // initial request chain for content nobody has scrolled to yet.
     function whenNear(el, cb) {
       if (!('IntersectionObserver' in window)) { cb(); return; }
       const io = new IntersectionObserver((entries) => {
@@ -93,141 +83,116 @@ const t = pick(copy, lang);
       io.observe(el);
     }
 
-    async function loadFeed() {
-    try {
-      const res = await fetch('/api/instagram', { cache: 'default' });
-      if (!res.ok) throw new Error('no feed');
-      const { posts } = await res.json();
-      if (!Array.isArray(posts) || posts.length === 0) throw new Error('empty');
-
-      // Render real <img> with referrerpolicy="no-referrer": Instagram's CDN
-      // (scontent.cdninstagram.com) refuses hotlinked requests that carry a
-      // foreign Referer, and the site sends one site-wide. A CSS
-      // background-image can't drop the referrer per element; an <img> can —
-      // so this is what actually makes the photos appear off-site.
-      const escAttr = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
-      scroll.innerHTML = posts.map((p, i) => {
-        const img = p.thumbnail_url || p.media_url;
-        if (!img) return '';
-        const label = p.caption ? p.caption.slice(0, 60) : t.igHandle;
-        const badge = p.media_type === 'VIDEO'
-          ? '<span class="ig-card__badge" aria-hidden="true">▶</span>'
-          : p.media_type === 'CAROUSEL_ALBUM'
-            ? '<span class="ig-card__badge" aria-hidden="true">⧉</span>'
-            : '';
-        return `
-        <a
-          class="ig-card"
-          href="${escAttr(p.permalink)}"
-          target="_blank"
-          rel="noopener noreferrer"
-          role="listitem"
-          aria-label="${escAttr(label)}"
-          style="--i:${i}"
-        >
-          <img class="ig-card__img" src="${escAttr(img)}" alt="${escAttr(label)}"
-               loading="lazy" decoding="async" referrerpolicy="no-referrer"
-               onerror="this.closest('.ig-card').remove()" />
-          ${badge}
-        </a>`;
-      }).join('');
-
-      // If every image failed to load (or none had a URL), fall back to the
-      // branded CTA rather than leaving an empty strip.
-      if (!scroll.querySelector('.ig-card')) throw new Error('no usable media');
-    } catch {
-      // Fallback: replace skeletons with branded follow CTA card
-      scroll.innerHTML = `
-        <a class="ig-card ig-card--cta" href="${instagramUrl}" target="_blank"
-           rel="noopener noreferrer" role="listitem"
-           aria-label="${t.igFollow}">
-          <div class="ig-card__img ig-card__img--cta">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
-              <rect x="2" y="2" width="20" height="20" rx="5"/>
-              <circle cx="12" cy="12" r="4"/>
-              <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>
-            </svg>
-            <span>${t.igEmpty}</span>
-            <span class="ig-cta-handle">${t.igHandle}</span>
-          </div>
-        </a>`;
-    }
+    function renderFallback() {
+      feature.innerHTML =
+        '<a class="ig-feature__card ig-feature__card--cta" href="' + escAttr(instagramUrl) + '"' +
+        ' target="_blank" rel="noopener noreferrer" aria-label="' + escAttr(t.igFollow) + '">' +
+          '<span class="ig-feature__cta-inner">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
+              '<rect x="2" y="2" width="20" height="20" rx="5"/>' +
+              '<circle cx="12" cy="12" r="4"/>' +
+              '<circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>' +
+            '</svg>' +
+            '<span>' + escHtml(t.igEmpty) + '</span>' +
+            '<span class="ig-feature__cta-handle">' + escHtml(t.igHandle) + '</span>' +
+          '</span>' +
+        '</a>';
     }
 
-    whenNear(scroll.closest('.ig-section') || scroll, loadFeed);
+    function buttonLabel(kind) {
+      if (kind === 'story') return t.igWatchStory;
+      if (kind === 'reel')  return t.igViewReel;
+      return t.igViewPost;
+    }
+
+    function renderItem(item, kind) {
+      const href  = item.permalink || instagramUrl;
+      const label = buttonLabel(kind);
+      const isVideo = item.media_type === 'VIDEO' || kind === 'reel' || kind === 'story';
+      const liveTag = kind === 'story'
+        ? '<span class="ig-feature__live">' + escHtml(t.igLiveNow) + '</span>'
+        : '';
+      const playIcon = isVideo
+        ? '<span class="ig-feature__play" aria-hidden="true"></span>'
+        : '';
+
+      feature.innerHTML =
+        '<a class="ig-feature__card" href="' + escAttr(href) + '"' +
+        ' target="_blank" rel="noopener noreferrer" aria-label="' + escAttr(label) + '">' +
+          '<img class="ig-feature__img" src="' + escAttr(item.image) + '"' +
+          ' alt="' + escAttr(item.caption ? item.caption.slice(0, 80) : t.igHandle) + '"' +
+          ' loading="lazy" decoding="async" referrerpolicy="no-referrer" />' +
+          liveTag +
+          playIcon +
+          '<span class="ig-feature__bar">' +
+            '<span class="ig-feature__btn">' + escHtml(label) + '</span>' +
+          '</span>' +
+        '</a>';
+
+      // If the photo fails to load (expired/blocked CDN URL), drop to the CTA.
+      const img = feature.querySelector('.ig-feature__img');
+      if (img) img.addEventListener('error', renderFallback, { once: true });
+    }
+
+    function loadFeature() {
+      fetch('/api/instagram', { cache: 'default' })
+        .then((res) => { if (!res.ok) throw new Error('no feed'); return res.json(); })
+        .then((data) => {
+          if (data && data.item && data.item.image) renderItem(data.item, data.kind);
+          else renderFallback();
+        })
+        .catch(renderFallback);
+    }
+
+    whenNear(feature.closest('.ig-section') || feature, loadFeature);
   })();
 </script>
 
 <style>
-  /* Compact strip: this is a quiet "follow us" footer-ish moment, not a
-     full editorial section, so it gets tighter padding and a smaller
-     heading than the page's main sections. */
+  /* Quiet "follow us" moment near the foot of the page — tighter than a main
+     editorial section, one featured photo rather than a strip of squares. */
   section.ig-section {
     overflow: hidden;
     padding-block: var(--space-l) var(--space-m);
   }
-  .ig-section .section-head { margin-block-end: 0; }
+  .ig-section .section-head { margin-block-end: var(--space-m); }
   .ig-section .eyebrow { margin-block-end: 0.35rem; }
   .ig-section .display { font-size: var(--step-2); margin: 0; }
 
-  .ig-scroll-wrap { margin-block-start: var(--space-m); }
-
-  .ig-scroll {
+  /* ── Featured card ──────────────────────────────────────────────────── */
+  .ig-feature {
     display: flex;
-    gap: var(--space-2xs);
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    cursor: grab;
-    padding-inline: var(--space-m);
-    padding-block-end: var(--space-2xs);
-    scrollbar-width: none;
+    justify-content: center;
   }
-  .ig-scroll::-webkit-scrollbar { display: none; }
-
-  .ig-card {
+  .ig-feature__card {
     position: relative;
-    flex: 0 0 clamp(104px, 14vw, 150px);
-    aspect-ratio: 1;
-    scroll-snap-align: start;
+    display: block;
+    width: 100%;
+    max-width: 22rem;
+    aspect-ratio: 4 / 5;
     overflow: hidden;
     border-radius: 2px;
     background: var(--paper-deep);
-    display: block;
     text-decoration: none;
-    transition: opacity 0.3s;
+    color: var(--paper-on-photo);
   }
-  .ig-card:hover { opacity: 0.88; }
-  .ig-card:focus-visible {
+  .ig-feature__card:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline-offset: 3px;
   }
-
-  .ig-card__img {
+  .ig-feature__img {
+    display: block;
     width: 100%;
     height: 100%;
-    background-size: cover;
-    background-position: center;
-    transition: transform 0.5s var(--ease-out);
-  }
-  /* Real post photos render as <img>; the skeleton keeps a plain div. */
-  img.ig-card__img {
-    display: block;
     object-fit: cover;
     background: var(--paper-deep);
+    transition: transform 0.7s var(--ease-out);
   }
-  .ig-card:hover .ig-card__img { transform: scale(1.04); }
+  .ig-feature__card:hover .ig-feature__img { transform: scale(1.03); }
 
-  /* Shimmer via a translated highlight band (transform = GPU-composited).
-     The old version animated background-position, which can't be composited
-     and PageSpeed flagged as a non-composited animation. */
-  .ig-card--skeleton .ig-card__img {
-    background: var(--paper-deep);
-    position: relative;
-    overflow: hidden;
-  }
-  .ig-card--skeleton .ig-card__img::after {
+  /* Skeleton shimmer (GPU-composited translate, not background-position). */
+  .ig-feature__card--skeleton .ig-feature__img { position: relative; overflow: hidden; }
+  .ig-feature__card--skeleton .ig-feature__img::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -235,39 +200,94 @@ const t = pick(copy, lang);
     transform: translateX(-100%);
     animation: igSkeleton 1.5s ease infinite;
   }
-  @keyframes igSkeleton {
-    100% { transform: translateX(100%); }
-  }
+  @keyframes igSkeleton { 100% { transform: translateX(100%); } }
   @media (prefers-reduced-motion: reduce) {
-    .ig-card--skeleton .ig-card__img::after { animation: none; }
+    .ig-feature__card--skeleton .ig-feature__img::after { animation: none; }
+    .ig-feature__card:hover .ig-feature__img { transform: none; }
   }
 
-  .ig-card__badge {
+  /* "Story · live now" tag, top-start. */
+  .ig-feature__live {
     position: absolute;
-    inset-block-start: 0.4rem;
-    inset-inline-end: 0.4rem;
-    font-size: 0.7rem;
+    inset-block-start: 0.7rem;
+    inset-inline-start: 0.7rem;
+    z-index: 2;
+    font-size: var(--step--2);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     color: var(--paper-on-photo);
-    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    background: color-mix(in srgb, var(--accent) 88%, transparent);
+    padding: 0.25rem 0.6rem;
+    border-radius: 2px;
   }
+
+  /* Play glyph for video stories/reels (CSS triangle, no asset). */
+  .ig-feature__play {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+  .ig-feature__play::before {
+    content: '';
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--shadow) 45%, transparent);
+    backdrop-filter: blur(2px);
+  }
+  .ig-feature__play::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0.55rem 0 0.55rem 0.9rem;
+    border-color: transparent transparent transparent var(--paper-on-photo);
+    margin-inline-start: 0.2rem;
+  }
+
+  /* Bottom bar holding the type-labelled button. */
+  .ig-feature__bar {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    padding: 1rem;
+    background: linear-gradient(to top,
+      color-mix(in srgb, var(--shadow) 82%, transparent) 0%,
+      transparent 100%);
+  }
+  .ig-feature__btn {
+    font-size: var(--step--1);
+    letter-spacing: 0.08em;
+    color: var(--paper-on-photo);
+    padding-bottom: 2px;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
+    transition: border-color 0.25s ease;
+  }
+  .ig-feature__card:hover .ig-feature__btn { border-bottom-color: var(--paper-on-photo); }
 
   /* Fallback CTA card */
-  .ig-card--cta { flex: 0 0 clamp(200px, 50vw, 340px); }
-  .ig-card__img--cta {
+  .ig-feature__card--cta { display: grid; place-items: center; }
+  .ig-feature__cta-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 0.5rem;
     color: var(--ink-muted);
     font-size: var(--step--1);
     padding: var(--space-m);
     text-align: center;
   }
-  .ig-card__img--cta svg { width: 2rem; height: 2rem; color: var(--ink-muted); }
-  .ig-cta-handle { font-size: var(--step--2); color: var(--accent); letter-spacing: 0.05em; }
+  .ig-feature__cta-inner svg { width: 2rem; height: 2rem; color: var(--ink-muted); }
+  .ig-feature__cta-handle { font-size: var(--step--2); color: var(--accent); letter-spacing: 0.05em; }
 
-  /* Follow link below strip */
+  /* Follow link below the feature */
   .ig-follow {
     display: flex;
     justify-content: center;

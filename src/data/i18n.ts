@@ -221,6 +221,11 @@ export const home = {
   igEmpty:        { he: 'עקבו אחרינו באינסטגרם', en: 'Follow us on Instagram' },
   igAriaStrip:    { he: 'פיד אינסטגרם של זהרה', en: 'Zahara Instagram feed' },
   igHandle:       { he: '@zahara.restaurant', en: '@zahara.restaurant' },
+  // Button label on the featured item — reflects what's currently shown.
+  igWatchStory:   { he: 'לצפייה בסטורי ↗', en: 'Watch story ↗' },
+  igViewReel:     { he: 'לצפייה בריל ↗',   en: 'View reel ↗'   },
+  igViewPost:     { he: 'לצפייה בפוסט ↗',  en: 'View post ↗'   },
+  igLiveNow:      { he: 'סטורי עכשיו',      en: 'Story · live now' },
 
   // ── Menu split — the full-frame "how the table is built" section that
   // replaced the in-page menu preview. One photo, the four parts of the
