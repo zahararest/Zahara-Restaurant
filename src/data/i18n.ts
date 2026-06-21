@@ -227,8 +227,8 @@ export const home = {
   igViewPost:     { he: 'לצפייה בפוסט ↗',  en: 'View post ↗'   },
   igLiveNow:      { he: 'סטורי עכשיו',      en: 'Story · live now' },
   // Reels reveal + story navigation.
-  igShowReels:    { he: 'צפו בריאלز ↓',    en: 'Watch our reels ↓' },
-  igHideReels:    { he: 'הסתרת ריאלז',      en: 'Hide reels' },
+  igShowReels:    { he: 'לצפייה ברילס ↓',   en: 'Watch our reels ↓' },
+  igHideReels:    { he: 'הסתרת רילס',       en: 'Hide reels' },
   igPrevStory:    { he: 'הסטורי הקודם',     en: 'Previous story' },
   igNextStory:    { he: 'הסטורי הבא',       en: 'Next story' },
 

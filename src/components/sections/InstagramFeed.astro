@@ -18,6 +18,7 @@ export interface Props {
 
 const { lang } = Astro.props;
 const t = pick(copy, lang);
+const htmlLang = lang === 'he' ? 'he' : 'en';
 ---
 
 <section class="section-tight ig-section reveal-on-scroll">
@@ -67,7 +68,7 @@ const t = pick(copy, lang);
   </div>
 </section>
 
-<script is:inline define:vars={{ instagramUrl: RESTAURANT.instagram, t }}>
+<script is:inline define:vars={{ instagramUrl: RESTAURANT.instagram, t, htmlLang }}>
   (function () {
     const feature   = document.querySelector('[data-ig-feature]');
     const reelsWrap = document.querySelector('[data-ig-reels]');
@@ -77,6 +78,27 @@ const t = pick(copy, lang);
     const escAttr = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
     const escHtml = (s) => String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Honour the OS "reduce motion" setting — no auto-advance, no fill timer.
+    const reduceMotion = window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Compact "5h" / "2d" relative time like the app shows on a story frame.
+    let rtf = null;
+    try { rtf = new Intl.RelativeTimeFormat(htmlLang, { numeric: 'auto', style: 'narrow' }); }
+    catch (_) { rtf = null; }
+    function timeAgo(ts) {
+      if (!ts || !rtf) return '';
+      const then = new Date(ts).getTime();
+      if (isNaN(then)) return '';
+      const secs = Math.round((then - Date.now()) / 1000); // negative = past
+      const mins = Math.round(secs / 60);
+      if (Math.abs(secs) < 60)  return rtf.format(secs,  'second');
+      if (Math.abs(mins) < 60)  return rtf.format(mins,  'minute');
+      const hrs = Math.round(mins / 60);
+      if (Math.abs(hrs) < 24)   return rtf.format(hrs,   'hour');
+      return rtf.format(Math.round(hrs / 24), 'day');
+    }
 
     // Defer the call until the section nears the viewport (it sits low on the
     // page; fetching on load only lengthens the initial request chain).
@@ -111,38 +133,54 @@ const t = pick(copy, lang);
     }
 
     // ── The featured box ──────────────────────────────────────────────────
+    // The story variant is a faithful little Instagram story viewer: filling
+    // progress bars that auto-advance, tap-zones to step between frames, an
+    // avatar ring + handle + relative time. Posts/reels are a single still.
+    const STORY_MS = 5000;
+
     function renderBox(frames, kind) {
       // `frames` is an array (stories may have many; posts/reels have one).
       let idx = 0;
       const multi = frames.length > 1;
-      const isVideoKind = (kind === 'story' || kind === 'reel');
+      const isStory = kind === 'story';
       const label = buttonLabel(kind);
+      const handle = String(t.igHandle || '');
+      const initial = (handle.replace(/^@/, '')[0] || 'Z').toUpperCase();
 
-      const segs = multi
+      // Story-style progress bars across the very top — one segment per frame,
+      // each with an inner fill the timer animates, like the real app.
+      const segs = isStory
         ? '<span class="ig-box__segs" aria-hidden="true">' +
-            frames.map(() => '<span class="ig-box__seg"></span>').join('') +
+            frames.map(() => '<span class="ig-box__seg"><i class="ig-box__seg-fill"></i></span>').join('') +
           '</span>'
         : '';
-      const live = kind === 'story'
-        ? '<span class="ig-box__live">' + escHtml(t.igLiveNow) + '</span>'
+      // Story header: gradient avatar ring + handle + relative time.
+      const header = isStory
+        ? '<span class="ig-box__head">' +
+            '<span class="ig-box__avatar" aria-hidden="true">' + escHtml(initial) + '</span>' +
+            '<span class="ig-box__handle">' + escHtml(handle.replace(/^@/, '')) + '</span>' +
+            '<time class="ig-box__time"></time>' +
+          '</span>'
         : '';
-      const play = isVideoKind
+      // Big play glyph only for reels (posts are stills; stories show chrome).
+      const play = kind === 'reel'
         ? '<span class="ig-box__play" aria-hidden="true"></span>'
         : '';
-      const nav = multi
+      // Full-height prev/next tap-zones — left third steps back, right steps
+      // forward, exactly like tapping a story. Shown for any multi-frame story.
+      const nav = (isStory && multi)
         ? '<button type="button" class="ig-box__nav ig-box__nav--prev" aria-label="' + escAttr(t.igPrevStory) + '">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>' +
+            '<span class="ig-box__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></span>' +
           '</button>' +
           '<button type="button" class="ig-box__nav ig-box__nav--next" aria-label="' + escAttr(t.igNextStory) + '">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>' +
+            '<span class="ig-box__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></span>' +
           '</button>'
         : '';
 
       const html =
-        '<div class="ig-box ig-box--media' + (multi ? ' is-multi' : '') + '">' +
-          segs +
-          '<img class="ig-box__img" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />' +
-          live + play + nav +
+        '<div class="ig-box ig-box--media' + (isStory ? ' ig-box--story' : '') + (multi ? ' is-multi' : '') + '">' +
+          '<img class="ig-box__img" alt="" loading="eager" fetchpriority="low" decoding="async" referrerpolicy="no-referrer" />' +
+          segs + header + play + nav +
           '<span class="ig-box__bar">' +
             '<a class="ig-box__btn" target="_blank" rel="noopener noreferrer">' + escHtml(label) + '</a>' +
           '</span>' +
@@ -150,27 +188,71 @@ const t = pick(copy, lang);
 
       feature.innerHTML = html;
 
-      const box   = feature.querySelector('.ig-box');
-      const img   = feature.querySelector('.ig-box__img');
-      const btn   = feature.querySelector('.ig-box__btn');
-      const segEls = Array.prototype.slice.call(feature.querySelectorAll('.ig-box__seg'));
+      const box    = feature.querySelector('.ig-box');
+      const img    = feature.querySelector('.ig-box__img');
+      const btn    = feature.querySelector('.ig-box__btn');
+      const timeEl = feature.querySelector('.ig-box__time');
+      const fills  = Array.prototype.slice.call(feature.querySelectorAll('.ig-box__seg-fill'));
+
+      // ── Auto-advance timer (stories only) ────────────────────────────────
+      let raf = 0, startTs = 0, lastNow = 0, paused = false;
+      function clearTimer() { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+      function setFill(n, pct) { if (fills[n]) fills[n].style.width = pct + '%'; }
+
+      function tick(now) {
+        if (startTs === 0) { startTs = now; lastNow = now; }
+        // While paused, slide the start forward so elapsed time freezes — the
+        // bar holds its position instead of snapping back on resume.
+        if (paused) { startTs += now - lastNow; lastNow = now; raf = requestAnimationFrame(tick); return; }
+        lastNow = now;
+        const p = Math.min((now - startTs) / STORY_MS, 1);
+        setFill(idx, p * 100);
+        if (p < 1) { raf = requestAnimationFrame(tick); }
+        else if (idx < frames.length - 1) { show(idx + 1); }   // last frame just rests full
+      }
+      function play_() {
+        clearTimer();
+        if (!isStory || reduceMotion) return;
+        startTs = 0; lastNow = 0;
+        raf = requestAnimationFrame(tick);
+      }
 
       function show(i) {
+        clearTimer();
         idx = (i + frames.length) % frames.length;
         const f = frames[idx];
         img.src = f.image;
         btn.href = f.permalink || instagramUrl;
         btn.setAttribute('aria-label', label);
-        segEls.forEach((s, n) => s.classList.toggle('is-active', n === idx));
+        if (timeEl) timeEl.textContent = timeAgo(f.timestamp);
+        // Bars left of the current frame read as watched, the rest as pending.
+        fills.forEach((_, n) => setFill(n, n < idx ? 100 : 0));
+        play_();
       }
+
       // Any image failing (expired/blocked CDN URL) drops the box to the CTA.
-      img.addEventListener('error', renderFallback, { once: true });
+      img.addEventListener('error', () => { clearTimer(); renderFallback(); }, { once: true });
       show(0);
 
-      if (multi) {
+      // The box may be rendered early (idle preload) long before the reader
+      // scrolls to it — so hold playback paused until it's actually on screen,
+      // and the story always begins at the first frame when seen.
+      if (isStory && 'IntersectionObserver' in window) {
+        paused = true;
+        const vis = new IntersectionObserver((es) => {
+          paused = !es.some((e) => e.isIntersecting);
+        }, { threshold: 0.4 });
+        vis.observe(box);
+      }
+
+      if (isStory && multi) {
         feature.querySelector('.ig-box__nav--prev').addEventListener('click', () => show(idx - 1));
         feature.querySelector('.ig-box__nav--next').addEventListener('click', () => show(idx + 1));
-        segEls.forEach((s, n) => s.addEventListener('click', () => show(n)));
+        // Hold / hover pauses playback so the reader can linger, like the app.
+        box.addEventListener('pointerenter', () => { paused = true; });
+        box.addEventListener('pointerleave', () => { paused = false; });
+        box.addEventListener('pointerdown',  () => { paused = true; });
+        box.addEventListener('pointerup',    () => { paused = false; });
         // Arrow keys when the box is focused.
         box.tabIndex = 0;
         box.addEventListener('keydown', (e) => {
@@ -222,7 +304,10 @@ const t = pick(copy, lang);
       });
     }
 
+    let loadStarted = false;
     function loadFeature() {
+      if (loadStarted) return;          // idle + scroll can both fire; run once
+      loadStarted = true;
       fetch('/api/instagram', { cache: 'default' })
         .then((res) => { if (!res.ok) throw new Error('no feed'); return res.json(); })
         .then((data) => {
@@ -240,7 +325,18 @@ const t = pick(copy, lang);
         .catch(renderFallback);
     }
 
-    whenNear(feature.closest('.ig-section') || feature, loadFeature);
+    // Load eagerly during idle time so the box (and its image) are ready well
+    // before the section scrolls into view — without competing with the
+    // initial render / LCP. A near-viewport observer is the fast-scroll
+    // fallback in case the page never goes idle before the user gets here.
+    const section = feature.closest('.ig-section') || feature;
+    whenNear(section, loadFeature);
+    function idleLoad() {
+      if ('requestIdleCallback' in window) requestIdleCallback(loadFeature, { timeout: 2500 });
+      else setTimeout(loadFeature, 1200);
+    }
+    if (document.readyState === 'complete') idleLoad();
+    else window.addEventListener('load', idleLoad, { once: true });
   })();
 </script>
 
@@ -262,17 +358,31 @@ const t = pick(copy, lang);
     align-items: center;
     gap: 0.9rem;
   }
+  /* A small box, capped so it never dominates the page. Posts/reels/skeleton
+     use a 4:5 portrait; a live story gets the tall phone-screen 9:16 shape so
+     it reads like the real story viewer. Deliberately compact — this is a
+     glance, not a feature. */
   .ig-box {
     position: relative;
     display: block;
-    width: 100%;
-    max-width: clamp(150px, 44vw, 200px);
+    width: auto;
+    max-width: clamp(150px, 40vw, 178px);
+    margin-inline: auto;
     aspect-ratio: 4 / 5;
     overflow: hidden;
     border-radius: 2px;
     background: var(--paper-deep);
     text-decoration: none;
     color: var(--paper-on-photo);
+  }
+  /* The story card keeps Instagram's rounded phone shape — an intentional
+     break from the site's 2px rule, because here we *are* embedding the app. */
+  .ig-box--story {
+    max-width: clamp(158px, 44vw, 188px);
+    aspect-ratio: 9 / 16;
+    max-height: min(58vh, 360px);
+    border-radius: 14px;
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow) 18%, transparent);
   }
   .ig-box--media:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .ig-box__img {
@@ -296,39 +406,75 @@ const t = pick(copy, lang);
   }
   @keyframes igSkeleton { 100% { transform: translateX(100%); } }
 
-  /* Story segment bars (top). */
+  /* Story segment bars (top) — a track with a fill the JS timer grows. */
   .ig-box__segs {
     position: absolute;
-    inset-block-start: 0.4rem;
-    inset-inline: 0.4rem;
-    z-index: 3;
+    inset-block-start: 0.45rem;
+    inset-inline: 0.5rem;
+    z-index: 5;
     display: flex;
-    gap: 0.2rem;
+    gap: 0.18rem;
   }
   .ig-box__seg {
+    position: relative;
     flex: 1;
     height: 2px;
     border-radius: 2px;
-    background: color-mix(in srgb, var(--paper-on-photo) 35%, transparent);
-    cursor: pointer;
-    transition: background 0.25s ease;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--paper-on-photo) 32%, transparent);
   }
-  .ig-box__seg.is-active { background: var(--accent); }
-
-  /* "Story · live now" tag. */
-  .ig-box__live {
+  .ig-box__seg-fill {
     position: absolute;
-    inset-block-start: 0.85rem;
-    inset-inline-start: 0.5rem;
-    z-index: 3;
-    font-size: var(--step--2);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--paper-on-photo);
-    background: color-mix(in srgb, var(--accent) 88%, transparent);
-    padding: 0.18rem 0.5rem;
-    border-radius: 2px;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 0;
+    background: var(--paper-on-photo);
   }
+
+  /* Story header — gradient avatar ring + handle + relative time, like the app.
+     Sits above the tap-zones so it never swallows a tap. */
+  .ig-box__head {
+    position: absolute;
+    inset-block-start: 0.9rem;
+    inset-inline: 0.6rem;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    pointer-events: none;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.55);
+  }
+  .ig-box__avatar {
+    flex-shrink: 0;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-size: var(--step--2);
+    color: var(--paper-on-photo);
+    background:
+      linear-gradient(var(--shadow), var(--shadow)) padding-box,
+      conic-gradient(from 200deg, #f9ce34, #ee2a7b, #6228d7, #f9ce34) border-box;
+    border: 2px solid transparent;
+  }
+  .ig-box__handle {
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--paper-on-photo);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ig-box__time {
+    flex-shrink: 0;
+    font-size: var(--step--2);
+    font-weight: 500;
+    color: color-mix(in srgb, var(--paper-on-photo) 78%, transparent);
+  }
+  .ig-box__time:empty { display: none; }
 
   /* Play glyph for video stories/reels. */
   .ig-box__play {
@@ -352,27 +498,40 @@ const t = pick(copy, lang);
     margin-inline-start: 0.18rem;
   }
 
-  /* Prev / next story arrows. */
+  /* Prev / next story tap-zones — full-height, like tapping the left/right of
+     a real story. They sit *under* the header and bottom bar (lower z-index)
+     so those stay interactive. The chevron chip only surfaces on hover. */
   .ig-box__nav {
     position: absolute;
     inset-block: 0;
-    z-index: 4;
-    width: 38%;
+    z-index: 2;
     display: grid;
     align-items: center;
     border: 0;
     background: transparent;
     color: var(--paper-on-photo);
     cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .ig-box__nav svg { width: 1.5rem; height: 1.5rem; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6)); }
-  .ig-box__nav--prev { inset-inline-start: 0; justify-items: start; padding-inline-start: 0.3rem; }
-  .ig-box__nav--next { inset-inline-end: 0; justify-items: end; padding-inline-end: 0.3rem; }
-  .ig-box:hover .ig-box__nav,
-  .ig-box:focus-within .ig-box__nav { opacity: 0.9; }
-  .ig-box__nav:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: -2px; }
+  .ig-box__nav--prev { inset-inline-start: 0; width: 34%; justify-items: start; padding-inline-start: 0.4rem; }
+  .ig-box__nav--next { inset-inline-end: 0;  width: 66%; justify-items: end;   padding-inline-end: 0.4rem; }
+  .ig-box__chev {
+    display: grid;
+    place-items: center;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 50%;
+    padding: 0.3rem;
+    background: color-mix(in srgb, var(--shadow) 42%, transparent);
+    backdrop-filter: blur(2px);
+    box-sizing: content-box;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  }
+  .ig-box__chev svg { width: 100%; height: 100%; }
+  .ig-box:hover .ig-box__nav .ig-box__chev { opacity: 0.85; }
+  .ig-box__nav:hover .ig-box__chev { opacity: 1; background: color-mix(in srgb, var(--accent) 80%, transparent); transform: scale(1.06); }
+  .ig-box__nav:focus-visible .ig-box__chev { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Bottom bar with the "open on Instagram" button. */
   .ig-box__bar {
@@ -410,18 +569,28 @@ const t = pick(copy, lang);
   .ig-box__cta-handle { color: var(--accent); letter-spacing: 0.05em; }
 
   /* ── Reels reveal ───────────────────────────────────────────────────── */
+  /* An editorial text-link, not a filled pill — matches the site's .text-link
+     so the chrome around the IG widget stays on-brand. */
   .ig-reels-toggle {
     font: inherit;
     font-size: var(--step--1);
-    letter-spacing: 0.08em;
-    color: var(--accent);
-    background: transparent;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink);
+    background: none;
     border: 0;
+    border-block-end: 1px solid var(--ink);
+    border-radius: 0;
     cursor: pointer;
-    padding: 0.2rem 0.2rem;
-    transition: color 0.2s ease;
+    padding: 0 0 2px;
+    transition: color 0.2s ease, border-color 0.2s ease;
   }
-  .ig-reels-toggle:hover { color: var(--ink); }
+  .ig-reels-toggle:hover,
+  .ig-reels-toggle[aria-expanded="true"] {
+    color: var(--accent);
+    border-block-end-color: var(--accent);
+  }
   .ig-reels-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
   .ig-reels {
