@@ -105,17 +105,17 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
     let peekTimer: ReturnType<typeof setTimeout> | null = null;
 
     function showPreview() {
-      positionPreview();
-      _preview.classList.add('is-visible');
+      // positionPreview();
+      // _preview.classList.add('is-visible');
     }
     function hidePreview() {
-      _preview.classList.remove('is-visible');
-      if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
+      // _preview.classList.remove('is-visible');
+      // if (peekTimer) { clearTimeout(peekTimer); peekTimer = null; }
     }
     function peekFor(ms: number) {
-      if (peekTimer) clearTimeout(peekTimer);
-      showPreview();
-      peekTimer = setTimeout(hidePreview, ms);
+      // if (peekTimer) clearTimeout(peekTimer);
+      // showPreview();
+      // peekTimer = setTimeout(hidePreview, ms);
     }
 
     // ── Click → open lightbox (ALL devices) ──────────────────────────────────
@@ -157,19 +157,19 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
     // ── Auto-peek once, while the kosher cell is fully on screen ───────────
     // Firing here (rather than after the strip scrolls away) means the
     // preview can anchor directly beneath the cell the visitor is looking at.
-    if ('IntersectionObserver' in window) {
-      let fired = false;
-      const io = new IntersectionObserver((entries) => {
-        if (fired) return;
-        const entry = entries[0];
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.99) {
-          fired = true;
-          peekFor(3000);
-          io.disconnect();
-        }
-      }, { threshold: [0, 0.5, 0.99, 1] });
-      io.observe(_cell);
-    }
+    // if ('IntersectionObserver' in window) {
+    //   let fired = false;
+    //   const io = new IntersectionObserver((entries) => {
+    //     if (fired) return;
+    //     const entry = entries[0];
+    //     if (entry.isIntersecting && entry.intersectionRatio >= 0.99) {
+    //       fired = true;
+    //       peekFor(3000);
+    //       io.disconnect();
+    //     }
+    //   }, { threshold: [0, 0.5, 0.99, 1] });
+    //   io.observe(_cell);
+    // }
   })();
 </script>
 
