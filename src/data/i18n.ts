@@ -113,8 +113,8 @@ export const home = {
   pageTitle:      { he: 'בית',             en: 'Home'            },
   // Full <title> override — keyword-led rather than "Home — Zahara".
   seoTitle: {
-    he: 'מסעדת זהרה | מסעדת שף כשרה בירושלים — מלון נוצ׳ה',
-    en: 'Zahara | Kosher Chef Restaurant in Jerusalem — Nucha Hotel',
+    he: 'זהרה | מסעדת שף כשרה בירושלים ',
+    en: 'Zahara | Kosher chef restaurant in Jerusalem',
   },
   pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות, מנות לשיתוף. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
                     en: 'Zahara Restaurant — a kosher chef\'s restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica\'s younger sister, led by chef Roi Achdut. Contemporary Mediterranean kitchen, French technique, Asian influences, plates for sharing. Book your table.' },
@@ -150,7 +150,7 @@ export const home = {
   infoHoursLabel:   { he: 'שעות',              en: 'Hours'        },
   infoHoursValue:   { he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
   infoAddressLabel: { he: 'כתובת',             en: 'Address'      },
-  infoAddressValue: { he: '16 בן סירא, ירושלים', en: 'Ben Sira St, Jerusalem' },
+  infoAddressValue: { he: '16 בן סירא, ירושלים', en: 'Ben Sira 16 St, Jerusalem' },
   infoReservLabel:  { he: 'להזמנות',           en: 'Reservations' },
   infoTabit:        { he: 'הזמנה בטאביט ↗',     en: 'Book on Tabit ↗' },
   infoChefLabel:    { he: 'השף',               en: 'Chef'         },
