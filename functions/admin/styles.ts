@@ -1,99 +1,12 @@
-// Admin SPA stylesheet. Inlined into the HTML response so we don't ship a
+// Admin menu-editor stylesheet (layout, panels, sections, item rows, and the
+// OneDrive sync panel). Inlined into the HTML response so we don't ship a
 // separate asset for a private, password-protected page.
 //
-// Palette/typography variables mirror src/styles/global.css so the admin
-// feels consistent with the public site.
+// The palette tokens, base typography, and the shared `.topbar` header live in
+// ./chrome.ts (CHROME_CSS) — included alongside this on every admin page so
+// they all share one look. This file is editor-specific styling only.
 
 export const ADMIN_CSS = String.raw`
-:root {
-  --paper:#F4EDDF; --deep:#ECE3D0; --edge:#DFD4BB; --card:#FBF7EE;
-  --ink:#1A1410;   --soft:#3D362E; --muted:#857C6C;
-  --line:#D5CBB1;  --line-soft:#E5DCC4;
-  --accent:#9C4621; --accent-d:#6F2F12; --accent-soft:#F2DFCF;
-  --ok:#4F6B47;    --err:#A53623;
-  --ok-bg:rgba(79,107,71,.08); --err-bg:rgba(165,54,35,.08);
-}
-*,*::before,*::after { box-sizing: border-box; }
-body {
-  margin: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font-family: 'Inter', 'Heebo', sans-serif;
-  font-size: .94rem;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-html[dir="rtl"] body { font-family: 'Heebo', 'Inter', sans-serif; }
-a { color: inherit; text-decoration: none; }
-button, input, select, textarea { font: inherit; }
-::selection { background: var(--accent-soft); color: var(--ink); }
-
-/* ── Top bar ── (matches /admin/images/ and /admin/colors/: two rows —
-   nav on top, page title below — so admins see the same chrome on every
-   page.) */
-.topbar {
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  border-bottom: 1px solid var(--line-soft);
-  padding: .7rem 1.75rem .9rem;
-  display: grid;
-  gap: .55rem;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  backdrop-filter: blur(10px);
-}
-.topbar__nav {
-  display: flex;
-  align-items: center;
-  gap: .35rem;
-  flex-wrap: wrap;
-}
-.topbar__brand {
-  font-size: .78rem;
-  font-weight: 700;
-  letter-spacing: .24em;
-  text-transform: uppercase;
-  color: var(--ink);
-  padding-inline-end: .4rem;
-  border-inline-end: 1px solid var(--edge);
-  margin-inline-end: .4rem;
-}
-.topbar__navlink {
-  font-size: .78rem;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  font-weight: 600;
-  color: var(--muted);
-  padding: .35rem .65rem;
-  border: 1px solid transparent;
-  transition: color .15s, border-color .15s, background .15s;
-}
-.topbar__navlink:hover { color: var(--ink); border-color: var(--edge); }
-.topbar__navlink.is-active {
-  color: var(--ink);
-  background: var(--deep);
-  border-color: var(--edge);
-  pointer-events: none;
-}
-.topbar__site {
-  font-size: .78rem;
-  letter-spacing: .18em;
-  color: var(--accent);
-  text-transform: uppercase;
-  font-weight: 600;
-  padding: .35rem .5rem;
-}
-.topbar__site:hover { text-decoration: underline; }
-.topbar__spacer { flex: 1; }
-.topbar__title {
-  margin: 0;
-  font-size: .85rem;
-  font-weight: 700;
-  letter-spacing: .22em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 /* ── Layout ── */
 .layout  { display: flex; min-height: calc(100vh - var(--topbar-h, 86px)); }
 .sidebar {
@@ -508,4 +421,34 @@ textarea.item-input { resize: none; overflow: hidden; min-height: 2.4rem; }
   background: #fff;
 }
 .empty p { margin: 0 0 .35rem; }
+
+/* ── OneDrive sync panel ── */
+.sync-toggle { display: inline-flex; align-items: center; gap: .55rem; font-weight: 600; cursor: pointer; }
+.sync-hours  { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.hour-chip {
+  display: inline-flex; align-items: center; gap: .2rem;
+  background: var(--deep); border: 1px solid var(--line-soft); padding: .2rem .35rem .2rem .25rem;
+}
+.sync-hour { border: none; background: transparent; color: var(--ink); font-variant-numeric: tabular-nums; padding: .15rem .25rem; }
+.sync-hour:focus { outline: none; }
+.sync-menu-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) 2.4fr auto;
+  gap: .85rem; align-items: center;
+  padding: .85rem .95rem;
+  border: 1px solid var(--line-soft); border-top: none; background: #fff;
+}
+.sync-menu-row:first-child { border-top: 1px solid var(--line-soft); }
+.sync-menu-label { font-weight: 600; }
+.sync-link {
+  width: 100%; padding: .5rem .6rem; border: 1px solid var(--line);
+  background: var(--paper); color: var(--ink); border-radius: 0;
+}
+.sync-link:focus { outline: none; border-color: var(--accent); background: #fff; }
+.sync-row-status { font-size: .76rem; color: var(--muted); margin-top: .3rem; min-height: .9rem; }
+.sync-row-status.ok  { color: var(--ok); }
+.sync-row-status.err { color: var(--err); }
+@media (max-width: 720px) {
+  .sync-menu-row { grid-template-columns: 1fr; }
+}
 `;

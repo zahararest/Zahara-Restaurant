@@ -42,8 +42,11 @@ const MAX_REELS = 9;
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   const token = env.INSTAGRAM_ACCESS_TOKEN;
-  // Hardcoded as requested
-  const userId = env.INSTAGRAM_USER_ID;
+  // Target the account by its numeric id when provided, else the token's own
+  // account via `me`. Falling back to `me` matters: if INSTAGRAM_USER_ID is
+  // unset the URL would otherwise become `/undefined` and Meta rejects it
+  // (the api_error we were seeing). `me` works for the token's own account.
+  const target = env.INSTAGRAM_USER_ID || 'me';
 
   if (!token) {
     return emptyFallback(false);
@@ -54,18 +57,21 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     const query = 'profile_picture_url,username,stories.limit(25){id,media_type,media_url,thumbnail_url,permalink,timestamp},media.limit(30){id,media_type,media_product_type,media_url,thumbnail_url,permalink,caption,timestamp}';
 
     // We encode the query so the {} brackets pass safely through all HTTP protocols
-    const url = `${BASE}/${userId}?fields=${encodeURIComponent(query)}&access_token=${token}`;
+    const url = `${BASE}/${target}?fields=${encodeURIComponent(query)}&access_token=${token}`;
     
     const res = await fetch(url, { cf: { cacheTtl: 60 } } as RequestInit);
     
     if (!res.ok) {
-        const errorBody = await res.text(); 
+        const errorBody = await res.text();
         console.error('\n🚨 META API REJECTION DETAILS 🚨');
-        console.error('URL Attempted:', url);
+        console.error('URL Attempted:', url.replace(token, '***'));
         console.error('Status:', res.status);
         console.error('Reason:', errorBody);
         console.error('----------------------------------\n');
-        return emptyFallback(true, 'api_error');
+        // Meta error code 190 = expired/invalid access token → owner must
+        // refresh the long-lived token. Surface it so the cause is visible.
+        const expired = res.status === 401 || /"code":\s*190|expired|OAuthException/i.test(errorBody);
+        return emptyFallback(true, expired ? 'token_expired' : 'api_error');
     }
 
     const data = await res.json() as GraphExpandedResponse;

@@ -12,11 +12,25 @@ let bc = null;
 try { bc = new BroadcastChannel('zahara-menu'); } catch {}
 
 const state = {
+  view:          'editor',   // 'editor' | 'sync'
   menuId:        MENUS[0].id,
   data:          {},
   collapsed:     {},
   activeVariant: {},
+  syncConfig:    null,       // { enabled, hours, menus } once loaded
 };
+
+// Flat list of every syncable menu slug → friendly label, derived from the
+// same MENUS config the editor uses. Events have no OneDrive doc, so skip them.
+const SYNC_MENUS = (() => {
+  const out = [];
+  for (const m of MENUS) {
+    if (m.id === 'events') continue;
+    if (m.variants) for (const v of m.variants) out.push({ slug: v.slug, label: m.label + ' · ' + v.label });
+    else            out.push({ slug: m.slug, label: m.label });
+  }
+  return out;
+})();
 
 // ── DOM helpers ──────────────────────────────────────────────
 function el(tag, attrs, ...children) {
@@ -65,10 +79,15 @@ function renderSidebar() {
   sidebar.appendChild(el('div', { class: 'sidebar__group' }, 'Menus'));
   for (const m of MENUS) {
     sidebar.appendChild(el('button', {
-      class:   'sidebar__item' + (m.id === state.menuId ? ' is-active' : ''),
+      class:   'sidebar__item' + (state.view === 'editor' && m.id === state.menuId ? ' is-active' : ''),
       onclick: () => switchMenu(m.id),
     }, m.label));
   }
+  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'OneDrive'));
+  sidebar.appendChild(el('button', {
+    class:   'sidebar__item' + (state.view === 'sync' ? ' is-active' : ''),
+    onclick: () => switchToSync(),
+  }, 'Sync'));
 }
 
 // ── State serialization ──────────────────────────────────────
@@ -127,6 +146,7 @@ function uploadHintFor(menu) {
 }
 
 function renderPanel() {
+  if (state.view === 'sync') return renderSyncPanel();
   const menu = activeMenu();
   const slug = currentSlug();
   const dir  = currentDir();
@@ -744,6 +764,7 @@ async function handleDocx(input, menu, infoEl) {
 
 // ── Switching ────────────────────────────────────────────────
 async function switchMenu(menuId) {
+  state.view   = 'editor';
   state.menuId = menuId;
   const menu = MENUS.find(m => m.id === menuId);
   renderSidebar();
@@ -758,6 +779,168 @@ async function switchVariant(menuId, variantKey) {
   const v    = menu.variants.find(x => x.key === variantKey);
   if (v && !state.data[v.slug]) await loadSlug(v.slug);
   renderPanel();
+}
+
+// ── OneDrive sync panel ──────────────────────────────────────
+async function switchToSync() {
+  state.view = 'sync';
+  renderSidebar();
+  document.getElementById('main-area').innerHTML =
+    '<div class="panel is-active"><p class="upload-info">Loading sync settings…</p></div>';
+  if (!state.syncConfig) {
+    try {
+      const res = await fetch('/admin/sync/config', { cache: 'no-store' });
+      const j   = await res.json();
+      state.syncConfig = j.ok ? j.config : { enabled: true, hours: [12, 16, 18], menus: {} };
+    } catch {
+      state.syncConfig = { enabled: true, hours: [12, 16, 18], menus: {} };
+    }
+  }
+  renderSyncPanel();
+}
+
+function syncStatusText(m) {
+  if (!m || !m.lastSync) return '';
+  const when = new Date(m.lastSync).toLocaleString();
+  return m.lastStatus === 'ok'
+    ? '✓ ' + (m.lastItems ?? '?') + ' items · ' + when
+    : '✕ ' + (m.lastStatus || 'error') + ' · ' + when;
+}
+
+function renderSyncPanel() {
+  const cfg  = state.syncConfig || { enabled: true, hours: [12, 16, 18], menus: {} };
+  const main = document.getElementById('main-area');
+  main.innerHTML = '';
+  const panel = el('div', { class: 'panel is-active' });
+
+  panel.appendChild(el('div', { class: 'panel__head' },
+    el('div', {},
+      el('h1', { class: 'panel__title' }, 'Sync from OneDrive'),
+      el('p',  { class: 'panel__sub'   }, 'Pull menus automatically'),
+    ),
+  ));
+
+  // Schedule tile
+  const enabledCb = el('input', { type: 'checkbox' });
+  enabledCb.checked = cfg.enabled !== false;
+  enabledCb.addEventListener('change', () => { cfg.enabled = enabledCb.checked; });
+
+  const hoursWrap = el('div', { class: 'sync-hours' });
+  const countEl   = el('span', { class: 'upload-info' });
+  function renderHours() {
+    hoursWrap.innerHTML = '';
+    (cfg.hours || []).forEach((h, i) => {
+      const sel = el('select', { class: 'sync-hour' });
+      for (let x = 0; x < 24; x++) sel.appendChild(el('option', { value: String(x) }, String(x).padStart(2, '0') + ':00'));
+      sel.value = String(h);
+      sel.addEventListener('change', () => { cfg.hours[i] = parseInt(sel.value, 10); });
+      hoursWrap.appendChild(el('span', { class: 'hour-chip' }, sel,
+        el('button', { class: 'btn-icon', title: 'Remove time', onclick: () => { cfg.hours.splice(i, 1); renderHours(); } }, '✕')));
+    });
+    hoursWrap.appendChild(el('button', { class: 'btn-add-item', onclick: () => { (cfg.hours = cfg.hours || []).push(12); renderHours(); } }, '+ Add time'));
+    const n = (cfg.hours || []).length;
+    countEl.textContent = n + (n === 1 ? ' time/day · Israel time' : ' times/day · Israel time');
+  }
+  renderHours();
+
+  const schedTile = el('div', { class: 'tile' },
+    el('p', { class: 'tile__label' }, 'Schedule'),
+    el('div', { class: 'tile__body', style: 'flex-direction:column;align-items:stretch;gap:.7rem' },
+      el('label', { class: 'sync-toggle' }, enabledCb, el('span', {}, 'Auto-sync enabled')),
+      hoursWrap,
+      countEl,
+    ),
+  );
+  panel.appendChild(el('div', { class: 'toolbar', style: 'grid-template-columns:1fr' }, schedTile));
+
+  // Save / sync-all bar
+  const status  = el('span',   { class: 'save-status', id: 'sync-status' });
+  const saveBtn = el('button', { class: 'btn-save',          onclick: () => saveSyncConfig(status) }, 'Save settings');
+  const allBtn  = el('button', { class: 'btn-save', style: 'background:var(--accent);border-color:var(--accent)', onclick: () => syncAll(allBtn, status) }, 'Sync all now');
+  panel.appendChild(el('div', { class: 'save-bar' }, saveBtn, allBtn, status));
+
+  panel.appendChild(el('p', { class: 'featured-hint' },
+    'Paste each menu’s OneDrive link. Links are saved before a sync runs. ' +
+    'A sync overwrites that menu, but keeps your ★ home-page picks.'));
+
+  // Menu rows
+  const list = el('div', { class: 'sections' });
+  for (const def of SYNC_MENUS) {
+    const m     = cfg.menus[def.slug] || {};
+    const input = el('input', { class: 'sync-link', type: 'text', value: m.link || '',
+      placeholder: 'OneDrive link', 'data-slug': def.slug });
+    const statusEl = el('div', { class: 'sync-row-status' + (m.lastStatus === 'ok' ? ' ok' : (m.lastStatus ? ' err' : '')), 'data-status': def.slug }, syncStatusText(m));
+    const btn = el('button', { class: 'subtab', style: 'border:1px solid var(--line)', onclick: () => syncOne(def.slug, btn) }, 'Sync now');
+    list.appendChild(el('div', { class: 'sync-menu-row' },
+      el('div', { class: 'sync-menu-label' }, def.label),
+      el('div', {}, input, statusEl),
+      btn,
+    ));
+  }
+  panel.appendChild(list);
+  main.appendChild(panel);
+}
+
+function collectSyncMenus() {
+  const out = {};
+  for (const inp of document.querySelectorAll('.sync-link[data-slug]')) {
+    out[inp.getAttribute('data-slug')] = { link: inp.value.trim() };
+  }
+  return out;
+}
+
+async function saveSyncConfig(statusEl) {
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.className = 'save-status'; }
+  const cfg  = state.syncConfig;
+  const body = { enabled: cfg.enabled !== false, hours: cfg.hours || [], menus: collectSyncMenus() };
+  try {
+    const res = await fetch('/admin/sync/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j   = await res.json();
+    if (j.ok) {
+      state.syncConfig = j.config;
+      if (statusEl) { statusEl.textContent = '✓ Saved'; statusEl.className = 'save-status ok'; }
+      return true;
+    }
+    if (statusEl) { statusEl.textContent = 'Error: ' + (j.error || 'failed'); statusEl.className = 'save-status err'; }
+  } catch {
+    if (statusEl) { statusEl.textContent = 'Network error'; statusEl.className = 'save-status err'; }
+  }
+  return false;
+}
+
+function applySyncResults(results) {
+  for (const r of results || []) {
+    const m = state.syncConfig.menus[r.slug] = state.syncConfig.menus[r.slug] || {};
+    m.lastSync = new Date().toISOString();
+    m.lastStatus = r.ok ? 'ok' : (r.error || 'error');
+    m.lastItems  = r.items;
+    const s = document.querySelector('[data-status="' + r.slug + '"]');
+    if (s) { s.textContent = syncStatusText(m); s.className = 'sync-row-status ' + (r.ok ? 'ok' : 'err'); }
+  }
+}
+
+async function syncOne(slug, btn) {
+  await saveSyncConfig(document.getElementById('sync-status'));
+  btn.disabled = true; const old = btn.textContent; btn.textContent = 'Syncing…';
+  try {
+    const res = await fetch('/admin/sync/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) });
+    applySyncResults((await res.json()).results);
+  } catch {}
+  btn.disabled = false; btn.textContent = old;
+}
+
+async function syncAll(btn, statusEl) {
+  await saveSyncConfig(statusEl);
+  btn.disabled = true; const old = btn.textContent; btn.textContent = 'Syncing all…';
+  try {
+    const res = await fetch('/admin/sync/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const j   = await res.json();
+    applySyncResults(j.results);
+    if (statusEl) { statusEl.textContent = j.ok ? '✓ Synced all' : 'Some menus failed — see each row'; statusEl.className = 'save-status ' + (j.ok ? 'ok' : 'err'); }
+  } catch {
+    if (statusEl) { statusEl.textContent = 'Network error'; statusEl.className = 'save-status err'; }
+  }
+  btn.disabled = false; btn.textContent = old;
 }
 
 // ── Init ─────────────────────────────────────────────────────

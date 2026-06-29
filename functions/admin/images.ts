@@ -26,6 +26,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
+import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
 import {
   readContent, galleryCaptionKey, GALLERY_CAPTION_KEYS,
@@ -40,7 +41,7 @@ const STYLE = `
   *, *::before, *::after { box-sizing: border-box; }
   body {
     margin: 0;
-    background: #faf7ee;
+    background: #F4EDDF;
     color: #1a1410;
     font-family: 'Inter', system-ui, sans-serif;
     font-size: 14px;
@@ -52,7 +53,7 @@ const STYLE = `
     z-index: 30;
     background: rgba(250, 247, 238, 0.96);
     backdrop-filter: blur(8px);
-    border-bottom: 1px solid #d8ccae;
+    border-bottom: 1px solid #D5CBB1;
     padding: 0.7rem 1.25rem;
     display: grid;
     gap: 0.55rem;
@@ -71,7 +72,7 @@ const STYLE = `
     color: #1a1410;
     text-decoration: none;
     padding-inline-end: 0.4rem;
-    border-inline-end: 1px solid #d8ccae;
+    border-inline-end: 1px solid #D5CBB1;
     margin-inline-end: 0.3rem;
   }
   .top__navlink {
@@ -85,11 +86,11 @@ const STYLE = `
     border: 1px solid transparent;
     transition: color 0.2s, border-color 0.2s, background 0.2s;
   }
-  .top__navlink:hover { color: #1a1410; border-color: #d8ccae; }
+  .top__navlink:hover { color: #1a1410; border-color: #D5CBB1; }
   .top__navlink.is-active {
     color: #1a1410;
     background: #ece3d0;
-    border-color: #d8ccae;
+    border-color: #D5CBB1;
     pointer-events: none;
   }
   .top__spacer { flex: 1; }
@@ -97,7 +98,7 @@ const STYLE = `
     font-size: 0.76rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #a88947;
+    color: #9C4621;
     font-weight: 600;
     text-decoration: none;
     padding: 0.4rem 0.5rem;
@@ -112,11 +113,11 @@ const STYLE = `
     padding: 0.45rem 0.65rem;
     background: transparent;
     color: #6f6457;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     cursor: pointer;
     transition: color 0.2s, background 0.2s, border-color 0.2s;
   }
-  .top__action:hover { color: #1a1410; background: #ece3d0; border-color: #a88947; }
+  .top__action:hover { color: #1a1410; background: #ece3d0; border-color: #9C4621; }
   .top__action:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ── Toolbar: view tabs + search + jump chips ─────────────────────── */
@@ -126,7 +127,7 @@ const STYLE = `
     gap: 0.7rem 1rem;
     flex-wrap: wrap;
   }
-  .viewtabs { display: inline-flex; border: 1px solid #d8ccae; background: #fff; }
+  .viewtabs { display: inline-flex; border: 1px solid #D5CBB1; background: #fff; }
   .viewtab {
     font: inherit;
     font-size: 0.74rem;
@@ -137,23 +138,23 @@ const STYLE = `
     background: transparent;
     color: #6f6457;
     border: 0;
-    border-inline-end: 1px solid #d8ccae;
+    border-inline-end: 1px solid #D5CBB1;
     cursor: pointer;
   }
   .viewtab:last-child { border-inline-end: 0; }
-  .viewtab.is-active { background: #1a1410; color: #faf7ee; }
+  .viewtab.is-active { background: #1a1410; color: #F4EDDF; }
   .toolbar__search {
     font: inherit;
     font-size: 0.85rem;
     padding: 0.45rem 0.7rem;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     background: #fff;
     color: #1a1410;
     min-width: 200px;
     flex: 1 1 200px;
     max-width: 340px;
   }
-  .toolbar__search:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
+  .toolbar__search:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
   .jumpnav { display: flex; gap: 0.3rem; flex-wrap: wrap; }
   .jumpnav__chip {
     font: inherit;
@@ -164,10 +165,10 @@ const STYLE = `
     padding: 0.35rem 0.6rem;
     background: #fff;
     color: #6f6457;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     cursor: pointer;
   }
-  .jumpnav__chip:hover { color: #1a1410; border-color: #a88947; background: #ece3d0; }
+  .jumpnav__chip:hover { color: #1a1410; border-color: #9C4621; background: #ece3d0; }
 
   main {
     max-width: 1180px;
@@ -192,7 +193,7 @@ const STYLE = `
     margin: 0 0 1.5rem;
     padding: 0.7rem 0.9rem;
     background: #f3eddc;
-    border-inline-start: 3px solid #a88947;
+    border-inline-start: 3px solid #9C4621;
     color: #6f5a2e;
     font-size: 0.82rem;
     max-width: 80ch;
@@ -205,7 +206,7 @@ const STYLE = `
     justify-content: space-between;
     padding-block-end: 0.6rem;
     margin-block-end: 1.1rem;
-    border-bottom: 1px solid #d8ccae;
+    border-bottom: 1px solid #D5CBB1;
   }
   .group__head h2 {
     margin: 0;
@@ -224,7 +225,7 @@ const STYLE = `
   }
   .card {
     background: #fff;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     display: flex;
     flex-direction: column;
   }
@@ -243,7 +244,7 @@ const STYLE = `
     width: 100%; height: 100%; object-fit: cover;
     display: block;
   }
-  .card__thumb.is-dragging { outline-color: #a88947; background: #ece3d0; }
+  .card__thumb.is-dragging { outline-color: #9C4621; background: #ece3d0; }
   .card__badge {
     position: absolute;
     inset-block-start: 0.5rem;
@@ -254,13 +255,13 @@ const STYLE = `
     font-weight: 600;
     padding: 0.22rem 0.5rem;
     background: rgba(26, 20, 16, 0.78);
-    color: #faf7ee;
+    color: #F4EDDF;
   }
-  .card__badge--override { background: #a88947; color: #fff; }
+  .card__badge--override { background: #9C4621; color: #fff; }
   .card__badge--missing  { background: #a53623; color: #fff; }
-  .card__badge--fallback { background: #6f6457; color: #faf7ee; }
+  .card__badge--fallback { background: #6f6457; color: #F4EDDF; }
   .card__badge--optional { background: #c9bda0; color: #1a1410; }
-  .card__badge--set      { background: #a88947; color: #fff; }
+  .card__badge--set      { background: #9C4621; color: #fff; }
   .card__ar {
     position: absolute;
     inset-block-end: 0.5rem;
@@ -270,7 +271,7 @@ const STYLE = `
     font-weight: 600;
     padding: 0.18rem 0.45rem;
     background: rgba(26, 20, 16, 0.62);
-    color: #faf7ee;
+    color: #F4EDDF;
     font-family: 'Inter', monospace;
   }
   .card__tags {
@@ -287,7 +288,7 @@ const STYLE = `
     font-weight: 600;
     padding: 0.18rem 0.42rem;
     background: rgba(26, 20, 16, 0.6);
-    color: #faf7ee;
+    color: #F4EDDF;
   }
   .card__head { padding: 0.8rem 0.9rem 0.4rem; }
   .card__label { margin: 0; font-weight: 600; font-size: 0.9rem; }
@@ -316,7 +317,7 @@ const STYLE = `
     margin: 0.4rem 0 0;
     padding: 0.45rem 0.55rem;
     background: #f3eddc;
-    border-inline-start: 3px solid #a88947;
+    border-inline-start: 3px solid #9C4621;
     font-size: 0.74rem;
     color: #6f5a2e;
     line-height: 1.45;
@@ -346,16 +347,16 @@ const STYLE = `
     font-weight: 600;
     padding: 0.55rem 0.7rem;
     background: #1a1410;
-    color: #faf7ee;
+    color: #F4EDDF;
     border: 1px solid #1a1410;
     cursor: pointer;
     flex: 1 1 auto;
     transition: background 0.2s, border-color 0.2s, color 0.2s;
   }
-  .btn:hover { background: #a88947; border-color: #a88947; }
+  .btn:hover { background: #9C4621; border-color: #9C4621; }
   .btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .btn--ghost { background: transparent; color: #1a1410; }
-  .btn--ghost:hover { color: #a88947; background: transparent; border-color: #a88947; }
+  .btn--ghost:hover { color: #9C4621; background: transparent; border-color: #9C4621; }
   .card__status {
     margin: 0;
     min-height: 1.3em;
@@ -374,9 +375,9 @@ const STYLE = `
   .card__caption-label span { display: block; font-weight: 400; color: #9a8d77; font-size: 0.68rem; }
   .card__caption-input {
     font: inherit; font-size: 0.82rem; width: 100%;
-    padding: 0.4rem 0.5rem; border: 1px solid #d8ccae; background: #fff; color: #1a1410;
+    padding: 0.4rem 0.5rem; border: 1px solid #D5CBB1; background: #fff; color: #1a1410;
   }
-  .card__caption-input:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
+  .card__caption-input:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
   .card__caption-status { margin: 0; min-height: 1.05em; font-size: 0.72rem; color: #4f6b47; }
   .card__caption-status--err { color: #a53623; }
 
@@ -395,8 +396,8 @@ const STYLE = `
   }
   .picker.is-open { display: flex; }
   .picker__panel {
-    background: #faf7ee;
-    border: 1px solid #d8ccae;
+    background: #F4EDDF;
+    border: 1px solid #D5CBB1;
     width: min(880px, 100%);
     margin: auto;
     padding: 1.1rem 1.3rem 1.5rem;
@@ -421,7 +422,7 @@ const STYLE = `
     color: #1a1410;
   }
   .picker__sub { margin: 0; font-size: 0.8rem; color: #6f6457; }
-  .picker__sub em { font-style: normal; font-weight: 600; color: #a88947; }
+  .picker__sub em { font-style: normal; font-weight: 600; color: #9C4621; }
   .picker__grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -433,13 +434,13 @@ const STYLE = `
     display: flex;
     flex-direction: column;
     padding: 0;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     background: #fff;
     cursor: pointer;
     text-align: start;
     transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
   }
-  .picker__item:hover { border-color: #a88947; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
+  .picker__item:hover { border-color: #9C4621; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
   .picker__item:active { transform: translateY(1px); }
   .picker__item:disabled { opacity: 0.5; cursor: not-allowed; }
   .picker__item-thumb {
@@ -453,7 +454,7 @@ const STYLE = `
   .picker__item-label { font-size: 0.76rem; font-weight: 600; color: #1a1410; line-height: 1.25; }
   .picker__item-flag {
     font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
-    color: #a88947; font-weight: 600;
+    color: #9C4621; font-weight: 600;
   }
   .picker__item-flag.is-default { color: #9a8d77; }
   .picker__status { margin: 0; min-height: 1.1em; font-size: 0.78rem; color: #4f6b47; }
@@ -475,8 +476,8 @@ const STYLE = `
   }
   .editor.is-open { display: flex; }
   .editor__panel {
-    background: #faf7ee;
-    border: 1px solid #d8ccae;
+    background: #F4EDDF;
+    border: 1px solid #D5CBB1;
     width: min(980px, 100%);
     margin: auto;
     display: grid;
@@ -506,7 +507,7 @@ const STYLE = `
   }
   .editor__canvas:active { cursor: grabbing; }
   .editor__side {
-    border-inline-start: 1px solid #d8ccae;
+    border-inline-start: 1px solid #D5CBB1;
     padding: 1.1rem 1.2rem 1.4rem;
     display: grid;
     gap: 0.85rem;
@@ -514,7 +515,7 @@ const STYLE = `
     overflow-y: auto;
   }
   @media (max-width: 760px) {
-    .editor__side { border-inline-start: none; border-top: 1px solid #d8ccae; }
+    .editor__side { border-inline-start: none; border-top: 1px solid #D5CBB1; }
   }
   .editor__title {
     margin: 0;
@@ -528,7 +529,7 @@ const STYLE = `
     font-size: 0.76rem;
     color: #6f6457;
   }
-  .editor__sub b { color: #a88947; }
+  .editor__sub b { color: #9C4621; }
   .ctl { display: grid; gap: 0.3rem; }
   .ctl__row {
     display: flex;
@@ -538,12 +539,12 @@ const STYLE = `
   }
   .ctl label { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.04em; }
   .ctl__val { font-family: 'Inter', monospace; font-size: 0.72rem; color: #6f6457; }
-  .ctl input[type="range"] { width: 100%; accent-color: #a88947; }
+  .ctl input[type="range"] { width: 100%; accent-color: #9C4621; }
   .ctl select {
     font: inherit;
     font-size: 0.8rem;
     padding: 0.35rem 0.4rem;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     background: #fff;
     width: 100%;
   }
@@ -555,12 +556,12 @@ const STYLE = `
     text-transform: uppercase;
     font-weight: 600;
     padding: 0.4rem 0.65rem;
-    border: 1px solid #d8ccae;
+    border: 1px solid #D5CBB1;
     background: #fff;
     color: #6f6457;
     cursor: pointer;
   }
-  .chip.is-on { background: #1a1410; color: #faf7ee; border-color: #1a1410; }
+  .chip.is-on { background: #1a1410; color: #F4EDDF; border-color: #1a1410; }
   .editor__divider { height: 1px; background: #e6dcc4; margin: 0.2rem 0; }
   .editor__meta { font-size: 0.72rem; color: #6f6457; font-family: 'Inter', monospace; }
   .editor__foot { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
@@ -1560,35 +1561,25 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   <meta name="robots" content="noindex, nofollow" />
   <title>Image manager · Zahara admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" />
-  <style>${STYLE}</style>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="${ADMIN_FONTS_HREF}" />
+  <style>${CHROME_CSS}${STYLE}</style>
 </head>
 <body>
-  <header class="top">
-    <nav class="top__nav" aria-label="Admin sections">
-      <a class="top__brand" href="/admin/">Zahara · Admin</a>
-      <a class="top__navlink"            href="/admin/">Menu editor</a>
-      <a class="top__navlink is-active"  href="/admin/images/" aria-current="page">Images</a>
-      <a class="top__navlink"            href="/admin/content/">Content</a>
-      <a class="top__navlink"            href="/admin/colors/">Colors</a>
-      <a class="top__navlink"            href="/admin/sync/">Sync</a>
-      <span class="top__spacer"></span>
-      <button class="top__action" type="button" id="top-purge"
+  ${topbar('images', {
+    rightSlot: `<button class="top__action" type="button" id="top-purge"
               title="Force the CDN to refetch every photo (use if you just uploaded and the live site still shows the old image)">
         Refresh cached photos
-      </button>
-      <a class="top__site" href="/" target="_blank">View site ↗</a>
-    </nav>
-    <div class="toolbar">
+      </button>`,
+    titleSlot: `<div class="toolbar">
       <div class="viewtabs" role="tablist" aria-label="Image set">
         <button class="viewtab is-active" type="button" data-view-tab="desktop">Desktop</button>
         <button class="viewtab"           type="button" data-view-tab="mobile">Mobile (portrait)</button>
       </div>
       <input class="toolbar__search" type="search" id="img-search" placeholder="Search photos by name, page or key…" aria-label="Search photos" />
       <nav class="jumpnav" id="jumpnav" aria-label="Jump to page"></nav>
-    </div>
-  </header>
+    </div>`,
+  })}
   <main>
     <p class="lead">
       Pick a file (or drop one on a thumbnail) and it opens straight in the

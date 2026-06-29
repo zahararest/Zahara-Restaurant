@@ -7,6 +7,7 @@
 
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
+import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContent,
   type ContentEnv, type ContentMap, type ContentField,
@@ -22,23 +23,23 @@ function esc(s: string): string {
 
 const STYLE = `
   *, *::before, *::after { box-sizing: border-box; }
-  body { margin: 0; background: #faf7ee; color: #1a1410;
+  body { margin: 0; background: #F4EDDF; color: #1a1410;
     font-family: 'Inter', system-ui, sans-serif; font-size: 14px; line-height: 1.55; }
   header.top { position: sticky; top: 0; z-index: 10;
     background: rgba(250,247,238,0.95); backdrop-filter: blur(8px);
-    border-bottom: 1px solid #d8ccae; padding: 0.7rem 1.5rem; display: grid; gap: 0.55rem; }
+    border-bottom: 1px solid #D5CBB1; padding: 0.7rem 1.5rem; display: grid; gap: 0.55rem; }
   .top__nav { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .top__brand { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.24em;
     text-transform: uppercase; color: #1a1410; text-decoration: none;
-    padding-inline-end: 0.4rem; border-inline-end: 1px solid #d8ccae; margin-inline-end: 0.4rem; }
+    padding-inline-end: 0.4rem; border-inline-end: 1px solid #D5CBB1; margin-inline-end: 0.4rem; }
   .top__navlink { font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase;
     font-weight: 600; color: #6f6457; text-decoration: none; padding: 0.35rem 0.65rem;
     border: 1px solid transparent; transition: color .2s, border-color .2s, background .2s; }
-  .top__navlink:hover { color: #1a1410; border-color: #d8ccae; }
-  .top__navlink.is-active { color: #1a1410; background: #ece3d0; border-color: #d8ccae; pointer-events: none; }
+  .top__navlink:hover { color: #1a1410; border-color: #D5CBB1; }
+  .top__navlink.is-active { color: #1a1410; background: #ece3d0; border-color: #D5CBB1; pointer-events: none; }
   .top__spacer { flex: 1; }
   .top__site { font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase;
-    color: #a88947; font-weight: 600; text-decoration: none; padding: 0.4rem 0.6rem; }
+    color: #9C4621; font-weight: 600; text-decoration: none; padding: 0.4rem 0.6rem; }
   .top__site:hover { text-decoration: underline; }
   .top__title { margin: 0; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.22em;
     text-transform: uppercase; color: #6f6457; }
@@ -47,17 +48,17 @@ const STYLE = `
   .pagetabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .pagetab { font: inherit; font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase;
     font-weight: 600; color: #6f6457; background: transparent; cursor: pointer;
-    padding: 0.4rem 0.85rem; border: 1px solid #d8ccae; border-radius: 0;
+    padding: 0.4rem 0.85rem; border: 1px solid #D5CBB1; border-radius: 0;
     transition: color .2s, border-color .2s, background .2s; }
   .pagetab:hover { color: #1a1410; background: #f1e9d6; }
-  .pagetab.is-active { color: #faf7ee; background: #1a1410; border-color: #1a1410; }
+  .pagetab.is-active { color: #F4EDDF; background: #1a1410; border-color: #1a1410; }
   main { max-width: 920px; margin: 0 auto; padding: 2rem 1.5rem 7rem; }
   .page { display: none; }
   .page.is-active { display: block; }
   .lead { color: #6f6457; max-width: 64ch; margin: 0 0 2rem; }
   .group { margin-block-end: 2.5rem; }
   .group__head { display: flex; align-items: baseline; justify-content: space-between;
-    padding-block-end: 0.5rem; margin-block-end: 1.1rem; border-bottom: 1px solid #d8ccae; }
+    padding-block-end: 0.5rem; margin-block-end: 1.1rem; border-bottom: 1px solid #D5CBB1; }
   .group__head h2 { margin: 0; font-size: 0.95rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
   .group__head small { color: #6f6457; }
   .field { margin-block-end: 1.1rem; }
@@ -71,8 +72,8 @@ const STYLE = `
   .col__lang { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
     font-weight: 700; color: #9a8d77; }
   .col input, .col textarea { font: inherit; font-size: 0.86rem; width: 100%;
-    padding: 0.5rem 0.6rem; border: 1px solid #d8ccae; background: #fff; color: #1a1410; border-radius: 0; }
-  .col input:focus, .col textarea:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
+    padding: 0.5rem 0.6rem; border: 1px solid #D5CBB1; background: #fff; color: #1a1410; border-radius: 0; }
+  .col input:focus, .col textarea:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
   .col textarea { min-height: 2.4rem; resize: vertical; line-height: 1.5; }
   .col textarea.is-multi { min-height: 4.5rem; }
   .fmt-hint code { background: #f3eddc; border: 1px solid #e3d7b8; padding: 0.05rem 0.35rem; font-size: 0.8em; }
@@ -81,18 +82,18 @@ const STYLE = `
   .field__size label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
     font-weight: 600; color: #9a8d77; }
   .field__size select { font: inherit; font-size: 0.8rem; padding: 0.3rem 0.5rem;
-    border: 1px solid #d8ccae; background: #fff; color: #1a1410; border-radius: 0; }
-  .field__size select:focus { outline: 2px solid #a88947; outline-offset: 0; border-color: #a88947; }
-  .field__size select.is-set { border-color: #a88947; color: #6f5a2e; font-weight: 600; }
+    border: 1px solid #D5CBB1; background: #fff; color: #1a1410; border-radius: 0; }
+  .field__size select:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
+  .field__size select.is-set { border-color: #9C4621; color: #6f5a2e; font-weight: 600; }
   .savebar { position: fixed; inset-block-end: 0; inset-inline: 0; z-index: 20;
-    background: rgba(250,247,238,0.97); border-top: 1px solid #d8ccae;
+    background: rgba(250,247,238,0.97); border-top: 1px solid #D5CBB1;
     padding: 0.8rem 1.5rem; display: flex; align-items: center; gap: 1rem; justify-content: flex-end; }
   .savebar__status { margin-inline-end: auto; font-size: 0.8rem; color: #4f6b47; min-height: 1.2em; }
   .savebar__status--err { color: #a53623; }
   .btn { font: inherit; font-size: 0.74rem; letter-spacing: 0.16em; text-transform: uppercase;
-    font-weight: 600; padding: 0.7rem 1.4rem; background: #1a1410; color: #faf7ee;
+    font-weight: 600; padding: 0.7rem 1.4rem; background: #1a1410; color: #F4EDDF;
     border: 1px solid #1a1410; cursor: pointer; }
-  .btn:hover { background: #a88947; border-color: #a88947; }
+  .btn:hover { background: #9C4621; border-color: #9C4621; }
   .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 `;
 
@@ -244,23 +245,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   <meta name="robots" content="noindex, nofollow" />
   <title>Content · Zahara admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-  <style>${STYLE}</style>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="${ADMIN_FONTS_HREF}" />
+  <style>${CHROME_CSS}${STYLE}</style>
 </head>
 <body>
-  <header class="top">
-    <nav class="top__nav" aria-label="Admin sections">
-      <a class="top__brand" href="/admin/">Zahara · Admin</a>
-      <a class="top__navlink"           href="/admin/">Menu editor</a>
-      <a class="top__navlink"           href="/admin/images/">Images</a>
-      <a class="top__navlink is-active" href="/admin/content/" aria-current="page">Content</a>
-      <a class="top__navlink"           href="/admin/colors/">Colors</a>
-      <a class="top__navlink"           href="/admin/sync/">Sync</a>
-      <span class="top__spacer"></span>
-      <a class="top__site" href="/" target="_blank">View site ↗</a>
-    </nav>
-    <div class="pagetabs" role="tablist" aria-label="Pages">${tabsHtml}</div>
-  </header>
+  ${topbar('content', {
+    titleSlot: `<div class="pagetabs" role="tablist" aria-label="Pages">${tabsHtml}</div>`,
+  })}
   <main>
     <p class="lead fmt-hint">
       Edit any field and press <strong>Save changes</strong>. Clear a field to

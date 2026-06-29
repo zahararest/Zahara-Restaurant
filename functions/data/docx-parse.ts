@@ -122,54 +122,88 @@ function xmlToPagedLines(xmlStr: string): PagedLine[] {
   return lines;
 }
 
-// ── Date detection (ports of script.ts helpers) ──────────────────────────
-function stripXmlTags(xml: string): string {
-  return xml ? xml.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim() : '';
+// ── Date detection ────────────────────────────────────────────────────────
+// Month name → number. Both Hebrew spellings of March (מרץ / מרס) map to 3,
+// and EN abbreviations are accepted. Used by extractAnyDate below.
+const MONTHS: Record<string, number> = {
+  // English (full + 3-letter abbreviations)
+  january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3, april: 4, apr: 4,
+  may: 5, june: 6, jun: 6, july: 7, jul: 7, august: 8, aug: 8,
+  september: 9, sep: 9, sept: 9, october: 10, oct: 10, november: 11, nov: 11,
+  december: 12, dec: 12,
+  // Hebrew
+  'ינואר': 1, 'פברואר': 2, 'מרץ': 3, 'מרס': 3, 'אפריל': 4, 'מאי': 5, 'יוני': 6,
+  'יולי': 7, 'אוגוסט': 8, 'ספטמבר': 9, 'אוקטובר': 10, 'נובמבר': 11, 'דצמבר': 12,
+};
+const MONTH_ALT = Object.keys(MONTHS)
+  .sort((a, b) => b.length - a.length)            // longest first so "march" wins over "mar"
+  .map(m => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|');
+
+function iso(y: string | number, m: number, d: number): string {
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-function extractDate(s: string): string | null {
+/**
+ * Pull a date out of free text. Handles, in order:
+ *   • numeric  DD/MM/YYYY or DD-MM-YY (and ISO YYYY-MM-DD)
+ *   • "Month DD YYYY" / "Month DD, YYYY"  (e.g. "June 25 2026")
+ *   • "DD Month YYYY"                     (e.g. "29 יוני 2026")
+ *   • "Month YYYY" (no day → day 1)
+ * The header dates in these menus are the "last edited" date the owner wants
+ * shown, so day precision matters — month-year is only the last resort.
+ */
+function extractAnyDate(s: string): string | null {
   if (!s) return null;
-  let m = s.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+
+  // ISO
+  let m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return iso(m[1], parseInt(m[2], 10), parseInt(m[3], 10));
+
+  // numeric DD/MM/YY(YY)
+  m = s.match(/\b(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b/);
   if (m) {
     let yy = m[3];
     if (yy.length === 2) yy = (parseInt(yy, 10) > 50 ? '19' : '20') + yy;
-    const dd = m[1].padStart(2, '0'), mm2 = m[2].padStart(2, '0');
-    return yy + '-' + mm2 + '-' + dd;
+    return iso(yy, parseInt(m[2], 10), parseInt(m[1], 10));
   }
-  m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+
+  const lower = s.toLowerCase();
+  // Month DD[,] YYYY
+  m = lower.match(new RegExp(`\\b(${MONTH_ALT})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?,?\\s+(\\d{4})\\b`, 'i'));
+  if (m) return iso(m[3], MONTHS[m[1]], parseInt(m[2], 10));
+
+  // DD Month YYYY
+  m = lower.match(new RegExp(`\\b(\\d{1,2})\\s+(${MONTH_ALT})\\.?\\s+(\\d{4})\\b`, 'i'));
+  if (m) return iso(m[3], MONTHS[m[2]], parseInt(m[1], 10));
+
+  // Month YYYY (no day)
+  m = lower.match(new RegExp(`\\b(${MONTH_ALT})\\.?\\s+(\\d{4})\\b`, 'i'));
+  if (m) return iso(m[2], MONTHS[m[1]], 1);
+  m = lower.match(new RegExp(`\\b(\\d{4})\\s+(${MONTH_ALT})\\b`, 'i'));
+  if (m) return iso(m[1], MONTHS[m[2]], 1);
+
   return null;
 }
 
-const HE_MONTHS = ['ינואר','פברואר','מרץ','מרס','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const EN_MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-
-function extractMonthYear(s: string): string | null {
-  if (!s) return null;
-  for (let i = 0; i < HE_MONTHS.length; i++) {
-    let m = s.match(new RegExp(HE_MONTHS[i] + '\\s*(\\d{4})'));
-    if (m) return m[1] + '-' + String(i + 1).padStart(2, '0') + '-01';
-    m = s.match(new RegExp('(\\d{4})\\s*' + HE_MONTHS[i]));
-    if (m) return m[1] + '-' + String(i + 1).padStart(2, '0') + '-01';
-  }
-  const lower = s.toLowerCase();
-  for (let i = 0; i < EN_MONTHS.length; i++) {
-    let m = lower.match(new RegExp(EN_MONTHS[i] + '\\s*(\\d{4})'));
-    if (m) return m[1] + '-' + String(i + 1).padStart(2, '0') + '-01';
-    m = lower.match(new RegExp('(\\d{4})\\s*' + EN_MONTHS[i]));
-    if (m) return m[1] + '-' + String(i + 1).padStart(2, '0') + '-01';
-  }
-  return null;
+/** Concatenate a header's <w:t> runs WITHOUT inserting spaces, so a date
+ *  split across runs ("June "|"2"|"5"|" 2026") rejoins as "June 25 2026". */
+function headerText(xml: string): string {
+  const runs = xml.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g) || [];
+  return runs
+    .map(t => decodeXmlEntities(t.replace(/^<w:t(?:\s[^>]*)?>/, '').replace(/<\/w:t>$/, '')))
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function findDate(headersXml: string[], allLines: PagedLine[], filename: string): string | null {
   for (const xml of headersXml) {
-    const text = stripXmlTags(xml);
-    const d = extractDate(text) || extractMonthYear(text);
+    const d = extractAnyDate(headerText(xml));
     if (d) return d;
   }
   for (let i = 0; i < Math.min(8, allLines.length); i++) {
-    const d = extractDate(allLines[i].text) || extractMonthYear(allLines[i].text);
+    const d = extractAnyDate(allLines[i].text);
     if (d) return d;
   }
   const fm = filename.match(/(\d{2})(\d{2})(\d{2})/);
@@ -226,7 +260,7 @@ function parseLines(lines: string[], sep: string): MenuSection[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line || skip.test(line)) continue;
-    if (extractDate(line) && line.length < 16) continue;
+    if (extractAnyDate(line) && line.length < 16) continue;
 
     if (line.startsWith('(') && line.endsWith(')') && current?.items.length) {
       current.items[current.items.length - 1].description = line.slice(1, -1);
