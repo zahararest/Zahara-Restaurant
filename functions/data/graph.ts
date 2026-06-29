@@ -99,19 +99,40 @@ export async function downloadFile(fileId: string, accessToken: string): Promise
   const auth = { Authorization: `Bearer ${accessToken}` };
   const base = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(fileId)}`;
 
-  const metaRes = await fetch(`${base}?select=name,size`, { headers: auth });
+  // Fetch the item metadata WITHOUT a restrictive $select — we need the instance
+  // annotation `@microsoft.graph.downloadUrl`, a short-lived, PRE-AUTHENTICATED
+  // link to OneDrive storage.
+  const metaRes = await fetch(base, { headers: auth });
   if (!metaRes.ok) {
     const t = await metaRes.text().catch(() => '');
     throw new Error(`Drive item ${fileId} not found (HTTP ${metaRes.status}) ${t.slice(0, 160)}`);
   }
-  const meta = await metaRes.json() as { name?: string };
+  const meta = await metaRes.json() as { name?: string; '@microsoft.graph.downloadUrl'?: string };
+  const name = meta.name || '';
 
-  const contentRes = await fetch(`${base}/content`, { headers: auth, redirect: 'follow' });
-  if (!contentRes.ok) {
-    throw new Error(`Download failed for ${fileId} (HTTP ${contentRes.status})`);
+  // Preferred path: download from the pre-authenticated URL with NO auth header.
+  // The Graph token must NOT be sent to the storage host — and Workers' fetch
+  // forwards the Authorization header across the cross-host `/content` redirect,
+  // which the storage host rejects with 401 (the failure seen in production).
+  const preAuthUrl = meta['@microsoft.graph.downloadUrl'];
+  if (preAuthUrl) {
+    const res = await fetch(preAuthUrl);
+    if (!res.ok) throw new Error(`Download failed for ${fileId} (HTTP ${res.status})`);
+    return { name, bytes: await res.arrayBuffer() };
   }
-  const bytes = await contentRes.arrayBuffer();
-  return { name: meta.name || '', bytes };
+
+  // Fallback: hit /content but handle the redirect MANUALLY so the Bearer token
+  // never leaks to the storage host.
+  const contentRes = await fetch(`${base}/content`, { headers: auth, redirect: 'manual' });
+  if (contentRes.status >= 300 && contentRes.status < 400) {
+    const loc = contentRes.headers.get('Location');
+    if (!loc) throw new Error(`Download failed for ${fileId} (redirect without Location)`);
+    const finalRes = await fetch(loc); // pre-authenticated URL — no auth header
+    if (!finalRes.ok) throw new Error(`Download failed for ${fileId} (HTTP ${finalRes.status})`);
+    return { name, bytes: await finalRes.arrayBuffer() };
+  }
+  if (!contentRes.ok) throw new Error(`Download failed for ${fileId} (HTTP ${contentRes.status})`);
+  return { name, bytes: await contentRes.arrayBuffer() };
 }
 
 /**
