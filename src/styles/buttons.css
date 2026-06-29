@@ -135,7 +135,7 @@ html[lang="he"] .header-reserve {
 @media (hover: hover) {
   .site-header.is-on-photo .header-reserve:hover {
     background: var(--paper-on-photo);
-    color: var(--ink);
+    color: var(--on-photo-ink);   /* fixed dark — was --ink, invisible in dark mode */
     border-color: var(--paper-on-photo);
   }
 }
@@ -143,19 +143,31 @@ html[lang="he"] .header-reserve {
 /* Mobile drawer rooftop button keeps .btn--ghost look; just center it */
 .mobile-nav__rooftop-soon { text-align: center; }
 
-/* ── Hero CTAs — read on the photo, not against the theme ──────────────────
-   The hero buttons sit directly on the full-bleed photograph (which on phones
-   even rotates through several frames). The default ink-filled primary turned
-   muddy and near-invisible against the dark photo, and the ink-outlined ghost
-   barely registered. Give both the same on-photo treatment the header reserve
-   link already uses over a photo: a solid paper fill that pops on any frame,
-   and a paper-outlined ghost — so they stay legible whatever's behind them,
-   in either theme. No glass or gradient (stays within the editorial system). */
+/* ── Hero / on-photo CTAs — FIXED on-photo colours, never theme-flipping ────
+   The hero buttons (and the header reserve link when it sits over the hero
+   photo) live on a full-bleed photograph whose context is dark in BOTH themes.
+   The previous rules paired the always-light --paper-on-photo with --ink, which
+   flips LIGHT in dark mode — so in dark mode the primary was cream-on-cream at
+   rest, and both buttons washed their label to invisible on hover ("hover hides
+   everything" / "weird dark button"). These use a FIXED light/dark on-photo
+   pair so the label can never disappear and the button stays legible on any
+   frame, in either theme. No glass or gradient — stays in the editorial system. */
+.hero-bleed .btn,
+.hero-bleed .btn--ghost,
+.site-header.is-on-photo .header-reserve {
+  /* Fixed dark companion to the (already fixed-light) --paper-on-photo. Kept
+     local to the button system on purpose — it must NOT be theme-editable. */
+  --on-photo-ink: #1A1410;
+}
+
+/* Primary — bright cream on the photo; warms to the accent on hover. The label
+   is a fixed dark in BOTH states, so it can never wash out. */
 .hero-bleed .btn {
   background: var(--paper-on-photo);
-  color: var(--ink);
+  color: var(--on-photo-ink);
   border-color: var(--paper-on-photo);
 }
+/* Ghost — cream outline + label; fills cream on hover with the same dark label. */
 .hero-bleed .btn--ghost {
   background: transparent;
   color: var(--paper-on-photo);
@@ -164,12 +176,12 @@ html[lang="he"] .header-reserve {
 @media (hover: hover) {
   .hero-bleed .btn:hover {
     background: var(--accent);
-    color: var(--paper-on-photo);
+    color: var(--on-photo-ink);
     border-color: var(--accent);
   }
   .hero-bleed .btn--ghost:hover {
     background: var(--paper-on-photo);
-    color: var(--ink);
+    color: var(--on-photo-ink);
     border-color: var(--paper-on-photo);
   }
 }
