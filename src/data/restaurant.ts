@@ -43,7 +43,7 @@ export const RESTAURANT = {
     days:   ['Monday', 'Tuesday', 'Wednesday', 'Thursday'] as const,
   },
 
-  reservationUrl: 'https://tabitisrael.co.il/site/noocha-hotel-zahara',
+  reservationUrl: 'https://tbit.be/mlBFke',
   instagram:      'https://www.instagram.com/zahara.restaurant/',
   facebook:       'https://www.facebook.com/profile.php?id=61582628067264',
 

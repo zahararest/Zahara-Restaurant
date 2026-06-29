@@ -13,3 +13,4 @@ dist/
 ~$*.docx
 ~$*.xlsx
 *.tmp
+HANDOFF.md

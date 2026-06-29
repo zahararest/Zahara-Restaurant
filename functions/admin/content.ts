@@ -255,6 +255,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       <a class="top__navlink"           href="/admin/images/">Images</a>
       <a class="top__navlink is-active" href="/admin/content/" aria-current="page">Content</a>
       <a class="top__navlink"           href="/admin/colors/">Colors</a>
+      <a class="top__navlink"           href="/admin/sync/">Sync</a>
       <span class="top__spacer"></span>
       <a class="top__site" href="/" target="_blank">View site ↗</a>
     </nav>

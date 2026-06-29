@@ -213,7 +213,9 @@ const emptyLabel = t.emptyLabel;
       it downloads during head parse and the LCP fires early + reliably. */}
 
   <div data-section-name={sec.hero}>
-    <HeroBleed lang={lang} photo={PHOTOS.hero} />
+    {/* On phones the hero becomes a slow cross-fading gallery using the same
+        photos as the in-page gallery below. Desktop keeps the single hero. */}
+    <HeroBleed lang={lang} photo={PHOTOS.hero} mobileSlides={galleryPhotos} />
   </div>
 
   <!-- {/* Editorial masthead — quiet magazine-style identity stamp.
@@ -505,7 +507,7 @@ const emptyLabel = t.emptyLabel;
     />
    </div> 
    
-  <div data-section-name={sec.gallery}>
+  <div class="home-gallery" data-section-name={sec.gallery}>
     <Gallery
       lang={lang}
       eyebrow={t.galleryEyebrow}
@@ -1091,5 +1093,9 @@ const emptyLabel = t.emptyLabel;
   @media (max-width: 600px) {
     .menu-split { min-height: 0; }
     .menu-split__inner { padding-block: var(--space-l); }
+    /* The mobile hero already cycles through these gallery photos, so the
+       standalone gallery section is redundant on phones — hide it there.
+       Desktop keeps the full gallery; the BleedPhoto above is untouched. */
+    .home-gallery { display: none; }
   }
 </style>

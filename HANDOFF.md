@@ -49,7 +49,6 @@ KV stores `{date, sections}`. API auto-coerces legacy raw-array data on read.
 
 Inspired by restaurantfrantzen.com + gurras.se:
 
-- Palette: warm cream `#F8F4EB`, graphite ink `#18120D`, single accent burnt sienna `#A14A2A`
 - Fonts: Frank Ruhl Libre (HE display), Fraunces (EN display, italic enabled), Inter (body EN), Heebo (body HE)
 - Sticky header (72px, blur backdrop), always visible
 - Full-bleed photo banner, asymmetric editorial gallery

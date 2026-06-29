@@ -9,15 +9,21 @@ import type { PhotoEntry }         from '../../data/photos';
 export interface Props {
   lang:  Lang;
   photo: PhotoEntry;
+  /** Mobile-only: extra photos the hero rotates through after the LCP frame.
+   *  Pass the in-page gallery set here. Desktop ignores these entirely. */
+  mobileSlides?: readonly PhotoEntry[];
 }
 
-const { lang, photo } = Astro.props;
+const { lang, photo, mobileSlides = [] } = Astro.props;
 const t = pick(copy, lang);
 const g = pick(globals, lang);
 
 const scrollLabel = g.scrollToNext;
 
 const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
+// Phone portrait crops for the rotating gallery frames — same shape the LCP
+// hero uses, so the rotation never jumps aspect ratio.
+const MOBILE_COVER = [[640, 1180], [820, 1500], [1080, 1980]] as const;
 // The hero is the LCP image — shave its weight with a slightly lower AVIF
 // quality (78→70 ≈ 113KB→~80KB on mobile) for a faster mobile LCP. Kept in
 // sync with the preload in BaseLayout.astro, which MUST emit identical URLs
@@ -27,25 +33,50 @@ const HERO_QUALITY = 70;
 
 <section class="hero-bleed" aria-label="Zahara">
   <div class="hero-bleed__media" data-hero-parallax aria-hidden="true">
-    <picture>
-      {/* Phones get a tall portrait crop (subject-aware) so the wide photo
-          isn't scaled up + cropped into a "zoomed-in" sliver. */}
-      <source
-        media="(max-width: 600px)"
-        srcset={resizedMobileCoverSrcset(photo.src, [[640, 1180], [820, 1500], [1080, 1980]], HERO_QUALITY)}
-        sizes="100vw"
-      />
-      <img
-        class="hero-bleed__img ken-burns"
-        src={resized(photo.src, 1800, HERO_QUALITY)}
-        srcset={resizedSrcset(photo.src, HERO_WIDTHS, HERO_QUALITY)}
-        sizes="100vw"
-        alt={photo.alt[lang]}
-        loading="eager"
-        fetchpriority="high"
-        decoding="async"
-      />
-    </picture>
+    {/* Frame 0 — the LCP hero. Always visible (desktop = the only frame;
+        mobile = the first frame of the rotation). This is the image
+        BaseLayout preloads, so the LCP is unchanged. */}
+    <div class="hero-bleed__slide hero-bleed__slide--base is-active" data-hero-slide>
+      <picture>
+        {/* Phones get a tall portrait crop (subject-aware) so the wide photo
+            isn't scaled up + cropped into a "zoomed-in" sliver. */}
+        <source
+          media="(max-width: 600px)"
+          srcset={resizedMobileCoverSrcset(photo.src, MOBILE_COVER, HERO_QUALITY)}
+          sizes="100vw"
+        />
+        <img
+          class="hero-bleed__img ken-burns"
+          src={resized(photo.src, 1800, HERO_QUALITY)}
+          srcset={resizedSrcset(photo.src, HERO_WIDTHS, HERO_QUALITY)}
+          sizes="100vw"
+          alt={photo.alt[lang]}
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+        />
+      </picture>
+    </div>
+
+    {/* Mobile-only rotating gallery — the same photos as the in-page gallery,
+        cross-fading every few seconds. Lazy-loaded and display:none on desktop,
+        so they never download there and never touch the desktop hero. */}
+    {mobileSlides.map((p) => (
+      <div class="hero-bleed__slide hero-bleed__slide--extra" data-hero-slide aria-hidden="true">
+        <picture>
+          <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER, HERO_QUALITY)} sizes="100vw" />
+          <img
+            class="hero-bleed__img"
+            src={resized(p.src, 1100, HERO_QUALITY)}
+            srcset={resizedSrcset(p.src, [800, 1100, 1400], HERO_QUALITY)}
+            sizes="100vw"
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />
+        </picture>
+      </div>
+    ))}
   </div>
   <div class="hero-bleed__overlay" aria-hidden="true"></div>
   <div class="hero-bleed__inner">
@@ -79,6 +110,62 @@ const HERO_QUALITY = 70;
 </section>
 
 <script is:inline>
+  // ── Mobile hero gallery — cross-fade through the gallery photos ────────
+  // Only runs on phones (≤600px) with motion allowed. Desktop keeps the
+  // single LCP hero. Pauses when the tab is hidden; honours reduced motion.
+  (function () {
+    var media = document.querySelector('.hero-bleed__media');
+    if (!media) return;
+    var slides = Array.prototype.slice.call(media.querySelectorAll('[data-hero-slide]'));
+    if (slides.length < 2) return;
+
+    var mqPhone  = window.matchMedia('(max-width: 600px)');
+    var mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var SLIDE_MS = 4500;
+    var timer = null;
+    var idx   = 0;
+
+    function setActive(n) {
+      slides[idx].classList.remove('is-active');
+      slides[idx].setAttribute('aria-hidden', 'true');
+      idx = (n + slides.length) % slides.length;
+      slides[idx].classList.add('is-active');
+      slides[idx].removeAttribute('aria-hidden');
+    }
+
+    function start() {
+      if (timer || !mqPhone.matches || mqReduce.matches) return;
+      media.setAttribute('data-hero-rotate', '');
+      timer = setInterval(function () {
+        if (document.hidden) return;       // skip ticks while backgrounded
+        setActive(idx + 1);
+      }, SLIDE_MS);
+    }
+
+    function stop() {
+      if (timer) { clearInterval(timer); timer = null; }
+      media.removeAttribute('data-hero-rotate');
+      // Reset to the LCP frame so desktop only ever shows the hero.
+      slides.forEach(function (s, n) {
+        s.classList.toggle('is-active', n === 0);
+        if (n === 0) s.removeAttribute('aria-hidden'); else s.setAttribute('aria-hidden', 'true');
+      });
+      idx = 0;
+    }
+
+    function sync() { if (mqPhone.matches && !mqReduce.matches) start(); else stop(); }
+
+    sync();
+    var onChange = function () { stop(); sync(); };
+    if (mqPhone.addEventListener) {
+      mqPhone.addEventListener('change', onChange);
+      mqReduce.addEventListener('change', onChange);
+    } else if (mqPhone.addListener) {
+      mqPhone.addListener(onChange);
+      mqReduce.addListener(onChange);
+    }
+  })();
+
   (function () {
     var cue = document.querySelector('[data-scroll-cue]');
     if (!cue) return;
@@ -96,3 +183,46 @@ const HERO_QUALITY = 70;
     });
   })();
 </script>
+
+<style>
+  /* Slides stack inside the (parallax) media wrapper. */
+  .hero-bleed__slide {
+    position: absolute;
+    inset: 0;
+  }
+  /* The rotating gallery frames only exist on phones; desktop never shows or
+     downloads them. Hidden by default (opacity 0) so a no-JS phone shows just
+     the LCP hero rather than a stack of overlaid photos. */
+  .hero-bleed__slide--extra {
+    display: none;
+    opacity: 0;
+  }
+
+  @media (max-width: 600px) {
+    .hero-bleed__slide--extra { display: block; }
+
+    /* Rotation ON (JS added [data-hero-rotate]): cross-fade between frames,
+       with a gentle drift on the active one — a camera settling, not a UI
+       carousel. The base frame is governed by .is-active just like the rest. */
+    .hero-bleed__media[data-hero-rotate] .hero-bleed__slide {
+      opacity: 0;
+      transition: opacity 1.4s var(--ease-out);
+    }
+    .hero-bleed__media[data-hero-rotate] .hero-bleed__slide.is-active {
+      opacity: 1;
+    }
+    .hero-bleed__media[data-hero-rotate] .ken-burns { animation: none; }
+    .hero-bleed__media[data-hero-rotate] .hero-bleed__img {
+      transform: scale(1.06);
+      transition: transform 6.5s var(--ease-out);
+    }
+    .hero-bleed__media[data-hero-rotate] .hero-bleed__slide.is-active .hero-bleed__img {
+      transform: scale(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* No rotation: the script never starts it, but guard the visuals too. */
+    .hero-bleed__slide--extra { display: none; }
+  }
+</style>

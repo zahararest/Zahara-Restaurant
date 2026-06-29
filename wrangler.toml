@@ -23,6 +23,17 @@ id = "028d7b7c8dde489ab34e6384346ad8ef"
 binding = "PALETTE_DATA"
 id = "a3005ec0bed04ea98a73098372e6ec46"
 
+# KV namespace for the OneDrive menu sync (functions/data/menu-sync.ts):
+#   • Microsoft Graph credentials — client_id, client_secret, refresh_token.
+#     The refresh_token ROTATES on every use, so it lives here (writable),
+#     not in a per-deploy secret. Set with:
+#       wrangler kv key put <key> "<value>" --namespace-id f68b2dd65a1c4be8976f58bcbbeb2d5f --remote
+#   • sync_config — schedule + per-menu OneDrive links (written by /admin/sync).
+#   • sync_last_run_hour — dedupe stamp so the hourly cron syncs once per slot.
+[[kv_namespaces]]
+binding = "MENU_KV"
+id = "f68b2dd65a1c4be8976f58bcbbeb2d5f"
+
 # R2 bucket for admin-uploaded image overrides. When a file exists at
 # `images/{name}` it overrides the default in /public/photos/. The
 # `functions/photos/[file].ts` middleware checks R2 first, then falls
@@ -41,3 +52,5 @@ bucket_name = "zahara-images"
 #   RESEND_API_KEY      — from https://resend.com
 #   CONTACT_TO_EMAIL    — owner's inbox (e.g. "info@your-restaurant.com")
 #   CONTACT_FROM_EMAIL  — must be on a Resend-verified domain
+#   SYNC_TOKEN          — shared secret the external scheduler passes to
+#                         /api/menu-sync?token=… to trigger the hourly sync

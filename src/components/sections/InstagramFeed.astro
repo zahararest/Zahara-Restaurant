@@ -169,23 +169,29 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       const play = kind === 'reel'
         ? '<span class="ig-box__play" aria-hidden="false"></span>'
         : '';
-      // Full-height prev/next tap-zones — left third steps back, right steps
-      // forward, exactly like tapping a story. Shown for any multi-frame story.
+      // Small circular prev/next controls — like a story carousel. They sit
+      // ABOVE the box's own click (which opens Instagram) and stopPropagation,
+      // so the image area opens the post while the chevrons only navigate.
       const nav = (isStory && multi)
         ? '<button type="button" class="ig-box__nav ig-box__nav--prev" aria-label="' + escAttr(t.igPrevStory) + '">' +
-            '<span class="ig-box__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg></span>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>' +
           '</button>' +
           '<button type="button" class="ig-box__nav ig-box__nav--next" aria-label="' + escAttr(t.igNextStory) + '">' +
-            '<span class="ig-box__chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></span>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>' +
           '</button>'
         : '';
 
+      // The whole box is the link now — a label cue sits at the foot, but it's
+      // non-interactive (pointer-events:none) so a tap anywhere opens the post.
       const html =
-        '<div class="ig-box ig-box--media' + (isStory ? ' ig-box--story' : '') + (multi ? ' is-multi' : '') + '">' +
+        '<div class="ig-box ig-box--media' + (isStory ? ' ig-box--story' : '') + (multi ? ' is-multi' : '') + '"' +
+          ' role="link" tabindex="0" aria-label="' + escAttr(label) + '">' +
           '<img class="ig-box__img" alt="" loading="eager" fetchpriority="low" decoding="async" referrerpolicy="no-referrer" />' +
+          '<span class="ig-box__scrim ig-box__scrim--top" aria-hidden="true"></span>' +
+          '<span class="ig-box__scrim ig-box__scrim--bottom" aria-hidden="true"></span>' +
           segs + header + play + nav +
           '<span class="ig-box__bar">' +
-            '<a class="ig-box__btn" target="_blank" rel="noopener noreferrer">' + escHtml(label) + '</a>' +
+            '<span class="ig-box__btn">' + escHtml(label) + '</span>' +
           '</span>' +
         '</div>';
 
@@ -193,9 +199,12 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
 
       const box    = feature.querySelector('.ig-box');
       const img    = feature.querySelector('.ig-box__img');
-      const btn    = feature.querySelector('.ig-box__btn');
       const timeEl = feature.querySelector('.ig-box__time');
       const fills  = Array.prototype.slice.call(feature.querySelectorAll('.ig-box__seg-fill'));
+
+      // The current frame's destination — the box click + keyboard open this.
+      let currentHref = instagramUrl;
+      function open() { window.open(currentHref, '_blank', 'noopener,noreferrer'); }
 
       // ── Auto-advance timer (stories only) ────────────────────────────────
       let raf = 0, startTs = 0, lastNow = 0, paused = false;
@@ -211,7 +220,8 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         const p = Math.min((now - startTs) / STORY_MS, 1);
         setFill(idx, p * 100);
         if (p < 1) { raf = requestAnimationFrame(tick); }
-        else if (idx < frames.length - 1) { show(idx + 1); }   // last frame just rests full
+        else if (idx < frames.length - 1) { show(idx + 1); }
+        else if (multi) { show(0); }          // loop back to the first frame
       }
       function play_() {
         clearTimer();
@@ -225,8 +235,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         idx = (i + frames.length) % frames.length;
         const f = frames[idx];
         img.src = f.image;
-        btn.href = f.permalink || instagramUrl;
-        btn.setAttribute('aria-label', label);
+        currentHref = f.permalink || instagramUrl;
         if (timeEl) timeEl.textContent = timeAgo(f.timestamp);
         // Bars left of the current frame read as watched, the rest as pending.
         fills.forEach((_, n) => setFill(n, n < idx ? 100 : 0));
@@ -236,6 +245,19 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       // Any image failing (expired/blocked CDN URL) drops the box to the CTA.
       img.addEventListener('error', () => { clearTimer(); renderFallback(); }, { once: true });
       show(0);
+
+      // Tap / click anywhere on the box (except the chevrons) opens the post.
+      box.addEventListener('click', (e) => {
+        if (e.target.closest('.ig-box__nav')) return;
+        open();
+      });
+      box.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        if (isStory && multi) {
+          if (e.key === 'ArrowRight') { show(idx + 1); e.preventDefault(); }
+          if (e.key === 'ArrowLeft')  { show(idx - 1); e.preventDefault(); }
+        }
+      });
 
       // The box may be rendered early (idle preload) long before the reader
       // scrolls to it — so hold playback paused until it's actually on screen,
@@ -249,19 +271,13 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       }
 
       if (isStory && multi) {
-        feature.querySelector('.ig-box__nav--prev').addEventListener('click', () => show(idx - 1));
-        feature.querySelector('.ig-box__nav--next').addEventListener('click', () => show(idx + 1));
+        const prevBtn = feature.querySelector('.ig-box__nav--prev');
+        const nextBtn = feature.querySelector('.ig-box__nav--next');
+        prevBtn.addEventListener('click', (e) => { e.stopPropagation(); show(idx - 1); });
+        nextBtn.addEventListener('click', (e) => { e.stopPropagation(); show(idx + 1); });
         // Hold / hover pauses playback so the reader can linger, like the app.
         box.addEventListener('pointerenter', () => { paused = true; });
         box.addEventListener('pointerleave', () => { paused = false; });
-        box.addEventListener('pointerdown',  () => { paused = true; });
-        box.addEventListener('pointerup',    () => { paused = false; });
-        // Arrow keys when the box is focused.
-        box.tabIndex = 0;
-        box.addEventListener('keydown', (e) => {
-          if (e.key === 'ArrowRight') { show(idx + 1); e.preventDefault(); }
-          if (e.key === 'ArrowLeft')  { show(idx - 1); e.preventDefault(); }
-        });
       }
     }
 
@@ -396,20 +412,22 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   }
   /* The story card keeps Instagram's rounded phone shape — an intentional
      break from the site's 2px rule, because here we *are* embedding the app. */
+  /* Live story → the tall phone-screen 9:16 shape, sized so it's the focal IG
+     element without dominating: a touch wider on phones, capped on desktop. */
   .ig-box--story {
-   width: 100%;
-    max-width: clamp(260px, 30vw, 340px); 
+    width: 100%;
+    max-width: clamp(264px, 74vw, 340px);
     aspect-ratio: 9 / 16;
-    
-    /* 2. Raised the ceiling so the width is actually allowed to grow */
-    max-height: min(85vh, 600px); 
-    
-    /* 3. Aesthetic tweaks: slightly softer corners and better depth */
-    border-radius: 16px; 
-    box-shadow: 
-      0 12px 32px -8px rgba(0, 0, 0, 0.6), /* Deeper, softer drop shadow */
+    max-height: min(82vh, 600px);
+    /* Instagram's rounded phone shape — an intentional break from the site's
+       2px rule, because here we *are* embedding the app. */
+    border-radius: 18px;
+    box-shadow:
+      0 14px 36px -10px rgba(0, 0, 0, 0.6),
       0 0 0 1px rgba(255, 255, 255, 0.08);
   }
+  /* The whole media box is the link to Instagram now. */
+  .ig-box--media { cursor: pointer; }
   .ig-box--media:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .ig-box__img {
     display: block;
@@ -419,7 +437,28 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     background: var(--paper-deep);
     transition: transform 0.7s var(--ease-out);
   }
-  .ig-box:hover .ig-box__img { transform: scale(1.03); }
+  .ig-box--media:hover .ig-box__img { transform: scale(1.03); }
+
+  /* Top + bottom scrims — keep the story chrome (bars, handle, time, cue)
+     legible over any photo, the way the real app gradients the edges. */
+  .ig-box__scrim {
+    position: absolute;
+    inset-inline: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .ig-box__scrim--top {
+    inset-block-start: 0;
+    height: 38%;
+    background: linear-gradient(to bottom,
+      color-mix(in srgb, var(--shadow) 58%, transparent) 0%, transparent 100%);
+  }
+  .ig-box__scrim--bottom {
+    inset-block-end: 0;
+    height: 42%;
+    background: linear-gradient(to top,
+      color-mix(in srgb, var(--shadow) 68%, transparent) 0%, transparent 100%);
+  }
 
   /* Skeleton shimmer (GPU-composited translate). */
   .ig-box--skeleton .ig-box__img { position: relative; overflow: hidden; }
@@ -524,42 +563,40 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     margin-inline-start: 0.18rem;
   }
 
-  /* Prev / next story tap-zones — full-height, like tapping the left/right of
-     a real story. They sit *under* the header and bottom bar (lower z-index)
-     so those stay interactive. The chevron chip only surfaces on hover. */
+  /* Prev / next — small round controls centred on the side edges, like the
+     arrows on a story carousel. They sit above the box's own click (which
+     opens Instagram) and stopPropagation, so the image area opens the post. */
   .ig-box__nav {
     position: absolute;
-    inset-block: 0;
-    z-index: 2;
-    display: grid;
-    align-items: center;
-    border: 0;
-    background: transparent;
-    color: var(--paper-on-photo);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .ig-box__nav--prev { inset-inline-start: 0; width: 34%; justify-items: start; padding-inline-start: 0.4rem; }
-  .ig-box__nav--next { inset-inline-end: 0;  width: 66%; justify-items: end;   padding-inline-end: 0.4rem; }
-  /* Always-visible round switch buttons, like the arrows on a story carousel. */
-  .ig-box__chev {
+    inset-block-start: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
     display: grid;
     place-items: center;
-    width: 1.05rem;
-    height: 1.05rem;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: 0;
     border-radius: 50%;
-    padding: 0.34rem;
-    background: color-mix(in srgb, var(--shadow) 50%, transparent);
-    backdrop-filter: blur(2px);
-    box-sizing: content-box;
-    opacity: 0.92;
-    transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    background: color-mix(in srgb, var(--shadow) 42%, transparent);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    color: var(--paper-on-photo);
+    cursor: pointer;
+    opacity: 0.85;
+    transition: opacity 0.2s ease, background 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .ig-box__chev svg { width: 100%; height: 100%; }
-  .ig-box__nav:hover .ig-box__chev { opacity: 1; background: color-mix(in srgb, var(--accent) 85%, transparent); transform: scale(1.08); }
-  .ig-box__nav:focus-visible .ig-box__chev { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ig-box__nav--prev { inset-inline-start: 0.5rem; }
+  .ig-box__nav--next { inset-inline-end: 0.5rem; }
+  .ig-box__nav svg { width: 1rem; height: 1rem; }
+  .ig-box__nav:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 88%, transparent); }
+  .ig-box__nav:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* In RTL the chevron glyph mirrors so "previous" still points the natural
+     way (the inset-inline-* already swaps which edge each control sits on). */
+  html[dir="rtl"] .ig-box__nav svg { transform: scaleX(-1); }
 
-  /* Bottom bar with the "open on Instagram" button. */
+  /* Bottom cue — shows what a tap opens. Non-interactive (the whole box is the
+     link), so pointer-events are off and clicks fall through to the box. */
   .ig-box__bar {
     position: absolute;
     inset-inline: 0;
@@ -568,8 +605,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     display: flex;
     justify-content: center;
     padding: 0.7rem;
-    background: linear-gradient(to top,
-      color-mix(in srgb, var(--shadow) 82%, transparent) 0%, transparent 100%);
+    pointer-events: none;
   }
   .ig-box__btn {
     font-size: var(--step--1);
@@ -580,7 +616,8 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     border-bottom: 1px solid color-mix(in srgb, var(--accent) 85%, transparent);
     transition: border-color 0.25s ease;
   }
-  .ig-box__btn:hover { border-bottom-color: var(--paper-on-photo); }
+  .ig-box--media:hover .ig-box__btn { border-bottom-color: var(--paper-on-photo); }
+  html[dir="rtl"] .ig-box__btn { letter-spacing: 0; }
 
   /* Fallback CTA box. */
   .ig-box--cta { display: grid; place-items: center; }
@@ -618,6 +655,9 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     border-block-end-color: var(--accent);
   }
   .ig-reels-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  /* Hebrew doesn't take uppercase or wide tracking gracefully — drop both in
+     RTL so the reels button reads cleanly instead of looking stretched/broken. */
+  html[dir="rtl"] .ig-reels-toggle { letter-spacing: 0.02em; text-transform: none; }
 
   .ig-reels {
     margin-block-start: var(--space-s);
@@ -691,7 +731,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
 
   @media (prefers-reduced-motion: reduce) {
     .ig-box--skeleton .ig-box__img::after { animation: none; }
-    .ig-box:hover .ig-box__img,
+    .ig-box--media:hover .ig-box__img,
     .ig-reel:hover .ig-reel__img { transform: none; }
     .ig-reels { transition: none; }
   }

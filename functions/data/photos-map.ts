@@ -57,7 +57,7 @@ export interface PhotoMeta {
 export const PHOTO_CATALOGUE: PhotoMeta[] = [
   // ── HOME PAGE — top-to-bottom in scroll order ──────────────────────
   { key: 'hero',     filename: 'MOYAL-00009.jpg', group: 'home', mobile: true,
-    label: 'Hero',                where: 'Top of the home page — also the social-share preview image' },
+    label: 'Hero',                where: 'Top of the home page. On phones it is the first frame of the rotating hero gallery. Also the social-share preview image' },
   { key: 'moodDining', filename: 'MOYAL-09221.jpg', group: 'home',
     label: 'Story backdrop', where: 'Darkened photo behind the opening story text' },
   { key: 'kitchen',  filename: 'MOYAL-09689.jpg', group: 'home',
@@ -75,13 +75,13 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
   { key: 'menuDessert',   filename: 'MOYAL-00084.jpg', group: 'home', fallbackKey: 'interior', aspect: '2 / 3',
     label: 'Menu tile · Dessert',   where: '“Dessert” tile in the home menu section' },
   { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home', mobile: true,
-    label: 'Gallery 1 · Interior', where: 'First photo of the home gallery' },
+    label: 'Gallery 1 · Interior', where: 'First photo of the home gallery (desktop) and a frame in the phone hero rotation' },
   { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home', mobile: true,
-    label: 'Gallery 2 · Chef',     where: 'Second photo of the home gallery' },
+    label: 'Gallery 2 · Chef',     where: 'Second photo of the home gallery (desktop) and a frame in the phone hero rotation' },
   { key: 'bar',      filename: 'MOYAL-09574.jpg', group: 'home', mobile: true,
-    label: 'Gallery 3 · Bar',      where: 'Third photo of the home gallery' },
+    label: 'Gallery 3 · Bar',      where: 'Third photo of the home gallery (desktop) and a frame in the phone hero rotation' },
   { key: 'wine',     filename: 'MOYAL-09832.jpg', group: 'home', mobile: true,
-    label: 'Gallery 4 · Wine bar', where: 'Fourth photo of the home gallery' },
+    label: 'Gallery 4 · Wine bar', where: 'Fourth photo of the home gallery (desktop) and a frame in the phone hero rotation' },
   // Optional gallery slots 5–10. Empty by default; upload one to add it to
   // the home-page gallery (max 10 photos). Empty slots are hidden on the
   // site, never shown as blanks.
