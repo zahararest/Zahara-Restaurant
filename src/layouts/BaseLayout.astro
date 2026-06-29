@@ -131,7 +131,14 @@ const schema = {
         opens:      RESTAURANT.hours.opens,
         closes:     RESTAURANT.hours.closes,
       }],
-      isPartOf:  { '@type': 'Hotel', name: RESTAURANT.hotel.en, '@id': `${origin}/#hotel` },
+      isPartOf:  {
+        '@type':       'Hotel',
+        name:          RESTAURANT.hotel.en,
+        // Spelling variants so the page surfaces for "Nucha Hotel" and for the
+        // common geresh-less Hebrew spelling (נוצה) as well as the proper נוצ׳ה.
+        alternateName: ['מלון נוצ׳ה', 'מלון נוצה', 'נוצה', 'Nucha Hotel', 'Nucha Hotel Jerusalem'],
+        '@id':         `${origin}/#hotel`,
+      },
       // Official profiles — strengthens entity recognition (knowledge panel)
       // and ties the site to the restaurant's social presence.
       sameAs:    [RESTAURANT.instagram, RESTAURANT.facebook].filter(Boolean),
@@ -160,7 +167,7 @@ const schema = {
       '@type':       'Restaurant',
       '@id':         `${origin}/#angelica`,
       name:          RESTAURANT.sisterName.en,
-      alternateName: ['אנג׳ליקה', 'מסעדת אנג׳ליקה', 'Angelica Jerusalem'],
+      alternateName: ['אנג׳ליקה', 'מסעדת אנג׳ליקה', 'אנגליקה', 'מסעדת אנגליקה', 'Angelica Jerusalem'],
       description:   lang === 'he'
         ? 'אנג׳ליקה — מוסד קולינרי ותיק בירושלים, המסעדה האחות של זהרה.'
         : 'Angelica — a longstanding Jerusalem culinary institution and the sister restaurant of Zahara.',
