@@ -9,11 +9,14 @@
 // Response shape:
 //   { profile, stories: [...], item, kind: 'story'|'reel'|'post'|null, reels: [...], configured }
 
-import type { PagesFunction } from '@cloudflare/workers-types';
+import type { PagesFunction, KVNamespace } from '@cloudflare/workers-types';
+import { getValidToken } from '../data/instagram-token';
 
 interface Env {
   INSTAGRAM_ACCESS_TOKEN?: string;
   INSTAGRAM_USER_ID?: string;
+  // Holds the auto-rotated long-lived token (see functions/data/instagram-token.ts).
+  MENU_KV?: KVNamespace;
 }
 
 type MediaType = 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
@@ -41,7 +44,9 @@ const BASE = 'https://graph.instagram.com/v25.0';
 const MAX_REELS = 9;
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  const token = env.INSTAGRAM_ACCESS_TOKEN;
+  // Prefer the auto-rotated token in KV; fall back to the seed secret until the
+  // first scheduled refresh has seeded it.
+  const token = await getValidToken(env);
   // Target the account by its numeric id when provided, else the token's own
   // account via `me`. Falling back to `me` matters: if INSTAGRAM_USER_ID is
   // unset the URL would otherwise become `/undefined` and Meta rejects it

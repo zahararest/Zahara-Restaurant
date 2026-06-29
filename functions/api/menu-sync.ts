@@ -15,9 +15,11 @@
 
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { runScheduled, syncMenus, type SyncEnv } from '../data/menu-sync';
+import { refreshInstagramToken } from '../data/instagram-token';
 
 interface Env extends SyncEnv {
-  SYNC_TOKEN?: string;
+  SYNC_TOKEN?:             string;
+  INSTAGRAM_ACCESS_TOKEN?: string;
 }
 
 function json(body: object, status = 200): Response {
@@ -51,7 +53,16 @@ async function handle(request: Request, env: Env): Promise<Response> {
   }
 
   const out = await runScheduled(env);
-  return json({ ok: true, ...out });
+  // Piggyback the Instagram token rotation on the same hourly ping. It's cheap
+  // (a KV read + date check) and only calls Meta when the token is near expiry,
+  // so the feed's long-lived token never lapses. Never let it break the sync.
+  let instagram: unknown;
+  try {
+    instagram = await refreshInstagramToken(env);
+  } catch (err) {
+    instagram = { ok: false, reason: 'threw', body: String(err) };
+  }
+  return json({ ok: true, ...out, instagram });
 }
 
 export const onRequestGet:  PagesFunction<Env> = ({ request, env }) => handle(request, env);
