@@ -551,5 +551,36 @@ const schema = {
         cookies off, so a site with no gtag never shows this and sets no
         tracking cookies at all. */}
     {gtagId && <ConsentBanner lang={lang} />}
+
+    {/* Event tracking — one delegated listener catches every Reserve button
+        (Header, hero, footer, info strip, floating CTA — they all link to the
+        Tabit URL) and every mailto: link (the About "email us" link). Fires
+        GA4 events `reserve_click` and `email_click`. Goes through gtag, so it
+        respects Consent Mode automatically. Mark these as "Key events" in
+        GA4 → Admin → Events to count them as conversions / import to Ads. */}
+    {gtagId && (
+      <script is:inline define:vars={{ reserveUrl: RESTAURANT.reservationUrl }}>
+        (function () {
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){ dataLayer.push(arguments); }
+          document.addEventListener('click', function (e) {
+            var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+            if (!a) return;
+            var href = a.getAttribute('href') || '';
+            if (href.indexOf('mailto:') === 0) {
+              gtag('event', 'email_click', {
+                link_url:  href,
+                link_text: (a.textContent || '').trim().slice(0, 100),
+              });
+            } else if (reserveUrl && href.indexOf(reserveUrl) !== -1) {
+              gtag('event', 'reserve_click', {
+                link_url:      href,
+                link_location: a.className || '(unclassed)',
+              });
+            }
+          }, true);
+        })();
+      </script>
+    )}
   </body>
 </html>
