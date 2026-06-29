@@ -21,7 +21,12 @@ import { pick, layout as labels, header as headerLabels } from '../data/i18n';
 //
 // Leave any variable unset to omit the corresponding tag entirely.
 const googleAdsId     = import.meta.env.PUBLIC_GOOGLE_ADS_ID     || '';
-const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID  || '';
+// GA4 measurement ID — a PUBLIC value (visible in page source), committed as
+// the default so every Cloudflare git build includes it. This project uses
+// wrangler.toml, which disables dashboard build variables and exposes [vars]
+// only at runtime, so a build-time PUBLIC_* env var can't reach Astro's build.
+// An env override still wins for local/preview builds if ever set.
+const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID  || 'G-CWBXVJNYFB';
 const gscVerification = import.meta.env.PUBLIC_GSC_VERIFICATION   || '';
 // Use Ads ID for gtag if set, otherwise fall back to GA4 ID
 const gtagId          = googleAdsId || gaMeasurementId;
