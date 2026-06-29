@@ -46,6 +46,9 @@ export const RESTAURANT = {
   reservationUrl: 'https://tbit.be/mlBFke',
   instagram:      'https://www.instagram.com/zahara.restaurant/',
   facebook:       'https://www.facebook.com/profile.php?id=61582628067264',
+  // WhatsApp click-to-chat — wa.me wants the full international number with no
+  // '+', spaces, or dashes. Derived from phone.dialEn (+972 77 303 4180).
+  whatsapp:       'https://wa.me/972773034180',
 
   // Rooftop bar — coming soon. Update this URL when the site is live.
   // Set to null to hide the header button entirely.

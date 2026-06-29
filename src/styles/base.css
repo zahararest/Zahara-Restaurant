@@ -175,6 +175,10 @@ input, select, textarea { min-height: 44px; }
 }
 .eyebrow--center { justify-content: center; }
 .eyebrow--bare::before { display: none; }
+/* When the eyebrow copy is cleared (e.g. an admin empties the hero eyebrow),
+   don't leave the bare accent rule floating in front of the photo — collapse
+   the whole label so there's no stray "-" with no text after it. */
+.eyebrow:empty { display: none; }
 .eyebrow--on-photo { color: color-mix(in srgb, var(--paper-on-photo) 92%, transparent); }
 .eyebrow--on-photo::before { background: var(--paper-on-photo); }
 

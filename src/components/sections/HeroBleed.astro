@@ -19,6 +19,8 @@ const t = pick(copy, lang);
 const g = pick(globals, lang);
 
 const scrollLabel = g.scrollToNext;
+const prevLabel   = g.previousPhoto;
+const nextLabel   = g.nextPhoto;
 
 const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
 // Phone portrait crops for the rotating gallery frames — same shape the LCP
@@ -79,6 +81,28 @@ const HERO_QUALITY = 70;
     ))}
   </div>
   <div class="hero-bleed__overlay" aria-hidden="true"></div>
+
+  {/* Mobile-only gallery controls — let the reader drive the hero rotation
+      instead of only watching it auto-advance. Hidden until the script wires
+      them up (phone + more than one slide), so they never show inert on
+      desktop or with no JS. Swipe is handled in the same script. */}
+  {mobileSlides.length > 0 && (
+    <div class="hero-bleed__nav">{/* real controls (labelled buttons) — not aria-hidden, so they're not focusable elements buried in a hidden subtree */}
+      <button class="hero-bleed__arrow hero-bleed__arrow--prev" type="button" data-hero-prev aria-label={prevLabel}>
+        <svg viewBox="0 0 20 40" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="14,2 5,20 14,38" />
+        </svg>
+      </button>
+      <button class="hero-bleed__arrow hero-bleed__arrow--next" type="button" data-hero-next aria-label={nextLabel}>
+        <svg viewBox="0 0 20 40" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6,2 15,20 6,38" />
+        </svg>
+      </button>
+    </div>
+  )}
+
   <div class="hero-bleed__inner">
     <p class="eyebrow eyebrow--on-photo fade-up" data-content-key="home.heroEyebrow">{t.heroEyebrow}</p>
     <h1
@@ -114,7 +138,8 @@ const HERO_QUALITY = 70;
   // Only runs on phones (≤600px) with motion allowed. Desktop keeps the
   // single LCP hero. Pauses when the tab is hidden; honours reduced motion.
   (function () {
-    var media = document.querySelector('.hero-bleed__media');
+    var section = document.querySelector('.hero-bleed');
+    var media   = section && section.querySelector('.hero-bleed__media');
     if (!media) return;
     var slides = Array.prototype.slice.call(media.querySelectorAll('[data-hero-slide]'));
     if (slides.length < 2) return;
@@ -122,7 +147,8 @@ const HERO_QUALITY = 70;
     var mqPhone  = window.matchMedia('(max-width: 600px)');
     var mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     var SLIDE_MS = 4500;
-    var timer = null;
+    var timer = null;   // auto-advance interval (null = not auto-rotating)
+    var wired = false;  // manual controls (arrows/swipe) attached?
     var idx   = 0;
 
     function setActive(n) {
@@ -133,19 +159,54 @@ const HERO_QUALITY = 70;
       slides[idx].removeAttribute('aria-hidden');
     }
 
-    function start() {
+    // Auto-advance — only when motion is allowed. Manual nav restarts the
+    // countdown (see manualGo) so a tap isn't yanked onward a moment later.
+    function startAuto() {
       if (timer || !mqPhone.matches || mqReduce.matches) return;
-      media.setAttribute('data-hero-rotate', '');
       timer = setInterval(function () {
         if (document.hidden) return;       // skip ticks while backgrounded
         setActive(idx + 1);
       }, SLIDE_MS);
     }
+    function stopAuto() { if (timer) { clearInterval(timer); timer = null; } }
 
-    function stop() {
-      if (timer) { clearInterval(timer); timer = null; }
-      media.removeAttribute('data-hero-rotate');
-      // Reset to the LCP frame so desktop only ever shows the hero.
+    // A reader-driven move: change frame, then restart the auto countdown if
+    // it was running so the next auto-advance is a full interval away. Only
+    // acts while the navigable gallery is live (phone + motion); on desktop
+    // the extra frames are display:none, so navigation there is a no-op.
+    function manualGo(n) {
+      if (!mqPhone.matches || mqReduce.matches) return;
+      setActive(n);
+      if (timer) { stopAuto(); startAuto(); }
+    }
+
+    // Wire arrows + swipe once. Stays attached across breakpoint changes; the
+    // controls only do anything while the rotation is live on a phone.
+    function wire() {
+      if (wired) return;
+      wired = true;
+      var prev = section.querySelector('[data-hero-prev]');
+      var next = section.querySelector('[data-hero-next]');
+      if (prev) prev.addEventListener('click', function () { manualGo(idx - 1); });
+      if (next) next.addEventListener('click', function () { manualGo(idx + 1); });
+
+      // Swipe — horizontal drag on the hero changes frame. Ignore small moves
+      // and mostly-vertical drags (those are the page scroll).
+      var startX = 0, startY = 0;
+      section.addEventListener('touchstart', function (e) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+      section.addEventListener('touchend', function (e) {
+        var dx = startX - e.changedTouches[0].clientX;
+        var dy = startY - e.changedTouches[0].clientY;
+        if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+        manualGo(dx > 0 ? idx + 1 : idx - 1);
+      }, { passive: true });
+    }
+
+    function reset() {
+      // Back to the LCP frame so desktop only ever shows the hero.
       slides.forEach(function (s, n) {
         s.classList.toggle('is-active', n === 0);
         if (n === 0) s.removeAttribute('aria-hidden'); else s.setAttribute('aria-hidden', 'true');
@@ -153,10 +214,26 @@ const HERO_QUALITY = 70;
       idx = 0;
     }
 
-    function sync() { if (mqPhone.matches && !mqReduce.matches) start(); else stop(); }
+    // On a phone with motion allowed the reader gets a navigable gallery
+    // (arrows + swipe) over the cross-fading frames, with auto-advance on top.
+    // Off-phone (desktop) or under reduced motion it collapses back to the
+    // single static LCP hero — honouring the reader's reduced-motion choice.
+    function sync() {
+      if (mqPhone.matches && !mqReduce.matches) {
+        wire();
+        section.classList.add('hero-bleed--nav');
+        media.setAttribute('data-hero-rotate', '');  // enables the cross-fade CSS
+        startAuto();
+      } else {
+        stopAuto();
+        section.classList.remove('hero-bleed--nav');
+        media.removeAttribute('data-hero-rotate');
+        reset();
+      }
+    }
 
     sync();
-    var onChange = function () { stop(); sync(); };
+    var onChange = function () { stopAuto(); sync(); };
     if (mqPhone.addEventListener) {
       mqPhone.addEventListener('change', onChange);
       mqReduce.addEventListener('change', onChange);
@@ -225,4 +302,43 @@ const HERO_QUALITY = 70;
     /* No rotation: the script never starts it, but guard the visuals too. */
     .hero-bleed__slide--extra { display: none; }
   }
+
+  /* ── Mobile gallery controls — let the reader drive the hero ──────────
+     Hidden by default; the script adds .hero-bleed--nav only on a phone with
+     motion allowed (the same condition under which the extra frames exist), so
+     the arrows never sit inert on desktop or with no JS. */
+  .hero-bleed__nav { display: none; }
+  .hero-bleed--nav .hero-bleed__nav { display: block; }
+
+  .hero-bleed__arrow {
+    position: absolute;
+    /* A comfortable middle band — below the floating header, above the hero
+       CTAs at the bottom — so an arrow tap never collides with either. */
+    inset-block-start: 15%;
+    inset-block-end: 34%;
+    z-index: 4;                /* above the overlay + media */
+    display: flex;
+    align-items: center;
+    width: clamp(48px, 16vw, 96px);
+    padding-inline: 0.75rem;
+    background: transparent;
+    border: 0;
+    color: var(--paper-on-photo);
+  }
+  .hero-bleed__arrow--prev { inset-inline-start: 0; justify-content: flex-start; }
+  .hero-bleed__arrow--next { inset-inline-end: 0; justify-content: flex-end; }
+  .hero-bleed__arrow svg {
+    width: clamp(18px, 5vw, 24px);
+    height: auto;
+    opacity: 0.9;
+    filter: drop-shadow(0 1px 6px color-mix(in srgb, var(--shadow) 60%, transparent));
+  }
+  .hero-bleed__arrow:active svg { opacity: 1; }
+  .hero-bleed__arrow:focus-visible {
+    outline: 2px solid var(--paper-on-photo);
+    outline-offset: -4px;
+  }
+  /* In RTL the prev/next arrows swap which edge they hug AND which way the
+     chevron points, matching the in-page gallery. */
+  html[dir="rtl"] .hero-bleed__arrow svg { transform: scaleX(-1); }
 </style>

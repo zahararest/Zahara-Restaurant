@@ -31,17 +31,29 @@
   border-radius: var(--button-border-radius);
   background: var(--button-background);
   color: var(--button-color);
-  transition: var(--button-transition);
+  transition: var(--button-transition), transform 0.18s var(--ease-out);
   cursor: pointer;
   white-space: nowrap;
   font-weight: var(--button-font-weight, 500);
   line-height: 1;
   text-decoration: none;
 }
-:is(.btn, .header-reserve):hover {
-  background: var(--button-hover-background);
-  border-color: var(--button-hover-border);
-  color: var(--button-hover-color);
+/* Hover only on devices that actually hover (mouse/trackpad). On touch,
+   tapping a link used to "stick" the accent hover state on after the tap —
+   the button stayed highlighted and the colour swap lagged behind the press,
+   which read as the label being detached from the button. Gating every hover
+   rule behind (hover: hover) keeps phones to the clean press feedback below. */
+@media (hover: hover) {
+  :is(.btn, .header-reserve):hover {
+    background: var(--button-hover-background);
+    border-color: var(--button-hover-border);
+    color: var(--button-hover-color);
+  }
+}
+/* Press feedback — a small, immediate settle so a tap feels connected to the
+   whole button (fill + label move together). A 1px dip, no bounce. */
+:is(.btn, .header-reserve):active {
+  transform: translateY(1px);
 }
 
 /* WCAG 2.4.7 — Focus Visible (Level AA). Every keyboard-reachable
@@ -58,10 +70,12 @@
   color: var(--button-ghost-color);
   border-color: var(--button-ghost-border);
 }
-.btn--ghost:hover {
-  background: var(--button-ghost-hover-background);
-  color: var(--button-ghost-hover-color);
-  border-color: var(--button-ghost-hover-border);
+@media (hover: hover) {
+  .btn--ghost:hover {
+    background: var(--button-ghost-hover-background);
+    color: var(--button-ghost-hover-color);
+    border-color: var(--button-ghost-hover-border);
+  }
 }
 
 /* Full-width button — used by the directions row on /location/ and the
@@ -98,10 +112,12 @@
   letter-spacing: 0.22em;
   padding: 0.55rem 1.4rem;
 }
-.header-reserve:hover {
-  background: var(--button-ghost-hover-background);
-  color: var(--button-ghost-hover-color);
-  border-color: var(--button-ghost-hover-border);
+@media (hover: hover) {
+  .header-reserve:hover {
+    background: var(--button-ghost-hover-background);
+    color: var(--button-ghost-hover-color);
+    border-color: var(--button-ghost-hover-border);
+  }
 }
 html[lang="he"] .header-reserve {
   text-transform: none;
@@ -116,11 +132,44 @@ html[lang="he"] .header-reserve {
   color: var(--paper-on-photo);
   border-color: var(--paper-on-photo);
 }
-.site-header.is-on-photo .header-reserve:hover {
-  background: var(--paper-on-photo);
-  color: var(--ink);
-  border-color: var(--paper-on-photo);
+@media (hover: hover) {
+  .site-header.is-on-photo .header-reserve:hover {
+    background: var(--paper-on-photo);
+    color: var(--ink);
+    border-color: var(--paper-on-photo);
+  }
 }
 
 /* Mobile drawer rooftop button keeps .btn--ghost look; just center it */
 .mobile-nav__rooftop-soon { text-align: center; }
+
+/* ── Hero CTAs — read on the photo, not against the theme ──────────────────
+   The hero buttons sit directly on the full-bleed photograph (which on phones
+   even rotates through several frames). The default ink-filled primary turned
+   muddy and near-invisible against the dark photo, and the ink-outlined ghost
+   barely registered. Give both the same on-photo treatment the header reserve
+   link already uses over a photo: a solid paper fill that pops on any frame,
+   and a paper-outlined ghost — so they stay legible whatever's behind them,
+   in either theme. No glass or gradient (stays within the editorial system). */
+.hero-bleed .btn {
+  background: var(--paper-on-photo);
+  color: var(--ink);
+  border-color: var(--paper-on-photo);
+}
+.hero-bleed .btn--ghost {
+  background: transparent;
+  color: var(--paper-on-photo);
+  border-color: color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+}
+@media (hover: hover) {
+  .hero-bleed .btn:hover {
+    background: var(--accent);
+    color: var(--paper-on-photo);
+    border-color: var(--accent);
+  }
+  .hero-bleed .btn--ghost:hover {
+    background: var(--paper-on-photo);
+    color: var(--ink);
+    border-color: var(--paper-on-photo);
+  }
+}
