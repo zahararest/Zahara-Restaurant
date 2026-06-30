@@ -34,18 +34,18 @@ jobs:
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          # Trim only real whitespace — explicit characters, no tr-class ambiguity.
           TOKEN="$(printf '%s' "$SYNC_TOKEN" | tr -d ' \t\r\n')"
-          # Safe fingerprint to confirm the secret matches WITHOUT exposing it
-          # (sha256 is one-way). The correct token is:
-          #   length 64, sha256 8615712d957e067ea921b4d692930bd48ce06cc9e71760d980c201e48a63401a
-          echo "token length: ${#TOKEN}"
-          echo "token sha256: $(printf '%s' "$TOKEN" | sha256sum | cut -d' ' -f1)"
           if [ -z "$TOKEN" ]; then
             echo "::error::SYNC_TOKEN repo secret is not set — add it in Settings → Secrets → Actions."
             exit 1
           fi
-          # -f makes curl fail the step on any non-2xx response so a broken
-          # token or endpoint shows up as a red run instead of silently passing.
-          curl -fsS --max-time 60 \
-            "https://zahara.rest/api/menu-sync?token=$TOKEN"
+          # A real User-Agent helps past Cloudflare Bot Fight Mode, which flags
+          # the default "curl/x" UA from a datacenter IP. Dump status + headers +
+          # body so a Cloudflare edge block (vs our function) is visible.
+          HTTP=$(curl -sS -D /tmp/h -o /tmp/b -w '%{http_code}' --max-time 60 \
+            -A 'Mozilla/5.0 (compatible; ZaharaCron/1.0; +https://zahara.rest)' \
+            "https://zahara.rest/api/menu-sync?token=$TOKEN")
+          echo "HTTP status: $HTTP"
+          echo "=== response headers ==="; cat /tmp/h
+          echo "=== body (first 500 chars) ==="; head -c 500 /tmp/b; echo
+          case "$HTTP" in 2*) echo "sync ok" ;; *) echo "::error::non-2xx from endpoint ($HTTP)"; exit 1 ;; esac
