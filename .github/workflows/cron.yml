@@ -34,9 +34,13 @@ jobs:
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          # Strip any stray whitespace/newline a copy-paste may have left in the
-          # secret — that mismatch surfaces as a 403 from the endpoint.
-          TOKEN="$(printf '%s' "$SYNC_TOKEN" | tr -d '[:space:]')"
+          # Trim only real whitespace — explicit characters, no tr-class ambiguity.
+          TOKEN="$(printf '%s' "$SYNC_TOKEN" | tr -d ' \t\r\n')"
+          # Safe fingerprint to confirm the secret matches WITHOUT exposing it
+          # (sha256 is one-way). The correct token is:
+          #   length 64, sha256 8615712d957e067ea921b4d692930bd48ce06cc9e71760d980c201e48a63401a
+          echo "token length: ${#TOKEN}"
+          echo "token sha256: $(printf '%s' "$TOKEN" | sha256sum | cut -d' ' -f1)"
           if [ -z "$TOKEN" ]; then
             echo "::error::SYNC_TOKEN repo secret is not set — add it in Settings → Secrets → Actions."
             exit 1
