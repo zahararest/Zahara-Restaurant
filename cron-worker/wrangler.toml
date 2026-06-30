@@ -1,0 +1,34 @@
+# Standalone Cron Worker — runs the menu sync + Instagram token refresh from
+# INSIDE Cloudflare's network on a schedule. This replaces the GitHub Actions
+# cron, which was being blocked by the zone's (free-tier) Bot Fight Mode when it
+# hit the public endpoint from a datacenter IP. A Worker cron has no external IP
+# to challenge, so it always runs.
+#
+# It reuses the SAME code as the Pages functions (../functions/data/*), binding
+# the SAME KV namespaces, so synced data is identical.
+#
+# Deploy:  npx wrangler deploy --config cron-worker/wrangler.toml
+# Secret:  printf '%s' '<SYNC_TOKEN>' | npx wrangler secret put SYNC_TOKEN --config cron-worker/wrangler.toml
+
+name               = "zahara-cron"
+main               = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Hourly. runScheduled() self-gates to the configured Israel hours (12/16/18)
+# and dedupes per hour; the Instagram refresh only calls Meta when the token is
+# within its refresh window — so most runs are near-instant no-ops.
+[triggers]
+crons = ["0 * * * *"]
+
+[observability]
+enabled = true
+
+# Same namespaces the Pages project binds (config + Graph creds + IG token).
+[[kv_namespaces]]
+binding = "MENU_KV"
+id      = "f68b2dd65a1c4be8976f58bcbbeb2d5f"
+
+# Parsed menu output ({date,sections} per slug), read by /api/menu/[slug].
+[[kv_namespaces]]
+binding = "MENU_DATA"
+id      = "028d7b7c8dde489ab34e6384346ad8ef"
