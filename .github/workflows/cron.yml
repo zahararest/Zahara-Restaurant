@@ -31,12 +31,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping menu-sync (also refreshes the Instagram token)
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          if [ -z "${{ secrets.SYNC_TOKEN }}" ]; then
+          # Strip any stray whitespace/newline a copy-paste may have left in the
+          # secret — that mismatch surfaces as a 403 from the endpoint.
+          TOKEN="$(printf '%s' "$SYNC_TOKEN" | tr -d '[:space:]')"
+          if [ -z "$TOKEN" ]; then
             echo "::error::SYNC_TOKEN repo secret is not set — add it in Settings → Secrets → Actions."
             exit 1
           fi
           # -f makes curl fail the step on any non-2xx response so a broken
           # token or endpoint shows up as a red run instead of silently passing.
           curl -fsS --max-time 60 \
-            "https://zahara.rest/api/menu-sync?token=${{ secrets.SYNC_TOKEN }}"
+            "https://zahara.rest/api/menu-sync?token=$TOKEN"

@@ -511,21 +511,26 @@ function xmlToPagedLines(xmlStr) {
   let page = 0;
 
   for (const p of paras) {
-    const runs = p.getElementsByTagNameNS(W, 'r');
     let text = '';
+    const flush = () => { if (text.trim()) lines.push({ text: text.trim(), page }); text = ''; };
+    const runs = p.getElementsByTagNameNS(W, 'r');
     for (const r of runs) {
-      const brs = r.getElementsByTagNameNS(W, 'br');
-      for (const br of brs) {
-        if (br.getAttributeNS(W, 'type') === 'page' || br.getAttribute('w:type') === 'page') {
-          if (text.trim()) lines.push({ text: text.trim(), page });
-          text = '';
-          page++;
+      // Walk each run's children in DOCUMENT ORDER so a SOFT break (<w:br/>)
+      // ends the current line — Word menus pack several items into one
+      // paragraph separated by soft breaks, and merging them was the wine
+      // "two wines in one row" bug. A page break also advances the page. Tabs
+      // become a space so a name doesn't glue to its price.
+      for (const node of Array.from(r.childNodes)) {
+        const ln = node.localName;
+        if (ln === 't')        text += node.textContent;
+        else if (ln === 'tab') text += ' ';
+        else if (ln === 'br') {
+          flush();
+          if (node.getAttributeNS(W, 'type') === 'page' || node.getAttribute('w:type') === 'page') page++;
         }
       }
-      const t = r.getElementsByTagNameNS(W, 't')[0];
-      if (t) text += t.textContent;
     }
-    if (text.trim()) lines.push({ text: text.trim(), page });
+    flush();
   }
   return lines;
 }
@@ -628,6 +633,19 @@ function joinPair(a, b) {
   return null;
 }
 
+// Normalise a price string. Source docs are inconsistent — a glass/bottle pair
+// shows up as "170₪/42₪", "55/₪220₪" (misplaced ₪) or "21 \ 38" (stray
+// backslash). Pull the numbers out and re-emit "N / M", re-attaching ₪ only
+// when the original used it (the dessert menu has no currency symbol).
+function cleanPrice(price) {
+  const s = String(price || '').trim();
+  if (!s) return s;
+  const nums = s.match(/\d+(?:\.\d+)?/g);
+  if (!nums || !nums.length) return s;
+  const unit = /₪/.test(s) ? '₪' : '';
+  return nums.map(n => n + unit).join(' / ');
+}
+
 function parseLines(lines, sep) {
   const sections = [];
   let current = null;
@@ -654,8 +672,13 @@ function parseLines(lines, sep) {
 
       // name / price — possibly with continuation description lines
       if (parts.length === 2) {
-        const name  = parts[0];
-        const price = parts[1];
+        let name  = parts[0];
+        let price = parts[1];
+        // Some wine sections leave the glass price on the NAME side of the
+        // separator ("… J.Hills 57₪ | 230₪"). A trailing "N₪" is never part of
+        // a name (only prices carry ₪), so fold it back in as the glass figure.
+        const gm = name.match(/\s(\d{1,4})\s*₪\s*$/);
+        if (gm && /\d/.test(price)) { price = gm[1] + '₪ ' + price; name = name.slice(0, gm.index).trim(); }
         const descLines = [];
         let j = i + 1;
         while (j < lines.length && j < i + 3 && !lines[j].includes(sep) && lines[j].trim()) {
@@ -663,7 +686,7 @@ function parseLines(lines, sep) {
           descLines.push(lines[j].trim()); j++;
         }
         ensureSection();
-        current.items.push({ name, description: descLines.join(' · '), price });
+        current.items.push({ name, description: descLines.join(' · '), price: cleanPrice(price) });
         i = j - 1;
         continue;
       }
@@ -673,7 +696,7 @@ function parseLines(lines, sep) {
         const pair = joinPair(parts[1], parts[2]);
         if (pair) {
           ensureSection();
-          current.items.push({ name: parts[0], description: '', price: pair });
+          current.items.push({ name: parts[0], description: '', price: cleanPrice(pair) });
           continue;
         }
       }
@@ -686,7 +709,7 @@ function parseLines(lines, sep) {
       const price     = pairTail ?? parts[parts.length - 1];
       const descParts = pairTail ? parts.slice(1, -2) : parts.slice(1, -1);
       ensureSection();
-      current.items.push({ name, description: descParts.join(' / '), price });
+      current.items.push({ name, description: descParts.join(' / '), price: cleanPrice(price) });
     } else if (!hasSep) {
       const title = line.replace(/:$/, '').trim();
       if (title) { current = { title, items: [] }; sections.push(current); }

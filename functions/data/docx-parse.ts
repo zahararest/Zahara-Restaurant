@@ -101,23 +101,27 @@ function xmlToPagedLines(xmlStr: string): PagedLine[] {
 
   const paras = xmlStr.match(/<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>|<w:p(?:\s[^>]*)?\/>/g) || [];
   for (const p of paras) {
-    // Walk runs in document order so a page break flushes text before it,
-    // matching the browser's node-order traversal.
-    const runs = p.match(/<w:r(?:\s[^>]*)?>[\s\S]*?<\/w:r>/g) || [];
     let text = '';
-    for (const r of runs) {
-      if (/<w:br\b[^>]*\bw:type="page"/.test(r)) {
-        if (text.trim()) lines.push({ text: text.trim(), page });
-        text = '';
-        page++;
-      }
-      const t = r.match(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g);
-      if (t) for (const tag of t) {
-        const inner = tag.replace(/^<w:t(?:\s[^>]*)?>/, '').replace(/<\/w:t>$/, '');
-        text += decodeXmlEntities(inner);
+    const flush = () => { if (text.trim()) lines.push({ text: text.trim(), page }); text = ''; };
+    // Walk text runs, tabs and breaks in DOCUMENT ORDER. Word menus pack several
+    // items into one paragraph separated by SOFT breaks (<w:br/>), so a soft
+    // break must end the current line exactly like a paragraph end — otherwise
+    // the items merge (the wine "two wines in one row" bug). A page break does
+    // the same AND advances the page counter. Tabs become a space so a name
+    // doesn't glue to its price when the separator was a tab.
+    const tok = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*?\/?>|<w:br\b[^>]*?\/?>/g;
+    let m: RegExpExecArray | null;
+    while ((m = tok.exec(p)) !== null) {
+      if (m[1] !== undefined) {
+        text += decodeXmlEntities(m[1]);
+      } else if (/^<w:tab/.test(m[0])) {
+        text += ' ';
+      } else {
+        flush();
+        if (/w:type="page"/.test(m[0])) page++;
       }
     }
-    if (text.trim()) lines.push({ text: text.trim(), page });
+    flush();
   }
   return lines;
 }
@@ -248,6 +252,21 @@ function joinPair(a: string, b: string): string | null {
   return null;
 }
 
+/**
+ * Normalise a price string. The source docs are inconsistent — a glass/bottle
+ * pair shows up as "170₪/42₪", "55/₪220₪" (misplaced ₪) or "21 \ 38" (stray
+ * backslash). Pull the numbers out and re-emit them as "N / M", re-attaching ₪
+ * only when the original used it (the dessert menu has no currency symbol).
+ */
+function cleanPrice(price: string): string {
+  const s = String(price || '').trim();
+  if (!s) return s;
+  const nums = s.match(/\d+(?:\.\d+)?/g);
+  if (!nums || !nums.length) return s;          // non-numeric (e.g. "market") — leave as-is
+  const unit = /₪/.test(s) ? '₪' : '';
+  return nums.map(n => n + unit).join(' / ');
+}
+
 function parseLines(lines: string[], sep: string): MenuSection[] {
   const sections: MenuSection[] = [];
   let current: MenuSection | null = null;
@@ -273,8 +292,13 @@ function parseLines(lines: string[], sep: string): MenuSection[] {
       const parts = line.split(sep).map(p => p.trim()).filter(Boolean);
 
       if (parts.length === 2) {
-        const name  = parts[0];
-        const price = parts[1];
+        let name  = parts[0];
+        let price = parts[1];
+        // Some wine sections leave the glass price on the NAME side of the
+        // separator ("… J.Hills 57₪ | 230₪"). A trailing "N₪" is never part of
+        // a name (only prices carry ₪), so fold it back in as the glass figure.
+        const gm = name.match(/\s(\d{1,4})\s*₪\s*$/);
+        if (gm && /\d/.test(price)) { price = gm[1] + '₪ ' + price; name = name.slice(0, gm.index).trim(); }
         const descLines: string[] = [];
         let j = i + 1;
         while (j < lines.length && j < i + 3 && !lines[j].includes(sep) && lines[j].trim()) {
@@ -282,7 +306,7 @@ function parseLines(lines: string[], sep: string): MenuSection[] {
           descLines.push(lines[j].trim()); j++;
         }
         ensureSection();
-        current!.items.push({ name, description: descLines.join(' · '), price });
+        current!.items.push({ name, description: descLines.join(' · '), price: cleanPrice(price) });
         i = j - 1;
         continue;
       }
@@ -291,7 +315,7 @@ function parseLines(lines: string[], sep: string): MenuSection[] {
         const pair = joinPair(parts[1], parts[2]);
         if (pair) {
           ensureSection();
-          current!.items.push({ name: parts[0], description: '', price: pair });
+          current!.items.push({ name: parts[0], description: '', price: cleanPrice(pair) });
           continue;
         }
       }
@@ -303,7 +327,7 @@ function parseLines(lines: string[], sep: string): MenuSection[] {
       const price     = pairTail ?? parts[parts.length - 1];
       const descParts = pairTail ? parts.slice(1, -2) : parts.slice(1, -1);
       ensureSection();
-      current!.items.push({ name, description: descParts.join(' / '), price });
+      current!.items.push({ name, description: descParts.join(' / '), price: cleanPrice(price) });
     } else if (!hasSep) {
       const title = line.replace(/:$/, '').trim();
       if (title) { current = { title, items: [] }; sections.push(current); }
