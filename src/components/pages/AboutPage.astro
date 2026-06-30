@@ -81,6 +81,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
         class="map-facade"
         data-map-embed={mapEmbed}
         data-map-title={l.mapTitle}
+        data-track="map_load"
       >
         <span class="map-facade__label" data-content-key="about.mapLoad">{l.mapLoad}</span>
         <span class="map-facade__note" data-content-key="about.mapPrivacy">{l.mapPrivacy}</span>
@@ -103,8 +104,8 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     </script>
 
     <div class="directions-grid stagger reveal-on-scroll">
-      <a class="btn btn--block btn--ghost" href={wazeUrl}  target="_blank" rel="noopener" data-content-key="about.waze">{l.waze}</a>
-      <a class="btn btn--block btn--ghost" href={gmapsUrl} target="_blank" rel="noopener" data-content-key="about.gmaps">{l.gmaps}</a>
+      <a class="btn btn--block btn--ghost" href={wazeUrl}  target="_blank" rel="noopener" data-content-key="about.waze"  data-track="location_click">{l.waze}</a>
+      <a class="btn btn--block btn--ghost" href={gmapsUrl} target="_blank" rel="noopener" data-content-key="about.gmaps" data-track="location_click">{l.gmaps}</a>
       <a class="btn btn--block btn--ghost" href={`tel:${dial}`} data-content-key="about.call">{l.call}</a>
     </div>
   </section>

@@ -572,6 +572,15 @@ const schema = {
           window.dataLayer = window.dataLayer || [];
           function gtag(){ dataLayer.push(arguments); }
           document.addEventListener('click', function (e) {
+            // Generic opt-in tracking — any element with data-track="event_name".
+            // Covers socials, the IG reel, About/Rooftop nav, map load + location.
+            var trackEl = e.target && e.target.closest ? e.target.closest('[data-track]') : null;
+            if (trackEl) {
+              gtag('event', trackEl.getAttribute('data-track'), {
+                link_url:  trackEl.getAttribute('href') || '',
+                link_text: (trackEl.textContent || '').trim().slice(0, 80),
+              });
+            }
             var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
             if (!a) return;
             var href = a.getAttribute('href') || '';

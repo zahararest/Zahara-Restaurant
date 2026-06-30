@@ -54,6 +54,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         href={RESTAURANT.instagram}
         target="_blank"
         rel="noopener noreferrer"
+        data-track="instagram_click"
         aria-label={`${t.igFollow} · ${t.igHandle}`}
       >
         <svg class="ig-follow__icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -119,7 +120,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     function renderFallback() {
       feature.innerHTML =
         '<a class="ig-box ig-box--cta" href="' + escAttr(instagramUrl) + '"' +
-        ' target="_blank" rel="noopener noreferrer" aria-label="' + escAttr(t.igFollow) + '">' +
+        ' target="_blank" rel="noopener noreferrer" data-track="instagram_click" aria-label="' + escAttr(t.igFollow) + '">' +
           '<span class="ig-box__cta-inner">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">' +
               '<rect x="2" y="2" width="20" height="20" rx="5"/>' +
@@ -185,7 +186,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       // non-interactive (pointer-events:none) so a tap anywhere opens the post.
       const html =
         '<div class="ig-box ig-box--media' + (isStory ? ' ig-box--story' : '') + (multi ? ' is-multi' : '') + '"' +
-          ' role="link" tabindex="0" aria-label="' + escAttr(label) + '">' +
+          ' role="link" tabindex="0" data-track="reel_click" aria-label="' + escAttr(label) + '">' +
           '<img class="ig-box__img" alt="" loading="eager" fetchpriority="low" decoding="async" referrerpolicy="no-referrer" />' +
           '<span class="ig-box__scrim ig-box__scrim--top" aria-hidden="true"></span>' +
           '<span class="ig-box__scrim ig-box__scrim--bottom" aria-hidden="true"></span>' +
@@ -287,7 +288,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
 
       reelsScroll.innerHTML = reels.map((r, i) =>
         '<a class="ig-reel" href="' + escAttr(r.permalink || instagramUrl) + '"' +
-        ' target="_blank" rel="noopener noreferrer" role="listitem" style="--i:' + i + '"' +
+        ' target="_blank" rel="noopener noreferrer" role="listitem" data-track="reel_click" style="--i:' + i + '"' +
         ' aria-label="' + escAttr(r.caption ? r.caption.slice(0, 60) : t.igViewReel) + '">' +
           '<img class="ig-reel__img" src="' + escAttr(r.image) + '" alt=""' +
           ' loading="lazy" decoding="async" referrerpolicy="no-referrer"' +
@@ -438,6 +439,17 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     transition: transform 0.7s var(--ease-out);
   }
   .ig-box--media:hover .ig-box__img { transform: scale(1.03); }
+  /* The featured reel/post/story image breathes with a slow, looping ken-burns
+     drift, so it reads like a living reel even when the content is a still
+     photo (the Graph API returns thumbnails, not playable video). A camera
+     move, not a UI effect — within the editorial motion vocabulary. */
+  .ig-box--media .ig-box__img {
+    animation: igKenBurns 16s ease-in-out infinite alternate;
+  }
+  @keyframes igKenBurns {
+    from { transform: scale(1); }
+    to   { transform: scale(1.08); }
+  }
 
   /* Top + bottom scrims — keep the story chrome (bars, handle, time, cue)
      legible over any photo, the way the real app gradients the edges. */
@@ -731,6 +743,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
 
   @media (prefers-reduced-motion: reduce) {
     .ig-box--skeleton .ig-box__img::after { animation: none; }
+    .ig-box--media .ig-box__img { animation: none; }
     .ig-box--media:hover .ig-box__img,
     .ig-reel:hover .ig-reel__img { transform: none; }
     .ig-reels { transition: none; }
