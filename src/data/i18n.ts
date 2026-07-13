@@ -624,6 +624,7 @@ export const contact = {
   statusErrGeneral: { he: 'שגיאה בשליחה. נסו שוב או חייגו אלינו.',               en: 'Something went wrong. Please try again or call us.' },
   statusErrEmail:   { he: 'כתובת אימייל לא תקינה. בדקו ונסו שוב.',               en: 'Please enter a valid email address.'           },
   statusErrWhen:    { he: 'בחרו זמן לאירוע — בוקר, צהריים או ערב.',              en: 'Please choose a time of day — morning, afternoon or evening.' },
+  statusErrRequired:{ he: 'נא למלא את השדות המסומנים.',                          en: 'Please fill in the highlighted fields.' },
 
   benefitPrivate: { he: 'חדר פרטי לקבוצות אינטימיות',     en: 'Private room for intimate groups' },
   benefitChef:    { he: 'התפריט נבנה אישית עם השף',        en: 'Menu built personally with the chef' },

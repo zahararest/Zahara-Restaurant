@@ -399,21 +399,28 @@
   appearance: none;
   width: 100%;
 }
-.field select {
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
-    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) calc(1em + 4px),
-    calc(100% - 13px) calc(1em + 4px);
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
+/* Select chevron — a thin stroked caret drawn by the .select-shell wrapper
+   (pseudo-elements can't attach to <select>), matching the site's other
+   stroke icons. Colour follows --ink, side follows the writing direction. */
+.field .select-shell {
+  position: relative;
+  display: block;
 }
-html[dir="rtl"] .field select {
-  background-position:
-    18px calc(1em + 4px),
-    13px calc(1em + 4px);
+.field .select-shell::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 1.05rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  /* Physical sides on purpose: right+bottom rotated 45° points down in both
+     LTR and RTL (logical sides would swing the caret sideways in RTL). */
+  border-right: 1.6px solid var(--ink);
+  border-bottom: 1.6px solid var(--ink);
+  transform: translateY(-68%) rotate(45deg);
+  pointer-events: none;
 }
+.field select { padding-inline-end: 2.5rem; }
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
@@ -421,6 +428,19 @@ html[dir="rtl"] .field select {
   border-color: var(--accent);
   background: var(--paper-card);
   box-shadow: 0 0 0 1px var(--accent);
+}
+/* Invalid marks — set by the contact form's submit pass on every offending
+   field at once, cleared as soon as the field changes. */
+.field input.is-invalid,
+.field textarea.is-invalid,
+.field select.is-invalid {
+  border-color: var(--err);
+}
+.field input.is-invalid:focus,
+.field textarea.is-invalid:focus,
+.field select.is-invalid:focus {
+  border-color: var(--err);
+  box-shadow: 0 0 0 1px var(--err);
 }
 .field textarea {
   resize: vertical;

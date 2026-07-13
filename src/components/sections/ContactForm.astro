@@ -95,7 +95,10 @@ const eventTimes: { value: string; label: string }[] = [
         >{isEvent ? t.formHeadingEvent : t.formHeadingGeneral}</h2>
       </header>
 
-      <form class="form" method="POST" action="/api/contact" id="contact-form">
+      {/* novalidate: our submit handler validates every field at once and
+          highlights all offenders — the browser's native bubble would stop
+          at the first one. No-JS submissions are still gated by the server. */}
+      <form class="form" method="POST" action="/api/contact" id="contact-form" novalidate>
         <input type="hidden" name="inquiry_type" value={isEvent ? 'event' : 'general'} data-inquiry-type />
 
         <div class="form__row form__row--2">
@@ -130,30 +133,37 @@ const eventTimes: { value: string; label: string }[] = [
               </div>
             </div>
 
-            <div class="field">
-              <label for="event_type">{t.fieldType}</label>
-              <select id="event_type" name="event_type">
-                {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
-              </select>
-            </div>
-
-            {/* Time of day — multi-select checkboxes, nothing pre-checked.
-                Mandatory in event mode: the submit handler blocks the send
-                until at least one is ticked (server re-checks for no-JS). */}
-            <fieldset class="field field--when" data-when-group>
-              <legend class="field__legend">
-                {t.fieldWhen}
-                <span class="field__hint">· {t.fieldWhenHint}</span>
-              </legend>
-              <div class="when-choices">
-                {eventTimes.map(opt => (
-                  <label class="when-choice">
-                    <input type="checkbox" name="event_time" value={opt.value} />
-                    <span>{opt.label}</span>
-                  </label>
-                ))}
+            <div class="form__row form__row--2">
+              <div class="field">
+                <label for="event_type">{t.fieldType}</label>
+                <span class="select-shell">
+                  <select id="event_type" name="event_type">
+                    {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
+                  </select>
+                </span>
               </div>
-            </fieldset>
+
+              {/* Time of day — a list of multi-select rows in the same chrome
+                  as the inputs, nothing pre-checked. Mandatory in event mode:
+                  the submit handler blocks the send until at least one is
+                  ticked (server re-checks for no-JS). */}
+              <fieldset class="field field--when" data-when-group>
+                <legend class="field__legend">
+                  {t.fieldWhen}
+                  <span class="field__hint">· {t.fieldWhenHint}</span>
+                </legend>
+                <ul class="when-list">
+                  {eventTimes.map(opt => (
+                    <li class="when-list__item">
+                      <label class="when-choice">
+                        <input type="checkbox" name="event_time" value={opt.value} />
+                        <span>{opt.label}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            </div>
           </div>
         )}
 
@@ -201,9 +211,13 @@ const eventTimes: { value: string; label: string }[] = [
   .form__turnstile { margin-block: 0.25rem 0.5rem; }
 
   /* Time-of-day group — a fieldset dressed as a .field. The legend mirrors
-     the .field label treatment; the checkboxes are square, 1px-ruled paper
-     tiles that fill with the accent when ticked. No pills, no rounding. */
+     the .field label treatment; the options are rows of a single bordered
+     list in the same chrome as the inputs (paper-card fill, 1px rule),
+     with square checkboxes that fill with the accent when ticked. */
   .field--when {
+    /* Block flow, not the .field grid — browsers special-case <legend> in
+       grid/flex fieldsets, so spacing comes from the legend margin instead. */
+    display: block;
     border: 0;
     padding: 0;
     margin: 0;
@@ -211,6 +225,7 @@ const eventTimes: { value: string; label: string }[] = [
   }
   .field__legend {
     padding: 0;
+    margin-block-end: 0.5rem;
     font-size: var(--step--2);
     letter-spacing: 0.24em;
     text-transform: uppercase;
@@ -222,18 +237,28 @@ const eventTimes: { value: string; label: string }[] = [
     text-transform: none;
     font-weight: 400;
   }
-  .when-choices {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 2rem;
+  .when-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: var(--paper-card);
+    border: 1px solid var(--rule);
+    transition: border-color 0.2s ease;
+  }
+  .when-list__item + .when-list__item {
+    border-block-start: 1px solid var(--rule-soft);
   }
   .when-choice {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 0.65rem;
-    padding-block: 0.4rem;
+    gap: 0.7rem;
+    padding: 0.72rem 1rem;
     cursor: pointer;
     color: var(--ink);
+    transition: background 0.2s ease;
+  }
+  .when-choice:hover {
+    background: color-mix(in srgb, var(--ink) 4%, var(--paper-card));
   }
   .when-choice input {
     -webkit-appearance: none;
@@ -270,6 +295,7 @@ const eventTimes: { value: string; label: string }[] = [
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
+  .field--when.is-error .when-list { border-color: var(--err); }
   .field--when.is-error .when-choice input { border-color: var(--err); }
   @media (prefers-reduced-motion: reduce) {
     .when-choice input,
@@ -376,8 +402,15 @@ const eventTimes: { value: string; label: string }[] = [
   }
 
   if (form && status) {
-    // Ticking any time-of-day box clears its error state immediately.
     const whenGroup = form.querySelector('[data-when-group]');
+
+    // Fixing a field clears its highlight immediately; ticking any
+    // time-of-day box clears the group's error state.
+    form.querySelectorAll('input, select, textarea').forEach((el) => {
+      const clear = () => el.classList.remove('is-invalid');
+      el.addEventListener('input',  clear);
+      el.addEventListener('change', clear);
+    });
     form.querySelectorAll('input[name="event_time"]').forEach((box) => {
       box.addEventListener('change', () => {
         whenGroup?.classList.remove('is-error');
@@ -391,31 +424,43 @@ const eventTimes: { value: string; label: string }[] = [
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // Validate the email client-side before sending — mirrors the server
-      // check in functions/api/contact.ts so a bad address is caught instantly
-      // (the server still re-validates; this is convenience, not the gate).
-      const emailField = form.querySelector('#email');
-      const emailVal   = (emailField?.value || '').trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
-        status.textContent = msgErrEmail;
-        status.className   = 'form-status err';
-        emailField?.focus();
-        return;
-      }
-
-      // Event inquiries must pick at least one time of day. Checkbox groups
-      // have no native "one of these" constraint, so gate here; the server
-      // enforces the same rule for no-JS submissions.
       const mode = inquiryInput ? inquiryInput.value : 'general';
-      if (mode === 'event') {
-        const whenBoxes = Array.from(form.querySelectorAll('input[name="event_time"]'));
-        if (whenBoxes.length && !whenBoxes.some((b) => b.checked)) {
-          status.textContent = msgErrWhen;
-          status.className   = 'form-status err';
-          whenGroup?.classList.add('is-error');
-          whenBoxes[0].focus();
-          return;
+
+      // Validate every field in one pass and highlight ALL offenders — the
+      // form carries `novalidate`, so the browser's stop-at-the-first bubble
+      // never runs. The server re-validates everything; this is the fast,
+      // visible layer.
+      const invalid = [];
+      form.querySelectorAll('input, select, textarea').forEach((el) => {
+        if (el.type === 'hidden' || el.type === 'checkbox' || el.disabled) return;
+        if (el.closest('[hidden]') || el.closest('.visually-hidden')) return;
+        el.classList.remove('is-invalid');
+        let bad = !el.checkValidity();
+        // Stricter email shape than the browser's (mirrors the server check).
+        if (el.id === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((el.value || '').trim())) {
+          bad = true;
         }
+        if (bad) { invalid.push(el); el.classList.add('is-invalid'); }
+      });
+
+      // Time-of-day group — no native "one of these" constraint exists for
+      // checkboxes, so it's validated as a unit in event mode.
+      const whenBoxes = Array.from(form.querySelectorAll('input[name="event_time"]'));
+      const whenBad   = mode === 'event' && whenBoxes.length > 0 && !whenBoxes.some((b) => b.checked);
+      whenGroup?.classList.toggle('is-error', whenBad);
+
+      if (invalid.length || whenBad) {
+        // One combined message; if a single field is wrong, say which kind.
+        let msg = msgErrRequired;
+        if (!invalid.length && whenBad) {
+          msg = msgErrWhen;
+        } else if (!whenBad && invalid.length === 1 && invalid[0].id === 'email' && invalid[0].value.trim()) {
+          msg = msgErrEmail;
+        }
+        status.textContent = msg;
+        status.className   = 'form-status err';
+        (invalid[0] || whenBoxes[0])?.focus();
+        return;
       }
 
       status.textContent = msgSending;

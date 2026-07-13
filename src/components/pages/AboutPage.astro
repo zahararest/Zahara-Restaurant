@@ -132,27 +132,18 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
           <p data-content-key="about.designBar" set:html={t.designBar} />
           <p data-content-key="about.designClosed" set:html={t.designClosed} />
           <p data-content-key="about.designOpen" set:html={t.designOpen} />
+
+          {/* ── Kashrut — folded into this section as a short postscript
+              rather than a full section of its own. Hidden client-side
+              until the owner uploads the certificate in /admin/images. */}
+          <div class="about-kosher" data-kosher-block data-kosher-cell>
+            <p class="eyebrow" data-content-key="about.kosherEyebrow">{t.kosherEyebrow}</p>
+            <p data-content-key="about.kosherNote">{t.kosherNote}</p>
+            <button class="btn btn--ghost about-kosher__cta" type="button"
+                    data-kosher-open data-kosher-cert data-content-key="about.kosherCertCta">{t.kosherCertCta}</button>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
-
-  {/* ── Kashrut certificate ────────────────────────────────────────────
-      A clear, restrained way for guests to see the certificate while
-      browsing. Hidden client-side until the owner uploads it. */}
-  <section class="section wrap" data-kosher-block>
-    <div class="about-kosher stagger reveal-on-scroll" data-kosher-cell>
-      <p class="eyebrow" data-content-key="about.kosherEyebrow">{t.kosherEyebrow}</p>
-      <h2
-        class="display"
-        data-word-reveal
-        data-word-reveal-delay="0.06"
-        data-word-reveal-step="0.06"
-        data-content-key="about.kosherHeading"
-      >{t.kosherHeading}</h2>
-      <p class="lede-prose" data-content-key="about.kosherNote">{t.kosherNote}</p>
-      <button class="btn btn--ghost about-kosher__cta" type="button"
-              data-kosher-open data-kosher-cert data-content-key="about.kosherCertCta">{t.kosherCertCta}</button>
     </div>
   </section>
 
@@ -309,19 +300,18 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     padding-block-end: var(--space-l);
   }
 
-  /* Kashrut certificate — a centered editorial block (eyebrow → heading →
-     note → ghost link), in the same restrained vocabulary as the rest of
-     the page. */
+  /* Kashrut — a short postscript at the foot of the seating section
+     (eyebrow → one line → ghost link), separated by a hairline rather
+     than carrying a whole section of its own. */
   .about-kosher {
     display: grid;
-    justify-items: center;
-    text-align: center;
-    gap: var(--space-s);
-    max-width: var(--readable-max);
-    margin-inline: auto;
+    justify-items: start;
+    gap: var(--space-xs, 0.5rem);
+    margin-block-start: var(--space-m);
+    padding-block-start: var(--space-m);
+    border-block-start: 1px solid var(--rule-soft);
   }
-  .about-kosher .lede-prose { margin-inline: auto; }
-  .about-kosher__cta { margin-block-start: var(--space-xs, 0.5rem); }
+  .about-kosher__cta { margin-block-start: 0.25rem; }
 
   /* ── Kosher hover preview — fixed so no ancestor clip can hide it ──────── */
   .info-kosher__preview {

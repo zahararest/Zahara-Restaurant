@@ -483,7 +483,10 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   }
   @keyframes igSkeleton { 100% { transform: translateX(100%); } }
 
-  /* Story segment bars (top) — a track with a fill the JS timer grows. */
+  /* Story segment bars (top) — a track with a fill the JS timer grows.
+     The strip is forced LTR on both languages: first frame's bar at the
+     left, filling left→right, advancing left→right — matching the real
+     Instagram player, which doesn't mirror story progress in RTL. */
   .ig-box__segs {
     position: absolute;
     inset-block-start: 0.45rem;
@@ -491,6 +494,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     z-index: 5;
     display: flex;
     gap: 0.18rem;
+    direction: ltr;
   }
   .ig-box__seg {
     position: relative;
@@ -503,17 +507,10 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   .ig-box__seg-fill {
     position: absolute;
     inset-block: 0;
+    /* Resolves to the physical left — the parent strip is direction:ltr. */
     inset-inline-start: 0;
     width: 0;
     background: var(--paper-on-photo);
-  }
-  /* The playback fill always grows left→right, matching the real Instagram
-     player — in RTL, inset-inline-start would anchor it right and make the
-     bar fill "backwards", so pin it to the physical left. */
-  html[dir="rtl"] .ig-box__seg-fill {
-    inset-inline-start: auto;
-    left: 0;
-    right: auto;
   }
 
   /* Story header — gradient avatar ring + handle + relative time, like the app.
