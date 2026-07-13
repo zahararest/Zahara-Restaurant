@@ -126,11 +126,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!name || !phone || !email) {
     return err('שדות חובה חסרים', 'Required fields missing', 400);
   }
-  // Event inquiries additionally require a date and at least one time of day.
-  // The form enforces this client-side; this is the real gate (no-JS posts).
-  if (inquiry_type === 'event' && (!event_date || event_times.length === 0)) {
-    return err('לאירוע יש לציין תאריך וזמן (בוקר / צהריים / ערב)',
-               'Events require a date and a time of day (morning / afternoon / evening)', 400);
+  // Event inquiries additionally require a date, at least one time of day,
+  // and a description of the event. The form enforces this client-side;
+  // this is the real gate (no-JS posts).
+  if (inquiry_type === 'event' && (!event_date || event_times.length === 0 || !message)) {
+    return err('לאירוע יש לציין תאריך, זמן (בוקר / צהריים / ערב) ופרטים נוספים',
+               'Events require a date, a time of day (morning / afternoon / evening) and event details', 400);
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return err('כתובת אימייל לא תקינה', 'Invalid email address', 400);

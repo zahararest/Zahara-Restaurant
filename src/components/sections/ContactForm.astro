@@ -176,7 +176,6 @@ const eventTimes: { value: string; label: string }[] = [
                     ))}
                   </ul>
                 </span>
-                <p class="when-selected" data-when-selected aria-live="polite" hidden></p>
               </fieldset>
             </div>
           </div>
@@ -184,7 +183,7 @@ const eventTimes: { value: string; label: string }[] = [
 
         <div class="field">
           <label for="message">{t.fieldMessage}</label>
-          <textarea id="message" name="message" rows="5"></textarea>
+          <textarea id="message" name="message" rows="5" required={isEvent} data-event-required></textarea>
         </div>
 
         <!-- Honeypot — silently filled by bots, never by humans -->
@@ -258,9 +257,13 @@ const eventTimes: { value: string; label: string }[] = [
   .when-shell { position: relative; display: block; }
 
   /* Trigger — same chrome as .field select so the two controls in this row
-     read as one family. */
+     read as one family. Chosen options render inside it as ×-removable
+     tokens; flex-wrap lets them spill to a second line if needed. */
   .when-trigger {
-    display: block;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 1rem;
     width: 100%;
     font: inherit;
     text-align: start;
@@ -275,11 +278,30 @@ const eventTimes: { value: string; label: string }[] = [
     appearance: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
+  /* The button ships [hidden] and is revealed by JS — without this, our
+     display:flex would override the UA's [hidden]{display:none} and show a
+     dead button to no-JS visitors. */
+  .when-trigger[hidden] { display: none; }
   .when-trigger:focus-visible {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
+  .when-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .when-token__x {
+    display: grid;
+    place-items: center;
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+    line-height: 1;
+    color: var(--ink-muted);
+    transition: color 0.2s ease;
+  }
+  .when-token__x:hover { color: var(--err); }
 
   .when-list {
     list-style: none;
@@ -289,15 +311,13 @@ const eventTimes: { value: string; label: string }[] = [
     border: 1px solid var(--rule);
     transition: border-color 0.2s ease;
   }
-  /* Enhanced: the list becomes a dropdown panel under the trigger. */
-  .when-shell.is-enhanced .when-list {
-    position: absolute;
-    inset-inline: 0;
-    inset-block-start: calc(100% + 0.35rem);
-    z-index: 30;
-    box-shadow: 0 18px 44px color-mix(in srgb, var(--shadow) 30%, transparent);
-  }
+  /* Enhanced: the list opens IN FLOW beneath the trigger — the section
+     below moves down to make room rather than being covered. */
+  .when-shell.is-enhanced .when-list { margin-block-start: 0.35rem; }
   .when-shell.is-enhanced .when-list[hidden] { display: none; }
+  /* With the open menu in flow the shell grows, so the caret's top:50%
+     would sink to the menu — pin it to the trigger's own centre line. */
+  .when-shell.is-enhanced.is-open::after { top: 1.7rem; }
   .when-list__item + .when-list__item {
     border-block-start: 1px solid var(--rule-soft);
   }
@@ -320,6 +340,11 @@ const eventTimes: { value: string; label: string }[] = [
     appearance: none;
     inline-size: 1.15rem;
     block-size: 1.15rem;
+    /* base.css gives every input min-height:44px for touch targets — that
+       would stretch this square into a tall bar. The 44px tap area is the
+       whole .when-choice row, so the box itself can stay small. */
+    min-block-size: 0;
+    min-inline-size: 0;
     padding: 0;
     margin: 0;
     flex: none;
@@ -349,15 +374,6 @@ const eventTimes: { value: string; label: string }[] = [
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
-  }
-
-  /* The chosen options, written out under the control. */
-  .when-selected {
-    margin: 0.5rem 0 0;
-    min-block-size: 1.5em;
-    font-size: var(--step--1);
-    letter-spacing: 0.04em;
-    color: var(--ink);
   }
 
   .field--when.is-error .when-list    { border-color: var(--err); }
@@ -471,26 +487,56 @@ const eventTimes: { value: string; label: string }[] = [
   const whenShell   = document.querySelector('[data-when-shell]');
   const whenTrigger = document.querySelector('[data-when-trigger]');
   const whenMenu    = document.querySelector('[data-when-menu]');
-  const whenOut     = document.querySelector('[data-when-selected]');
   let renderWhenSelected = () => {};
   if (whenShell && whenTrigger && whenMenu) {
     whenShell.classList.add('select-shell', 'is-enhanced');
     whenTrigger.hidden = false;
     whenMenu.hidden    = true;
-    if (whenOut) whenOut.hidden = false;
 
-    const boxes = Array.from(whenMenu.querySelectorAll('input[name="event_time"]'));
+    const boxes       = Array.from(whenMenu.querySelectorAll('input[name="event_time"]'));
+    const placeholder = whenTrigger.textContent.trim();
+
+    // The chosen options live inside the trigger itself, each with a small
+    // × that unpicks it. Built with DOM nodes, not innerHTML.
     renderWhenSelected = () => {
-      const chosen = boxes.filter((b) => b.checked)
-        .map((b) => (b.closest('label')?.textContent || b.value).trim());
-      if (whenOut) whenOut.textContent = chosen.join(' · ');
+      whenTrigger.textContent = '';
+      const chosen = boxes.filter((b) => b.checked);
+      if (!chosen.length) {
+        whenTrigger.textContent = placeholder;
+        return;
+      }
+      chosen.forEach((b) => {
+        const token = document.createElement('span');
+        token.className = 'when-token';
+        token.append((b.closest('label')?.textContent || b.value).trim());
+        const x = document.createElement('span');
+        x.className = 'when-token__x';
+        x.textContent = '×';
+        x.setAttribute('data-when-remove', b.value);
+        x.setAttribute('aria-hidden', 'true');
+        token.append(x);
+        whenTrigger.append(token);
+      });
     };
     const setOpen = (open) => {
       whenMenu.hidden = !open;
       whenShell.classList.toggle('is-open', open);
       whenTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
     };
-    whenTrigger.addEventListener('click', () => setOpen(whenMenu.hidden));
+    whenTrigger.addEventListener('click', (e) => {
+      // × on a token unpicks that option without toggling the menu. The
+      // real checkbox stays the source of truth (and what the form posts).
+      const remove = e.target.closest ? e.target.closest('[data-when-remove]') : null;
+      if (remove) {
+        const box = boxes.find((b) => b.value === remove.getAttribute('data-when-remove'));
+        if (box) {
+          box.checked = false;
+          box.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return;
+      }
+      setOpen(whenMenu.hidden);
+    });
     document.addEventListener('click', (e) => {
       if (!whenShell.contains(e.target)) setOpen(false);
     });
