@@ -377,7 +377,10 @@
 }
 .form__row { display: grid; gap: var(--space-m); }
 @media (min-width: 600px) { .form__row--2 { grid-template-columns: 1fr 1fr; } }
-.field { display: grid; gap: 0.5rem; }
+/* align-content: start — when a row pairs a short field with a taller one
+   (event type next to the time-of-day list), the shorter field's rows must
+   pack at the top instead of being stretched apart. */
+.field { display: grid; gap: 0.5rem; align-content: start; }
 .field label {
   font-size: var(--step--2);
   letter-spacing: 0.24em;
@@ -385,7 +388,10 @@
   color: var(--ink-muted);
   font-weight: 600;
 }
-.field input,
+/* :not([type="checkbox"]) — checkboxes (the time-of-day options) carry
+   their own compact square styling; the full-width input chrome here would
+   swallow it (Astro's scoped styles are zero-specificity :where()). */
+.field input:not([type="checkbox"]),
 .field textarea,
 .field select {
   font: inherit;
@@ -421,6 +427,8 @@
   pointer-events: none;
 }
 .field select { padding-inline-end: 2.5rem; }
+/* Open state (custom dropdowns flag their shell with .is-open) — flip the caret. */
+.field .select-shell.is-open::after { transform: translateY(-35%) rotate(225deg); }
 .field input:focus,
 .field textarea:focus,
 .field select:focus {

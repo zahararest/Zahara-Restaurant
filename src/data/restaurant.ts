@@ -21,7 +21,7 @@ export const RESTAURANT = {
     he:             'ירושלים, בן סירא 16',
     en:            'Ben Sira 16 St, Jerusalem',
     maps:          'Nucha Hotel, Ben Sira 16 Street, Jerusalem',
-    streetAddress: 'Ben Sira Street',
+    streetAddress: 'Ben Sira 16',
     city:          'Jerusalem',
     country:       'IL',
   },

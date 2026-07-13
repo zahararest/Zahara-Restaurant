@@ -171,6 +171,11 @@ const schema = {
       description:   lang === 'he'
         ? 'אנג׳ליקה — מוסד קולינרי ותיק בירושלים, המסעדה האחות של זהרה.'
         : 'Angelica — a longstanding Jerusalem culinary institution and the sister restaurant of Zahara.',
+      // Entity link to Angelica's own web presence — tells Google these two
+      // records describe the same real-world restaurant family, which helps
+      // Zahara surface on Angelica-branded queries (and vice versa).
+      url:           'https://angelicarest.com/',
+      sameAs:        ['https://angelicarest.com/'],
       areaServed:    { '@type': 'City', name: 'Jerusalem' },
       servesCuisine: ['Mediterranean', 'Kosher'],
     },
@@ -182,6 +187,24 @@ const schema = {
       url:           `${origin}/`,
       inLanguage:    lang === 'he' ? 'he-IL' : 'en-US',
       publisher:     { '@id': `${origin}/#restaurant` },
+    },
+    // Main site sections, declared explicitly. Google generates sitelinks
+    // algorithmically — this list plus the crawlable header nav, per-page
+    // titles/descriptions and the sitemap are the eligibility signals.
+    {
+      '@type': 'ItemList',
+      '@id':   `${origin}/#sitenav`,
+      itemListElement: [
+        { '@type': 'SiteNavigationElement', position: 1,
+          name: lang === 'he' ? 'תפריט' : 'Menu',
+          url:  `${origin}${lang === 'he' ? '' : '/en'}/menu/` },
+        { '@type': 'SiteNavigationElement', position: 2,
+          name: lang === 'he' ? 'אירועים' : 'Events',
+          url:  `${origin}${lang === 'he' ? '' : '/en'}/events/` },
+        { '@type': 'SiteNavigationElement', position: 3,
+          name: lang === 'he' ? 'אודות' : 'About',
+          url:  `${origin}${lang === 'he' ? '' : '/en'}/about/` },
+      ],
     },
   ],
 };

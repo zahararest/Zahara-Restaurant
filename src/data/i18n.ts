@@ -48,7 +48,7 @@ export const footer = {
   hours:         { he: 'שעות פעילות',           en: 'Hours'             },
   weekdays:      { he: 'ב׳–ה׳ · 18:00–22:00',    en: 'Mon–Thu · 18:00–22:00' },
   closedNote:    { he: 'סגור בשישי ובשבת',      en: 'Closed Fri & Sat'   },
-  hotelNote:     { he: "במלון נוצ׳ה, רחוב בן סירא", en: 'Inside Nucha Hotel, Ben Sira Street' },
+  hotelNote:     { he: "במלון נוצ׳ה, רחוב בן סירא 16", en: 'Inside Nucha Hotel, Ben Sira 16 Street' },
   contact:       { he: 'יצירת קשר',             en: 'Contact'           },
   follow:        { he: 'עקבו אחרינו',           en: 'Follow'            },
   instagram:     { he: 'Instagram',               en: 'Instagram'         },
@@ -106,8 +106,8 @@ export const home = {
 
   // [HTML] contains <em>
   heroLede: {
-    he: "במלון נוצ׳ה ברחוב בן סירא, השף רועי אחדות פותח שולחן — מטבח ים-תיכוני כשר עם טכניקה צרפתית והשפעות אסייתיות. בגישה של <em>\"sharing is caring\"</em>, מנות שעוברות בין כולם.",
-    en: 'Inside Nucha Hotel on Ben Sira Street, chef Roi Achdut sets a table — kosher Mediterranean cooking, French technique, Asian accents. Built for <em>sharing is caring</em>: dishes that move around the table.',
+    he: "במלון נוצ׳ה ברחוב בן סירא 16, השף רועי אחדות פותח שולחן — מטבח ים-תיכוני כשר עם טכניקה צרפתית והשפעות אסייתיות. בגישה של <em>\"sharing is caring\"</em>, מנות שעוברות בין כולם.",
+    en: 'Inside Nucha Hotel on Ben Sira 16 Street, chef Roi Achdut sets a table — kosher Mediterranean cooking, French technique, Asian accents. Built for <em>sharing is caring</em>: dishes that move around the table.',
   },
 
   heroCtaReserve: { he: 'הזמינו מקום',    en: 'Reserve a table' },
@@ -118,8 +118,8 @@ export const home = {
     he: 'זהרה | מסעדת שף כשרה בירושלים ',
     en: 'Zahara | Kosher chef restaurant in Jerusalem',
   },
-  pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות, מנות לשיתוף. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
-                    en: "Zahara Restaurant — a kosher chef's restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica's younger sister, led by chef Roi Achdut. Contemporary Mediterranean kitchen, French technique, Asian influences, plates for sharing. Book your table." },
+  pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא 16. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות, מנות לשיתוף. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
+                    en: "Zahara Restaurant — a kosher chef's restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira 16 Street. Angelica's younger sister, led by chef Roi Achdut. Contemporary Mediterranean kitchen, French technique, Asian influences, plates for sharing. Book your table." },
   kitchenCaption: { he: 'המטבח של זהרה',   en: 'The Zahara kitchen' },
   secHero:        { he: 'בית',             en: 'Open'            },
   secStory:       { he: 'סיפור',           en: 'Story'           },
@@ -169,8 +169,8 @@ export const home = {
   },
 
   storyP1: {
-    he: "אנג׳ליקה פעלה במשך 16 שנה כמוסד קולינרי בירושלים. זהרה היא הפרק הבא — מסעדה חדשה בקומת הכניסה של מלון נוצ׳ה (Nucha by Fattal Colors) ברחוב בן סירא, ליד גן העצמאות וכיכר ציון.",
-    en: 'Angelica has been a Jerusalem culinary institution for sixteen years. Zahara is the next chapter — a new restaurant on the ground floor of Nucha Hotel (Nucha by Fattal Colors) on Ben Sira Street, steps from Independence Garden and Zion Square.',
+    he: "אנג׳ליקה פעלה במשך 16 שנה כמוסד קולינרי בירושלים. זהרה היא הפרק הבא — מסעדה חדשה בקומת הכניסה של מלון נוצ׳ה (Nucha by Fattal Colors) ברחוב בן סירא 16, ליד גן העצמאות וכיכר ציון.",
+    en: 'Angelica has been a Jerusalem culinary institution for sixteen years. Zahara is the next chapter — a new restaurant on the ground floor of Nucha Hotel (Nucha by Fattal Colors) on Ben Sira 16 Street, steps from Independence Garden and Zion Square.',
   },
 
   // [HTML] contains <strong>
@@ -307,8 +307,8 @@ export const aboutPage = {
     en: 'About Zahara | Kosher Chef Restaurant, Nucha Hotel Jerusalem',
   },
   pageDescription: {
-    he: 'הסיפור של מסעדת זהרה — אחותה הצעירה של אנג׳ליקה, מסעדת שף כשרה במלון נוצ׳ה ברחוב בן סירא, ירושלים. שעות פתיחה, כתובת, מסלול הגעה, חניה ונגישות.',
-    en: 'The story of Zahara — Angelica\'s younger sister, a kosher chef\'s restaurant inside Nucha Hotel on Ben Sira Street, Jerusalem. Hours, address, directions, parking and accessibility.',
+    he: 'הסיפור של מסעדת זהרה — אחותה הצעירה של אנג׳ליקה, מסעדת שף כשרה במלון נוצ׳ה ברחוב בן סירא 16, ירושלים. שעות פתיחה, כתובת, מסלול הגעה, חניה ונגישות.',
+    en: 'The story of Zahara — Angelica\'s younger sister, a kosher chef\'s restaurant inside Nucha Hotel on Ben Sira 16 Street, Jerusalem. Hours, address, directions, parking and accessibility.',
   },
 };
 
@@ -418,8 +418,8 @@ export const location = {
   heading:  { he: 'לבוא אלינו.', en: 'Find us.'     },
 
   lede: {
-    he: "זהרה יושבת בקומת הכניסה של מלון נוצ׳ה (Nucha by Fattal Colors) ברחוב בן סירא — דקות הליכה מגן העצמאות, מדרחוב בן יהודה, כיכר ציון, ממילא והעיר העתיקה.",
-    en: "Zahara sits on the ground floor of Nucha Hotel (Nucha by Fattal Colors) on Ben Sira Street — a few minutes' walk from Independence Garden, Ben Yehuda pedestrian mall, Zion Square, Mamilla and the Old City.",
+    he: "זהרה יושבת בקומת הכניסה של מלון נוצ׳ה (Nucha by Fattal Colors) ברחוב בן סירא 16 — דקות הליכה מגן העצמאות, מדרחוב בן יהודה, כיכר ציון, ממילא והעיר העתיקה.",
+    en: "Zahara sits on the ground floor of Nucha Hotel (Nucha by Fattal Colors) on Ben Sira 16 Street — a few minutes' walk from Independence Garden, Ben Yehuda pedestrian mall, Zion Square, Mamilla and the Old City.",
   },
 
   waze:    { he: 'פתחו ב-Waze',        en: 'Open in Waze'         },
@@ -442,8 +442,8 @@ export const location = {
 
   // [HTML] each paragraph opens with <strong>
   infoByCar: {
-    he: '<strong>ברכב:</strong> חניוני ממילא ובנייני האומה במרחק של 5–7 דקות הליכה. בלילה החניה ברחוב בן סירא חופשית.',
-    en: "<strong>By car:</strong> Mamilla and Binyenei HaUma parking structures are 5–7 minutes' walk away. Street parking on Ben Sira is free at night.",
+    he: '<strong>ברכב:</strong> חניוני ממילא ובנייני האומה במרחק של 5–7 דקות הליכה. בלילה החניה ברחוב בן סירא 16 חופשית.',
+    en: "<strong>By car:</strong> Mamilla and Binyenei HaUma parking structures are 5–7 minutes' walk away. Street parking on Ben Sira 16 is free at night.",
   },
 
   infoByTransit: {
@@ -528,8 +528,8 @@ export const contact = {
     en: 'Zahara,<br />and how to find us.',
   },
   aboutLede: {
-    he: "מסעדת שף ים-תיכונית כשרה בקומת הכניסה של מלון נוצ׳ה ברחוב בן סירא, ירושלים. כאן תמצאו את כל הפרטים — איך מגיעים, ואיך ליצור איתנו קשר.",
-    en: 'A kosher Mediterranean chef restaurant on the ground floor of Nucha Hotel, Ben Sira Street, Jerusalem. Everything you need is here — how to reach us, and how to get in touch.',
+    he: "מסעדת שף ים-תיכונית כשרה בקומת הכניסה של מלון נוצ׳ה ברחוב בן סירא 16, ירושלים. כאן תמצאו את כל הפרטים — איך מגיעים, ואיך ליצור איתנו קשר.",
+    en: 'A kosher Mediterranean chef restaurant on the ground floor of Nucha Hotel, Ben Sira 16 Street, Jerusalem. Everything you need is here — how to reach us, and how to get in touch.',
   },
 
   // ── About page: how the space is designed (four seating areas) ──────────────
