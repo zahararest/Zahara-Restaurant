@@ -79,7 +79,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const guests       = String(form.get('guests')       || '').trim();
   const message      = String(form.get('message')      || '').trim();
   const inquiry_type = String(form.get('inquiry_type') || 'general').trim();
-  const isEvent      = inquiry_type === 'event' || !!(event_date || event_type || guests);
+  // Time of day — multi-select checkboxes; keep only the known values.
+  const VALID_TIMES  = ['morning', 'afternoon', 'evening'] as const;
+  const event_times  = form.getAll('event_time')
+    .map(v => String(v).trim())
+    .filter((v): v is typeof VALID_TIMES[number] => (VALID_TIMES as readonly string[]).includes(v));
+  const isEvent      = inquiry_type === 'event' || !!(event_date || event_type || guests || event_times.length);
 
   const isFetch = isFetchRequest(request);
   const isEn    = (request.headers.get('referer') || '').includes('/en/');
@@ -121,6 +126,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!name || !phone || !email) {
     return err('שדות חובה חסרים', 'Required fields missing', 400);
   }
+  // Event inquiries additionally require a date and at least one time of day.
+  // The form enforces this client-side; this is the real gate (no-JS posts).
+  if (inquiry_type === 'event' && (!event_date || event_times.length === 0)) {
+    return err('לאירוע יש לציין תאריך וזמן (בוקר / צהריים / ערב)',
+               'Events require a date and a time of day (morning / afternoon / evening)', 400);
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return err('כתובת אימייל לא תקינה', 'Invalid email address', 400);
   }
@@ -128,9 +139,24 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return err('שדה ארוך מדי', 'Field too long', 400);
   }
 
+  // Owner-facing labels for the raw form values (the email is in English).
+  const TYPE_LABELS: Record<string, string> = {
+    private:    'Private event',
+    business:   'Corporate event',
+    birthday:   'Birthday',
+    barmitzvah: 'Bar/Bat Mitzvah',
+    wedding:    'Wedding',
+    other:      'Other',
+  };
+  const TIME_LABELS: Record<string, string> = {
+    morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening',
+  };
+  const typeLabel  = event_type ? (TYPE_LABELS[event_type] ?? event_type) : '';
+  const timesLabel = event_times.map(t => TIME_LABELS[t]).join(', ');
+
   const heading = isEvent ? 'Event Inquiry — Zahara' : 'Contact — Zahara';
   const subject = isEvent
-    ? `Event inquiry — ${name}${event_type ? ` (${event_type})` : ''}`
+    ? `Event inquiry — ${name}${typeLabel ? ` (${typeLabel})` : ''}`
     : `Contact — ${name}`;
 
   const html = `
@@ -143,7 +169,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         <tr><td style="padding:0.5rem 0;color:#7B7060">Phone</td><td style="padding:0.5rem 0"><a href="tel:${escape(phone)}">${escape(phone)}</a></td></tr>
         <tr><td style="padding:0.5rem 0;color:#7B7060">Email</td><td style="padding:0.5rem 0"><a href="mailto:${escape(email)}">${escape(email)}</a></td></tr>
         ${event_date ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Date</td><td style="padding:0.5rem 0">${escape(event_date)}</td></tr>` : ''}
-        ${event_type ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Type</td><td style="padding:0.5rem 0">${escape(event_type)}</td></tr>` : ''}
+        ${timesLabel ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Time of day</td><td style="padding:0.5rem 0">${escape(timesLabel)}</td></tr>` : ''}
+        ${typeLabel  ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Type</td><td style="padding:0.5rem 0">${escape(typeLabel)}</td></tr>` : ''}
         ${guests    ? `<tr><td style="padding:0.5rem 0;color:#7B7060">Guests</td><td style="padding:0.5rem 0">${escape(guests)}</td></tr>` : ''}
       </table>
       ${message ? `<div style="background:#F5F1EB;padding:1rem 1.25rem;border-left:3px solid #4A5E3D"><strong style="display:block;margin-bottom:0.5rem;color:#7B7060">Message</strong>${escape(message).replace(/\n/g, '<br>')}</div>` : ''}
@@ -153,7 +180,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     heading,
     `Name: ${name}`, `Phone: ${phone}`, `Email: ${email}`,
     event_date ? `Date: ${event_date}` : '',
-    event_type ? `Type: ${event_type}` : '',
+    timesLabel ? `Time of day: ${timesLabel}` : '',
+    typeLabel  ? `Type: ${typeLabel}` : '',
     guests     ? `Guests: ${guests}`   : '',
     message    ? `\nMessage:\n${message}` : '',
   ].filter(Boolean).join('\n');

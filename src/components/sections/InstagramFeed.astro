@@ -507,6 +507,14 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     width: 0;
     background: var(--paper-on-photo);
   }
+  /* The playback fill always grows left→right, matching the real Instagram
+     player — in RTL, inset-inline-start would anchor it right and make the
+     bar fill "backwards", so pin it to the physical left. */
+  html[dir="rtl"] .ig-box__seg-fill {
+    inset-inline-start: auto;
+    left: 0;
+    right: auto;
+  }
 
   /* Story header — gradient avatar ring + handle + relative time, like the app.
      Sits above the tap-zones so it never swallows a tap. */

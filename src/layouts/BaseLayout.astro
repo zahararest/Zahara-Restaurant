@@ -561,11 +561,14 @@ const schema = {
 
     {/* Event tracking — one delegated listener catches every Reserve button
         (Header, hero, footer, info strip, floating CTA — they all link to the
-        Tabit URL), every mailto: link (About "email us"), and every tel: link
-        (About "Call"). Fires GA4 events `reserve_click`, `email_click`, and
-        `phone_click`. Goes through gtag, so it respects Consent Mode
-        automatically. Mark these as "Key events" in GA4 → Admin → Events to
-        count them as conversions / import to Ads. */}
+        Tabit URL), every mailto: link, every tel: link, and every WhatsApp
+        link (wa.me / api.whatsapp.com). Fires GA4 events `reserve_click`,
+        `email_click`, `phone_click`, and `whatsapp_click` — detected by URL,
+        so every placement across the site (header, footer, about, info strip)
+        reports under the same event name with no per-element wiring. Goes
+        through gtag, so it respects Consent Mode automatically. Mark these as
+        "Key events" in GA4 → Admin → Events to count them as conversions /
+        import to Ads. */}
     {gtagId && (
       <script is:inline define:vars={{ reserveUrl: RESTAURANT.reservationUrl }}>
         (function () {
@@ -593,6 +596,11 @@ const schema = {
               gtag('event', 'phone_click', {
                 link_url:  href,
                 link_text: (a.textContent || '').trim().slice(0, 100),
+              });
+            } else if (href.indexOf('wa.me') !== -1 || href.indexOf('api.whatsapp.com') !== -1) {
+              gtag('event', 'whatsapp_click', {
+                link_url:      href,
+                link_location: a.className || '(unclassed)',
               });
             } else if (reserveUrl && href.indexOf(reserveUrl) !== -1) {
               gtag('event', 'reserve_click', {

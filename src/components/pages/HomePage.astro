@@ -178,24 +178,6 @@ const menuPath = path('menu', lang);
 const ctaHrefFor = (tab: 'food' | 'cocktails' | 'dessert') =>
   `${menuPath}#tab-${tab}`;
 
-// Which API slug holds the starred favourites for each menu tile. Food + wine
-// are language-specific; cocktails share one slug across languages.
-const tileSlugFor = (tab: 'food' | 'wine' | 'cocktails' | 'dessert'): string => {
-  if (tab === 'wine')      return lang === 'he' ? 'wine' : 'wine_en';
-  if (tab === 'cocktails') return 'cocktails';
-  if (tab === 'dessert')   return lang === 'he' ? 'dessert' : 'dessert_en';
-  return lang === 'he' ? 'he' : 'en'; // food
-};
-const tileFavesLabel = t.menuTileFavesLabel;
-// Per-section link label ("see the food menu", "see the wine list", …),
-// picked by which tile is opened rather than a single generic "full menu".
-const tileViewFullFor = (tab: 'food' | 'wine' | 'cocktails' | 'dessert') => {
-  if (tab === 'wine')      return t.menuTileViewFullWine;
-  if (tab === 'cocktails') return t.menuTileViewFullCocktails;
-  if (tab === 'dessert')   return t.menuTileViewFullDessert;
-  return t.menuTileViewFullFood;
-};
-
 // Hydration payload for the inline script — keeps only the fields it needs.
 const hydrationPayload = chapters.map((c) => ({
   id:           c.id,
@@ -439,17 +421,13 @@ const emptyLabel = t.emptyLabel;
       <ol class="menu-tiles reveal-on-scroll" style={`--tile-count:${parts.length}`}>
         {parts.map((part, i) => (
           <li class="menu-tiles__item">
-            {/* Click a tile to reveal the chef's starred picks for this part of
-                the menu, with a link through to the full section. Same behaviour
-                on desktop and mobile (no hover-only reveal). */}
-            <div class="menu-tile"
-                 data-menu-tile
-                 data-slug={tileSlugFor(part.tab)}>
-              <button
+            {/* One click goes straight to the matching section of the menu
+                page (the #tab-… hash activates the right category there).
+                Same behaviour on desktop and mobile. */}
+            <div class="menu-tile">
+              <a
                 class="menu-tile__toggle"
-                type="button"
-                aria-expanded="false"
-                aria-controls={`tile-panel-${part.tab}`}
+                href={`${menuPath}#tab-${part.tab}`}
               >
                 <span class="menu-tile__media">
                   <img
@@ -469,16 +447,10 @@ const emptyLabel = t.emptyLabel;
                   <span class="menu-tile__label">{part.label}</span>
                   <span class="menu-tile__go" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                         stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                         stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
                   </span>
                 </span>
-              </button>
-
-              <div class="menu-tile__panel" id={`tile-panel-${part.tab}`} hidden>
-                <p class="menu-tile__panel-eyebrow">{tileFavesLabel}</p>
-                <ul class="menu-tile__faves" data-tile-faves aria-live="polite"></ul>
-                <a class="menu-tile__link" href={`${menuPath}#tab-${part.tab}`}>{tileViewFullFor(part.tab)}</a>
-              </div>
+              </a>
             </div>
           </li>
         ))}
@@ -608,105 +580,6 @@ const emptyLabel = t.emptyLabel;
 
   hydrationPayload.forEach(hydrateChapter);
 
-  // ── Menu tiles — click a tile to reveal the chef's starred picks ──
-  // The picks are the items starred in /admin/menu (featured), capped at 3
-  // per part. Same interaction on desktop + mobile (no hover-only reveal).
-  (function setupMenuTiles() {
-    const tiles = Array.from(document.querySelectorAll('[data-menu-tile]'));
-    if (!tiles.length) return;
-    const MAX_FAVES = 3;
-
-    async function loadFaves(tile) {
-      if (tile.dataset.favesLoaded) return;
-      tile.dataset.favesLoaded = '1';
-      const slug = tile.dataset.slug;
-      const list = tile.querySelector('[data-tile-faves]');
-      const eyebrow = tile.querySelector('.menu-tile__panel-eyebrow');
-      if (!slug || !list) return;
-      try {
-        const data = await fetchMenu(slug);
-        const sections = Array.isArray(data) ? data : (data && data.sections) || [];
-        const items = sections.flatMap((s) => (s && s.items) || []);
-        const featured = items.filter((it) => it && it.featured).slice(0, MAX_FAVES);
-        if (featured.length) {
-          list.innerHTML = featured
-            .map((it) => {
-              const desc = it.description
-                ? `<span class="menu-tile__fave-desc">${esc(it.description)}</span>`
-                : '';
-              // A small editorial card per pick — accent rule on the start
-              // edge, dish name, optional one-line note. No price here; the
-              // full prices live one tap away in the menu.
-              return (
-                `<li class="menu-tile__fave">` +
-                  `<span class="menu-tile__fave-name">${esc(it.name)}</span>` +
-                  desc +
-                `</li>`
-              );
-            })
-            .join('');
-        } else {
-          // Nothing starred — drop the "picks" eyebrow and leave just the link.
-          if (eyebrow) eyebrow.hidden = true;
-          list.innerHTML = '';
-        }
-      } catch (err) {
-        if (eyebrow) eyebrow.hidden = true;
-        console.warn('[menu tiles] picks load failed for', slug, err);
-      }
-    }
-
-    function hideAfterFade(tile, panel) {
-      const hide = () => { if (!tile.classList.contains('is-open')) panel.hidden = true; };
-      panel.addEventListener('transitionend', hide, { once: true });
-      setTimeout(hide, 520);
-    }
-
-    function close(tile) {
-      if (!tile.classList.contains('is-open')) return;
-      tile.classList.remove('is-open');
-      tile.querySelector('.menu-tile__toggle')?.setAttribute('aria-expanded', 'false');
-      const panel = tile.querySelector('.menu-tile__panel');
-      if (panel) hideAfterFade(tile, panel);
-    }
-
-    tiles.forEach((tile) => {
-      const btn   = tile.querySelector('.menu-tile__toggle');
-      const panel = tile.querySelector('.menu-tile__panel');
-      if (!btn || !panel) return;
-      // Prefetch on hover so the first open is instant on desktop.
-      btn.addEventListener('pointerenter', () => loadFaves(tile));
-      btn.addEventListener('click', () => {
-        const willOpen = !tile.classList.contains('is-open');
-        tiles.forEach((t) => { if (t !== tile) close(t); });
-        if (willOpen) {
-          loadFaves(tile);
-          panel.hidden = false;
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => tile.classList.add('is-open')));
-          btn.setAttribute('aria-expanded', 'true');
-        } else {
-          close(tile);
-        }
-      });
-      // Tapping the panel background (anywhere but the link) closes the tile;
-      // the link itself still navigates to the full menu section.
-      panel.addEventListener('click', (e) => {
-        if (e.target.closest('.menu-tile__link')) return;
-        close(tile);
-      });
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') tiles.forEach(close);
-    });
-    // Click anywhere outside the tiles closes any open one.
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('[data-menu-tile]')) return;
-      tiles.forEach(close);
-    });
-  })();
-
   // ── "Our Story" boxes — accordion: opening one closes the others ──
   const storyBoxes = Array.from(document.querySelectorAll('[data-story-box]'));
   storyBoxes.forEach((box) => {
@@ -829,7 +702,8 @@ const emptyLabel = t.emptyLabel;
     display: block;
     color: var(--paper-on-photo);
   }
-  /* The photo + label are a button now (click to reveal the picks). */
+  /* The photo + label are one link — a single click lands on the matching
+     category of the menu page. */
   .menu-tile__toggle {
     position: relative;
     display: block;
@@ -841,6 +715,7 @@ const emptyLabel = t.emptyLabel;
     color: inherit;
     font: inherit;
     text-align: start;
+    text-decoration: none;
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
@@ -936,138 +811,18 @@ const emptyLabel = t.emptyLabel;
     transform: translateY(0.4rem);
     transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out), background 0.25s ease;
   }
-  .menu-tile__go svg { width: 1.05rem; height: 1.05rem; transition: transform 0.35s var(--ease-out); }
+  .menu-tile__go svg { width: 1.05rem; height: 1.05rem; }
+  /* The "go" chevron points into the reading direction — mirror it in RTL. */
+  html[dir="rtl"] .menu-tile__go svg { transform: scaleX(-1); }
   .menu-tile__toggle:hover .menu-tile__img,
   .menu-tile__toggle:focus-visible .menu-tile__img { transform: scale(1.05); }
   .menu-tile__toggle:hover .menu-tile__go,
-  .menu-tile__toggle:focus-visible .menu-tile__go,
-  .menu-tile.is-open .menu-tile__go {
+  .menu-tile__toggle:focus-visible .menu-tile__go {
     opacity: 1;
     transform: translateY(0);
     background: color-mix(in srgb, var(--paper-on-photo) 16%, transparent);
   }
-  /* Chevron flips to point up once the picks are open. */
-  .menu-tile.is-open .menu-tile__go svg { transform: rotate(180deg); }
   .menu-tile__toggle:focus-visible { outline: 2px solid var(--paper-on-photo); outline-offset: 3px; }
-
-  /* ── Picks panel — overlays the photo when the tile is opened ──────── */
-  .menu-tile__panel {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: clamp(1rem, 2.2vw, 1.6rem);
-    background: linear-gradient(to top,
-      color-mix(in srgb, var(--shadow) 88%, transparent) 0%,
-      color-mix(in srgb, var(--shadow) 72%, transparent) 60%,
-      color-mix(in srgb, var(--shadow) 58%, transparent) 100%);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.45s var(--ease-out), visibility 0s linear 0.45s;
-    pointer-events: none;
-  }
-  .menu-tile__panel[hidden] { display: none; }
-  .menu-tile.is-open .menu-tile__panel {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 0.45s var(--ease-out);
-    pointer-events: auto;
-  }
-  .menu-tile__panel-eyebrow {
-    margin: 0;
-    font-family: var(--font-body);
-    font-size: var(--step--2);
-    letter-spacing: 0.24em;
-    text-transform: uppercase;
-    color: var(--tile-num);
-  }
-  .menu-tile__faves {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
-  }
-  /* Each pick is a small editorial card sitting over the photo: a terracotta
-     accent rule on the start edge, a soft paper-glass fill, serif dish name,
-     and an optional one-line note. No price — the full menu is one tap away.
-     Kept restrained (2px radius, 1px border, no shadow) so it still reads as
-     part of the warm paper aesthetic, not a SaaS card. */
-  .menu-tile__fave {
-    position: relative;
-    padding: 0.6rem 0.8rem 0.6rem 0.85rem;
-    border-radius: 2px;
-    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 16%, transparent);
-    border-inline-start: 3px solid var(--accent);
-    background: color-mix(in srgb, var(--paper-on-photo) 9%, transparent);
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-    transition: background 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
-    /* slight stagger-in once the panel opens */
-    opacity: 0;
-    transform: translateY(0.4rem);
-  }
-  .menu-tile.is-open .menu-tile__fave {
-    transition:
-      opacity 0.4s var(--ease-out),
-      transform 0.4s var(--ease-out),
-      background 0.3s var(--ease-out),
-      border-color 0.3s var(--ease-out);
-  }
-  .menu-tile__fave:hover {
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
-    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  }
-  .menu-tile__fave-name {
-    display: block;
-    font-family: var(--font-display);
-    font-size: var(--step-0);
-    line-height: 1.2;
-    color: var(--tile-fave);
-  }
-  .menu-tile__fave-desc {
-    margin-block-start: 0.22rem;
-    font-family: var(--font-body);
-    font-size: var(--step--2);
-    line-height: 1.4;
-    color: color-mix(in srgb, var(--tile-fave) 72%, transparent);
-    /* keep picks compact — one line, never a wall of text on the photo */
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .menu-tile.is-open .menu-tile__fave { opacity: 1; transform: none; }
-  .menu-tile.is-open .menu-tile__fave:nth-child(2) { transition-delay: 0.07s; }
-  .menu-tile.is-open .menu-tile__fave:nth-child(3) { transition-delay: 0.14s; }
-  .menu-tile__fave--empty {
-    font-family: var(--font-body);
-    font-size: var(--step--1);
-    color: color-mix(in srgb, var(--tile-fave) 70%, transparent);
-  }
-  .menu-tile__link {
-    margin-top: auto;
-    align-self: flex-start;
-    font-family: var(--font-body);
-    font-size: var(--step--1);
-    letter-spacing: 0.08em;
-    color: var(--tile-link);
-    text-decoration: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--accent) 80%, transparent);
-    padding-bottom: 1px;
-    transition: border-color 0.25s ease;
-  }
-  .menu-tile__link:hover { border-bottom-color: var(--tile-link); }
-  @media (prefers-reduced-motion: reduce) {
-    .menu-tile__panel,
-    .menu-tile__fave,
-    .menu-tile__go svg { transition: none; }
-    .menu-tile__fave { opacity: 1; transform: none; }
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .menu-tile__img { transform: none !important; transition: none; }

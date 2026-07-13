@@ -115,6 +115,19 @@ const updatedLbl  = t.updatedLabel;
   const esc = s => String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+  // ── GA4 ─────────────────────────────────────────────────────
+  // Queued through dataLayer so it works whatever the script order, is a
+  // no-op when no Google tag is configured, and respects Consent Mode.
+  function gaEvent() {
+    try {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push(arguments);
+    } catch { /* analytics must never break the menu */ }
+  }
+  // Someone opened the menu — explicit event (page_view exists too, but this
+  // one is easy to mark as a key event and carries the language).
+  gaEvent('event', 'menu_view', { page_lang: pageLang });
+
   // ── Date format ─────────────────────────────────────────────
   function formatDate(iso) {
     if (!iso) return '';
@@ -281,6 +294,15 @@ const updatedLbl  = t.updatedLabel;
     if (!btn) return;
     const slug = btn.dataset.slug ?? '';
     const kind = btn.dataset.kind ?? 'list';
+
+    // GA4 — the visitor moved to another menu. Only on a real change:
+    // re-clicking the already-active tab is not a switch.
+    if (!btn.classList.contains('is-active')) {
+      gaEvent('event', 'menu_category_change', {
+        menu_category: btn.dataset.tabId || slug,
+        page_lang:     pageLang,
+      });
+    }
 
     // Sync tab bar active state.
     tabBtns.forEach((t, i) => {

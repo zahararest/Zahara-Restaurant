@@ -27,11 +27,21 @@ const t        = pick(copy, lang);
 const isEvent = defaultMode === 'event';
 
 const eventTypes: { value: string; label: string }[] = [
-  { value: '',         label: t.typeChoose   },
-  { value: 'private',  label: t.typePrivate  },
-  { value: 'business', label: t.typeBusiness },
-  { value: 'birthday', label: t.typeBirthday },
-  { value: 'other',    label: t.typeOther    },
+  { value: '',           label: t.typeChoose     },
+  { value: 'private',    label: t.typePrivate    },
+  { value: 'business',   label: t.typeBusiness   },
+  { value: 'birthday',   label: t.typeBirthday   },
+  { value: 'barmitzvah', label: t.typeBarMitzvah },
+  { value: 'wedding',    label: t.typeWedding    },
+  { value: 'other',      label: t.typeOther      },
+];
+
+// Time-of-day for the event — multi-select, none pre-checked, and required
+// in event mode (client check below + server check in functions/api/contact.ts).
+const eventTimes: { value: string; label: string }[] = [
+  { value: 'morning',   label: t.whenMorning   },
+  { value: 'afternoon', label: t.whenAfternoon },
+  { value: 'evening',   label: t.whenEvening   },
 ];
 ---
 
@@ -112,7 +122,7 @@ const eventTypes: { value: string; label: string }[] = [
             <div class="form__row form__row--2">
               <div class="field">
                 <label for="event_date">{t.fieldDate}</label>
-                <input id="event_date" name="event_date" type="date" />
+                <input id="event_date" name="event_date" type="date" required={isEvent} data-event-required />
               </div>
               <div class="field">
                 <label for="guests">{t.fieldGuests}</label>
@@ -126,6 +136,24 @@ const eventTypes: { value: string; label: string }[] = [
                 {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
+
+            {/* Time of day — multi-select checkboxes, nothing pre-checked.
+                Mandatory in event mode: the submit handler blocks the send
+                until at least one is ticked (server re-checks for no-JS). */}
+            <fieldset class="field field--when" data-when-group>
+              <legend class="field__legend">
+                {t.fieldWhen}
+                <span class="field__hint">· {t.fieldWhenHint}</span>
+              </legend>
+              <div class="when-choices">
+                {eventTimes.map(opt => (
+                  <label class="when-choice">
+                    <input type="checkbox" name="event_time" value={opt.value} />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </div>
         )}
 
@@ -171,6 +199,82 @@ const eventTypes: { value: string; label: string }[] = [
 <style>
   /* Cloudflare Turnstile widget — breathing room above the submit button. */
   .form__turnstile { margin-block: 0.25rem 0.5rem; }
+
+  /* Time-of-day group — a fieldset dressed as a .field. The legend mirrors
+     the .field label treatment; the checkboxes are square, 1px-ruled paper
+     tiles that fill with the accent when ticked. No pills, no rounding. */
+  .field--when {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-inline-size: 0;
+  }
+  .field__legend {
+    padding: 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .field__hint {
+    letter-spacing: 0.02em;
+    text-transform: none;
+    font-weight: 400;
+  }
+  .when-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2rem;
+  }
+  .when-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding-block: 0.4rem;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .when-choice input {
+    -webkit-appearance: none;
+    appearance: none;
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
+    padding: 0;
+    margin: 0;
+    flex: none;
+    display: grid;
+    place-content: center;
+    background: var(--paper-card);
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .when-choice input::before {
+    content: '';
+    inline-size: 0.62rem;
+    block-size: 0.62rem;
+    background: var(--paper-card);
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    transform: scale(0);
+    transition: transform 0.15s var(--ease-out, ease-out);
+  }
+  .when-choice input:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .when-choice input:checked::before { transform: scale(1); }
+  .when-choice input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .field--when.is-error .when-choice input { border-color: var(--err); }
+  @media (prefers-reduced-motion: reduce) {
+    .when-choice input,
+    .when-choice input::before { transition: none; }
+  }
 </style>
 
 {/* Cloudflare Turnstile loader — only when a site key is configured. The
@@ -186,6 +290,8 @@ const eventTypes: { value: string; label: string }[] = [
   msgErrNetwork: t.statusErrNetwork,
   msgErrGeneral: t.statusErrGeneral,
   msgErrEmail:   t.statusErrEmail,
+  msgErrWhen:    t.statusErrWhen,
+  pageLang:      lang,
 }}>
   // ── Mode toggle (general / event) ─────────────────────────────────────────
   const toggleBtns   = Array.from(document.querySelectorAll('[data-contact-mode]'));
@@ -216,6 +322,11 @@ const eventTypes: { value: string; label: string }[] = [
     if (submitBtn) submitBtn.textContent = mode === 'event'
       ? submitBtn.dataset.submitEvent : submitBtn.dataset.submitGeneral;
     if (inquiryInput) inquiryInput.value = mode;
+    // Date is mandatory only for event inquiries — a hidden required field
+    // would silently block the general form, so requiredness follows the mode.
+    document.querySelectorAll('[data-event-required]').forEach((el) => {
+      el.required = mode === 'event';
+    });
     // Reposition the sliding indicator under the new active tab.
     requestAnimationFrame(positionIndicator);
   }
@@ -265,6 +376,18 @@ const eventTypes: { value: string; label: string }[] = [
   }
 
   if (form && status) {
+    // Ticking any time-of-day box clears its error state immediately.
+    const whenGroup = form.querySelector('[data-when-group]');
+    form.querySelectorAll('input[name="event_time"]').forEach((box) => {
+      box.addEventListener('change', () => {
+        whenGroup?.classList.remove('is-error');
+        if (status.textContent === msgErrWhen) {
+          status.textContent = '';
+          status.className   = 'form-status';
+        }
+      });
+    });
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -280,6 +403,21 @@ const eventTypes: { value: string; label: string }[] = [
         return;
       }
 
+      // Event inquiries must pick at least one time of day. Checkbox groups
+      // have no native "one of these" constraint, so gate here; the server
+      // enforces the same rule for no-JS submissions.
+      const mode = inquiryInput ? inquiryInput.value : 'general';
+      if (mode === 'event') {
+        const whenBoxes = Array.from(form.querySelectorAll('input[name="event_time"]'));
+        if (whenBoxes.length && !whenBoxes.some((b) => b.checked)) {
+          status.textContent = msgErrWhen;
+          status.className   = 'form-status err';
+          whenGroup?.classList.add('is-error');
+          whenBoxes[0].focus();
+          return;
+        }
+      }
+
       status.textContent = msgSending;
       status.className   = 'form-status';
 
@@ -288,6 +426,17 @@ const eventTypes: { value: string; label: string }[] = [
         if (res.ok) {
           status.textContent = msgSuccess;
           status.className   = 'form-status ok';
+          // GA4 — a *successful* send, unlike the auto-collected form_submit
+          // which fires on the attempt. Queued via dataLayer so it works
+          // regardless of script order and respects Consent Mode.
+          try {
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){ dataLayer.push(arguments); }
+            gtag('event', 'contact_form_submit', {
+              inquiry_type: mode,
+              page_lang:    pageLang,
+            });
+          } catch { /* analytics must never break the form */ }
           form.reset();
         } else {
           const text = await res.text();

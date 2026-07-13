@@ -101,7 +101,7 @@ export const global = {
 
 export const home = {
   heroEyebrow:      { he: 'מסעדת שף · ירושלים',  en: 'Chef restaurant · Jerusalem' },
-  heroHeadline:     { he: 'הזרע המופלא של',       en: "Angelica's"                  },
+  heroHeadline:     { he: '',       en: ""                  },
   heroTitleMark:    { he: 'זהרה Zahara',          en: 'younger sister.'             },
 
   // [HTML] contains <em>
@@ -119,7 +119,7 @@ export const home = {
     en: 'Zahara | Kosher chef restaurant in Jerusalem',
   },
   pageDescription:{ he: 'מסעדת זהרה — מסעדת שף כשרה בלב ירושלים, במלון נוצ׳ה ברחוב בן סירא. אחותה הצעירה של אנג׳ליקה, בהובלת השף רועי אחדות. מטבח ים-תיכוני עכשווי בטכניקה צרפתית עם השפעות אסייתיות, מנות לשיתוף. הזמינו מקום לארוחת ערב כשרה בלב ירושלים.',
-                    en: 'Zahara Restaurant — a kosher chef\'s restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica\'s younger sister, led by chef Roi Achdut. Contemporary Mediterranean kitchen, French technique, Asian influences, plates for sharing. Book your table.' },
+                    en: "Zahara Restaurant — a kosher chef's restaurant in the heart of Jerusalem, inside Nucha Hotel on Ben Sira Street. Angelica's younger sister, led by chef Roi Achdut. Contemporary Mediterranean kitchen, French technique, Asian influences, plates for sharing. Book your table." },
   kitchenCaption: { he: 'המטבח של זהרה',   en: 'The Zahara kitchen' },
   secHero:        { he: 'בית',             en: 'Open'            },
   secStory:       { he: 'סיפור',           en: 'Story'           },
@@ -601,11 +601,19 @@ export const contact = {
   fieldGuests:  { he: 'מספר סועדים',    en: 'Guest count'       },
   fieldMessage: { he: 'פרטים נוספים',   en: 'Additional details' },
 
-  typeChoose:   { he: 'בחרו...',        en: 'Choose...'         },
-  typePrivate:  { he: 'אירוע פרטי',     en: 'Private event'     },
-  typeBusiness: { he: 'אירוע עסקי',     en: 'Corporate event'   },
-  typeBirthday: { he: 'יום הולדת',      en: 'Birthday'          },
-  typeOther:    { he: 'אחר',            en: 'Other'             },
+  fieldWhen:     { he: 'זמן האירוע',            en: 'Time of day'                 },
+  fieldWhenHint: { he: 'אפשר לבחור יותר מאחד',  en: 'You can choose more than one' },
+  whenMorning:   { he: 'בוקר',                  en: 'Morning'                     },
+  whenAfternoon: { he: 'צהריים',                en: 'Afternoon'                   },
+  whenEvening:   { he: 'ערב',                   en: 'Evening'                     },
+
+  typeChoose:     { he: 'בחרו...',        en: 'Choose...'         },
+  typePrivate:    { he: 'אירוע פרטי',     en: 'Private event'     },
+  typeBusiness:   { he: 'אירוע עסקי',     en: 'Corporate event'   },
+  typeBirthday:   { he: 'יום הולדת',      en: 'Birthday'          },
+  typeBarMitzvah: { he: 'בר/בת מצווה',    en: 'Bar/Bat Mitzvah'   },
+  typeWedding:    { he: 'חתונה',          en: 'Wedding'           },
+  typeOther:      { he: 'אחר',            en: 'Other'             },
 
   submitGeneral: { he: 'שליחת פנייה',  en: 'Send message' },
   submitEvent:   { he: 'שליחת פנייה',  en: 'Send inquiry' },
@@ -615,6 +623,7 @@ export const contact = {
   statusErrNetwork: { he: 'שגיאת רשת. נסו שוב.',                                  en: 'Network error. Please try again.'              },
   statusErrGeneral: { he: 'שגיאה בשליחה. נסו שוב או חייגו אלינו.',               en: 'Something went wrong. Please try again or call us.' },
   statusErrEmail:   { he: 'כתובת אימייל לא תקינה. בדקו ונסו שוב.',               en: 'Please enter a valid email address.'           },
+  statusErrWhen:    { he: 'בחרו זמן לאירוע — בוקר, צהריים או ערב.',              en: 'Please choose a time of day — morning, afternoon or evening.' },
 
   benefitPrivate: { he: 'חדר פרטי לקבוצות אינטימיות',     en: 'Private room for intimate groups' },
   benefitChef:    { he: 'התפריט נבנה אישית עם השף',        en: 'Menu built personally with the chef' },
