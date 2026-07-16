@@ -15,7 +15,10 @@
 
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { readPalette, paletteToCss, type PaletteEnv } from './data/palette';
-import { readContent, contentToJson, readAssetVersion, type ContentEnv } from './data/content';
+import {
+  readContent, contentToJson, readAssetVersion,
+  readPopupConfig, popupActive, type ContentEnv,
+} from './data/content';
 
 const ASSET_VERSION_TOKEN = '__ZASSETV__';
 
@@ -29,31 +32,40 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('text/html')) return response;
 
-  // Palette, editable copy, and the asset version — three tiny KV reads run
-  // together so the added latency stays a single round trip.
-  const [palette, content, assetVersion] = await Promise.all([
+  // Palette, editable copy, the asset version, and the popup switch — four
+  // tiny KV reads run together so the added latency stays a single round trip.
+  const [palette, content, assetVersion, popupCfg] = await Promise.all([
     readPalette(ctx.env),
     readContent(ctx.env),
     readAssetVersion(ctx.env),
+    readPopupConfig(ctx.env),
   ]);
 
   const css        = paletteToCss(palette);
   const hasContent = Object.keys(content).length > 0;
+  // The entry popup: its shell ships in every page's static HTML, but it only
+  // activates when this marker tag is present — i.e. the owner has it turned
+  // on in /admin/content → Popup and any auto-hide window hasn't ended.
+  const popupOn    = popupActive(popupCfg);
 
-  // Inject the palette + content tags into <head> (when present).
+  // Inject the palette + content + popup tags into <head> (when present).
   let res = response;
-  if (css || hasContent) {
+  if (css || hasContent || popupOn) {
     const styleTag = css
       ? `<style id="zahara-palette-server" data-zahara-palette>${css}</style>`
       : '';
     const contentTag = hasContent
       ? `<script id="zahara-content" type="application/json">${contentToJson(content)}</script>`
       : '';
+    const popupTag = popupOn
+      ? `<script id="zahara-popup" type="application/json">{"active":true}</script>`
+      : '';
     res = new HTMLRewriter()
       .on('head', {
         element(el) {
           if (styleTag)   el.append(styleTag,   { html: true });
           if (contentTag) el.append(contentTag, { html: true });
+          if (popupTag)   el.append(popupTag,   { html: true });
         },
       })
       .transform(res);

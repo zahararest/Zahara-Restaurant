@@ -56,7 +56,7 @@ export interface ContentGroup { title: string; note?: string; page: PageId; fiel
 /** Which site page a group of copy belongs to. Drives the page tabs in the
  *  /admin/content editor (one button per page, like the Menu editor's tabs)
  *  so the owner edits one page's text at a time instead of one long scroll. */
-export type PageId = 'home' | 'about' | 'events' | 'menu' | 'privacy' | 'accessibility';
+export type PageId = 'home' | 'about' | 'events' | 'menu' | 'privacy' | 'accessibility' | 'popup';
 
 export interface PageTab { id: PageId; label: string; }
 
@@ -68,6 +68,7 @@ export const CONTENT_PAGES: PageTab[] = [
   { id: 'menu',          label: 'Menu' },
   { id: 'privacy',       label: 'Privacy' },
   { id: 'accessibility', label: 'Accessibility' },
+  { id: 'popup',         label: 'Popup' },
 ];
 
 /** Gallery photo keys that get an editable caption. Mirrors the gallery in
@@ -231,6 +232,19 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'accessibility.eyebrow', label: 'Eyebrow', he: 'נגישות', en: 'Accessibility' },
     { key: 'accessibility.heading', label: 'Heading', he: 'הצהרת נגישות', en: 'Accessibility statement' },
   ] },
+
+  // ── Entry popup (site-wide announcement) ────────────────────────────────────
+  // Defaults mirror `popup` in src/data/i18n.ts — keep the two in sync.
+  // Whether the popup shows at all is a separate on/off + days setting stored
+  // under __popup__ (see readPopupConfig below) and edited on the same tab.
+  { title: 'Entry popup', page: 'popup',
+    note: 'Shown on every page load, over every page of the site.', fields: [
+    { key: 'popup.title', label: 'Title',
+      he: 'עדכון לגבי תשעת הימים', en: 'Update regarding the Nine Days' },
+    { key: 'popup.body', label: 'Text', multiline: true,
+      he: 'הכנו תפריט מיוחד לתשעת הימים — הוא יעלה לאתר בימים הקרובים.',
+      en: 'We have prepared a special menu for the Nine Days — it will be published here in the coming days.' },
+  ] },
 ];
 
 /** Every key the editor (and gallery captions) may write. Anything outside
@@ -356,4 +370,57 @@ export async function bumpAssetVersion(env: ContentEnv): Promise<void> {
  *  contain `</script>`). */
 export function contentToJson(map: ContentMap): string {
   return JSON.stringify(map).replace(/</g, '\\u003c');
+}
+
+// ── Entry popup visibility ─────────────────────────────────────────────────
+// One small KV record (`__popup__`) deciding whether the site-wide entry
+// popup is shown. The popup's TEXT lives in the normal content map above
+// (popup.title / popup.body); this record is only the on/off switch and the
+// optional auto-hide window:
+//   enabled — the owner's switch.
+//   days    — 0 = no time limit; N = hide automatically N days after the
+//             save that turned the popup on (or changed N).
+//   until   — the absolute hide timestamp (ms), computed at save time so
+//             every request can check it with plain comparison.
+// No record yet (fresh deploy) defaults to ENABLED with no time limit — the
+// popup ships live; turning it off in /admin/content writes an explicit off.
+
+const POPUP_KEY = '__popup__';
+
+export interface PopupConfig { enabled: boolean; days: number; until: number; }
+
+export const POPUP_DEFAULT: PopupConfig = { enabled: true, days: 0, until: 0 };
+
+export function sanitisePopupConfig(raw: unknown): PopupConfig {
+  if (!raw || typeof raw !== 'object') return { ...POPUP_DEFAULT };
+  const o = raw as Record<string, unknown>;
+  const enabled = typeof o.enabled === 'boolean' ? o.enabled : POPUP_DEFAULT.enabled;
+  const days = typeof o.days === 'number' && isFinite(o.days)
+    ? Math.min(365, Math.max(0, Math.round(o.days))) : 0;
+  const until = typeof o.until === 'number' && isFinite(o.until) && o.until > 0
+    ? Math.round(o.until) : 0;
+  return { enabled, days, until };
+}
+
+/** Is the popup currently shown to visitors? */
+export function popupActive(cfg: PopupConfig, now = Date.now()): boolean {
+  return cfg.enabled && (cfg.days <= 0 || (cfg.until > 0 && now < cfg.until));
+}
+
+export async function readPopupConfig(env: ContentEnv): Promise<PopupConfig> {
+  const kv = pickKv(env);
+  if (!kv) return { ...POPUP_DEFAULT };
+  try {
+    const raw = await kv.get(POPUP_KEY);
+    return raw ? sanitisePopupConfig(JSON.parse(raw)) : { ...POPUP_DEFAULT };
+  } catch {
+    return { ...POPUP_DEFAULT };
+  }
+}
+
+export async function writePopupConfig(env: ContentEnv, cfg: PopupConfig): Promise<boolean> {
+  const kv = pickKv(env);
+  if (!kv) return false;
+  await kv.put(POPUP_KEY, JSON.stringify(sanitisePopupConfig(cfg)));
+  return true;
 }

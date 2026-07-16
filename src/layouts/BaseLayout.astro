@@ -5,6 +5,7 @@ import Footer        from '../components/Footer.astro';
 import Motion        from '../components/Motion.astro';
 import Accessibility from '../components/Accessibility.astro';
 import ConsentBanner from '../components/ConsentBanner.astro';
+import AnnouncementPopup from '../components/AnnouncementPopup.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
 import type { PhotoEntry } from '../data/photos';
@@ -463,6 +464,13 @@ const schema = {
       <slot />
     </main>
     <Footer lang={lang} />
+
+    {/* Entry announcement popup — owner-controlled in /admin/content → Popup.
+        Ships hidden; activates only when the middleware injected the
+        #zahara-popup marker. Placed BEFORE the editable-copy overlay script
+        below so the owner's saved title/text is applied to it like any other
+        [data-content-key] element. */}
+    <AnnouncementPopup lang={lang} />
 
     {/* Persistent floating Reserve CTA — the primary action, lifted out of
         the header so it's always one tap away. Sits at the inline-end

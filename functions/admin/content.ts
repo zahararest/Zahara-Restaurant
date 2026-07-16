@@ -10,6 +10,7 @@ import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContent,
+  readPopupConfig, popupActive, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField,
 } from '../data/content';
 
@@ -95,6 +96,20 @@ const STYLE = `
     border: 1px solid #1a1410; cursor: pointer; }
   .btn:hover { background: #9C4621; border-color: #9C4621; }
   .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  /* Popup tab — visibility controls (on/off switch + auto-hide days). */
+  .popup-vis { display: grid; gap: 0.9rem; }
+  .popup-vis__row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.55rem;
+    font-size: 0.9rem; font-weight: 600; }
+  .popup-vis__row input[type="checkbox"] { width: 1.1rem; height: 1.1rem;
+    accent-color: #9C4621; cursor: pointer; }
+  .popup-vis__days input { font: inherit; font-size: 0.86rem; width: 4.5rem;
+    padding: 0.4rem 0.5rem; border: 1px solid #D5CBB1; background: #fff;
+    color: #1a1410; border-radius: 0; text-align: center; }
+  .popup-vis__days input:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
+  .popup-vis__hint { color: #9a8d77; font-weight: 400; font-size: 0.8rem; }
+  .popup-vis__status { margin: 0; font-size: 0.85rem; color: #6f6457;
+    padding: 0.55rem 0.75rem; background: #f1e9d6; border: 1px solid #e3d7b8; }
+  .popup-vis__status--on { color: #4f6b47; }
 `;
 
 const SCRIPT = `
@@ -154,10 +169,21 @@ const SCRIPT = `
       saveBtn.disabled = true;
       setStatus('Saving…', false);
       try {
+        // The popup's on/off + days controls (Popup tab) ride along with the
+        // text map; the save endpoint stores them in their own KV record.
+        var payload = { map: collect() };
+        var popupEnabledEl = document.getElementById('popup-enabled');
+        var popupDaysEl    = document.getElementById('popup-days');
+        if (popupEnabledEl && popupDaysEl) {
+          payload.popup = {
+            enabled: popupEnabledEl.checked,
+            days: Math.max(0, Math.round(parseFloat(popupDaysEl.value) || 0)),
+          };
+        }
         var res = await fetch('/admin/content/save', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ map: collect() }),
+          body: JSON.stringify(payload),
         });
         var data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Save failed');
@@ -213,10 +239,53 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
     </div>`;
 }
 
+// The Visibility section shown at the top of the Popup tab — an on/off
+// switch, the auto-hide day count, and a plain-words status line so the
+// owner can see at a glance whether visitors currently get the popup.
+function popupVisHtml(cfg: PopupConfig): string {
+  const active = popupActive(cfg);
+  const fmt = (ms: number) => new Date(ms).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+  });
+  let status: string;
+  if (active) {
+    status = cfg.days > 0
+      ? `The popup is ON — it hides itself automatically on ${fmt(cfg.until)}.`
+      : 'The popup is ON — visitors see it until you turn it off.';
+  } else if (cfg.enabled && cfg.days > 0 && cfg.until) {
+    status = `The ${cfg.days}-day window ended on ${fmt(cfg.until)} — the popup is hidden. `
+      + 'Tick “Show the popup” and save to start a new window.';
+  } else {
+    status = 'The popup is OFF — visitors don’t see it.';
+  }
+  return `
+    <section class="group">
+      <header class="group__head">
+        <h2>Visibility</h2>
+        <small>Applies when you press Save changes.</small>
+      </header>
+      <div class="popup-vis">
+        <label class="popup-vis__row">
+          <input type="checkbox" id="popup-enabled"${active ? ' checked' : ''}>
+          <span>Show the popup</span>
+        </label>
+        <label class="popup-vis__row popup-vis__days">
+          <span>Hide automatically after</span>
+          <input type="number" id="popup-days" min="0" max="365" step="1" value="${cfg.days}">
+          <span>days</span>
+          <span class="popup-vis__hint">0 = no time limit. The countdown starts from the save
+            that turns the popup on or changes the number of days.</span>
+        </label>
+        <p class="popup-vis__status${active ? ' popup-vis__status--on' : ''}">${esc(status)}</p>
+      </div>
+    </section>`;
+}
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return unauthorized();
 
-  const overrides = await readContent(env);
+  const [overrides, popupCfg] = await Promise.all([readContent(env), readPopupConfig(env)]);
 
   const groupHtml = (g: (typeof CONTENT_GROUPS)[number]) => `
     <section class="group">
@@ -227,13 +296,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       ${g.fields.map((f) => fieldHtml(f, overrides[f.key])).join('')}
     </section>`;
 
-  // One tab + one panel per page. Pages with no groups are skipped.
+  // One tab + one panel per page. Pages with no groups are skipped. The
+  // Popup tab additionally gets the Visibility controls above its text fields.
   const pages = CONTENT_PAGES.filter((p) => CONTENT_GROUPS.some((g) => g.page === p.id));
   const tabsHtml = pages.map((p) =>
     `<button class="pagetab" type="button" role="tab" data-page-tab="${esc(p.id)}">${esc(p.label)}</button>`
   ).join('');
   const pagesHtml = pages.map((p) => `
     <div class="page" data-page="${esc(p.id)}" role="tabpanel">
+      ${p.id === 'popup' ? popupVisHtml(popupCfg) : ''}
       ${CONTENT_GROUPS.filter((g) => g.page === p.id).map(groupHtml).join('')}
     </div>`).join('');
 

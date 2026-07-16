@@ -1,0 +1,197 @@
+---
+// Entry announcement — one owner-controlled notice, shown on every page load
+// of every page (the owner wants it unmissable while it's on; there is no
+// per-visitor dismissed state).
+//
+// Design note: pillar 6 ("deliberately absent") forbids entry modals; this
+// exists because the owner explicitly asked for a temporary holiday
+// announcement. So it takes the most editorial form a modal can: a paper
+// panel with a 1px rule edge (no shadow), an accent hairline over a serif
+// display title, sans body copy, a slow fade-up (camera, not interface),
+// and a quiet exit — ×, backdrop, or Escape. Reduced motion gets a plain
+// short fade.
+//
+// The shell ships in every page's static HTML but stays hidden. It only
+// activates when the middleware injected the #zahara-popup marker tag —
+// i.e. the owner turned the popup on in /admin/content → Popup and any
+// auto-hide window (N days) hasn't ended. Title/body carry data-content-key
+// attributes, so the standard editable-copy overlay in BaseLayout applies
+// the owner's saved text before this ever becomes visible.
+
+import { pick, popup as copy } from '../data/i18n';
+import type { Lang } from '../data/i18n';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = pick(copy, lang);
+---
+
+<div id="zahara-announce" class="announce" hidden>
+  <div class="announce__scrim" data-announce-close></div>
+  <aside class="announce__panel" role="dialog" aria-modal="true"
+         aria-labelledby="announce-title" tabindex="-1">
+    <button class="announce__close" type="button" data-announce-close
+            aria-label={c.close}>&times;</button>
+    <h2 class="announce__title" id="announce-title" data-content-key="popup.title">{c.title}</h2>
+    <p class="announce__body" data-content-key="popup.body">{c.body}</p>
+  </aside>
+</div>
+
+<script is:inline>
+  (function () {
+    var root = document.getElementById('zahara-announce');
+    if (!root) return;
+    // Owner switch — the middleware only injects this tag while the popup is on.
+    // No dismissed/seen state is kept: the owner wants the notice on EVERY
+    // page load (refresh included), not once per visit.
+    if (!document.getElementById('zahara-popup')) return;
+
+    var panel = root.querySelector('.announce__panel');
+    var prevFocus = null, prevOverflow = '';
+
+    function onKey(e) {
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key !== 'Tab') return;
+      // Minimal focus trap — keep Tab inside the dialog while it's open.
+      var f = panel.querySelectorAll('button, a[href]');
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      else if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    }
+
+    function open() {
+      prevFocus = document.activeElement;
+      prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      root.hidden = false;
+      // Two frames so the element is laid out before the fade-in runs.
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          root.classList.add('is-open');
+          panel.focus();
+        });
+      });
+      document.addEventListener('keydown', onKey, true);
+    }
+
+    function close() {
+      document.removeEventListener('keydown', onKey, true);
+      document.body.style.overflow = prevOverflow;
+      root.classList.remove('is-open');
+      var done = function () { root.hidden = true; };
+      // Drop from the a11y tree after the fade; fall back if no transition runs.
+      var t = setTimeout(done, 900);
+      root.addEventListener('transitionend', function () { clearTimeout(t); done(); }, { once: true });
+      if (prevFocus && prevFocus.focus) { try { prevFocus.focus(); } catch (_) {} }
+    }
+
+    root.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('[data-announce-close]')) close();
+    });
+
+    // Let the page paint and settle first, then fade the notice in.
+    setTimeout(open, 600);
+  })();
+</script>
+
+<style>
+  .announce {
+    position: fixed;
+    inset: 0;
+    /* Above the consent bar (70), below the accessibility toolkit (90+). */
+    z-index: 85;
+    display: grid;
+    place-items: center;
+    padding: var(--space-m);
+  }
+  .announce[hidden] { display: none; }
+
+  .announce__scrim {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--shadow) 45%, transparent);
+    opacity: 0;
+    transition: opacity 0.8s var(--ease-out);
+  }
+
+  .announce__panel {
+    position: relative;
+    width: min(30rem, 100%);
+    background: var(--paper-card);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: var(--space-l);
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity   0.8s var(--ease-out),
+      transform 0.8s var(--ease-out);
+  }
+  .announce__panel:focus { outline: none; }
+  /* The eyebrow-style accent hairline over the title. */
+  .announce__panel::before {
+    content: '';
+    display: block;
+    width: 1.6rem;
+    height: 1px;
+    background: var(--accent);
+    margin-block-end: var(--space-s);
+  }
+
+  .announce.is-open .announce__scrim { opacity: 1; }
+  .announce.is-open .announce__panel { opacity: 1; transform: translateY(0); }
+
+  .announce__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--step-3);
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -0.018em;
+    color: var(--ink);
+  }
+
+  .announce__body {
+    margin: var(--space-s) 0 0;
+    max-width: 44ch;
+    font-size: var(--step-0);
+    font-weight: 300;
+    line-height: 1.65;
+    color: var(--ink-soft);
+  }
+
+  .announce__close {
+    position: absolute;
+    inset-block-start: var(--space-2xs);
+    inset-inline-end: var(--space-2xs);
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+    display: grid;
+    place-items: center;
+    font: inherit;
+    font-size: var(--step-1);
+    line-height: 1;
+    background: transparent;
+    border: none;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: color 0.3s var(--ease-out);
+  }
+  .announce__close:hover { color: var(--ink); }
+
+  @media (max-width: 600px) {
+    .announce { padding: var(--space-s); }
+    .announce__panel { padding: var(--space-m); padding-block-start: var(--space-l); }
+  }
+
+  /* Camera, not interface — honour reduced motion: no lift, just a short fade. */
+  @media (prefers-reduced-motion: reduce) {
+    .announce__scrim,
+    .announce__panel {
+      transform: none;
+      transition: opacity 0.2s linear;
+    }
+  }
+</style>

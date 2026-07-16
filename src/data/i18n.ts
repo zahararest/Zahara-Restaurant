@@ -476,6 +476,21 @@ export const consent = {
   ariaLabel: { he: 'הודעת עוגיות',     en: 'Cookie notice'  },
 };
 
+// ── Entry announcement popup ─────────────────────────────────────────────────
+// Default copy only — the live text is owner-editable in /admin/content →
+// Popup (keys popup.title / popup.body; keep these defaults in sync with
+// functions/data/content.ts). Whether it shows at all is decided server-side:
+// the middleware injects a #zahara-popup tag only while the owner has it on.
+
+export const popup = {
+  title: { he: 'עדכון לגבי תשעת הימים', en: 'Update regarding the Nine Days' },
+  body:  {
+    he: 'הכנו תפריט מיוחד לתשעת הימים — הוא יעלה לאתר בימים הקרובים.',
+    en: 'We have prepared a special menu for the Nine Days — it will be published here in the coming days.',
+  },
+  close: { he: 'סגירת ההודעה', en: 'Close this notice' },
+};
+
 // ── Menu page ─────────────────────────────────────────────────────────────────
 
 export const menu = {
