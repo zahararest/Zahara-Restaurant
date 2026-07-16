@@ -603,14 +603,17 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     transition: opacity 0.2s ease, background 0.2s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .ig-box__nav--prev { inset-inline-start: 0.5rem; }
-  .ig-box__nav--next { inset-inline-end: 0.5rem; }
+  /* The story timeline is deliberately LTR in BOTH languages (see the segs
+     comment above — the real Instagram player doesn't mirror story progress
+     in RTL). So the arrows are pinned PHYSICALLY, not logically: back (←) on
+     the left, forward (→) on the right, exactly like the app. Logical
+     inset-inline-* would swap the buttons in Hebrew and leave a right-pointing
+     arrow that steps backwards against the bars. */
+  .ig-box__nav--prev { left: 0.5rem; }
+  .ig-box__nav--next { right: 0.5rem; }
   .ig-box__nav svg { width: 1rem; height: 1rem; }
   .ig-box__nav:hover { opacity: 1; background: color-mix(in srgb, var(--accent) 88%, transparent); }
   .ig-box__nav:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* In RTL the chevron glyph mirrors so "previous" still points the natural
-     way (the inset-inline-* already swaps which edge each control sits on). */
-  html[dir="rtl"] .ig-box__nav svg { transform: scaleX(-1); }
 
   /* Bottom cue — shows what a tap opens. Non-interactive (the whole box is the
      link), so pointer-events are off and clicks fall through to the box. */

@@ -40,6 +40,7 @@ export const header = {
   instagramAria: { he: 'אינסטגרם',      en: 'Instagram'       },
   facebookAria:  { he: 'פייסבוק',       en: 'Facebook'        },
   whatsappAria:  { he: 'וואטסאפ',        en: 'WhatsApp'        },
+  phoneAria:     { he: 'חיוג למסעדה',   en: 'Call the restaurant' },
 };
 
 // ── Footer ───────────────────────────────────────────────────────────────────
@@ -488,7 +489,7 @@ export const popup = {
     he: 'הכנו תפריט מיוחד לתשעת הימים — הוא יעלה לאתר בימים הקרובים.',
     en: 'We have prepared a special menu for the Nine Days — it will be published here in the coming days.',
   },
-  close: { he: 'סגירת ההודעה', en: 'Close this notice' },
+  close: { he: 'סגירה', en: 'Close' },
 };
 
 // ── Menu page ─────────────────────────────────────────────────────────────────

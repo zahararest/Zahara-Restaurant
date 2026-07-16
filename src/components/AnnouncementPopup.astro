@@ -5,11 +5,13 @@
 //
 // Design note: pillar 6 ("deliberately absent") forbids entry modals; this
 // exists because the owner explicitly asked for a temporary holiday
-// announcement. So it takes the most editorial form a modal can: a paper
-// panel with a 1px rule edge (no shadow), an accent hairline over a serif
-// display title, sans body copy, a slow fade-up (camera, not interface),
-// and a quiet exit — ×, backdrop, or Escape. Reduced motion gets a plain
-// short fade.
+// announcement. So it takes the shape of a printed restaurant card rather
+// than a UI dialog: a paper card with a double frame (1px rule edge + an
+// inset accent hairline, like a letterpress invitation), a centered
+// composition — brand kicker, serif display title, a hairline-and-diamond
+// ornament, body copy — and quiet exits: the × in the corner, the backdrop,
+// or Escape. Slow fade-up in (camera, not interface); reduced motion gets a
+// plain short fade.
 //
 // The shell ships in every page's static HTML but stays hidden. It only
 // activates when the middleware injected the #zahara-popup marker tag —
@@ -19,11 +21,13 @@
 // the owner's saved text before this ever becomes visible.
 
 import { pick, popup as copy } from '../data/i18n';
+import { RESTAURANT } from '../data/restaurant';
 import type { Lang } from '../data/i18n';
 
 export interface Props { lang: Lang }
 const { lang } = Astro.props;
 const c = pick(copy, lang);
+const brand = RESTAURANT.name[lang];
 ---
 
 <div id="zahara-announce" class="announce" hidden>
@@ -32,8 +36,12 @@ const c = pick(copy, lang);
          aria-labelledby="announce-title" tabindex="-1">
     <button class="announce__close" type="button" data-announce-close
             aria-label={c.close}>&times;</button>
-    <h2 class="announce__title" id="announce-title" data-content-key="popup.title">{c.title}</h2>
-    <p class="announce__body" data-content-key="popup.body">{c.body}</p>
+    <div class="announce__frame">
+      <p class="announce__kicker">{brand}</p>
+      <h2 class="announce__title" id="announce-title" data-content-key="popup.title">{c.title}</h2>
+      <span class="announce__ornament" aria-hidden="true"><i class="announce__gem"></i></span>
+      <p class="announce__body" data-content-key="popup.body">{c.body}</p>
+    </div>
   </aside>
 </div>
 
@@ -111,63 +119,102 @@ const c = pick(copy, lang);
   .announce__scrim {
     position: absolute;
     inset: 0;
-    background: color-mix(in srgb, var(--shadow) 45%, transparent);
+    background: color-mix(in srgb, var(--shadow) 52%, transparent);
     opacity: 0;
     transition: opacity 0.8s var(--ease-out);
   }
 
+  /* The card — paper with a double frame: a 1px rule edge outside and an
+     inset accent hairline inside, like a letterpress invitation. No shadow;
+     the scrim provides all the separation the card needs. */
   .announce__panel {
     position: relative;
-    width: min(30rem, 100%);
+    width: min(27rem, 100%);
+    max-height: min(90dvh, 42rem);
+    overflow: auto;
     background: var(--paper-card);
     border: 1px solid var(--rule);
     border-radius: 2px;
-    padding: var(--space-l);
+    padding: 10px;
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(16px);
     transition:
       opacity   0.8s var(--ease-out),
       transform 0.8s var(--ease-out);
   }
   .announce__panel:focus { outline: none; }
-  /* The eyebrow-style accent hairline over the title. */
-  .announce__panel::before {
-    content: '';
-    display: block;
-    width: 1.6rem;
-    height: 1px;
-    background: var(--accent);
-    margin-block-end: var(--space-s);
-  }
 
   .announce.is-open .announce__scrim { opacity: 1; }
   .announce.is-open .announce__panel { opacity: 1; transform: translateY(0); }
 
+  .announce__frame {
+    border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+    padding: var(--space-m) var(--space-m) calc(var(--space-m) + 0.5rem);
+    text-align: center;
+  }
+
+  /* Brand kicker — the magazine masthead voice, small caps and wide air. */
+  .announce__kicker {
+    margin: 0 0 var(--space-xs);
+    font-size: var(--step--1);
+    letter-spacing: 0.34em;
+    text-indent: 0.34em;   /* re-centres tracked type */
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink-muted);
+  }
+  html[dir="rtl"] .announce__kicker { letter-spacing: 0.18em; text-indent: 0.18em; }
+
   .announce__title {
     margin: 0;
     font-family: var(--font-display);
-    font-size: var(--step-3);
+    font-size: var(--step-2);
     font-weight: 400;
-    line-height: 1.08;
+    line-height: 1.15;
     letter-spacing: -0.018em;
     color: var(--ink);
   }
 
+  /* Hairline · diamond · hairline — the menu-card ornament. */
+  .announce__ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+    margin-block: var(--space-xs);
+  }
+  .announce__ornament::before,
+  .announce__ornament::after {
+    content: '';
+    width: 2.75rem;
+    height: 1px;
+    background: var(--rule);
+  }
+  .announce__gem {
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
+    transform: rotate(45deg);
+  }
+
   .announce__body {
-    margin: var(--space-s) 0 0;
-    max-width: 44ch;
+    margin: 0 auto;
+    max-width: 40ch;
     font-size: var(--step-0);
     font-weight: 300;
-    line-height: 1.65;
+    line-height: 1.75;
     color: var(--ink-soft);
   }
 
+  /* Floats transparently just inside the frame's corner (the frame's top
+     padding leaves it clear of the kicker) so neither hairline is broken. */
   .announce__close {
     position: absolute;
-    inset-block-start: var(--space-2xs);
-    inset-inline-end: var(--space-2xs);
-    inline-size: 2.75rem;
-    block-size: 2.75rem;
+    inset-block-start: 0.75rem;
+    inset-inline-end: 0.75rem;
+    z-index: 1;
+    inline-size: 2.6rem;
+    block-size: 2.6rem;
     display: grid;
     place-items: center;
     font: inherit;
@@ -180,10 +227,11 @@ const c = pick(copy, lang);
     transition: color 0.3s var(--ease-out);
   }
   .announce__close:hover { color: var(--ink); }
+  .announce__close:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
 
   @media (max-width: 600px) {
     .announce { padding: var(--space-s); }
-    .announce__panel { padding: var(--space-m); padding-block-start: var(--space-l); }
+    .announce__frame { padding: var(--space-m) var(--space-s); }
   }
 
   /* Camera, not interface — honour reduced motion: no lift, just a short fade. */
