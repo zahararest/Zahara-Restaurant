@@ -36,7 +36,11 @@ const brand = RESTAURANT.name[lang];
          aria-labelledby="announce-title" tabindex="-1">
     <button class="announce__close" type="button" data-announce-close
             aria-label={c.close}>&times;</button>
-    <div class="announce__frame">
+    {/* Optional popup photo (owner-chosen in /admin/content → Popup). Hidden
+        by default; the inline script reveals it from the injected marker when
+        the popup is in a photo/both mode and a photo is stored. */}
+    <img class="announce__photo" data-announce-photo alt="" hidden />
+    <div class="announce__frame" data-announce-frame>
       <p class="announce__kicker">{brand}</p>
       <h2 class="announce__title" id="announce-title" data-content-key="popup.title">{c.title}</h2>
       <span class="announce__ornament" aria-hidden="true"><i class="announce__gem"></i></span>
@@ -52,7 +56,34 @@ const brand = RESTAURANT.name[lang];
     // Owner switch — the middleware only injects this tag while the popup is on.
     // No dismissed/seen state is kept: the owner wants the notice on EVERY
     // page load (refresh included), not once per visit.
-    if (!document.getElementById('zahara-popup')) return;
+    var marker = document.getElementById('zahara-popup');
+    if (!marker) return;
+
+    // The marker carries how to present the popup: mode (text/photo/both) and,
+    // when a photo applies, its URL. Show the photo and, for photo-only mode,
+    // hide the text card. A photo that fails to load falls back to the text.
+    try {
+      var cfg = JSON.parse(marker.textContent || '{}');
+      if (cfg && cfg.image && (cfg.mode === 'photo' || cfg.mode === 'both')) {
+        var photo = root.querySelector('[data-announce-photo]');
+        var frame = root.querySelector('[data-announce-frame]');
+        if (photo) {
+          var photoOnly = cfg.mode === 'photo';
+          photo.onload = function () {
+            root.classList.add('announce--has-photo');
+            if (photoOnly) root.classList.add('announce--photo-only');
+            photo.hidden = false;
+          };
+          photo.onerror = function () {
+            // Broken/missing photo — quietly keep the text card.
+            photo.hidden = true;
+            root.classList.remove('announce--has-photo', 'announce--photo-only');
+            if (frame) frame.hidden = false;
+          };
+          photo.src = cfg.image;
+        }
+      }
+    } catch (e) { /* malformed marker — fall back to the text card */ }
 
     var panel = root.querySelector('.announce__panel');
     var prevFocus = null, prevOverflow = '';
@@ -151,6 +182,39 @@ const brand = RESTAURANT.name[lang];
     border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
     padding: var(--space-m) var(--space-m) calc(var(--space-m) + 0.5rem);
     text-align: center;
+  }
+
+  /* ── Photo popup ──────────────────────────────────────────────────────
+     The photo sits inside the panel's paper mat (its border stays, like a
+     framed print). In 'both' mode the photo tops the text card; in 'photo'
+     mode it IS the popup and the text frame is hidden. */
+  .announce__photo {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 72dvh;
+    object-fit: contain;
+    background: var(--paper-deep, #000);
+  }
+  .announce__photo[hidden] { display: none; }
+  .announce--has-photo .announce__panel { width: min(30rem, 100%); }
+  /* 'both' — space between the photo and the text card beneath it. */
+  .announce--has-photo:not(.announce--photo-only) .announce__photo {
+    margin-block-end: 10px;
+  }
+  /* 'photo' — no text card; the photo carries the whole popup. */
+  .announce--photo-only .announce__frame { display: none; }
+  /* Keep the × legible over a photo. */
+  .announce--has-photo .announce__close {
+    background: color-mix(in srgb, var(--shadow) 42%, transparent);
+    color: var(--paper);
+    border-radius: 50%;
+    inline-size: 2.2rem;
+    block-size: 2.2rem;
+  }
+  .announce--has-photo .announce__close:hover {
+    background: color-mix(in srgb, var(--shadow) 60%, transparent);
+    color: #fff;
   }
 
   /* Brand kicker — the magazine masthead voice, small caps and wide air. */

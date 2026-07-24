@@ -482,10 +482,16 @@ const STYLE = `
     margin: auto;
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
-    max-height: 96vh;
+    /* Bounded a little under the viewport (the modal's own 2vh padding takes
+       the rest) so the centered panel is never taller than the screen — which
+       used to clip the editor's top/bottom and make the controls unreachable.
+       The side column scrolls internally instead. */
+    max-height: 94vh;
+    overflow: hidden;
   }
   @media (max-width: 760px) {
-    .editor__panel { grid-template-columns: 1fr; }
+    /* Stacked: let the whole modal scroll rather than a tiny inner column. */
+    .editor__panel { grid-template-columns: 1fr; max-height: none; overflow: visible; }
   }
   .editor__stage {
     background:
@@ -512,10 +518,14 @@ const STYLE = `
     display: grid;
     gap: 0.85rem;
     align-content: start;
+    /* Scroll the controls within the bounded panel so nothing is cut off. */
+    min-height: 0;
+    max-height: 94vh;
     overflow-y: auto;
   }
   @media (max-width: 760px) {
-    .editor__side { border-inline-start: none; border-top: 1px solid #D5CBB1; }
+    .editor__side { border-inline-start: none; border-top: 1px solid #D5CBB1;
+      max-height: none; overflow-y: visible; }
   }
   .editor__title {
     margin: 0;
@@ -733,7 +743,10 @@ const SCRIPT = `
     window.ZAHARA_PICK = function (opts) {
       if (!picker || !pickerGrid) return;
       pickerCtx = opts;
-      if (pickerTitle) pickerTitle.textContent = 'Choose an image for · ' + (opts.label || opts.key);
+      if (pickerTitle) {
+        pickerTitle.textContent = (opts.mode === 'source' ? 'Reuse a photo for · ' : 'Choose an image for · ')
+          + (opts.label || opts.key);
+      }
       const lib = (window.PICK_LIBRARY || []).filter((it) => it.key !== opts.key);
       lib.sort((a, b) => (b.has ? 1 : 0) - (a.has ? 1 : 0));
       if (!lib.length) {
@@ -763,6 +776,16 @@ const SCRIPT = `
         if (!btn || !pickerCtx) return;
         const sourceKey = btn.dataset.source;
         const ctx = pickerCtx;
+
+        // Mobile reuse: hand the chosen photo back so the card can open the
+        // editor on it (crop to portrait), instead of a straight byte copy.
+        if (ctx.mode === 'source') {
+          const item = (window.PICK_LIBRARY || []).find((it) => it.key === sourceKey);
+          closePicker();
+          if (item && ctx.onPickSource) ctx.onPickSource(item);
+          return;
+        }
+
         const items = pickerGrid.querySelectorAll('.picker__item');
         items.forEach((b) => { b.disabled = true; });
         setPickerStatus('Applying…', false);
@@ -894,7 +917,18 @@ const SCRIPT = `
 
       if (choose) {
         choose.addEventListener('click', () => {
-          window.ZAHARA_PICK({ key: key, label: label, onChosen: (size) => markSaved(size) });
+          if (isMobile) {
+            // Reuse another photo as this portrait crop: pick a source, then
+            // open the editor on its full image to frame it 9:16 and upload.
+            window.ZAHARA_PICK({
+              key: key, label: label + ' · mobile', mode: 'source',
+              onPickSource: (item) => {
+                openEditor('/photos/' + encodeURIComponent(item.filename) + '?t=' + Date.now());
+              },
+            });
+          } else {
+            window.ZAHARA_PICK({ key: key, label: label, onChosen: (size) => markSaved(size) });
+          }
         });
       }
 
@@ -1425,8 +1459,10 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
           <p class="card__caption-status" data-caption-status></p>
         </div>` : '';
 
-  // "Choose existing" only on desktop cards (mobile reuse needs a source crop).
-  const chooseBtn = isMobile ? '' :
+  // "Choose existing" reuses another photo. Desktop copies the bytes straight
+  // across; mobile opens the editor on the chosen photo so it can be cropped to
+  // portrait first (a landscape source can't just be dropped into a 9:16 slot).
+  const chooseBtn =
     `<button class="btn btn--ghost" type="button" data-btn-choose>Choose existing</button>`;
   const delLabel = isMobile ? 'Remove' : (p.optional ? 'Remove' : 'Remove override');
 

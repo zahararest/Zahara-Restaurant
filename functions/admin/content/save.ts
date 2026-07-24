@@ -14,8 +14,11 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import {
   readContent, writeContent, mergeContent,
-  readPopupConfig, writePopupConfig, popupActive, type ContentEnv,
+  readPopupConfig, writePopupConfig, popupActive,
+  type ContentEnv, type PopupMode,
 } from '../../data/content';
+
+const POPUP_MODES = new Set<PopupMode>(['text', 'photo', 'both']);
 
 type Env = AuthEnv & ContentEnv;
 
@@ -60,6 +63,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       ? Math.min(365, Math.max(0, Math.round(p.days)))
       : 0;
     const prior = await readPopupConfig(env);
+    const mode  = POPUP_MODES.has(p.mode as PopupMode) ? (p.mode as PopupMode) : prior.mode;
     // A fresh auto-hide window starts when the popup is (re)turned on or the
     // day count changes. An unrelated content save re-posts the same
     // settings and must NOT extend a window that's already running.
@@ -67,7 +71,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const until = enabled && days > 0
       ? (startNew ? Date.now() + days * 86_400_000 : prior.until)
       : 0;
-    await writePopupConfig(env, { enabled, days, until });
+    // hasImage is owned by the popup-image endpoints — preserve it here.
+    await writePopupConfig(env, { enabled, days, until, mode, hasImage: prior.hasImage });
   }
 
   return json({ ok: true, count: Object.keys(merged).length });

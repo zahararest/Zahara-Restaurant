@@ -17,7 +17,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { readPalette, paletteToCss, type PaletteEnv } from './data/palette';
 import {
   readContent, contentToJson, readAssetVersion,
-  readPopupConfig, popupActive, type ContentEnv,
+  readPopupConfig, popupActive, popupShowsImage, type ContentEnv,
 } from './data/content';
 
 const ASSET_VERSION_TOKEN = '__ZASSETV__';
@@ -57,8 +57,20 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     const contentTag = hasContent
       ? `<script id="zahara-content" type="application/json">${contentToJson(content)}</script>`
       : '';
-    const popupTag = popupOn
-      ? `<script id="zahara-popup" type="application/json">{"active":true}</script>`
+    // The popup marker also carries HOW to present it: mode (text/photo/both)
+    // and, when a photo applies, its cache-busted URL. The component's inline
+    // script reads this to decide between the text card and the photo.
+    const popupPayload = popupOn
+      ? {
+          active: true,
+          mode: popupCfg.mode,
+          image: popupShowsImage(popupCfg) ? `/popup-image?v=${assetVersion}` : '',
+        }
+      : null;
+    const popupTag = popupPayload
+      ? `<script id="zahara-popup" type="application/json">${
+          JSON.stringify(popupPayload).replace(/</g, '\\u003c')
+        }</script>`
       : '';
     res = new HTMLRewriter()
       .on('head', {

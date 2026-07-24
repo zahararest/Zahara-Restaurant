@@ -5,16 +5,17 @@
 // /admin/content/save, which merges it into the single KV record the
 // middleware injects into every page.
 
-import type { PagesFunction } from '@cloudflare/workers-types';
+import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContent,
-  readPopupConfig, popupActive, type PopupConfig,
+  readPopupConfig, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField,
 } from '../data/content';
+import { PHOTO_CATALOGUE } from '../data/photos-map';
 
-type Env = AuthEnv & ContentEnv;
+interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => (
@@ -79,6 +80,19 @@ const STYLE = `
   .col textarea.is-multi { min-height: 4.5rem; }
   .fmt-hint code { background: #f3eddc; border: 1px solid #e3d7b8; padding: 0.05rem 0.35rem; font-size: 0.8em; }
   .col [dir="rtl"] { direction: rtl; }
+  /* ── Formatting toolbar (Word/Docs-style) shown above each field's inputs ── */
+  .fmtbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem;
+    margin-block-end: 0.4rem; }
+  .fmtbtn { font: inherit; font-size: 0.82rem; line-height: 1; min-width: 2rem;
+    padding: 0.34rem 0.5rem; border: 1px solid #D5CBB1; background: #fff; color: #1a1410;
+    cursor: pointer; border-radius: 0; transition: background .15s, border-color .15s, color .15s; }
+  .fmtbtn:hover { background: #f1e9d6; border-color: #9C4621; color: #9C4621; }
+  .fmtbtn:active { background: #ece3d0; }
+  .fmtbtn--b { font-weight: 800; }
+  .fmtbtn--i { font-style: italic; font-family: Georgia, 'Times New Roman', serif; }
+  .fmtbtn--u { text-decoration: underline; }
+  .fmtbar__sep { width: 1px; align-self: stretch; background: #e3d7b8; margin-inline: 0.15rem; }
+  .fmtbar__hint { font-size: 0.68rem; color: #9a8d77; margin-inline-start: auto; }
   .field__size { display: flex; align-items: center; gap: 0.5rem; margin-block-start: 0.4rem; }
   .field__size label { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
     font-weight: 600; color: #9a8d77; }
@@ -110,6 +124,36 @@ const STYLE = `
   .popup-vis__status { margin: 0; font-size: 0.85rem; color: #6f6457;
     padding: 0.55rem 0.75rem; background: #f1e9d6; border: 1px solid #e3d7b8; }
   .popup-vis__status--on { color: #4f6b47; }
+  /* ── Popup style + photo controls ─────────────────────────────────── */
+  .popup-style { display: grid; gap: 1rem; }
+  .modeseg { display: inline-flex; flex-wrap: wrap; border: 1px solid #D5CBB1; background: #fff; width: fit-content; }
+  .modeseg__btn { font: inherit; font-size: 0.78rem; letter-spacing: 0.04em; font-weight: 600;
+    padding: 0.5rem 0.95rem; background: transparent; color: #6f6457; border: 0;
+    border-inline-end: 1px solid #D5CBB1; cursor: pointer; }
+  .modeseg__btn:last-child { border-inline-end: 0; }
+  .modeseg__btn.is-active { background: #1a1410; color: #F4EDDF; }
+  .popup-photo { display: grid; gap: 0.85rem; }
+  .popup-photo.is-hidden { display: none; }
+  .popup-photo__preview { display: flex; gap: 0.9rem; align-items: flex-start; flex-wrap: wrap; }
+  .popup-photo__thumb { width: 190px; max-width: 100%; aspect-ratio: 4 / 3; object-fit: contain;
+    background: #ece3d0; border: 1px solid #D5CBB1; display: block; }
+  .popup-photo__thumb.is-empty { display: grid; place-items: center; color: #9a8d77;
+    font-size: 0.8rem; text-align: center; padding: 0.5rem; }
+  .popup-photo__actions { display: flex; flex-direction: column; gap: 0.5rem; }
+  .popup-photo__file { display: none; }
+  .popup-photo__status { margin: 0; min-height: 1.1em; font-size: 0.78rem; color: #4f6b47; }
+  .popup-photo__status--err { color: #a53623; }
+  .popup-picker { border: 1px solid #e3d7b8; background: #fbf7ee; padding: 0.7rem; }
+  .popup-picker.is-hidden { display: none; }
+  .popup-picker__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 0.5rem; }
+  .popup-picker__item { padding: 0; border: 1px solid #D5CBB1; background: #fff; cursor: pointer;
+    display: block; transition: border-color .15s, box-shadow .15s; }
+  .popup-picker__item:hover { border-color: #9C4621; box-shadow: 0 3px 12px rgba(0,0,0,0.12); }
+  .popup-picker__item:disabled { opacity: 0.5; cursor: not-allowed; }
+  .popup-picker__item img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #ece3d0; }
+  .popup-picker__item span { display: block; font-size: 0.62rem; color: #6f6457; padding: 0.2rem 0.3rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 `;
 
 const SCRIPT = `
@@ -165,6 +209,168 @@ const SCRIPT = `
         sel.classList.toggle('is-set', parseFloat(sel.value) !== 1);
       });
     });
+
+    // ── Formatting toolbar (Bold / Italic / Underline / size / line break) ──
+    // The buttons wrap the selection in the SAME lightweight markup the live
+    // site understands (**bold**, *italic*, __underline__) so nothing new has
+    // to be taught to the renderer. A± step the field's Text-size control.
+    // Track the last-focused input per field so a button knows which of the
+    // Hebrew/English boxes to act on (clicking a button must not steal focus).
+    document.querySelectorAll('[data-key]').forEach(function (ta) {
+      ta.addEventListener('focus', function () {
+        var field = ta.closest('.field');
+        if (field) field.__activeTa = ta;
+      });
+    });
+    function activeInput(field) {
+      if (field && field.__activeTa && field.contains(field.__activeTa)) return field.__activeTa;
+      return field ? field.querySelector('[data-key]') : null;
+    }
+    function surround(ta, before, after) {
+      var s = ta.selectionStart, e = ta.selectionEnd, val = ta.value;
+      var sel = val.slice(s, e);
+      ta.value = val.slice(0, s) + before + sel + after + val.slice(e);
+      ta.focus();
+      if (sel) { ta.selectionStart = s + before.length; ta.selectionEnd = e + before.length + sel.length; }
+      else     { ta.selectionStart = ta.selectionEnd = s + before.length; }
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function insertAt(ta, text) {
+      var s = ta.selectionStart, e = ta.selectionEnd, val = ta.value;
+      ta.value = val.slice(0, s) + text + val.slice(e);
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = s + text.length;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function stepSize(field, dir) {
+      var sel = field.querySelector('.field__sizesel');
+      if (!sel) return;
+      var next = sel.selectedIndex + dir;
+      if (next < 0 || next >= sel.options.length) return;
+      sel.selectedIndex = next;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    function applyFmt(field, action) {
+      if (action === 'bigger')  { stepSize(field, +1); return; }
+      if (action === 'smaller') { stepSize(field, -1); return; }
+      var ta = activeInput(field);
+      if (!ta) return;
+      if (action === 'bold')      surround(ta, '**', '**');
+      else if (action === 'italic')    surround(ta, '*', '*');
+      else if (action === 'underline') surround(ta, '__', '__');
+      else if (action === 'linebreak') insertAt(ta, '\\n');
+    }
+    document.querySelectorAll('[data-fmtbar] .fmtbtn').forEach(function (btn) {
+      // mousedown → preventDefault keeps the textarea's selection/focus intact
+      // when the button is pressed (so the wrap targets the right text).
+      btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      btn.addEventListener('click', function () {
+        var field = btn.closest('.field');
+        applyFmt(field, btn.getAttribute('data-fmt'));
+      });
+    });
+    // Ctrl/⌘ + B / I / U inside any copy box.
+    document.addEventListener('keydown', function (e) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      var k = e.key.toLowerCase();
+      if (k !== 'b' && k !== 'i' && k !== 'u') return;
+      var ta = e.target;
+      if (!ta || !ta.matches || !ta.matches('[data-key]')) return;
+      e.preventDefault();
+      var field = ta.closest('.field');
+      applyFmt(field, k === 'b' ? 'bold' : k === 'i' ? 'italic' : 'underline');
+    });
+    // ── Popup: style selector + photo management (Popup tab) ──
+    // The style (text / photo / both) rides along with Save changes; the photo
+    // itself is uploaded/reused/removed instantly via /admin/popup/image.
+    (function () {
+      var modeInput = document.getElementById('popup-mode');
+      if (!modeInput) return;
+      var seg       = document.querySelectorAll('[data-popup-mode]');
+      var photoWrap = document.getElementById('popup-photo');
+      var thumb     = document.getElementById('popup-photo-thumb');
+      var fileInput = document.getElementById('popup-photo-file');
+      var uploadBtn = document.getElementById('popup-photo-upload');
+      var chooseBtn = document.getElementById('popup-photo-choose');
+      var removeBtn = document.getElementById('popup-photo-remove');
+      var statusEl  = document.getElementById('popup-photo-status');
+      var picker    = document.getElementById('popup-picker');
+
+      function setPStatus(m, err) {
+        if (!statusEl) return;
+        statusEl.textContent = m || '';
+        statusEl.classList.toggle('popup-photo__status--err', !!err);
+      }
+      function setMode(mode) {
+        modeInput.value = mode;
+        seg.forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-popup-mode') === mode); });
+        if (photoWrap) photoWrap.classList.toggle('is-hidden', mode === 'text');
+      }
+      seg.forEach(function (b) {
+        b.addEventListener('click', function () { setMode(b.getAttribute('data-popup-mode')); });
+      });
+
+      function refreshThumb() {
+        var img = document.createElement('img');
+        img.className = 'popup-photo__thumb'; img.id = 'popup-photo-thumb';
+        img.alt = 'Current popup photo'; img.src = '/popup-image?v=' + Date.now();
+        if (thumb && thumb.parentNode) { thumb.parentNode.replaceChild(img, thumb); thumb = img; }
+      }
+      function clearThumb() {
+        var box = document.createElement('div');
+        box.className = 'popup-photo__thumb is-empty'; box.id = 'popup-photo-thumb';
+        box.textContent = 'No photo yet';
+        if (thumb && thumb.parentNode) { thumb.parentNode.replaceChild(box, thumb); thumb = box; }
+      }
+      function onHasImage(has) {
+        if (removeBtn) removeBtn.hidden = !has;
+        if (has) refreshThumb(); else clearThumb();
+      }
+      async function post(fd) {
+        var res  = await fetch('/admin/popup/image', { method: 'POST', body: fd });
+        var data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
+        return data;
+      }
+
+      if (uploadBtn && fileInput) uploadBtn.addEventListener('click', function () { fileInput.click(); });
+      if (fileInput) fileInput.addEventListener('change', async function () {
+        if (!fileInput.files || !fileInput.files.length) return;
+        setPStatus('Uploading…', false);
+        try {
+          var fd = new FormData(); fd.append('file', fileInput.files[0]);
+          await post(fd); onHasImage(true);
+          setPStatus('Photo saved · live now.', false);
+        } catch (err) { setPStatus(String(err.message || err), true); }
+        finally { fileInput.value = ''; }
+      });
+      if (chooseBtn && picker) chooseBtn.addEventListener('click', function () {
+        picker.classList.toggle('is-hidden');
+      });
+      if (picker) picker.addEventListener('click', async function (e) {
+        var item = e.target.closest('[data-popup-source]');
+        if (!item) return;
+        var items = picker.querySelectorAll('[data-popup-source]');
+        items.forEach(function (b) { b.disabled = true; });
+        setPStatus('Applying…', false);
+        try {
+          var fd = new FormData(); fd.append('source', item.getAttribute('data-popup-source'));
+          await post(fd); onHasImage(true); picker.classList.add('is-hidden');
+          setPStatus('Photo set · live now.', false);
+        } catch (err) { setPStatus(String(err.message || err), true); }
+        finally { items.forEach(function (b) { b.disabled = false; }); }
+      });
+      if (removeBtn) removeBtn.addEventListener('click', async function () {
+        if (!confirm('Remove the popup photo?')) return;
+        setPStatus('Removing…', false);
+        try {
+          var fd = new FormData(); fd.append('action', 'delete');
+          await post(fd); onHasImage(false);
+          setPStatus('Photo removed.', false);
+        } catch (err) { setPStatus(String(err.message || err), true); }
+      });
+    })();
+
     saveBtn.addEventListener('click', async function () {
       saveBtn.disabled = true;
       setStatus('Saving…', false);
@@ -174,10 +380,12 @@ const SCRIPT = `
         var payload = { map: collect() };
         var popupEnabledEl = document.getElementById('popup-enabled');
         var popupDaysEl    = document.getElementById('popup-days');
+        var popupModeEl    = document.getElementById('popup-mode');
         if (popupEnabledEl && popupDaysEl) {
           payload.popup = {
             enabled: popupEnabledEl.checked,
             days: Math.max(0, Math.round(parseFloat(popupDaysEl.value) || 0)),
+            mode: popupModeEl ? popupModeEl.value : undefined,
           };
         }
         var res = await fetch('/admin/content/save', {
@@ -217,7 +425,8 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
   // pre-selected (and an off-preset value is added so it isn't lost).
   const curSize = value?.size ?? 1;
   const presets: Array<[number, string]> = [
-    [0.9, 'Smaller'], [1, 'Default'], [1.15, 'Larger'], [1.3, 'Largest'], [1.5, 'Huge'],
+    [0.8, 'Smallest'], [0.9, 'Smaller'], [1, 'Default'],
+    [1.15, 'Larger'], [1.3, 'Largest'], [1.5, 'Huge'], [1.75, 'Giant'],
   ];
   if (!presets.some(([n]) => n === curSize)) presets.push([curSize, `Custom (${curSize}×)`]);
   const sizeOpts = presets
@@ -225,9 +434,25 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
     .join('');
   const sizeSet = curSize !== 1 ? ' is-set' : '';
 
+  // Word/Docs-style toolbar: buttons act on whichever of the two inputs below
+  // is focused (Bold/Italic/Underline wrap the selection; A± step the size).
+  const toolbar = `
+      <div class="fmtbar" data-fmtbar>
+        <button type="button" class="fmtbtn fmtbtn--b" data-fmt="bold"      title="Bold (Ctrl/⌘+B)" aria-label="Bold">B</button>
+        <button type="button" class="fmtbtn fmtbtn--i" data-fmt="italic"    title="Italic (Ctrl/⌘+I)" aria-label="Italic">I</button>
+        <button type="button" class="fmtbtn fmtbtn--u" data-fmt="underline" title="Underline (Ctrl/⌘+U)" aria-label="Underline">U</button>
+        <span class="fmtbar__sep"></span>
+        <button type="button" class="fmtbtn" data-fmt="smaller" title="Make this text smaller" aria-label="Smaller text">A−</button>
+        <button type="button" class="fmtbtn" data-fmt="bigger"  title="Make this text bigger" aria-label="Bigger text">A+</button>
+        <span class="fmtbar__sep"></span>
+        <button type="button" class="fmtbtn" data-fmt="linebreak" title="Insert a line break" aria-label="Line break">↵</button>
+        <span class="fmtbar__hint">select text, then click a style</span>
+      </div>`;
+
   return `
     <div class="field">
       <div class="field__label">${esc(f.label)}</div>
+      ${toolbar}
       <div class="pair">
         <div class="col"><span class="col__lang">Hebrew</span>${input('he', he, 'rtl', phHe)}</div>
         <div class="col"><span class="col__lang">English</span>${input('en', en, 'ltr', phEn)}</div>
@@ -282,10 +507,80 @@ function popupVisHtml(cfg: PopupConfig): string {
     </section>`;
 }
 
+// The Style section — choose between the text card, a photo, or a photo with
+// text, and manage the popup photo (upload / reuse an existing site photo /
+// remove). Photo actions take effect immediately; the chosen STYLE applies
+// when the owner presses Save changes (like the visibility settings above).
+function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string): string {
+  const modes: Array<[string, string]> = [
+    ['text', 'Text card'], ['photo', 'Photo'], ['both', 'Photo + text'],
+  ];
+  const modeBtns = modes.map(([id, label]) =>
+    `<button type="button" class="modeseg__btn${cfg.mode === id ? ' is-active' : ''}" data-popup-mode="${id}">${esc(label)}</button>`
+  ).join('');
+
+  const thumb = hasImage
+    ? `<img class="popup-photo__thumb" id="popup-photo-thumb" src="/popup-image?v=${esc(version)}" alt="Current popup photo" />`
+    : `<div class="popup-photo__thumb is-empty" id="popup-photo-thumb">No photo yet</div>`;
+
+  // Inline "reuse an existing photo" grid — every non-reserved site photo.
+  const pickerItems = PHOTO_CATALOGUE
+    .filter((p) => !p.reserved)
+    .map((p) =>
+      `<button type="button" class="popup-picker__item" data-popup-source="${esc(p.key)}" title="${esc(p.label)}">
+        <img src="/photos/${esc(p.filename)}?t=${esc(version)}" alt="" loading="lazy" onerror="this.style.opacity=0.2" />
+        <span>${esc(p.label)}</span>
+      </button>`
+    ).join('');
+
+  // Photo controls hidden while in text mode.
+  const photoHidden = cfg.mode === 'text' ? ' is-hidden' : '';
+
+  return `
+    <section class="group">
+      <header class="group__head">
+        <h2>Popup style</h2>
+        <small>How the popup looks. Save changes to apply the style.</small>
+      </header>
+      <div class="popup-style">
+        <div class="modeseg" role="group" aria-label="Popup style">${modeBtns}</div>
+        <input type="hidden" id="popup-mode" value="${esc(cfg.mode)}" />
+
+        <div class="popup-photo${photoHidden}" id="popup-photo">
+          <div class="popup-photo__preview">
+            ${thumb}
+            <div class="popup-photo__actions">
+              <input class="popup-photo__file" type="file" id="popup-photo-file"
+                     accept="image/jpeg,image/png,image/webp" />
+              <button type="button" class="btn" id="popup-photo-upload">Upload photo…</button>
+              <button type="button" class="btn" id="popup-photo-choose"
+                      style="background:transparent;color:#1a1410;">Choose existing</button>
+              <button type="button" class="btn" id="popup-photo-remove"
+                      style="background:transparent;color:#1a1410;"${hasImage ? '' : ' hidden'}>Remove photo</button>
+            </div>
+          </div>
+          <p class="popup-photo__status" id="popup-photo-status"></p>
+          <div class="popup-picker is-hidden" id="popup-picker">
+            <div class="popup-picker__grid">${pickerItems}</div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return unauthorized();
 
   const [overrides, popupCfg] = await Promise.all([readContent(env), readPopupConfig(env)]);
+
+  // Is a popup photo actually stored right now? (head avoids downloading it.)
+  let hasPopupImage = false;
+  if (env.IMAGES) {
+    try { hasPopupImage = (await env.IMAGES.head(POPUP_IMAGE_OBJECT)) !== null; }
+    catch (err) { console.warn('[admin/content] popup image head failed', err); }
+  }
+  // Per-load cache-buster for admin thumbnails.
+  const adminVersion = Date.now().toString(36);
 
   const groupHtml = (g: (typeof CONTENT_GROUPS)[number]) => `
     <section class="group">
@@ -304,7 +599,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   ).join('');
   const pagesHtml = pages.map((p) => `
     <div class="page" data-page="${esc(p.id)}" role="tabpanel">
-      ${p.id === 'popup' ? popupVisHtml(popupCfg) : ''}
+      ${p.id === 'popup' ? popupVisHtml(popupCfg) + popupStyleHtml(popupCfg, hasPopupImage, adminVersion) : ''}
       ${CONTENT_GROUPS.filter((g) => g.page === p.id).map(groupHtml).join('')}
     </div>`).join('');
 
@@ -327,9 +622,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   <main>
     <p class="lead fmt-hint">
       Edit any field and press <strong>Save changes</strong>. Clear a field to
-      hide that text on the site. Formatting works in <strong>every</strong> field:
-      type <code>**bold**</code> for bold, <code>*italic*</code> for italic, and
-      press <strong>Enter</strong> for a line break. Photo captions live in the
+      hide that text on the site. To style text, <strong>select it</strong> and
+      use the <strong>B</strong> / <em>I</em> / <u>U</u> buttons above each field
+      (or <code>Ctrl/⌘+B</code>, <code>I</code>, <code>U</code>); <strong>A−</strong>
+      / <strong>A+</strong> make the whole field smaller or bigger, and
+      <strong>↵</strong> adds a line break. Photo captions live in the
       <a href="/admin/images/">Images</a> tab.
     </p>
     ${pagesHtml}

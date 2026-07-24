@@ -527,11 +527,13 @@ const schema = {
         function formatRich(s) {
           var h = String(s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          h = h.replace(/&lt;(\/?)(br|strong|em|b|i)\s*\/?&gt;/gi, function (_m, sl, tg) {
+          h = h.replace(/&lt;(\/?)(br|strong|em|b|i|u)\s*\/?&gt;/gi, function (_m, sl, tg) {
             return '<' + sl + tg.toLowerCase() + '>';
           });
           h = h.replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
           h = h.replace(/(^|[^*])\*(\S(?:[^*\n]*\S)?)\*(?!\*)/g, '$1<em>$2</em>');
+          // __underline__ — a friendlier token for the editor's Underline button.
+          h = h.replace(/__(\S(?:[^_\n]*\S)?)__/g, '<u>$1</u>');
           return h.replace(/\r?\n/g, '<br>');
         }
 

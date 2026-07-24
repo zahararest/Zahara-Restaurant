@@ -387,9 +387,29 @@ export function contentToJson(map: ContentMap): string {
 
 const POPUP_KEY = '__popup__';
 
-export interface PopupConfig { enabled: boolean; days: number; until: number; }
+/** R2 object key for the optional popup photo (served at /popup-image). */
+export const POPUP_IMAGE_OBJECT = 'images/popup';
 
-export const POPUP_DEFAULT: PopupConfig = { enabled: true, days: 0, until: 0 };
+/** How the entry popup is presented:
+ *    text  — the classic paper card (title + body), the default.
+ *    photo — the popup IS the photo (no card text).
+ *    both  — the photo on top, with the card title + body beneath it. */
+export type PopupMode = 'text' | 'photo' | 'both';
+const POPUP_MODES = new Set<PopupMode>(['text', 'photo', 'both']);
+
+export interface PopupConfig {
+  enabled: boolean;
+  days: number;
+  until: number;
+  /** Presentation style (see PopupMode). */
+  mode: PopupMode;
+  /** Whether a popup photo is currently stored in R2. Set by the popup-image
+   *  upload/apply/delete endpoints, read by the middleware to decide whether
+   *  to inject the image URL. */
+  hasImage: boolean;
+}
+
+export const POPUP_DEFAULT: PopupConfig = { enabled: true, days: 0, until: 0, mode: 'text', hasImage: false };
 
 export function sanitisePopupConfig(raw: unknown): PopupConfig {
   if (!raw || typeof raw !== 'object') return { ...POPUP_DEFAULT };
@@ -399,7 +419,15 @@ export function sanitisePopupConfig(raw: unknown): PopupConfig {
     ? Math.min(365, Math.max(0, Math.round(o.days))) : 0;
   const until = typeof o.until === 'number' && isFinite(o.until) && o.until > 0
     ? Math.round(o.until) : 0;
-  return { enabled, days, until };
+  const mode = POPUP_MODES.has(o.mode as PopupMode) ? (o.mode as PopupMode) : POPUP_DEFAULT.mode;
+  const hasImage = typeof o.hasImage === 'boolean' ? o.hasImage : POPUP_DEFAULT.hasImage;
+  return { enabled, days, until, mode, hasImage };
+}
+
+/** Is there a photo to show for the CURRENT presentation? True only when the
+ *  popup is in a photo mode and a photo is actually stored. */
+export function popupShowsImage(cfg: PopupConfig): boolean {
+  return cfg.hasImage && (cfg.mode === 'photo' || cfg.mode === 'both');
 }
 
 /** Is the popup currently shown to visitors? */
