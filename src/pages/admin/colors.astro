@@ -20,6 +20,13 @@
 import '../../styles/admin-colors.css';
 import { groups, defaults, darkDefaults } from '../../data/admin-colors';
 
+// Admin is single-rooted at /admin (the venue is chosen by the site-switch
+// cookie, not the URL). The dual-base build would otherwise emit an orphan copy
+// at /rooftop/admin/colors — redirect it back to the canonical one.
+if (import.meta.env.BASE_URL.startsWith('/rooftop')) {
+  return Astro.redirect('/admin/colors/');
+}
+
 const TITLE = 'Color editor · Zahara';
 // Presets live in the <script> below — no define:vars needed for them.
 ---
@@ -46,8 +53,29 @@ const TITLE = 'Color editor · Zahara';
     <a class="editor-top__navlink"           href="/admin/content/">Content</a>
     <a class="editor-top__navlink is-active" href="/admin/colors/" aria-current="page">Colors</a>
     <span class="editor-top__spacer"></span>
+    {/* Venue switch — mirrors the shared admin topbar; scopes which venue's
+        palette this editor loads + saves (via the zahara_admin_site cookie). */}
+    <div class="editor-venue" role="group" aria-label="Venue being edited">
+      <button type="button" data-venue="zahara">Zahara</button>
+      <button type="button" data-venue="rooftop">Rooftop</button>
+    </div>
     <a class="editor-top__site" href="/en/" target="_blank">View site ↗</a>
   </nav>
+  <script is:inline>(function(){
+    var CK='zahara_admin_site';
+    function cur(){var m=document.cookie.match(/(?:^|;\s*)zahara_admin_site=(rooftop|zahara)/);return m?m[1]:'zahara';}
+    var now=cur();
+    document.querySelectorAll('.editor-venue [data-venue]').forEach(function(b){
+      var v=b.getAttribute('data-venue');
+      var on=v===now;
+      b.style.cssText='font:inherit;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:.35rem .7rem;cursor:pointer;border:1px solid #D5CBB1;background:'+(on?(v==='rooftop'?'#9C4621':'#1a1410'):'transparent')+';color:'+(on?'#F4EDDF':'#6f6457')+';';
+      b.addEventListener('click',function(){
+        if(v===cur())return;
+        document.cookie=CK+'='+v+';path=/admin;max-age=31536000;samesite=lax';
+        location.reload();
+      });
+    });
+  })();</script>
 
   <div class="editor-top__tools">
     <h1>Palette editor</h1>
@@ -754,7 +782,13 @@ const TITLE = 'Color editor · Zahara';
   // server response a moment later.
   // ────────────────────────────────────────────────────────────────────────────
   const KEY        = 'zahara-color-overrides';
-  const SERVER_GET = '/api/palette';
+  // Which venue this editor edits, from the admin site-switch cookie (set by the
+  // venue switch in the topbar / other /admin pages). The seed fetch is scoped
+  // to it so we never seed from Zahara and then save into rooftop; the save
+  // endpoint (/admin/colors/save) reads the same cookie server-side.
+  const ADMIN_SITE = (document.cookie.match(/(?:^|;\s*)zahara_admin_site=(rooftop|zahara)/) || [])[1] || 'zahara';
+  const SITE_Q     = ADMIN_SITE === 'rooftop' ? '?site=rooftop' : '';
+  const SERVER_GET = '/api/palette' + SITE_Q;
   const SERVER_PUT = '/admin/colors/save';
   const root       = document.documentElement;
   const rows       = Array.from(document.querySelectorAll('[data-row]'));

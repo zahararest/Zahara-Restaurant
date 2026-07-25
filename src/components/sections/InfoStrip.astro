@@ -3,6 +3,7 @@ import { pick, home as copy } from '../../data/i18n';
 import { RESTAURANT }          from '../../data/restaurant';
 import { PHOTOS }              from '../../data/photos';
 import { path }                from '../../lib/paths';
+import { SITE_QUERY }          from '../../lib/base';
 import type { Lang }           from '../../data/i18n';
 
 export interface Props { lang: Lang }
@@ -12,7 +13,7 @@ const t        = pick(copy, lang);
 const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
 const display  = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
 
-const kosherCert = PHOTOS.kosherCert.src;
+const kosherCert = PHOTOS.kosherCert.src + SITE_QUERY;
 const closeLabel = lang === 'he' ? 'סגור' : 'Close';
 ---
 

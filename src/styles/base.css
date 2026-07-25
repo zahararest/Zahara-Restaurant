@@ -182,6 +182,22 @@ input, select, textarea { min-height: 44px; }
 .eyebrow--on-photo { color: color-mix(in srgb, var(--paper-on-photo) 92%, transparent); }
 .eyebrow--on-photo::before { background: var(--paper-on-photo); }
 
+/* Section dash — an owner-toggleable accent rule above a heading (set per
+   field in /admin/content). Stands in for the eyebrow "—" kicker when a
+   section uses only a heading, so it isn't left bare. Follows the text's own
+   alignment: inline-start by default, centred where the heading is centred. */
+.has-lead-rule::before {
+  content: '';
+  display: block;
+  inline-size: 2.25rem;
+  block-size: 2px;
+  background: var(--accent);
+  margin-block-end: clamp(0.7rem, 1.6vw, 1.1rem);
+}
+.has-lead-rule[style*="text-align: center"]::before,
+.has-lead-rule.is-centered::before,
+[style*="text-align:center"] > .has-lead-rule::before { margin-inline: auto; }
+
 .lede {
   font-size: var(--step-1);
   line-height: 1.55;

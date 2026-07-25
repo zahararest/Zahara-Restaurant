@@ -12,21 +12,28 @@
 
 import { runScheduled, syncMenus, type SyncEnv } from '../../functions/data/menu-sync';
 import { refreshInstagramToken } from '../../functions/data/instagram-token';
+import { SITES } from '../../functions/data/site';
 
 export interface Env extends SyncEnv {
   INSTAGRAM_ACCESS_TOKEN?: string;
   SYNC_TOKEN?:             string;
 }
 
-/** Run the scheduled menu sync + IG token rotation, swallowing errors so one
- *  failure never masks the other. Returns a small status object for logging. */
+/** Run the scheduled menu sync (for BOTH venues) + IG token rotation, swallowing
+ *  errors so one failure never masks the others. Returns a status object for
+ *  logging. Both venues share the OneDrive creds but have separate links +
+ *  menu stores, so each is synced independently. */
 async function runAll(env: Env, opts: { force?: boolean } = {}): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
-  try {
-    out.menu = opts.force ? await syncMenus(env) : await runScheduled(env);
-  } catch (err) {
-    out.menu = { ok: false, error: String(err) };
+  const menu: Record<string, unknown> = {};
+  for (const site of SITES) {
+    try {
+      menu[site] = opts.force ? await syncMenus(env, undefined, site) : await runScheduled(env, site);
+    } catch (err) {
+      menu[site] = { ok: false, error: String(err) };
+    }
   }
+  out.menu = menu;
   try {
     out.instagram = await refreshInstagramToken(env);
   } catch (err) {

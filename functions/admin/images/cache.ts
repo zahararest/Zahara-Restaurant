@@ -24,6 +24,7 @@
 // site emits, not just the raw /photos/{file} entry.
 
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
+import { withSiteParam, type Site } from '../../data/site';
 
 /** Optional Cloudflare API purge credentials (Pages secrets). */
 export interface CachePurgeEnv {
@@ -37,12 +38,16 @@ const RESIZE_WIDTHS = [800, 1200, 1600, 1800, 2400] as const;
 const RESIZE_QUALITY = 78;
 
 /** Every URL a visitor might have cached for this filename: the raw
- *  /photos/ asset plus each Cloudflare-resized variant. */
-function variantUrls(origin: string, filename: string): string[] {
-  const urls = [`${origin}/photos/${filename}`];
+ *  /photos/ asset plus each Cloudflare-resized variant. Rooftop's variants
+ *  carry `?site=rooftop`, so purging one venue never touches the other's. */
+function variantUrls(origin: string, filename: string, site: Site): string[] {
+  const urls = [withSiteParam(`${origin}/photos/${filename}`, site)];
   for (const w of RESIZE_WIDTHS) {
     urls.push(
-      `${origin}/cdn-cgi/image/width=${w},quality=${RESIZE_QUALITY},format=auto,fit=cover/photos/${filename}`,
+      withSiteParam(
+        `${origin}/cdn-cgi/image/width=${w},quality=${RESIZE_QUALITY},format=auto,fit=cover/photos/${filename}`,
+        site,
+      ),
     );
   }
   return urls;
@@ -76,8 +81,9 @@ export async function purgePhotoCache(
   origin: string,
   filename: string,
   env?: CachePurgeEnv,
+  site: Site = 'zahara',
 ): Promise<void> {
-  const urls = variantUrls(origin, filename);
+  const urls = variantUrls(origin, filename, site);
   for (const url of urls) {
     try {
       await caches.default.delete(url);
@@ -89,11 +95,15 @@ export async function purgePhotoCache(
 }
 
 /** Purge every catalogued photo from the colo cache (and globally if
- *  configured). */
-export async function purgeAllPhotoCache(origin: string, env?: CachePurgeEnv): Promise<number> {
+ *  configured), for one venue. */
+export async function purgeAllPhotoCache(
+  origin: string,
+  env?: CachePurgeEnv,
+  site: Site = 'zahara',
+): Promise<number> {
   const allUrls: string[] = [];
   for (const p of PHOTO_CATALOGUE) {
-    const urls = variantUrls(origin, p.filename);
+    const urls = variantUrls(origin, p.filename, site);
     allUrls.push(...urls);
     for (const url of urls) {
       try { await caches.default.delete(url); }

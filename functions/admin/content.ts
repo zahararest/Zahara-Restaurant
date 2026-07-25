@@ -9,11 +9,12 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import {
-  CONTENT_GROUPS, CONTENT_PAGES, readContent,
-  readPopupConfig, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
+  CONTENT_GROUPS, CONTENT_PAGES, readContentOwn,
+  readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField,
 } from '../data/content';
 import { PHOTO_CATALOGUE } from '../data/photos-map';
+import { adminSite, siteScope, withSiteParam, type Site } from '../data/site';
 
 interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
 
@@ -21,6 +22,20 @@ function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
   ));
+}
+
+// Server-side twin of the live site's formatRich (src/layouts/BaseLayout.astro):
+// turns the stored tokens (**bold**, *italic*, __underline__, newlines) plus a
+// tiny raw-tag whitelist into safe HTML. Used to pre-fill the WYSIWYG editors so
+// the owner sees each field rendered EXACTLY as the site shows it. Keep the two
+// in sync. (The editor serialises back to the same tokens on save.)
+function renderRich(s: string): string {
+  let h = String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  h = h.replace(/&lt;(\/?)(br|strong|em|b|i|u)\s*\/?&gt;/gi, (_m, sl, tg) => `<${sl}${tg.toLowerCase()}>`);
+  h = h.replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/(^|[^*])\*(\S(?:[^*\n]*\S)?)\*(?!\*)/g, '$1<em>$2</em>');
+  h = h.replace(/__(\S(?:[^_\n]*\S)?)__/g, '<u>$1</u>');
+  return h.replace(/\r?\n/g, '<br>');
 }
 
 const STYLE = `
@@ -78,6 +93,18 @@ const STYLE = `
   .col input:focus, .col textarea:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
   .col textarea { min-height: 2.4rem; resize: vertical; line-height: 1.5; }
   .col textarea.is-multi { min-height: 4.5rem; }
+  /* ── WYSIWYG editors — the owner sees bold/italic/underline rendered in place
+     (Word/Docs-style), and it saves the same tokens the site understands. ── */
+  .rte { font: inherit; font-size: 0.9rem; width: 100%; min-height: 2.6rem;
+    padding: 0.5rem 0.6rem; border: 1px solid #D5CBB1; background: #fff; color: #1a1410;
+    border-radius: 0; line-height: 1.55; overflow-wrap: anywhere; cursor: text; }
+  .rte.is-multi { min-height: 4.8rem; }
+  .rte:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
+  .rte.is-empty::before { content: attr(data-placeholder); color: #b7ab93; pointer-events: none; }
+  .rte b, .rte strong { font-weight: 700; }
+  .rte i, .rte em { font-style: italic; }
+  .rte u { text-decoration: underline; }
+  .rte[dir="rtl"] { text-align: right; }
   .fmt-hint code { background: #f3eddc; border: 1px solid #e3d7b8; padding: 0.05rem 0.35rem; font-size: 0.8em; }
   .col [dir="rtl"] { direction: rtl; }
   /* ── Formatting toolbar (Word/Docs-style) shown above each field's inputs ── */
@@ -91,6 +118,9 @@ const STYLE = `
   .fmtbtn--b { font-weight: 800; }
   .fmtbtn--i { font-style: italic; font-family: Georgia, 'Times New Roman', serif; }
   .fmtbtn--u { text-decoration: underline; }
+  .fmtbtn--dash { font-weight: 700; letter-spacing: 0.05em; }
+  .fmtbtn.is-active { background: #1a1410; color: #F4EDDF; border-color: #1a1410; }
+  .fmtbtn.is-active:hover { background: #9C4621; border-color: #9C4621; color: #fff; }
   .fmtbar__sep { width: 1px; align-self: stretch; background: #e3d7b8; margin-inline: 0.15rem; }
   .fmtbar__hint { font-size: 0.68rem; color: #9a8d77; margin-inline-start: auto; }
   .field__size { display: flex; align-items: center; gap: 0.5rem; margin-block-start: 0.4rem; }
@@ -126,6 +156,12 @@ const STYLE = `
   .popup-vis__status--on { color: #4f6b47; }
   /* ── Popup style + photo controls ─────────────────────────────────── */
   .popup-style { display: grid; gap: 1rem; }
+  .popup-style__label { margin: 0 0 0.4rem; font-size: 0.72rem; letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 700; color: #9a8d77; }
+  .modeseg__help { margin: 0.45rem 0 0; font-size: 0.8rem; color: #6f6457; }
+  .popup-photo__need { margin: 0 0 0.6rem; font-size: 0.8rem; color: #6f5a2e;
+    padding: 0.5rem 0.65rem; background: #f3eddc; border-inline-start: 3px solid #9C4621; }
+  .popup-photo__need.is-hidden { display: none; }
   .modeseg { display: inline-flex; flex-wrap: wrap; border: 1px solid #D5CBB1; background: #fff; width: fit-content; }
   .modeseg__btn { font: inherit; font-size: 0.78rem; letter-spacing: 0.04em; font-weight: 600;
     padding: 0.5rem 0.95rem; background: transparent; color: #6f6457; border: 0;
@@ -188,18 +224,56 @@ const SCRIPT = `
       statusEl.textContent = msg || '';
       statusEl.classList.toggle('savebar__status--err', !!err);
     }
+    // Walk a WYSIWYG editor's DOM back into the stored token format
+    // (**bold**, *italic*, __underline__, newlines). execCommand runs with
+    // styleWithCSS OFF, so bold/italic/underline come through as <b>/<i>/<u>
+    // (or <strong>/<em>); we also honour inline styles as a fallback.
+    function serializeRich(root) {
+      var out = '';
+      (function walk(node) {
+        for (var i = 0; i < node.childNodes.length; i++) {
+          var n = node.childNodes[i];
+          if (n.nodeType === 3) { out += n.nodeValue.replace(/\\u00a0/g, ' '); continue; }
+          if (n.nodeType !== 1) continue;
+          var tag = n.tagName.toLowerCase();
+          if (tag === 'br') { out += '\\n'; continue; }
+          var st = n.style || {};
+          var fw = st.fontWeight || '';
+          var bold = tag === 'b' || tag === 'strong' || fw === 'bold' || parseInt(fw, 10) >= 600;
+          var ital = tag === 'i' || tag === 'em' || st.fontStyle === 'italic';
+          var deco = (st.textDecoration || '') + ' ' + (st.textDecorationLine || '');
+          var und  = tag === 'u' || deco.indexOf('underline') !== -1;
+          var isBlock = tag === 'div' || tag === 'p';
+          if (isBlock && out && out.charAt(out.length - 1) !== '\\n') out += '\\n';
+          if (bold) out += '**';
+          if (ital) out += '*';
+          if (und)  out += '__';
+          walk(n);
+          if (und)  out += '__';
+          if (ital) out += '*';
+          if (bold) out += '**';
+        }
+      })(root);
+      return out.replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n')
+                .replace(/^\\s+|\\s+$/g, '');
+    }
     function collect() {
       var map = {};
       document.querySelectorAll('[data-key]').forEach(function (el) {
         var key = el.getAttribute('data-key');
         var lang = el.getAttribute('data-lang');
         if (!map[key]) map[key] = {};
-        map[key][lang] = el.value;
+        map[key][lang] = serializeRich(el);
       });
       document.querySelectorAll('[data-size-key]').forEach(function (el) {
         var key = el.getAttribute('data-size-key');
         if (!map[key]) map[key] = {};
         map[key].size = parseFloat(el.value) || 1;
+      });
+      document.querySelectorAll('[data-dash-key]').forEach(function (el) {
+        var key = el.getAttribute('data-dash-key');
+        if (!map[key]) map[key] = {};
+        map[key].dash = el.classList.contains('is-active');
       });
       return map;
     }
@@ -210,38 +284,30 @@ const SCRIPT = `
       });
     });
 
-    // ── Formatting toolbar (Bold / Italic / Underline / size / line break) ──
-    // The buttons wrap the selection in the SAME lightweight markup the live
-    // site understands (**bold**, *italic*, __underline__) so nothing new has
-    // to be taught to the renderer. A± step the field's Text-size control.
-    // Track the last-focused input per field so a button knows which of the
-    // Hebrew/English boxes to act on (clicking a button must not steal focus).
-    document.querySelectorAll('[data-key]').forEach(function (ta) {
-      ta.addEventListener('focus', function () {
-        var field = ta.closest('.field');
-        if (field) field.__activeTa = ta;
+    // ── WYSIWYG editors + formatting toolbar ──
+    // Each field is a contenteditable box that shows bold/italic/underline in
+    // place. The B/I/U buttons run the browser's own execCommand on the live
+    // selection (like any rich editor); Ctrl/⌘+B/I/U work natively too. A±
+    // step the field's Text-size control. On save, collect() serialises each
+    // box back to the site's **bold** / *italic* / __underline__ tokens.
+    try { document.execCommand('styleWithCSS', false, false); } catch (e) {}
+
+    // Placeholder: show the default text hint while a box is empty.
+    document.querySelectorAll('.rte').forEach(function (rte) {
+      function upd() {
+        var empty = rte.textContent.replace(/\\u00a0/g, ' ').trim() === '' && !rte.querySelector('img,br');
+        rte.classList.toggle('is-empty', empty);
+      }
+      rte.addEventListener('input', upd);
+      rte.addEventListener('blur', upd);
+      // Paste as PLAIN text so foreign markup never enters the box.
+      rte.addEventListener('paste', function (e) {
+        e.preventDefault();
+        var t = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, t);
       });
     });
-    function activeInput(field) {
-      if (field && field.__activeTa && field.contains(field.__activeTa)) return field.__activeTa;
-      return field ? field.querySelector('[data-key]') : null;
-    }
-    function surround(ta, before, after) {
-      var s = ta.selectionStart, e = ta.selectionEnd, val = ta.value;
-      var sel = val.slice(s, e);
-      ta.value = val.slice(0, s) + before + sel + after + val.slice(e);
-      ta.focus();
-      if (sel) { ta.selectionStart = s + before.length; ta.selectionEnd = e + before.length + sel.length; }
-      else     { ta.selectionStart = ta.selectionEnd = s + before.length; }
-      ta.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    function insertAt(ta, text) {
-      var s = ta.selectionStart, e = ta.selectionEnd, val = ta.value;
-      ta.value = val.slice(0, s) + text + val.slice(e);
-      ta.focus();
-      ta.selectionStart = ta.selectionEnd = s + text.length;
-      ta.dispatchEvent(new Event('input', { bubbles: true }));
-    }
+
     function stepSize(field, dir) {
       var sel = field.querySelector('.field__sizesel');
       if (!sel) return;
@@ -253,32 +319,28 @@ const SCRIPT = `
     function applyFmt(field, action) {
       if (action === 'bigger')  { stepSize(field, +1); return; }
       if (action === 'smaller') { stepSize(field, -1); return; }
-      var ta = activeInput(field);
-      if (!ta) return;
-      if (action === 'bold')      surround(ta, '**', '**');
-      else if (action === 'italic')    surround(ta, '*', '*');
-      else if (action === 'underline') surround(ta, '__', '__');
-      else if (action === 'linebreak') insertAt(ta, '\\n');
+      // These act on whatever is selected in the focused editor.
+      try {
+        if (action === 'bold')           document.execCommand('bold');
+        else if (action === 'italic')    document.execCommand('italic');
+        else if (action === 'underline') document.execCommand('underline');
+        else if (action === 'linebreak') document.execCommand('insertLineBreak');
+      } catch (e) {}
     }
     document.querySelectorAll('[data-fmtbar] .fmtbtn').forEach(function (btn) {
-      // mousedown → preventDefault keeps the textarea's selection/focus intact
-      // when the button is pressed (so the wrap targets the right text).
+      // mousedown → preventDefault keeps the editor's selection/focus intact
+      // when the button is pressed (so execCommand targets the right text).
       btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
       btn.addEventListener('click', function () {
-        var field = btn.closest('.field');
-        applyFmt(field, btn.getAttribute('data-fmt'));
+        // The dash button is a toggle, not a text command.
+        if (btn.getAttribute('data-fmt') === 'dash') {
+          var on = !btn.classList.contains('is-active');
+          btn.classList.toggle('is-active', on);
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+          return;
+        }
+        applyFmt(btn.closest('.field'), btn.getAttribute('data-fmt'));
       });
-    });
-    // Ctrl/⌘ + B / I / U inside any copy box.
-    document.addEventListener('keydown', function (e) {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-      var k = e.key.toLowerCase();
-      if (k !== 'b' && k !== 'i' && k !== 'u') return;
-      var ta = e.target;
-      if (!ta || !ta.matches || !ta.matches('[data-key]')) return;
-      e.preventDefault();
-      var field = ta.closest('.field');
-      applyFmt(field, k === 'b' ? 'bold' : k === 'i' ? 'italic' : 'underline');
     });
     // ── Popup: style selector + photo management (Popup tab) ──
     // The style (text / photo / both) rides along with Save changes; the photo
@@ -295,16 +357,25 @@ const SCRIPT = `
       var removeBtn = document.getElementById('popup-photo-remove');
       var statusEl  = document.getElementById('popup-photo-status');
       var picker    = document.getElementById('popup-picker');
+      var needEl    = document.getElementById('popup-photo-need');
+      var helps     = document.querySelectorAll('[data-mode-help]');
+      var hasImg    = !!(removeBtn && !removeBtn.hidden);
 
       function setPStatus(m, err) {
         if (!statusEl) return;
         statusEl.textContent = m || '';
         statusEl.classList.toggle('popup-photo__status--err', !!err);
       }
+      function refreshNeed() {
+        // Show the "no photo yet" nudge only in a photo mode without an image.
+        if (needEl) needEl.classList.toggle('is-hidden', !(modeInput.value !== 'text' && !hasImg));
+      }
       function setMode(mode) {
         modeInput.value = mode;
         seg.forEach(function (b) { b.classList.toggle('is-active', b.getAttribute('data-popup-mode') === mode); });
+        helps.forEach(function (h) { h.hidden = h.getAttribute('data-mode-help') !== mode; });
         if (photoWrap) photoWrap.classList.toggle('is-hidden', mode === 'text');
+        refreshNeed();
       }
       seg.forEach(function (b) {
         b.addEventListener('click', function () { setMode(b.getAttribute('data-popup-mode')); });
@@ -313,7 +384,7 @@ const SCRIPT = `
       function refreshThumb() {
         var img = document.createElement('img');
         img.className = 'popup-photo__thumb'; img.id = 'popup-photo-thumb';
-        img.alt = 'Current popup photo'; img.src = '/popup-image?v=' + Date.now();
+        img.alt = 'Current popup photo'; img.src = '/popup-image?v=' + Date.now() + (window.ADMIN_SITE_SUFFIX || '');
         if (thumb && thumb.parentNode) { thumb.parentNode.replaceChild(img, thumb); thumb = img; }
       }
       function clearThumb() {
@@ -323,8 +394,10 @@ const SCRIPT = `
         if (thumb && thumb.parentNode) { thumb.parentNode.replaceChild(box, thumb); thumb = box; }
       }
       function onHasImage(has) {
+        hasImg = has;
         if (removeBtn) removeBtn.hidden = !has;
         if (has) refreshThumb(); else clearThumb();
+        refreshNeed();
       }
       async function post(fd) {
         var res  = await fetch('/admin/popup/image', { method: 'POST', body: fd });
@@ -409,17 +482,20 @@ const SCRIPT = `
 function fieldHtml(f: ContentField, value: ContentMap[string]): string {
   // Pre-fill with the saved override, falling back to the built-in default,
   // so the editor always shows the CURRENT live text rather than a blank box.
-  const he  = esc(value?.he ?? f.he ?? '');
-  const en  = esc(value?.en ?? f.en ?? '');
+  // Pre-fill each editor with the CURRENT copy rendered to HTML, so bold /
+  // italic / underline show in place (WYSIWYG) rather than as raw ** tokens.
+  const heHtml = renderRich(value?.he ?? f.he ?? '');
+  const enHtml = renderRich(value?.en ?? f.en ?? '');
+  const heEmpty = (value?.he ?? f.he ?? '') === '' ? ' is-empty' : '';
+  const enEmpty = (value?.en ?? f.en ?? '') === '' ? ' is-empty' : '';
   // Placeholder = the built-in default, so a cleared (hidden) field still
   // shows what the default was — retype it to restore, leave blank to hide.
   const phHe = esc(f.he ?? '');
   const phEn = esc(f.en ?? '');
-  // Every field is a textarea so line breaks (and **bold** / *italic*) work
-  // anywhere; longer fields get extra height via the is-multi class.
   const cls = f.multiline ? ' is-multi' : '';
-  const input = (lang: 'he' | 'en', val: string, dir: string, ph: string) =>
-    `<textarea class="field__input${cls}" data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" rows="${f.multiline ? 4 : 1}" placeholder="${ph}">${val}</textarea>`;
+  const input = (lang: 'he' | 'en', html: string, dir: string, ph: string, empty: string) =>
+    `<div class="rte${cls}${empty}" contenteditable="true" role="textbox" aria-multiline="true"
+          data-key="${esc(f.key)}" data-lang="${lang}" dir="${dir}" data-placeholder="${ph}">${html}</div>`;
 
   // Optional font-size control. Presets keep it simple; the saved value is
   // pre-selected (and an off-preset value is added so it isn't lost).
@@ -446,7 +522,12 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
         <button type="button" class="fmtbtn" data-fmt="bigger"  title="Make this text bigger" aria-label="Bigger text">A+</button>
         <span class="fmtbar__sep"></span>
         <button type="button" class="fmtbtn" data-fmt="linebreak" title="Insert a line break" aria-label="Line break">↵</button>
-        <span class="fmtbar__hint">select text, then click a style</span>
+        <span class="fmtbar__sep"></span>
+        <button type="button" class="fmtbtn fmtbtn--dash${value?.dash ? ' is-active' : ''}"
+                data-fmt="dash" data-dash-key="${esc(f.key)}"
+                title="Show a section dash (—) above this text (use it in place of an eyebrow)"
+                aria-label="Toggle section dash" aria-pressed="${value?.dash ? 'true' : 'false'}">—</button>
+        <span class="fmtbar__hint">select text, then B / I / U — styling shows in place</span>
       </div>`;
 
   return `
@@ -454,8 +535,8 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
       <div class="field__label">${esc(f.label)}</div>
       ${toolbar}
       <div class="pair">
-        <div class="col"><span class="col__lang">Hebrew</span>${input('he', he, 'rtl', phHe)}</div>
-        <div class="col"><span class="col__lang">English</span>${input('en', en, 'ltr', phEn)}</div>
+        <div class="col"><span class="col__lang">Hebrew</span>${input('he', heHtml, 'rtl', phHe, heEmpty)}</div>
+        <div class="col"><span class="col__lang">English</span>${input('en', enHtml, 'ltr', phEn, enEmpty)}</div>
       </div>
       <div class="field__size">
         <label>Text size</label>
@@ -511,7 +592,7 @@ function popupVisHtml(cfg: PopupConfig): string {
 // text, and manage the popup photo (upload / reuse an existing site photo /
 // remove). Photo actions take effect immediately; the chosen STYLE applies
 // when the owner presses Save changes (like the visibility settings above).
-function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string): string {
+function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string, site: Site): string {
   const modes: Array<[string, string]> = [
     ['text', 'Text card'], ['photo', 'Photo'], ['both', 'Photo + text'],
   ];
@@ -519,8 +600,10 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string): s
     `<button type="button" class="modeseg__btn${cfg.mode === id ? ' is-active' : ''}" data-popup-mode="${id}">${esc(label)}</button>`
   ).join('');
 
+  // Preview from THIS venue's view (rooftop → &site=rooftop).
+  const siteAmp = site === 'rooftop' ? '&site=rooftop' : '';
   const thumb = hasImage
-    ? `<img class="popup-photo__thumb" id="popup-photo-thumb" src="/popup-image?v=${esc(version)}" alt="Current popup photo" />`
+    ? `<img class="popup-photo__thumb" id="popup-photo-thumb" src="/popup-image?v=${esc(version)}${siteAmp}" alt="Current popup photo" />`
     : `<div class="popup-photo__thumb is-empty" id="popup-photo-thumb">No photo yet</div>`;
 
   // Inline "reuse an existing photo" grid — every non-reserved site photo.
@@ -528,13 +611,39 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string): s
     .filter((p) => !p.reserved)
     .map((p) =>
       `<button type="button" class="popup-picker__item" data-popup-source="${esc(p.key)}" title="${esc(p.label)}">
-        <img src="/photos/${esc(p.filename)}?t=${esc(version)}" alt="" loading="lazy" onerror="this.style.opacity=0.2" />
+        <img src="/photos/${esc(p.filename)}?t=${esc(version)}${siteAmp}" alt="" loading="lazy" onerror="this.style.opacity=0.2" />
         <span>${esc(p.label)}</span>
       </button>`
     ).join('');
 
   // Photo controls hidden while in text mode.
   const photoHidden = cfg.mode === 'text' ? ' is-hidden' : '';
+
+  // Plain-words summary of what visitors see RIGHT NOW (the saved state), so
+  // it's obvious which kind of popup is currently live vs. what's being edited.
+  const active = popupActive(cfg);
+  const modeName: Record<string, string> = {
+    text: 'the text card (title + message)',
+    photo: hasImage ? 'a full photo (no text)' : 'a photo — but none is uploaded, so the text card',
+    both: hasImage ? 'a photo with the text card below it' : 'a photo with text — but none is uploaded, so just the text card',
+  };
+  const liveStatus = !active
+    ? 'The popup is OFF right now — turn it on under Visibility above to show it.'
+    : `Right now visitors see: ${modeName[cfg.mode]}.`;
+  const liveClass = active ? ' popup-vis__status--on' : '';
+
+  // Descriptions under the chooser so each option is self-explanatory.
+  const modeHelp: Record<string, string> = {
+    text: 'A paper card with your title and message.',
+    photo: 'The popup is the photo, edge to edge — no card, no text.',
+    both: 'The photo on top, with your title and message beneath it.',
+  };
+  const modeCaptions = modes.map(([id]) =>
+    `<p class="modeseg__help" data-mode-help="${id}"${cfg.mode === id ? '' : ' hidden'}>${esc(modeHelp[id])}</p>`
+  ).join('');
+
+  // Nudge shown (in photo modes) when no photo is uploaded yet.
+  const needPhoto = (cfg.mode !== 'text' && !hasImage);
 
   return `
     <section class="group">
@@ -543,10 +652,20 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string): s
         <small>How the popup looks. Save changes to apply the style.</small>
       </header>
       <div class="popup-style">
-        <div class="modeseg" role="group" aria-label="Popup style">${modeBtns}</div>
+        <p class="popup-vis__status${liveClass}" id="popup-live-status">${esc(liveStatus)}</p>
+
+        <div>
+          <p class="popup-style__label">Choose a style</p>
+          <div class="modeseg" role="group" aria-label="Popup style">${modeBtns}</div>
+          ${modeCaptions}
+        </div>
         <input type="hidden" id="popup-mode" value="${esc(cfg.mode)}" />
 
         <div class="popup-photo${photoHidden}" id="popup-photo">
+          <p class="popup-style__label">Popup photo</p>
+          <p class="popup-photo__need${needPhoto ? '' : ' is-hidden'}" id="popup-photo-need">
+            No photo uploaded yet — add one below, or the popup falls back to the text card.
+          </p>
           <div class="popup-photo__preview">
             ${thumb}
             <div class="popup-photo__actions">
@@ -571,12 +690,19 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string): s
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return unauthorized();
 
-  const [overrides, popupCfg] = await Promise.all([readContent(env), readPopupConfig(env)]);
+  // The venue being edited (site-switch cookie). Prefill from its OWN store so
+  // the save/diff compares against code defaults, never the other venue's copy.
+  const site = adminSite(request);
+  const [overrides, popupCfg] = await Promise.all([
+    readContentOwn(env, site), readPopupConfigOwn(env, site),
+  ]);
 
-  // Is a popup photo actually stored right now? (head avoids downloading it.)
+  // Is a popup photo actually stored right now for THIS venue? (head avoids
+  // downloading it.)
+  const bucket = siteScope(env, site).images;
   let hasPopupImage = false;
-  if (env.IMAGES) {
-    try { hasPopupImage = (await env.IMAGES.head(POPUP_IMAGE_OBJECT)) !== null; }
+  if (bucket) {
+    try { hasPopupImage = (await bucket.head(POPUP_IMAGE_OBJECT)) !== null; }
     catch (err) { console.warn('[admin/content] popup image head failed', err); }
   }
   // Per-load cache-buster for admin thumbnails.
@@ -599,7 +725,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   ).join('');
   const pagesHtml = pages.map((p) => `
     <div class="page" data-page="${esc(p.id)}" role="tabpanel">
-      ${p.id === 'popup' ? popupVisHtml(popupCfg) + popupStyleHtml(popupCfg, hasPopupImage, adminVersion) : ''}
+      ${p.id === 'popup' ? popupVisHtml(popupCfg) + popupStyleHtml(popupCfg, hasPopupImage, adminVersion, site) : ''}
       ${CONTENT_GROUPS.filter((g) => g.page === p.id).map(groupHtml).join('')}
     </div>`).join('');
 
@@ -617,6 +743,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 </head>
 <body>
   ${topbar('content', {
+    site,
     titleSlot: `<div class="pagetabs" role="tablist" aria-label="Pages">${tabsHtml}</div>`,
   })}
   <main>
@@ -635,6 +762,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     <p class="savebar__status" id="status"></p>
     <button class="btn" type="button" id="save">Save changes</button>
   </div>
+  <script>window.ADMIN_SITE_SUFFIX = ${JSON.stringify(site === 'rooftop' ? '&site=rooftop' : '')};</script>
   <script>${SCRIPT}</script>
 </body>
 </html>`;

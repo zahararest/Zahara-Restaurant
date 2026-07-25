@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro build && npm run build:rooftop",
+    "build:rooftop": "BUILD_BASE=/rooftop astro build --outDir dist/rooftop",
     "preview": "astro preview",
     "astro": "astro",
     "dev:cf": "npm run build && NODE_OPTIONS=--max-old-space-size=4096 wrangler pages dev ./dist"

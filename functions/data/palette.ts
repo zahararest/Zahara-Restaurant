@@ -18,22 +18,18 @@
 //   (light only) — readPalette migrates that to `{ light: <flat>, dark: {} }`.
 
 import type { KVNamespace } from '@cloudflare/workers-types';
+import { siteScope, type Site, type SiteBindings, type PaletteTarget } from './site';
 
-export interface PaletteEnv {
-  PALETTE_DATA?: KVNamespace;
-  MENU_DATA?:    KVNamespace;
-}
+// Widened to every binding (both venues); a superset of the old shape, so
+// existing callers keep working.
+export type PaletteEnv = SiteBindings;
 
 export type ThemeMap   = Record<string, string>;
 export interface PalettePair { light: ThemeMap; dark: ThemeMap }
 
-const KEY_DEDICATED = 'palette';
-const KEY_FALLBACK  = '__palette__';
-
-export function pickKv(env: PaletteEnv): { kv: KVNamespace; key: string } | null {
-  if (env.PALETTE_DATA) return { kv: env.PALETTE_DATA, key: KEY_DEDICATED };
-  if (env.MENU_DATA)    return { kv: env.MENU_DATA,    key: KEY_FALLBACK  };
-  return null;
+/** This venue's primary palette store (dedicated namespace preferred). */
+export function pickKv(env: PaletteEnv, site: Site = 'zahara'): PaletteTarget | null {
+  return siteScope(env, site).palette;
 }
 
 /** Whitelist of CSS custom properties the colour editor is allowed to
@@ -90,13 +86,12 @@ export function sanitisePalettePair(input: unknown): PalettePair {
   return { light: sanitiseThemeMap(input), dark: {} };
 }
 
-export async function readPalette(env: PaletteEnv): Promise<PalettePair> {
-  const target = pickKv(env);
+/** Read a palette pair from one target (null-safe). */
+async function readPaletteFrom(target: PaletteTarget | null): Promise<PalettePair> {
   if (!target) return { light: {}, dark: {} };
   try {
-    // cacheTtl=600: palette changes at most once per admin session; cache
-    // at the Cloudflare edge for 10 minutes to avoid KV reads on every
-    // HTML page request (the middleware calls this on every page load).
+    // cacheTtl=600: palette changes at most once per admin session; cache at
+    // the Cloudflare edge for 10 minutes to avoid a KV read on every page load.
     const raw = await target.kv.get(target.key, { type: 'json', cacheTtl: 600 });
     return sanitisePalettePair(raw);
   } catch {
@@ -104,11 +99,36 @@ export async function readPalette(env: PaletteEnv): Promise<PalettePair> {
   }
 }
 
+/** Per-token merge for the DISPLAY fallback: `over` (this venue's own tokens)
+ *  wins per token over `base` (Zahara), so rooftop can restyle a single colour
+ *  and inherit the rest of Zahara's palette. */
+function mergePairForDisplay(base: PalettePair, over: PalettePair): PalettePair {
+  return {
+    light: { ...base.light, ...over.light },
+    dark:  { ...base.dark,  ...over.dark  },
+  };
+}
+
+/** This venue's OWN palette — no cross-venue fallback (admin colour editor). */
+export async function readPaletteOwn(env: PaletteEnv, site: Site = 'zahara'): Promise<PalettePair> {
+  return readPaletteFrom(siteScope(env, site).palette);
+}
+
+/** DISPLAY read. Zahara: its own palette. Rooftop: its own tokens layered over
+ *  Zahara's palette, so an unstyled rooftop looks identical to Zahara. */
+export async function readPalette(env: PaletteEnv, site: Site = 'zahara'): Promise<PalettePair> {
+  const scope = siteScope(env, site);
+  const own = await readPaletteFrom(scope.palette);
+  if (!scope.paletteFb) return own;               // zahara — no fallback
+  return mergePairForDisplay(await readPaletteFrom(scope.paletteFb), own);
+}
+
 export async function writePalette(
   env: PaletteEnv,
+  site: Site,
   palette: unknown,
 ): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
-  const target = pickKv(env);
+  const target = siteScope(env, site).palette;    // OWN store only
   if (!target) return { ok: false, error: 'No KV binding configured' };
   const clean = sanitisePalettePair(palette);
   await target.kv.put(target.key, JSON.stringify(clean));

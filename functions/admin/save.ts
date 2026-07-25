@@ -4,10 +4,9 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from './auth';
 import { VALID_SLUGS }              from '../data/menu-slugs';
 import type { MenuSection }         from '../data/menu-defaults';
+import { adminSite, siteScope, type SiteBindings } from '../data/site';
 
-interface Env extends AuthEnv {
-  MENU_DATA: KVNamespace;
-}
+type Env = AuthEnv & SiteBindings;
 
 interface MenuPayload { date?: string | null; sections: MenuSection[] }
 
@@ -51,6 +50,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'data must be { sections: [] } or an array' }, 400);
   }
 
-  await env.MENU_DATA.put(slug, JSON.stringify(payload));
+  // Write to the venue the admin is editing (its OWN menu KV — never the other
+  // venue's). Rooftop is chosen via the admin site-switch cookie.
+  const kv = siteScope(env, adminSite(request)).kv;
+  if (!kv) return json({ ok: false, error: 'No menu KV bound for this venue' }, 500);
+
+  await kv.put(slug, JSON.stringify(payload));
   return json({ ok: true });
 };

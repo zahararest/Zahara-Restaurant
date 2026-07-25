@@ -7,6 +7,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import { syncMenus, readConfig, type SyncEnv } from '../../data/menu-sync';
 import { VALID_SLUGS } from '../../data/menu-slugs';
+import { adminSite } from '../../data/site';
 
 type Env = AuthEnv & SyncEnv;
 
@@ -30,7 +31,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const slug = body.slug?.trim();
   if (slug && !VALID_SLUGS.has(slug)) return json({ ok: false, error: 'Invalid slug' }, 400);
 
-  const run    = await syncMenus(env, slug ? [slug] : undefined);
-  const config = await readConfig(env);
+  const site   = adminSite(request);
+  const run    = await syncMenus(env, slug ? [slug] : undefined, site);
+  const config = await readConfig(env, site);
   return json({ ...run, config }, run.ok ? 200 : 207);
 };

@@ -11,8 +11,9 @@ import { checkAccess, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
+import { adminSite, siteScope } from '../../data/site';
 
-interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES: R2Bucket; }
+interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES?: R2Bucket; }
 
 const MAX_BYTES = 10 * 1024 * 1024;  // 10 MB
 
@@ -49,7 +50,12 @@ function detectImageType(bytes: Uint8Array): string | null {
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
-  if (!env.IMAGES) return json({ ok: false, error: 'IMAGES binding missing' }, 500);
+
+  // The venue being edited (admin site-switch cookie). Upload targets its OWN
+  // R2 bucket — a rooftop upload never touches Zahara's images and vice versa.
+  const site   = adminSite(request);
+  const bucket = siteScope(env, site).images;
+  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
 
   let form: FormData;
   try { form = await request.formData(); }
@@ -98,7 +104,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   try {
-    await env.IMAGES.put(`images/${objectKey}`, buffer, {
+    await bucket.put(`images/${objectKey}`, buffer, {
       httpMetadata: { contentType: detected },
     });
   } catch (err) {
@@ -106,18 +112,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
 
-  // Bump the asset version so every resized URL changes → the live site
-  // (desktop AND mobile variants) gets the new image immediately, without
-  // depending on a cache purge.
-  await bumpAssetVersion(env);
+  // Bump THIS venue's asset version so every resized URL for it changes → the
+  // live site (desktop AND mobile variants) gets the new image immediately,
+  // without depending on a cache purge.
+  await bumpAssetVersion(env, site);
 
-  // Colo purge for the desktop filename + anything that falls back to it.
-  // (Mobile variants ride the version bump, so no separate purge needed.)
+  // Colo purge for the desktop filename + anything that falls back to it, in
+  // this venue's URL namespace. (Mobile variants ride the version bump.)
   const origin = new URL(request.url).origin;
   if (!isMobile) {
-    await purgePhotoCache(origin, meta.filename, env);
+    await purgePhotoCache(origin, meta.filename, env, site);
     for (const dep of PHOTO_CATALOGUE) {
-      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env, site);
     }
   }
 

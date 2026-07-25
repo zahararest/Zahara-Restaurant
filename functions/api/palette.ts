@@ -6,10 +6,14 @@
 // and for any future client that wants to read the current palette.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { readPalette, type PaletteEnv } from '../data/palette';
+import { readPaletteOwn, type PaletteEnv } from '../data/palette';
+import { siteFromRequest } from '../data/site';
 
-export const onRequestGet: PagesFunction<PaletteEnv> = async ({ env }) => {
-  const palette = await readPalette(env);
+export const onRequestGet: PagesFunction<PaletteEnv> = async ({ env, request }) => {
+  // The colour editor seeds itself from here. It needs the venue's OWN saved
+  // tokens (via ?site=…), NOT the Zahara-merged display palette — otherwise a
+  // rooftop save would bake Zahara's tokens into rooftop's store.
+  const palette = await readPaletteOwn(env, siteFromRequest(request));
   return new Response(JSON.stringify(palette), {
     headers: {
       'Content-Type':  'application/json; charset=utf-8',

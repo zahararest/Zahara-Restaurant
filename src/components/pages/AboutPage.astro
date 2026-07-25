@@ -12,6 +12,7 @@ import Photo         from '../Photo.astro';
 import { pick, contact as copy, location as loc, aboutPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
 import { RESTAURANT } from '../../data/restaurant';
+import { SITE_QUERY } from '../../lib/base';
 import type { Lang } from '../../data/i18n';
 
 export interface Props { lang: Lang }
@@ -28,7 +29,7 @@ const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.d
 // Kashrut certificate — opens full size (no crop) via the override-aware
 // /photos route. No shipped default; the block hides itself client-side until
 // the owner uploads the certificate in /admin/images.
-const kosherCert = PHOTOS.kosherCert.src;
+const kosherCert = PHOTOS.kosherCert.src + SITE_QUERY;
 
 // ── Map + directions (folded in from the old Location page) ──────────────
 const encoded  = encodeURIComponent(RESTAURANT.address.maps);

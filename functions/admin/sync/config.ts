@@ -5,6 +5,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import { readConfig, applyConfigPatch, type SyncEnv } from '../../data/menu-sync';
+import { adminSite } from '../../data/site';
 
 type Env = AuthEnv & SyncEnv;
 
@@ -21,7 +22,7 @@ function json(body: object, status = 200): Response {
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
-  const config = await readConfig(env);
+  const config = await readConfig(env, adminSite(request));
   return json({ ok: true, config });
 };
 
@@ -35,6 +36,6 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'Invalid JSON' }, 400);
   }
 
-  const config = await applyConfigPatch(env, patch);
+  const config = await applyConfigPatch(env, patch, adminSite(request));
   return json({ ok: true, config });
 };

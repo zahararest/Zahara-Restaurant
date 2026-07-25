@@ -16,6 +16,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { runScheduled, syncMenus, type SyncEnv } from '../data/menu-sync';
 import { refreshInstagramToken } from '../data/instagram-token';
+import { SITES } from '../data/site';
 
 interface Env extends SyncEnv {
   SYNC_TOKEN?:             string;
@@ -47,12 +48,17 @@ async function handle(request: Request, env: Env): Promise<Response> {
     return json({ ok: false, error: 'Forbidden' }, 403);
   }
 
+  // Both venues sync off the same hourly ping (shared OneDrive creds, separate
+  // links + menu stores). Each site is independent, so one failing never blocks
+  // the other.
   if (url.searchParams.get('force') === '1') {
-    const result = await syncMenus(env);
-    return json({ forced: true, ...result });
+    const results: Record<string, unknown> = {};
+    for (const site of SITES) results[site] = await syncMenus(env, undefined, site);
+    return json({ forced: true, sites: results });
   }
 
-  const out = await runScheduled(env);
+  const out: Record<string, unknown> = {};
+  for (const site of SITES) out[site] = await runScheduled(env, site);
   // Piggyback the Instagram token rotation on the same hourly ping. It's cheap
   // (a KV read + date check) and only calls Meta when the token is near expiry,
   // so the feed's long-lived token never lapses. Never let it break the sync.
@@ -62,7 +68,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
   } catch (err) {
     instagram = { ok: false, reason: 'threw', body: String(err) };
   }
-  return json({ ok: true, ...out, instagram });
+  return json({ ok: true, sites: out, instagram });
 }
 
 export const onRequestGet:  PagesFunction<Env> = ({ request, env }) => handle(request, env);

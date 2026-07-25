@@ -7,8 +7,9 @@ import { checkAccess, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
+import { adminSite, siteScope } from '../../data/site';
 
-interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES: R2Bucket; }
+interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES?: R2Bucket; }
 
 function json(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -22,7 +23,12 @@ function json(body: object, status = 200): Response {
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
-  if (!env.IMAGES) return json({ ok: false, error: 'IMAGES binding missing' }, 500);
+
+  // Delete from the venue being edited — removing a rooftop override makes that
+  // slot fall back to Zahara (then the static default) again, not touch Zahara.
+  const site   = adminSite(request);
+  const bucket = siteScope(env, site).images;
+  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
 
   let key = '';
   let isMobile = false;
@@ -39,19 +45,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const objectKey = isMobile ? `${key}__mobile` : key;
   try {
-    await env.IMAGES.delete(`images/${objectKey}`);
+    await bucket.delete(`images/${objectKey}`);
   } catch (err) {
     console.error('[admin/images/delete] R2 delete failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
 
-  await bumpAssetVersion(env);
+  await bumpAssetVersion(env, site);
 
   const origin = new URL(request.url).origin;
   if (!isMobile) {
-    await purgePhotoCache(origin, meta.filename, env);
+    await purgePhotoCache(origin, meta.filename, env, site);
     for (const dep of PHOTO_CATALOGUE) {
-      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env, site);
     }
   }
 

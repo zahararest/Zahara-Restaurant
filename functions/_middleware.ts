@@ -19,6 +19,7 @@ import {
   readContent, contentToJson, readAssetVersion,
   readPopupConfig, popupActive, popupShowsImage, type ContentEnv,
 } from './data/content';
+import { siteFromRequest, withSiteParam } from './data/site';
 
 const ASSET_VERSION_TOKEN = '__ZASSETV__';
 
@@ -32,13 +33,18 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('text/html')) return response;
 
+  // Which venue is this page? Rooftop pages live under /rooftop, so every KV
+  // read below is scoped to the right store (and falls back to Zahara for any
+  // item rooftop hasn't customised yet). Zahara pages are unaffected.
+  const site = siteFromRequest(ctx.request);
+
   // Palette, editable copy, the asset version, and the popup switch — four
   // tiny KV reads run together so the added latency stays a single round trip.
   const [palette, content, assetVersion, popupCfg] = await Promise.all([
-    readPalette(ctx.env),
-    readContent(ctx.env),
-    readAssetVersion(ctx.env),
-    readPopupConfig(ctx.env),
+    readPalette(ctx.env, site),
+    readContent(ctx.env, site),
+    readAssetVersion(ctx.env, site),
+    readPopupConfig(ctx.env, site),
   ]);
 
   const css        = paletteToCss(palette);
@@ -64,7 +70,8 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
       ? {
           active: true,
           mode: popupCfg.mode,
-          image: popupShowsImage(popupCfg) ? `/popup-image?v=${assetVersion}` : '',
+          // Rooftop's popup photo is served from its own bucket via ?site.
+          image: popupShowsImage(popupCfg) ? withSiteParam(`/popup-image?v=${assetVersion}`, site) : '',
         }
       : null;
     const popupTag = popupPayload

@@ -14,9 +14,10 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
 import {
-  readPopupConfig, writePopupConfig, bumpAssetVersion,
+  readPopupConfigOwn, writePopupConfig, bumpAssetVersion,
   POPUP_IMAGE_OBJECT, type ContentEnv,
 } from '../../data/content';
+import { adminSite, siteScope, withSiteParam, type Site } from '../../data/site';
 
 interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
 
@@ -43,15 +44,19 @@ function detectImageType(bytes: Uint8Array): string | null {
   return null;
 }
 
-async function setHasImage(env: Env, hasImage: boolean): Promise<void> {
-  const prior = await readPopupConfig(env);
-  await writePopupConfig(env, { ...prior, hasImage });
-  await bumpAssetVersion(env);
+async function setHasImage(env: Env, site: Site, hasImage: boolean): Promise<void> {
+  const prior = await readPopupConfigOwn(env, site);
+  await writePopupConfig(env, site, { ...prior, hasImage });
+  await bumpAssetVersion(env, site);
 }
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
-  if (!env.IMAGES) return json({ ok: false, error: 'IMAGES binding missing' }, 500);
+
+  // The venue being edited — the popup photo lives in its own bucket + config.
+  const site   = adminSite(request);
+  const bucket = siteScope(env, site).images;
+  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
 
   let form: FormData;
   try { form = await request.formData(); }
@@ -59,12 +64,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // ── Delete ────────────────────────────────────────────────────────────
   if (String(form.get('action') || '') === 'delete') {
-    try { await env.IMAGES.delete(POPUP_IMAGE_OBJECT); }
+    try { await bucket.delete(POPUP_IMAGE_OBJECT); }
     catch (err) {
       console.error('[admin/popup/image] R2 delete failed', err);
       return json({ ok: false, error: 'Delete failed' }, 500);
     }
-    await setHasImage(env, false);
+    await setHasImage(env, site, false);
     return json({ ok: true, hasImage: false });
   }
 
@@ -75,9 +80,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (source) {
     const src = PHOTO_CATALOGUE.find((p) => p.key === source);
     if (!src) return json({ ok: false, error: `Unknown source key: ${source}` }, 400);
-    // Prefer the R2 override; fall back to the shipped static file.
+    // Prefer this venue's R2 override; fall back to what it displays for that
+    // slot (its own R2 → Zahara → static) via ?site.
     try {
-      const obj = await env.IMAGES.get(`images/${source}`);
+      const obj = await bucket.get(`images/${source}`);
       if (obj) buffer = new Uint8Array(await obj.arrayBuffer());
     } catch (err) {
       console.warn('[admin/popup/image] R2 get failed', err);
@@ -85,7 +91,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!buffer) {
       try {
         const origin = new URL(request.url).origin;
-        const res = await fetch(`${origin}/photos/${src.filename}`);
+        const res = await fetch(withSiteParam(`${origin}/photos/${src.filename}`, site));
         if (!res.ok) return json({ ok: false, error: 'Could not read source image' }, 404);
         buffer = new Uint8Array(await res.arrayBuffer());
       } catch (err) {
@@ -114,12 +120,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!detected) return json({ ok: false, error: 'That file is not a valid image' }, 415);
 
   try {
-    await env.IMAGES.put(POPUP_IMAGE_OBJECT, buffer, { httpMetadata: { contentType: detected } });
+    await bucket.put(POPUP_IMAGE_OBJECT, buffer, { httpMetadata: { contentType: detected } });
   } catch (err) {
     console.error('[admin/popup/image] R2 put failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
 
-  await setHasImage(env, true);
+  await setHasImage(env, site, true);
   return json({ ok: true, hasImage: true, size: buffer.byteLength, type: detected });
 };

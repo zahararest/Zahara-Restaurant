@@ -33,18 +33,22 @@ const description = page.pageDescription;
                 mobileCrop={[[640, 680], [820, 870], [1080, 1150]]} />
   </div>
 
-  <section class="page-intro wrap">
-    <div class="stagger reveal-on-scroll">
-      <p class="eyebrow" data-content-key="events.eyebrow">{t.eventsPageEyebrow}</p>
+  {/* Centred editorial caption band under the photo — a warmer, deeper paper
+      tone than the form below, so the opening reads as a composed magazine
+      spread (photo → caption → form) instead of text stranded on flat cream. */}
+  <section class="events-intro">
+    <div class="wrap events-intro__inner stagger reveal-on-scroll">
+      <p class="eyebrow eyebrow--center" data-content-key="events.eyebrow">{t.eventsPageEyebrow}</p>
       <h1
-        class="display"
+        class="display events-intro__title"
         data-word-reveal
         data-word-reveal-delay="0.08"
         data-word-reveal-step="0.07"
         data-content-key="events.heading"
         set:html={t.eventsPageHeading}
       />
-      <p class="lede-prose" data-content-key="events.lede">{t.eventsPageLede}</p>
+      <span class="events-intro__ornament" aria-hidden="true"><i></i></span>
+      <p class="events-intro__lede" data-content-key="events.lede">{t.eventsPageLede}</p>
     </div>
   </section>
 
@@ -52,9 +56,46 @@ const description = page.pageDescription;
     /* Pull the opening photo up under the sticky header so its top edge is
        partly hidden behind the nav (same trick as the home hero). */
     .events-hero { margin-block-start: calc(var(--header-h) * -1); }
-    /* Trim the intro's big top gap a touch — the photo already gives the page
-       its breathing room above the title. */
-    .events-hero + .page-intro { padding-block-start: clamp(2.5rem, 6vw, 4rem); }
+
+    /* A warm atmospheric caption band, driven by the --events-band-* tokens
+       (tunable in /admin/colors): a rich brown→near-black in dark mode, a soft
+       warm gradient in light. It carries the opening instead of flat cream, and
+       flows straight out of the dark photo above it. */
+    .events-intro {
+      background: linear-gradient(160deg, var(--events-band-from), var(--events-band-to));
+      color: var(--events-band-text);
+      border-block-end: 1px solid var(--events-band-divider);
+      padding-block: clamp(3.5rem, 8vw, 6rem);
+    }
+    .events-intro__inner {
+      max-width: var(--readable-max);
+      margin-inline: auto;
+      text-align: center;
+      display: grid;
+      justify-items: center;
+      gap: var(--space-s);
+    }
+    .events-intro .eyebrow { color: color-mix(in srgb, var(--events-band-text) 74%, transparent); }
+    .events-intro .eyebrow::before { background: var(--events-band-num); }
+    .events-intro__title { margin: 0; font-size: var(--step-5); color: var(--events-band-text); }
+    /* Hairline · diamond · hairline — the same quiet ornament as the popup card. */
+    .events-intro__ornament {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.9rem; margin-block: 0.15rem;
+    }
+    .events-intro__ornament::before,
+    .events-intro__ornament::after {
+      content: ''; width: 2.75rem; height: 1px;
+      background: color-mix(in srgb, var(--events-band-text) 38%, transparent);
+    }
+    .events-intro__ornament i {
+      width: 5px; height: 5px; background: var(--events-band-num); transform: rotate(45deg);
+    }
+    .events-intro__lede {
+      max-width: 52ch; margin: 0 auto;
+      font-size: var(--step-1); line-height: 1.7; font-weight: 300;
+      color: color-mix(in srgb, var(--events-band-text) 90%, transparent);
+    }
   </style>
 
   <ContactForm lang={lang} defaultMode="event" showToggle={false} />

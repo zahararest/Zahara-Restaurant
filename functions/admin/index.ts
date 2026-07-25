@@ -4,11 +4,12 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { adminPage }                              from './page';
+import { adminSite }                              from '../data/site';
 
 export const onRequestGet: PagesFunction<AuthEnv> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return unauthorized();
 
-  return new Response(adminPage(), {
+  return new Response(adminPage(adminSite(request)), {
     headers: {
       'Content-Type':  'text/html; charset=utf-8',
       'Cache-Control': 'no-store',

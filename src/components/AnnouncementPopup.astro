@@ -59,34 +59,43 @@ const brand = RESTAURANT.name[lang];
     var marker = document.getElementById('zahara-popup');
     if (!marker) return;
 
+    var panel = root.querySelector('.announce__panel');
+    var prevFocus = null, prevOverflow = '';
+
     // The marker carries how to present the popup: mode (text/photo/both) and,
-    // when a photo applies, its URL. Show the photo and, for photo-only mode,
-    // hide the text card. A photo that fails to load falls back to the text.
+    // when a photo applies, its URL. To avoid a flash of the text card, we
+    // decide the layout SYNCHRONOUSLY (before the popup is ever shown) and,
+    // for photo modes, wait until the photo has loaded before opening — so the
+    // popup appears already in its final form, never text-then-photo.
+    var wantsPhoto = false;
     try {
       var cfg = JSON.parse(marker.textContent || '{}');
       if (cfg && cfg.image && (cfg.mode === 'photo' || cfg.mode === 'both')) {
         var photo = root.querySelector('[data-announce-photo]');
         var frame = root.querySelector('[data-announce-frame]');
         if (photo) {
+          wantsPhoto = true;
           var photoOnly = cfg.mode === 'photo';
-          photo.onload = function () {
-            root.classList.add('announce--has-photo');
-            if (photoOnly) root.classList.add('announce--photo-only');
-            photo.hidden = false;
-          };
+          // Apply the layout immediately, while the popup is still hidden:
+          // photo-only hides the text card outright so it can never flash.
+          root.classList.add('announce--has-photo');
+          if (photoOnly && frame) { root.classList.add('announce--photo-only'); frame.hidden = true; }
+          photo.hidden = false;
+          photo.onload = function () { open(); };
           photo.onerror = function () {
-            // Broken/missing photo — quietly keep the text card.
+            // Broken/missing photo — fall back to the text card, then open.
+            wantsPhoto = false;
             photo.hidden = true;
             root.classList.remove('announce--has-photo', 'announce--photo-only');
             if (frame) frame.hidden = false;
+            open();
           };
           photo.src = cfg.image;
+          // Safety net: if the photo is very slow, show the popup anyway.
+          setTimeout(function () { if (root.hidden) open(); }, 3000);
         }
       }
     } catch (e) { /* malformed marker — fall back to the text card */ }
-
-    var panel = root.querySelector('.announce__panel');
-    var prevFocus = null, prevOverflow = '';
 
     function onKey(e) {
       if (e.key === 'Escape') { close(); return; }
@@ -100,7 +109,10 @@ const brand = RESTAURANT.name[lang];
       else if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
     }
 
+    var opened = false;
     function open() {
+      if (opened) return;          // photo.onload + the safety timer must not both fire
+      opened = true;
       prevFocus = document.activeElement;
       prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
@@ -130,8 +142,9 @@ const brand = RESTAURANT.name[lang];
       if (e.target && e.target.closest && e.target.closest('[data-announce-close]')) close();
     });
 
-    // Let the page paint and settle first, then fade the notice in.
-    setTimeout(open, 600);
+    // Text mode: let the page paint and settle first, then fade the notice in.
+    // Photo modes open from the image's load handler above (no text flash).
+    if (!wantsPhoto) setTimeout(open, 600);
   })();
 </script>
 
@@ -185,35 +198,45 @@ const brand = RESTAURANT.name[lang];
   }
 
   /* ── Photo popup ──────────────────────────────────────────────────────
-     The photo sits inside the panel's paper mat (its border stays, like a
-     framed print). In 'both' mode the photo tops the text card; in 'photo'
-     mode it IS the popup and the text frame is hidden. */
+     In 'both' mode the photo tops the text card (inside the paper mat). In
+     'photo' mode the photo IS the popup — edge to edge, no paper showing. */
   .announce__photo {
     display: block;
     width: 100%;
     height: auto;
-    max-height: 72dvh;
+    max-height: 82dvh;
     object-fit: contain;
     background: var(--paper-deep, #000);
   }
   .announce__photo[hidden] { display: none; }
-  .announce--has-photo .announce__panel { width: min(30rem, 100%); }
+  .announce--has-photo .announce__panel { width: min(32rem, 100%); }
   /* 'both' — space between the photo and the text card beneath it. */
   .announce--has-photo:not(.announce--photo-only) .announce__photo {
     margin-block-end: 10px;
   }
-  /* 'photo' — no text card; the photo carries the whole popup. */
+  /* 'photo' — the photo fills the whole popup: drop the mat, border + padding
+     so there is no cream/paper edge around it. */
+  .announce--photo-only .announce__panel {
+    width: min(32rem, 100%);
+    padding: 0;
+    border: none;
+    background: transparent;
+    overflow: hidden;
+    border-radius: 3px;
+  }
   .announce--photo-only .announce__frame { display: none; }
-  /* Keep the × legible over a photo. */
+  .announce--photo-only .announce__photo { max-height: 88dvh; }
+  /* The × always reads white on a solid dark chip, so it stays visible over
+     any photo (light or dark) at rest AND on hover. */
   .announce--has-photo .announce__close {
-    background: color-mix(in srgb, var(--shadow) 42%, transparent);
-    color: var(--paper);
+    background: rgba(20, 16, 12, 0.55);
+    color: #fff;
     border-radius: 50%;
     inline-size: 2.2rem;
     block-size: 2.2rem;
   }
   .announce--has-photo .announce__close:hover {
-    background: color-mix(in srgb, var(--shadow) 60%, transparent);
+    background: rgba(20, 16, 12, 0.82);
     color: #fff;
   }
 

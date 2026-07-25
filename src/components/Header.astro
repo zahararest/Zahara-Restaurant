@@ -2,7 +2,7 @@
 import { pick, header as labels } from '../data/i18n';
 import { RESTAURANT }              from '../data/restaurant';
 import { path, altLangHref, NAV_ORDER, type RouteKey, type NavKey } from '../lib/paths';
-const rooftopUrl = RESTAURANT.rooftopUrl;
+import { SITE_ID }                 from '../lib/base';
 import type { Lang }               from '../data/i18n';
 
 export interface Props {
@@ -23,6 +23,14 @@ const navItems: { href: string; label: string; key: NavKey }[] = NAV_ORDER.map((
 }));
 
 const otherLangHref = altLangHref(currPath, lang);
+
+// Venue switch — both venues live on the same domain now. Each segment points at
+// the OTHER venue's home in the current language; the active segment is the venue
+// this build serves (SITE_ID). Switching goes to the home page (same structure,
+// scoped data).
+const zaharaHome   = lang === 'he' ? '/' : '/en/';
+const rooftopHome  = lang === 'he' ? '/rooftop/' : '/rooftop/en/';
+const onRooftop    = SITE_ID === 'rooftop';
 
 const isCurrent = (href: string) => {
   const norm = (s: string) => s.replace(/\/$/, '') || '/';
@@ -52,30 +60,24 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       ))}
     </nav>
 
-    {/* Venue switcher — a segmented pill: Zahara (here, highlighted) ↔ Nucha
-        Rooftop. Tapping Zahara when already home scrolls to the top. The
-        highlight is the active segment's own background, so it's always
-        perfectly aligned. */}
+    {/* Venue switcher — a segmented pill: Zahara ↔ Nucha Rooftop, both on this
+        same domain (/ and /rooftop/). The active segment is the venue you're on;
+        tapping it when already home scrolls to the top. Tapping the other
+        segment switches venues (same UI, that venue's data). */}
     <div class="site-switch" role="group" aria-label={t.switchVenue}>
-      <a href={path('home', lang)} class="site-switch__seg site-switch__seg--brand is-active"
-         data-switch-home aria-label={t.brandAria}>
+      <a href={zaharaHome}
+         class={`site-switch__seg site-switch__seg--brand${onRooftop ? '' : ' is-active'}`}
+         data-switch-home={onRooftop ? undefined : true}
+         data-track={onRooftop ? 'zahara_click' : undefined}
+         aria-label={t.brandAria}>
         {t.brandText}
       </a>
-      {rooftopUrl
-        ? (
-          <a href={rooftopUrl} class="site-switch__seg" target="_blank" rel="noopener" data-track="rooftop_click">
-            <span class="site-switch__name">{t.rooftop}</span>
-          </a>
-        )
-        : (
-          <button class="site-switch__seg site-switch__seg--soon" type="button"
-                  data-switch-rooftop data-track="rooftop_click"
-                  aria-label={`${t.rooftop} · ${t.rooftopSoon}`}>
-            <span class="site-switch__name">{t.rooftop}</span>
-            <span class="site-switch__soon">{t.rooftopSoon}</span>
-          </button>
-        )
-      }
+      <a href={rooftopHome}
+         class={`site-switch__seg${onRooftop ? ' is-active' : ''}`}
+         data-switch-home={onRooftop ? true : undefined}
+         data-track={onRooftop ? undefined : 'rooftop_click'}>
+        <span class="site-switch__name">{t.rooftop}</span>
+      </a>
     </div>
 
     <div class="header-cta">
@@ -160,10 +162,11 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     ))}
   </ul>
   <div class="mobile-nav__cta">
-    {rooftopUrl
-      ? <a class="btn btn--ghost" href={rooftopUrl} target="_blank" rel="noopener" data-track="rooftop_click">{t.rooftop}</a>
-      : <a class="btn btn--ghost mobile-nav__rooftop-soon" href={path('home', lang)} data-track="rooftop_click">{t.rooftop} · {t.rooftopSoon}</a>
-    }
+    {/* Switch to the OTHER venue (same domain). */}
+    <a class="btn btn--ghost" href={onRooftop ? zaharaHome : rooftopHome}
+       data-track={onRooftop ? 'zahara_click' : 'rooftop_click'}>
+      {onRooftop ? t.brandText : t.rooftop}
+    </a>
     <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
     <div class="mobile-nav__social">
       <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label="Instagram" data-track="instagram_click">
@@ -259,25 +262,6 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
         e.preventDefault();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    });
-  }
-
-  // ── Rooftop segment — dual-purpose while the rooftop site isn't live yet:
-  //   • scrolled past the first screen → scroll back to the top
-  //   • already at the very top        → this is where it WILL switch sites;
-  //     for now it's a no-op (rooftopUrl is null).
-  // Once RESTAURANT.rooftopUrl is set the segment renders as a plain <a>
-  // and this handler no longer exists. ─────────────────────────────────────
-  const switchRooftop = document.querySelector<HTMLButtonElement>('[data-switch-rooftop]');
-  if (switchRooftop) {
-    // "First part of the page" = roughly the first viewport. Anything past
-    // that and a tap means "take me back up".
-    const pastFirstScreen = () => window.scrollY > window.innerHeight * 0.6;
-    switchRooftop.addEventListener('click', () => {
-      if (pastFirstScreen()) {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-      // else: at the top — reserved for the future site switch. No-op for now.
     });
   }
 

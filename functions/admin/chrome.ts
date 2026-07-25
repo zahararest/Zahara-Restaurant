@@ -61,6 +61,19 @@ button, input, select, textarea { font: inherit; }
 .topbar__site:hover { text-decoration: underline; }
 .topbar__spacer { flex: 1; }
 .topbar__title { margin: 0; font-size: .85rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+/* Venue switch — flip the whole admin between the Zahara restaurant and the
+   Nucha Rooftop bar. It writes a cookie (path=/admin) that every /admin/*
+   read + write scopes to, so editing one venue never touches the other. */
+.topbar__venue { display: inline-flex; border: 1px solid var(--edge); background: var(--card); }
+.topbar__venuebtn {
+  font: inherit; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
+  padding: .35rem .7rem; background: transparent; color: var(--muted); border: 0;
+  border-inline-end: 1px solid var(--edge); cursor: pointer; transition: background .15s, color .15s;
+}
+.topbar__venuebtn:last-child { border-inline-end: 0; }
+.topbar__venuebtn:hover { color: var(--ink); }
+.topbar__venuebtn.is-active { background: var(--ink); color: var(--paper); }
+.topbar__venuebtn.is-active[data-venue="rooftop"] { background: var(--accent); }
 `;
 
 interface NavItem { id: string; href: string; label: string; }
@@ -80,22 +93,51 @@ const TITLES: Record<string, string> = {
  * content/colors). `rightSlot` lets a page inject controls (e.g. the images
  * "Refresh cached photos" button) before the "View site" link; `titleSlot`
  * overrides the plain title row (the colors page packs tools into it).
+ * `site` is the venue currently being edited — it highlights the venue switch
+ * and points "View site" at the right place.
  */
-export function topbar(active: string, opts: { rightSlot?: string; titleSlot?: string; siteHref?: string } = {}): string {
+export function topbar(
+  active: string,
+  opts: { rightSlot?: string; titleSlot?: string; siteHref?: string; site?: 'zahara' | 'rooftop' } = {},
+): string {
   const links = NAV.map(n =>
     `<a class="topbar__navlink${n.id === active ? ' is-active' : ''}" href="${n.href}"${n.id === active ? ' aria-current="page"' : ''}>${n.label}</a>`,
   ).join('\n      ');
 
   const title = opts.titleSlot ?? `<h1 class="topbar__title">${TITLES[active] || ''}</h1>`;
 
+  const site      = opts.site === 'rooftop' ? 'rooftop' : 'zahara';
+  const viewHref  = opts.siteHref || (site === 'rooftop' ? '/rooftop/' : '/');
+  const venueBtn  = (id: 'zahara' | 'rooftop', label: string) =>
+    `<button type="button" class="topbar__venuebtn${id === site ? ' is-active' : ''}" data-venue="${id}">${label}</button>`;
+
   return `<header class="topbar">
     <nav class="topbar__nav" aria-label="Admin sections">
       <a class="topbar__brand" href="/admin/">Zahara · Admin</a>
       ${links}
       <span class="topbar__spacer"></span>
+      <div class="topbar__venue" role="group" aria-label="Venue being edited">
+        ${venueBtn('zahara', 'Zahara')}${venueBtn('rooftop', 'Rooftop')}
+      </div>
       ${opts.rightSlot ?? ''}
-      <a class="topbar__site" href="${opts.siteHref || '/'}" target="_blank" rel="noopener">View site ↗</a>
+      <a class="topbar__site" href="${viewHref}" target="_blank" rel="noopener">View site ↗</a>
     </nav>
     ${title}
-  </header>`;
+  </header>
+  <script>(function(){
+    var CK='zahara_admin_site';
+    function cur(){var m=document.cookie.match(/(?:^|;\\s*)zahara_admin_site=(rooftop|zahara)/);return m?m[1]:'zahara';}
+    var now=cur();
+    document.querySelectorAll('[data-venue]').forEach(function(b){
+      var v=b.getAttribute('data-venue');
+      b.classList.toggle('is-active', v===now);
+      b.addEventListener('click', function(){
+        if(v===cur())return;
+        // path=/admin so the cookie rides ONLY /admin/* requests — never the
+        // public site or /photos (those get an explicit ?site instead).
+        document.cookie=CK+'='+v+';path=/admin;max-age=31536000;samesite=lax';
+        location.reload();
+      });
+    });
+  })();</script>`;
 }

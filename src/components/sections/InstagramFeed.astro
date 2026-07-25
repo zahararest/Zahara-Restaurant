@@ -144,6 +144,11 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       let idx = 0;
       const multi = frames.length > 1;
       const isStory = kind === 'story';
+      const isReel  = kind === 'reel';
+      // Reels reuse the story "phone" UI (shape, avatar ring, handle, progress
+      // bar, edge scrims) so a no-story day still reads like Instagram, not a
+      // bare thumbnail. Only real multi-frame stories auto-advance.
+      const storyChrome = isStory || isReel;
       const label = buttonLabel(kind);
       const handle = String(t.igHandle || '');
       const initial = (handle.replace(/^@/, '')[0] || 'Z').toUpperCase();
@@ -153,13 +158,13 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       const avatarHtml = (profile && profile.avatarUrl)
         ? '<img src="' + escAttr(profile.avatarUrl) + '" alt="" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" />'
         : escHtml(initial);
-      const segs = isStory
+      const segs = storyChrome
         ? '<span class="ig-box__segs" aria-hidden="true">' +
             frames.map(() => '<span class="ig-box__seg"><i class="ig-box__seg-fill"></i></span>').join('') +
           '</span>'
         : '';
       // Story header: gradient avatar ring + handle + relative time.
-      const header = isStory
+      const header = storyChrome
         ? '<span class="ig-box__head">' +
             '<span class="ig-box__avatar" aria-hidden="true">' + avatarHtml + '</span>' +
             '<span class="ig-box__handle">' + escHtml(handle.replace(/^@/, '')) + '</span>' +
@@ -185,7 +190,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       // The whole box is the link now — a label cue sits at the foot, but it's
       // non-interactive (pointer-events:none) so a tap anywhere opens the post.
       const html =
-        '<div class="ig-box ig-box--media' + (isStory ? ' ig-box--story' : '') + (multi ? ' is-multi' : '') + '"' +
+        '<div class="ig-box ig-box--media' + (storyChrome ? ' ig-box--story' : '') + (multi ? ' is-multi' : '') + '"' +
           ' role="link" tabindex="0" data-track="reel_click" aria-label="' + escAttr(label) + '">' +
           '<img class="ig-box__img" alt="" loading="eager" fetchpriority="low" decoding="async" referrerpolicy="no-referrer" />' +
           '<span class="ig-box__scrim ig-box__scrim--top" aria-hidden="true"></span>' +
@@ -238,8 +243,10 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         img.src = f.image;
         currentHref = f.permalink || instagramUrl;
         if (timeEl) timeEl.textContent = timeAgo(f.timestamp);
-        // Bars left of the current frame read as watched, the rest as pending.
-        fills.forEach((_, n) => setFill(n, n < idx ? 100 : 0));
+        // Stories: bars left of the current frame read as watched, the rest
+        // pending (the timer fills the current one). A reel is a single frame
+        // that doesn't auto-advance, so its one bar just sits full.
+        fills.forEach((_, n) => setFill(n, isStory ? (n < idx ? 100 : 0) : 100));
         play_();
       }
 

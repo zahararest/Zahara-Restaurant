@@ -1,16 +1,13 @@
 // GET /api/menu/[slug] — returns { date, sections } for a menu slug.
 // Falls back to DEFAULT_SECTIONS when KV has no entry yet.
 
-import type { PagesFunction } from '@cloudflare/workers-types';
+import type { PagesFunction, KVNamespace } from '@cloudflare/workers-types';
 import { VALID_SLUGS }        from '../../data/menu-slugs';
 import {
   DEFAULT_SECTIONS,
   type MenuSection,
 } from '../../data/menu-defaults';
-
-interface Env {
-  MENU_DATA: KVNamespace;
-}
+import { siteFromRequest, siteScope, type SiteBindings } from '../../data/site';
 
 interface MenuPayload {
   date?:    string | null;
@@ -26,20 +23,29 @@ function coerce(raw: unknown): MenuPayload {
   return { sections: [] };
 }
 
-export const onRequestGet: PagesFunction<Env> = async ({ params, env }) => {
+/** cacheTtl=60: Cloudflare caches the KV read for 60 s at the edge. */
+async function readSlug(kv: KVNamespace | null, slug: string): Promise<unknown> {
+  if (!kv) return null;
+  try {
+    return await kv.get(slug, { type: 'json', cacheTtl: 60 });
+  } catch {
+    return null;   // KV unavailable in local dev — caller falls back
+  }
+}
+
+export const onRequestGet: PagesFunction<SiteBindings> = async ({ params, env, request }) => {
   const slug = (params.slug as string).toLowerCase();
   if (!VALID_SLUGS.has(slug)) return new Response('Not found', { status: 404 });
 
-  let raw: unknown = null;
-  try {
-    // cacheTtl=60: Cloudflare caches this KV read for 60 s at the edge,
-    // avoiding a round-trip to KV storage on every request.
-    raw = await env.MENU_DATA.get(slug, { type: 'json', cacheTtl: 60 });
-  } catch {
-    /* KV unavailable in local dev — fall through to defaults */
-  }
+  const scope = siteScope(env, siteFromRequest(request));
 
-  let payload = coerce(raw);
+  // This venue's own menu first.
+  let payload = coerce(await readSlug(scope.kv, slug));
+  // Rooftop hasn't published this menu yet → show Zahara's until it does.
+  if (!payload.sections.length && scope.kvFb) {
+    payload = coerce(await readSlug(scope.kvFb, slug));
+  }
+  // Neither venue has it → the built-in default.
   if (!payload.sections.length) {
     payload = { sections: DEFAULT_SECTIONS[slug] ?? [], date: null };
   }

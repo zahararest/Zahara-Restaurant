@@ -43,6 +43,31 @@ id = "f68b2dd65a1c4be8976f58bcbbeb2d5f"
 binding     = "IMAGES"
 bucket_name = "zahara-images"
 
+# ── Nucha Rooftop (second venue) ──────────────────────────────────────────────
+# The rooftop bar is served under /rooftop on this SAME domain + Pages project.
+# It renders the identical UI but reads/writes its OWN data, isolated in these
+# bindings (see functions/data/site.ts). Any rooftop item not set yet falls back
+# to Zahara's live value at DISPLAY time, so rooftop launches looking identical
+# and diverges one edit at a time. The OneDrive sync credentials stay in the
+# SHARED MENU_KV above (one account, different file links).
+#
+# Create with:
+#   wrangler kv namespace create MENU_DATA_ROOFTOP
+#   wrangler kv namespace create PALETTE_DATA_ROOFTOP
+#   wrangler r2 bucket create zahara-images-rooftop
+# then paste the printed ids below.
+[[kv_namespaces]]
+binding = "MENU_DATA_ROOFTOP"
+id      = "3c27ac096a9044c896b1a23064225255"
+
+[[kv_namespaces]]
+binding = "PALETTE_DATA_ROOFTOP"
+id      = "00f28066f4b94f4cba62fd5c23cf827c"
+
+[[r2_buckets]]
+binding     = "IMAGES_ROOFTOP"
+bucket_name = "zahara-images-rooftop"
+
 # Secrets — set these via the Cloudflare Pages dashboard or with `wrangler pages secret put`.
 # DO NOT commit values here. This file is just declarative.
 #

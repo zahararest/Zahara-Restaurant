@@ -13,10 +13,13 @@ import { getAccessToken, downloadFile, fileIdFromLink, type GraphEnv } from './g
 import { parseDocx } from './docx-parse';
 import { VALID_SLUGS } from './menu-slugs';
 import type { MenuSection } from './menu-defaults';
+import { siteScope, type Site, type SiteBindings } from './site';
 
-export interface SyncEnv extends GraphEnv {
-  MENU_DATA: KVNamespace;
-}
+// Shared OneDrive account/creds (MENU_KV, via GraphEnv) + BOTH venues' menu
+// stores (SiteBindings). Each venue keeps its OWN OneDrive links + synced
+// menus; the credentials are shared because it's one OneDrive account, just
+// pointing at different files.
+export interface SyncEnv extends GraphEnv, SiteBindings {}
 
 export interface MenuSource {
   /** Raw OneDrive link the owner pasted (shown back in the UI). */
@@ -39,8 +42,10 @@ export interface SyncConfig {
   menus:   Record<string, MenuSource>;
 }
 
-const CONFIG_KEY  = 'sync_config';
-const RUN_LOG_KEY = 'sync_last_run_hour'; // dedupe key: "YYYY-MM-DD-HH" (Israel)
+// Per-venue keys inside the SHARED MENU_KV namespace. Rooftop gets its own so
+// the two venues keep separate OneDrive links and dedupe the cron separately.
+const configKeyFor = (site: Site): string => site === 'rooftop' ? 'sync_config_rooftop' : 'sync_config';
+const runLogKeyFor = (site: Site): string => site === 'rooftop' ? 'sync_last_run_hour_rooftop' : 'sync_last_run_hour';
 
 // Per-slug document language. Used to keep only the matching-language
 // sections from a doc — essential for the desserts file, which holds BOTH
@@ -79,10 +84,10 @@ function filterByLang(sections: MenuSection[], lang: 'he' | 'en' | null): MenuSe
 
 const DEFAULT_CONFIG: SyncConfig = { enabled: true, hours: [12, 16, 18], menus: {} };
 
-// ── Config read / write ──────────────────────────────────────────────────
-export async function readConfig(env: SyncEnv): Promise<SyncConfig> {
+// ── Config read / write (per venue) ──────────────────────────────────────
+export async function readConfig(env: SyncEnv, site: Site = 'zahara'): Promise<SyncConfig> {
   try {
-    const raw = await env.MENU_KV.get(CONFIG_KEY, { type: 'json' }) as Partial<SyncConfig> | null;
+    const raw = await env.MENU_KV.get(configKeyFor(site), { type: 'json' }) as Partial<SyncConfig> | null;
     if (!raw) return { ...DEFAULT_CONFIG };
     return {
       enabled: raw.enabled !== false,
@@ -94,8 +99,8 @@ export async function readConfig(env: SyncEnv): Promise<SyncConfig> {
   }
 }
 
-export async function writeConfig(env: SyncEnv, cfg: SyncConfig): Promise<void> {
-  await env.MENU_KV.put(CONFIG_KEY, JSON.stringify(cfg));
+export async function writeConfig(env: SyncEnv, cfg: SyncConfig, site: Site = 'zahara'): Promise<void> {
+  await env.MENU_KV.put(configKeyFor(site), JSON.stringify(cfg));
 }
 
 function sanitizeHours(hours: unknown[]): number[] {
@@ -115,8 +120,9 @@ function sanitizeHours(hours: unknown[]): number[] {
 export async function applyConfigPatch(
   env: SyncEnv,
   patch: { enabled?: boolean; hours?: unknown[]; menus?: Record<string, { link?: string }> },
+  site: Site = 'zahara',
 ): Promise<SyncConfig> {
-  const cfg = await readConfig(env);
+  const cfg = await readConfig(env, site);
 
   if (typeof patch.enabled === 'boolean') cfg.enabled = patch.enabled;
   if (Array.isArray(patch.hours))         cfg.hours   = sanitizeHours(patch.hours);
@@ -134,7 +140,7 @@ export async function applyConfigPatch(
     }
   }
 
-  await writeConfig(env, cfg);
+  await writeConfig(env, cfg, site);
   return cfg;
 }
 
@@ -166,13 +172,17 @@ export interface SlugResult {
  * Sync one slug. Caller passes a shared access token (one per run). Mutates
  * the menu entry's lastSync/lastStatus/lastItems on `cfg` (caller persists).
  */
-export async function syncSlug(env: SyncEnv, cfg: SyncConfig, slug: string, accessToken: string): Promise<SlugResult> {
+export async function syncSlug(env: SyncEnv, cfg: SyncConfig, slug: string, accessToken: string, site: Site = 'zahara'): Promise<SlugResult> {
   const entry = cfg.menus[slug];
   const now   = new Date().toISOString();
 
   if (!entry?.fileId) {
     return { slug, ok: false, error: 'No OneDrive link set' };
   }
+
+  // Write synced menus into THIS venue's own menu store.
+  const menuKv = siteScope(env, site).kv;
+  if (!menuKv) return { slug, ok: false, error: 'No menu KV bound for this venue' };
 
   try {
     const { name, bytes } = await downloadFile(entry.fileId, accessToken);
@@ -184,11 +194,11 @@ export async function syncSlug(env: SyncEnv, cfg: SyncConfig, slug: string, acce
 
     // Merge featured flags + fall back to the existing date when the doc has none.
     let existing: { date?: string | null; sections?: MenuSection[] } = {};
-    try { existing = (await env.MENU_DATA.get(slug, { type: 'json' })) as typeof existing || {}; } catch { /* none */ }
+    try { existing = (await menuKv.get(slug, { type: 'json' })) as typeof existing || {}; } catch { /* none */ }
     const sections = mergeFeatured(langSections, existing.sections || []);
     const date     = parsed.date ?? existing.date ?? null;
 
-    await env.MENU_DATA.put(slug, JSON.stringify({ date, sections }));
+    await menuKv.put(slug, JSON.stringify({ date, sections }));
 
     const items = sections.reduce((n, s) => n + s.items.length, 0);
     entry.lastSync = now; entry.lastStatus = 'ok'; entry.lastItems = items;
@@ -206,8 +216,8 @@ export interface SyncRunResult { ok: boolean; results: SlugResult[]; error?: str
  * Sync the given slugs (default: every menu with a fileId). Gets ONE access
  * token for the whole run and persists the updated config once at the end.
  */
-export async function syncMenus(env: SyncEnv, slugs?: string[]): Promise<SyncRunResult> {
-  const cfg     = await readConfig(env);
+export async function syncMenus(env: SyncEnv, slugs?: string[], site: Site = 'zahara'): Promise<SyncRunResult> {
+  const cfg     = await readConfig(env, site);
   const targets = (slugs ?? Object.keys(cfg.menus)).filter(s => cfg.menus[s]?.fileId);
 
   if (!targets.length) {
@@ -222,9 +232,9 @@ export async function syncMenus(env: SyncEnv, slugs?: string[]): Promise<SyncRun
   }
 
   const results: SlugResult[] = [];
-  for (const slug of targets) results.push(await syncSlug(env, cfg, slug, token));
+  for (const slug of targets) results.push(await syncSlug(env, cfg, slug, token, site));
 
-  await writeConfig(env, cfg);
+  await writeConfig(env, cfg, site);
   return { ok: results.every(r => r.ok), results };
 }
 
@@ -247,8 +257,8 @@ function israelNow(): { hour: number; stamp: string } {
  * this hour (dedupe, so a scheduler that fires more than once an hour is
  * harmless). Returns a description for the cron response/log.
  */
-export async function runScheduled(env: SyncEnv): Promise<{ ran: boolean; reason: string; result?: SyncRunResult }> {
-  const cfg = await readConfig(env);
+export async function runScheduled(env: SyncEnv, site: Site = 'zahara'): Promise<{ ran: boolean; reason: string; result?: SyncRunResult }> {
+  const cfg = await readConfig(env, site);
   if (!cfg.enabled) return { ran: false, reason: 'sync disabled' };
 
   const { hour, stamp } = israelNow();
@@ -256,10 +266,11 @@ export async function runScheduled(env: SyncEnv): Promise<{ ran: boolean; reason
     return { ran: false, reason: `hour ${hour} not in [${cfg.hours.join(',')}] (Israel)` };
   }
 
-  const lastRun = await env.MENU_KV.get(RUN_LOG_KEY);
+  const runLogKey = runLogKeyFor(site);
+  const lastRun = await env.MENU_KV.get(runLogKey);
   if (lastRun === stamp) return { ran: false, reason: `already synced this hour (${stamp})` };
-  await env.MENU_KV.put(RUN_LOG_KEY, stamp);
+  await env.MENU_KV.put(runLogKey, stamp);
 
-  const result = await syncMenus(env);
+  const result = await syncMenus(env, undefined, site);
   return { ran: true, reason: `synced at Israel hour ${hour}`, result };
 }

@@ -13,8 +13,16 @@ import sitemap          from '@astrojs/sitemap';
 // ────────────────────────────────────────────────────────────────────────────
 const SITE = import.meta.env.SITE || 'https://zahara.rest';
 
+// Dual-base build: the SAME source is built twice (see package.json `build`).
+//   • Zahara  — no BUILD_BASE       → base '/'         → dist/
+//   • Rooftop — BUILD_BASE=/rooftop → base '/rooftop'  → dist/rooftop/
+// Astro prefixes its own asset URLs + page links with the base; the hand-built
+// URLs (nav, images) go through src/lib/base.ts. Same domain, one Pages project.
+const BASE = process.env.BUILD_BASE || undefined;
+
 export default defineConfig({
   site: SITE,
+  base: BASE,
 
   build: {
     // 'auto' inlines only small (critical) stylesheets and emits the bulk as

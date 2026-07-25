@@ -13,10 +13,11 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import {
-  readContent, writeContent, mergeContent,
-  readPopupConfig, writePopupConfig, popupActive,
+  readContentOwn, writeContent, mergeContent,
+  readPopupConfigOwn, writePopupConfig, popupActive,
   type ContentEnv, type PopupMode,
 } from '../../data/content';
+import { adminSite } from '../../data/site';
 
 const POPUP_MODES = new Set<PopupMode>(['text', 'photo', 'both']);
 
@@ -46,11 +47,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     ? (body as { map: unknown }).map
     : body;
 
-  const existing = await readContent(env);
+  // Which venue is being edited (admin site-switch cookie). All reads + writes
+  // below target that venue's OWN store. We read the OWN copy (not the display
+  // copy) so the diff-against-default logic can't bake the other venue's live
+  // text into this one.
+  const site     = adminSite(request);
+  const existing = await readContentOwn(env, site);
   const merged   = mergeContent(existing, posted);
 
-  const ok = await writeContent(env, merged);
-  if (!ok) return json({ ok: false, error: 'No KV namespace bound (MENU_DATA / PALETTE_DATA)' }, 500);
+  const ok = await writeContent(env, site, merged);
+  if (!ok) return json({ ok: false, error: 'No KV namespace bound for this venue' }, 500);
 
   // ── Entry popup visibility ────────────────────────────────────────────
   const postedPopup = (body && typeof body === 'object' && 'popup' in body)
@@ -62,7 +68,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const days    = typeof p.days === 'number' && isFinite(p.days)
       ? Math.min(365, Math.max(0, Math.round(p.days)))
       : 0;
-    const prior = await readPopupConfig(env);
+    const prior = await readPopupConfigOwn(env, site);
     const mode  = POPUP_MODES.has(p.mode as PopupMode) ? (p.mode as PopupMode) : prior.mode;
     // A fresh auto-hide window starts when the popup is (re)turned on or the
     // day count changes. An unrelated content save re-posts the same
@@ -72,7 +78,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       ? (startNew ? Date.now() + days * 86_400_000 : prior.until)
       : 0;
     // hasImage is owned by the popup-image endpoints — preserve it here.
-    await writePopupConfig(env, { enabled, days, until, mode, hasImage: prior.hasImage });
+    await writePopupConfig(env, site, { enabled, days, until, mode, hasImage: prior.hasImage });
   }
 
   return json({ ok: true, count: Object.keys(merged).length });

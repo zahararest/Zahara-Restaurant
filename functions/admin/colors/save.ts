@@ -12,6 +12,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import { writePalette, type PaletteEnv } from '../../data/palette';
+import { adminSite } from '../../data/site';
 
 type Env = AuthEnv & PaletteEnv;
 
@@ -35,6 +36,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'Invalid JSON' }, 400);
   }
 
-  const result = await writePalette(env, body as Record<string, unknown>);
+  // Save to the venue being edited (admin site-switch cookie) — its OWN store.
+  const result = await writePalette(env, adminSite(request), body as Record<string, unknown>);
   return json(result, result.ok ? 200 : 500);
 };

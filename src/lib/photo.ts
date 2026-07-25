@@ -47,6 +47,13 @@ const RESIZE_ENABLED = true;
 // before resolving the image, so the picture still loads either way.
 export const ASSET_VERSION_TOKEN = '__ZASSETV__';
 
+// On the rooftop build this is '&site=rooftop', appended after the ?v= token so
+// (a) the Cloudflare image transform is cached under a rooftop-specific URL and
+// (b) the /photos origin fetch resolves against rooftop's own R2 bucket (then
+// the Zahara fallback, then the static default). Empty on the Zahara build, so
+// its URLs are byte-for-byte unchanged.
+import { SITE_QUERY_AMP } from './base';
+
 /** Return a Cloudflare-resized URL for an image in /photos/.
  *  Pass the original src exactly as it appears in PHOTOS — the helper
  *  takes care of the URL massaging. Width is a max-width hint; quality
@@ -54,7 +61,7 @@ export const ASSET_VERSION_TOKEN = '__ZASSETV__';
 export function resized(src: string, width: number, quality = 78): string {
   if (!RESIZE_ENABLED) return src;
   const path = src.replace(/^\/+/, '');
-  return `/cdn-cgi/image/width=${width},quality=${quality},format=auto,fit=cover/${path}?v=${ASSET_VERSION_TOKEN}`;
+  return `/cdn-cgi/image/width=${width},quality=${quality},format=auto,fit=cover/${path}?v=${ASSET_VERSION_TOKEN}${SITE_QUERY_AMP}`;
 }
 
 /** Build a srcset string for responsive serving. Pairs each width with
@@ -80,7 +87,7 @@ export function resizedSrcset(src: string, widths: readonly number[], quality = 
 export function resizedCover(src: string, width: number, height: number, quality = 78): string {
   if (!RESIZE_ENABLED) return src;
   const path = src.replace(/^\/+/, '');
-  return `/cdn-cgi/image/width=${width},height=${height},quality=${quality},format=auto,fit=cover,gravity=auto/${path}?v=${ASSET_VERSION_TOKEN}`;
+  return `/cdn-cgi/image/width=${width},height=${height},quality=${quality},format=auto,fit=cover,gravity=auto/${path}?v=${ASSET_VERSION_TOKEN}${SITE_QUERY_AMP}`;
 }
 
 /** srcset of portrait crops. `sizes` is a list of [width, height] pixel
@@ -100,7 +107,7 @@ export function resizedCoverSrcset(
 export function resizedMobileCover(src: string, width: number, height: number, quality = 78): string {
   if (!RESIZE_ENABLED) return src;
   const path = src.replace(/^\/+/, '').replace(/^photos\//, 'photos-m/');
-  return `/cdn-cgi/image/width=${width},height=${height},quality=${quality},format=auto,fit=cover,gravity=auto/${path}?v=${ASSET_VERSION_TOKEN}`;
+  return `/cdn-cgi/image/width=${width},height=${height},quality=${quality},format=auto,fit=cover,gravity=auto/${path}?v=${ASSET_VERSION_TOKEN}${SITE_QUERY_AMP}`;
 }
 
 export function resizedMobileCoverSrcset(

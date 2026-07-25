@@ -29,9 +29,10 @@ import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
 import {
-  readContent, galleryCaptionKey, GALLERY_CAPTION_KEYS,
+  readContentOwn, galleryCaptionKey, GALLERY_CAPTION_KEYS,
   type ContentEnv, type ContentValue,
 } from '../data/content';
+import { adminSite, siteScope, type Site } from '../data/site';
 
 interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
 
@@ -615,7 +616,7 @@ const SCRIPT = `
           if (!res.ok || !data.ok) throw new Error(data.error || 'Purge failed');
           purgeBtn.textContent = 'Refreshed ' + data.count;
           document.querySelectorAll('[data-thumb]').forEach((img) => {
-            img.src = img.dataset.src + '?t=' + Date.now();
+            img.src = img.dataset.src + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || '');
           });
         } catch (err) {
           purgeBtn.textContent = 'Failed — retry';
@@ -753,7 +754,7 @@ const SCRIPT = `
         pickerGrid.innerHTML = '<p class="picker__empty">No other images available to reuse yet.</p>';
       } else {
         pickerGrid.innerHTML = lib.map((it) => {
-          const thumb = '/photos/' + encodeURIComponent(it.filename) + '?t=' + (window.PICK_VERSION || '');
+          const thumb = '/photos/' + encodeURIComponent(it.filename) + '?t=' + (window.PICK_VERSION || '') + (window.ADMIN_SITE_SUFFIX || '');
           const flag = it.has
             ? '<span class="picker__item-flag">Uploaded</span>'
             : '<span class="picker__item-flag is-default">Default</span>';
@@ -848,7 +849,7 @@ const SCRIPT = `
         status.classList.toggle('card__status--err', !!err);
       }
       function refreshThumb() {
-        if (thumb) { thumb.style.opacity = 1; thumb.src = thumb.dataset.src + '?t=' + Date.now(); }
+        if (thumb) { thumb.style.opacity = 1; thumb.src = thumb.dataset.src + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''); }
       }
       function markSaved(sizeBytes) {
         setStatus('Saved · ' + fmtKB(sizeBytes), false);
@@ -894,7 +895,7 @@ const SCRIPT = `
       if (editB) {
         editB.addEventListener('click', () => {
           if (!thumb) return;
-          openEditor(thumb.dataset.src + '?t=' + Date.now());
+          openEditor(thumb.dataset.src + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''));
         });
       }
 
@@ -923,7 +924,7 @@ const SCRIPT = `
             window.ZAHARA_PICK({
               key: key, label: label + ' · mobile', mode: 'source',
               onPickSource: (item) => {
-                openEditor('/photos/' + encodeURIComponent(item.filename) + '?t=' + Date.now());
+                openEditor('/photos/' + encodeURIComponent(item.filename) + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''));
               },
             });
           } else {
@@ -951,7 +952,7 @@ const SCRIPT = `
             const res = await fetch('/admin/images/delete', { method: 'POST', body: fd });
             const data = await res.json();
             if (!res.ok || !data.ok) throw new Error(data.error || 'Delete failed');
-            if (thumb) { thumb.style.opacity = 1; thumb.src = thumb.dataset.fallback + '?t=' + Date.now(); }
+            if (thumb) { thumb.style.opacity = 1; thumb.src = thumb.dataset.fallback + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''); }
             if (isMobile) {
               setStatus('Removed — using desktop', false);
               if (badge) { badge.textContent = 'Using desktop'; badge.classList.remove('card__badge--set'); }
@@ -1403,12 +1404,18 @@ interface CardOpts {
   hasOverride: boolean;
   hasMobile: boolean;
   caption: ContentValue | null;
+  site: Site;
 }
 
 function renderCard(p: PhotoMeta, o: CardOpts): string {
   const isMobile = o.variant === 'mobile';
   const route    = isMobile ? 'photos-m' : 'photos';
-  const src      = `/${route}/${p.filename}?t=${o.version}`;
+  // Preview from THIS venue's view: rooftop thumbnails carry &site=rooftop so
+  // the /photos route resolves rooftop's own upload → Zahara fallback → static.
+  // data-src / data-fallback stay query-less; the client appends ?t=…&site=…
+  // (via SITE_SUFFIX) on refresh.
+  const siteAmp  = o.site === 'rooftop' ? '&site=rooftop' : '';
+  const src      = `/${route}/${p.filename}?t=${o.version}${siteAmp}`;
   const fallback = `/${route}/${p.filename}`;
 
   const targetAR = isMobile ? (9 / 16) : aspectToNum(p.aspect);
@@ -1513,12 +1520,19 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return unauthorized();
 
-  // Which keys have an override / mobile variant in R2 right now.
+  // The venue being edited (site-switch cookie). Its OWN bucket drives the
+  // badges (Override/Missing), its OWN captions prefill the inputs, and the
+  // preview thumbnails carry ?site so they show THIS venue's real view
+  // (its own upload → Zahara fallback → static), not always Zahara's.
+  const site   = adminSite(request);
+  const bucket = siteScope(env, site).images;
+
+  // Which keys have an override / mobile variant in THIS venue's R2 right now.
   const overrideSet = new Set<string>();
   const mobileSet   = new Set<string>();
-  if (env.IMAGES) {
+  if (bucket) {
     try {
-      const listing = await env.IMAGES.list({ prefix: 'images/' });
+      const listing = await bucket.list({ prefix: 'images/' });
       for (const obj of listing.objects) {
         const k = obj.key.replace(/^images\//, '');
         if (k.endsWith('__mobile')) mobileSet.add(k.slice(0, -'__mobile'.length));
@@ -1529,7 +1543,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
-  const content = await readContent(env);
+  const content = await readContentOwn(env, site);
   const v = Date.now();
 
   const libraryJson = JSON.stringify(
@@ -1554,7 +1568,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         ? labelOf(p.fallbackKey) : null;
       if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional) missingCount++;
       const caption = GALLERY_CAPTION_SET.has(p.key) ? (content[galleryCaptionKey(p.key)] ?? {}) : null;
-      return renderCard(p, { variant: 'desktop', version: v, hasOverride, hasMobile: mobileSet.has(p.key), fallbackFromLabel, caption });
+      return renderCard(p, { variant: 'desktop', version: v, hasOverride, hasMobile: mobileSet.has(p.key), fallbackFromLabel, caption, site });
     }).join('');
     return `
       <section class="group" id="g-desktop-${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
@@ -1571,7 +1585,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const photos = PHOTO_CATALOGUE.filter((p) => p.group === g && p.mobile);
     if (!photos.length) return '';
     const cards = photos.map((p) =>
-      renderCard(p, { variant: 'mobile', version: v, hasOverride: overrideSet.has(p.key), hasMobile: mobileSet.has(p.key), fallbackFromLabel: null, caption: null }),
+      renderCard(p, { variant: 'mobile', version: v, hasOverride: overrideSet.has(p.key), hasMobile: mobileSet.has(p.key), fallbackFromLabel: null, caption: null, site }),
     ).join('');
     return `
       <section class="group" id="g-mobile-${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
@@ -1603,6 +1617,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 </head>
 <body>
   ${topbar('images', {
+    site,
     rightSlot: `<button class="top__action" type="button" id="top-purge"
               title="Force the CDN to refetch every photo (use if you just uploaded and the live site still shows the old image)">
         Refresh cached photos
@@ -1739,6 +1754,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   <script>
     window.PICK_LIBRARY = ${libraryJson};
     window.PICK_VERSION = ${v};
+    // Suffix appended to every preview URL so admin thumbnails show the venue
+    // currently being edited (rooftop → its own image, else the Zahara/static
+    // fallback). Empty for Zahara, so its previews are unchanged.
+    window.ADMIN_SITE_SUFFIX = ${JSON.stringify(site === 'rooftop' ? '&site=rooftop' : '')};
   </script>
   <script>${SCRIPT}</script>
 </body>

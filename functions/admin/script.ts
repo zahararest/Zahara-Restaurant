@@ -3,10 +3,17 @@
 // at HTML-template time, avoiding a second fetch.
 
 import type { MenuType } from './menus';
+import type { Site }     from '../data/site';
 
-export function adminScript(menuTypes: MenuType[]): string {
+export function adminScript(menuTypes: MenuType[], site: Site = 'zahara'): string {
   return String.raw`
 const MENUS = ${JSON.stringify(menuTypes)};
+
+// The venue being edited. Menu reads go through the public /api/menu route,
+// which is NOT under /admin, so the site-switch cookie can't reach it — we pass
+// ?site explicitly. Saves POST to /admin/save, which DOES read the cookie.
+const SITE = ${JSON.stringify(site)};
+const SITE_Q = SITE === 'rooftop' ? '?site=rooftop' : '';
 
 let bc = null;
 try { bc = new BroadcastChannel('zahara-menu'); } catch {}
@@ -119,7 +126,7 @@ function readFormData(slug) {
 
 async function loadSlug(slug) {
   try {
-    const res = await fetch('/api/menu/' + slug, { cache: 'no-store' });
+    const res = await fetch('/api/menu/' + slug + SITE_Q, { cache: 'no-store' });
     if (res.ok) {
       const json = await res.json();
       if (Array.isArray(json)) state.data[slug] = { date: null, sections: json };

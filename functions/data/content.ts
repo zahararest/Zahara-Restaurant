@@ -16,16 +16,20 @@
 // built-in default that the page already server-renders.
 
 import type { KVNamespace } from '@cloudflare/workers-types';
+import { siteScope, type Site, type SiteBindings } from './site';
 
-export interface ContentEnv {
-  MENU_DATA?:    KVNamespace;
-  PALETTE_DATA?: KVNamespace;
-}
+// Widened to every binding (both venues) so the site-scope helpers can select
+// the right store. Structurally a superset of the old single-namespace shape,
+// so existing `AuthEnv & ContentEnv` callers are unaffected.
+export type ContentEnv = SiteBindings;
 
 // `size` is a language-independent font-size multiplier (1 = default). It lets
 // the owner bump a single piece of copy up/down without touching CSS — applied
 // as an inline, viewport-recomputed font-size on the live site.
-export type ContentValue = { he?: string; en?: string; size?: number };
+// `dash` adds a short accent rule (the eyebrow's "—" kicker) above this piece
+// of copy on the live site. Lets the owner mark a heading as a section opener
+// when they've dropped the eyebrow above it, so it isn't left bare.
+export type ContentValue = { he?: string; en?: string; size?: number; dash?: boolean };
 
 /** Clamp a posted size multiplier to a sane range; null if it's effectively
  *  "default" (1) or not a usable number. */
@@ -261,8 +265,26 @@ export const CONTENT_DEFAULTS: Record<string, ContentValue> = Object.fromEntries
 );
 const defaultFor = (key: string, lang: 'he' | 'en'): string => CONTENT_DEFAULTS[key]?.[lang] ?? '';
 
-function pickKv(env: ContentEnv): KVNamespace | null {
-  return env.MENU_DATA ?? env.PALETTE_DATA ?? null;
+/** Read + sanitise a content map from one KV namespace (null-safe). */
+async function readMapFrom(kv: KVNamespace | null): Promise<ContentMap> {
+  if (!kv) return {};
+  try {
+    const raw = await kv.get(KEY);
+    return raw ? sanitiseContent(JSON.parse(raw)) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Deep-merge (key + language) content maps for the DISPLAY fallback: `over`
+ *  (this venue's own edits) wins per key AND per language over `base`
+ *  (Zahara's live copy). An explicit '' in `over` still hides the element. */
+function mergeForDisplay(base: ContentMap, over: ContentMap): ContentMap {
+  const out: ContentMap = {};
+  for (const k of new Set([...Object.keys(base), ...Object.keys(over)])) {
+    out[k] = { ...base[k], ...over[k] };
+  }
+  return out;
 }
 
 /** Reduce arbitrary input to a clean { key: { he?, en? } } map. Drops
@@ -281,7 +303,8 @@ export function sanitiseContent(input: unknown): ContentMap {
     }
     const sz = cleanSize((v as Record<string, unknown>).size);
     if (sz !== null) val.size = sz;
-    if (val.he !== undefined || val.en !== undefined || val.size !== undefined) out[k] = val;
+    if ((v as Record<string, unknown>).dash === true) val.dash = true;
+    if (val.he !== undefined || val.en !== undefined || val.size !== undefined || val.dash !== undefined) out[k] = val;
   }
   return out;
 }
@@ -312,25 +335,37 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
       if (sz === null) delete cur.size;
       else cur.size = sz;
     }
-    if (cur.he !== undefined || cur.en !== undefined || cur.size !== undefined) merged[k] = cur;
+    // Dash (lead accent rule): language-independent, present only when the
+    // toggle was rendered. false/absent clears it.
+    if ('dash' in (v as Record<string, unknown>)) {
+      if ((v as Record<string, unknown>).dash === true) cur.dash = true;
+      else delete cur.dash;
+    }
+    if (cur.he !== undefined || cur.en !== undefined || cur.size !== undefined || cur.dash !== undefined) merged[k] = cur;
     else delete merged[k];
   }
   return merged;
 }
 
-export async function readContent(env: ContentEnv): Promise<ContentMap> {
-  const kv = pickKv(env);
-  if (!kv) return {};
-  try {
-    const raw = await kv.get(KEY);
-    return raw ? sanitiseContent(JSON.parse(raw)) : {};
-  } catch {
-    return {};
-  }
+/** This venue's OWN saved copy — NO cross-venue fallback. The admin editor
+ *  uses this so its save/diff compares each field against the built-in default
+ *  (not the other venue's live text), keeping the two stores independent. */
+export async function readContentOwn(env: ContentEnv, site: Site = 'zahara'): Promise<ContentMap> {
+  return readMapFrom(siteScope(env, site).kv);
 }
 
-export async function writeContent(env: ContentEnv, map: ContentMap): Promise<boolean> {
-  const kv = pickKv(env);
+/** DISPLAY read. Zahara returns its own copy. Rooftop returns its own copy with
+ *  Zahara's live copy filling any field it hasn't edited yet. */
+export async function readContent(env: ContentEnv, site: Site = 'zahara'): Promise<ContentMap> {
+  const scope = siteScope(env, site);
+  const own = await readMapFrom(scope.kv);
+  if (!scope.kvFb) return own;                    // zahara — no fallback
+  return mergeForDisplay(await readMapFrom(scope.kvFb), own);
+}
+
+/** Persist a venue's copy to its OWN store only (never the fallback). */
+export async function writeContent(env: ContentEnv, site: Site, map: ContentMap): Promise<boolean> {
+  const kv = siteScope(env, site).kv;
   if (!kv) return false;
   await kv.put(KEY, JSON.stringify(sanitiseContent(map)));
   return true;
@@ -344,18 +379,24 @@ export async function writeContent(env: ContentEnv, map: ContentMap): Promise<bo
 // image changes appear instantly WITHOUT any cache purge.
 const ASSET_VERSION_KEY = '__assets_version__';
 
-export async function readAssetVersion(env: ContentEnv): Promise<string> {
-  const kv = pickKv(env);
-  if (!kv) return '0';
-  try {
-    return (await kv.get(ASSET_VERSION_KEY)) || '0';
-  } catch {
-    return '0';
-  }
+async function readVersionFrom(kv: KVNamespace | null): Promise<string | null> {
+  if (!kv) return null;
+  try { return (await kv.get(ASSET_VERSION_KEY)) || null; } catch { return null; }
 }
 
-export async function bumpAssetVersion(env: ContentEnv): Promise<void> {
-  const kv = pickKv(env);
+export async function readAssetVersion(env: ContentEnv, site: Site = 'zahara'): Promise<string> {
+  const scope = siteScope(env, site);
+  const own = await readVersionFrom(scope.kv);
+  if (own) return own;
+  // A rooftop that hasn't uploaded any image yet is still showing Zahara's
+  // photos as fallbacks, so it rides Zahara's version — that way a Zahara
+  // re-upload cache-busts on rooftop too. The instant rooftop uploads its own
+  // image (which bumps its own version), rooftop's version takes over.
+  return (await readVersionFrom(scope.kvFb)) || '0';
+}
+
+export async function bumpAssetVersion(env: ContentEnv, site: Site = 'zahara'): Promise<void> {
+  const kv = siteScope(env, site).kv;
   if (!kv) return;
   try {
     // base36 timestamp — short, monotonic, and unique per upload.
@@ -435,19 +476,35 @@ export function popupActive(cfg: PopupConfig, now = Date.now()): boolean {
   return cfg.enabled && (cfg.days <= 0 || (cfg.until > 0 && now < cfg.until));
 }
 
-export async function readPopupConfig(env: ContentEnv): Promise<PopupConfig> {
-  const kv = pickKv(env);
-  if (!kv) return { ...POPUP_DEFAULT };
+/** Read a popup record from one namespace; null when the key is absent. */
+async function readPopupFrom(kv: KVNamespace | null): Promise<PopupConfig | null> {
+  if (!kv) return null;
   try {
     const raw = await kv.get(POPUP_KEY);
-    return raw ? sanitisePopupConfig(JSON.parse(raw)) : { ...POPUP_DEFAULT };
+    return raw ? sanitisePopupConfig(JSON.parse(raw)) : null;
   } catch {
-    return { ...POPUP_DEFAULT };
+    return null;
   }
 }
 
-export async function writePopupConfig(env: ContentEnv, cfg: PopupConfig): Promise<boolean> {
-  const kv = pickKv(env);
+/** This venue's OWN popup config (or the default) — no fallback. Admin prefill
+ *  + the save merge use this so a rooftop save can't persist Zahara's popup. */
+export async function readPopupConfigOwn(env: ContentEnv, site: Site = 'zahara'): Promise<PopupConfig> {
+  return (await readPopupFrom(siteScope(env, site).kv)) ?? { ...POPUP_DEFAULT };
+}
+
+/** DISPLAY read. Zahara: its own record (or default). Rooftop: its own record,
+ *  else Zahara's live record, else the default — so rooftop mirrors Zahara's
+ *  announcement until it saves its own. */
+export async function readPopupConfig(env: ContentEnv, site: Site = 'zahara'): Promise<PopupConfig> {
+  const scope = siteScope(env, site);
+  const own = await readPopupFrom(scope.kv);
+  if (own) return own;
+  return (await readPopupFrom(scope.kvFb)) ?? { ...POPUP_DEFAULT };
+}
+
+export async function writePopupConfig(env: ContentEnv, site: Site, cfg: PopupConfig): Promise<boolean> {
+  const kv = siteScope(env, site).kv;
   if (!kv) return false;
   await kv.put(POPUP_KEY, JSON.stringify(sanitisePopupConfig(cfg)));
   return true;

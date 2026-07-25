@@ -9,8 +9,9 @@ import { ADMIN_CSS }              from './styles';
 import { adminScript }            from './script';
 import { MENU_TYPES }             from './menus';
 import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
+import type { Site }              from '../data/site';
 
-export function adminPage(): string {
+export function adminPage(site: Site = 'zahara'): string {
   return `<!doctype html>
 <html lang="en" dir="ltr">
 <head>
@@ -24,14 +25,14 @@ export function adminPage(): string {
   <style>${CHROME_CSS}${ADMIN_CSS}</style>
 </head>
 <body>
-  ${topbar('menu')}
+  ${topbar('menu', { site })}
 
   <div class="layout">
     <nav class="sidebar" id="sidebar" aria-label="Menu list"></nav>
     <main class="main"   id="main-area"></main>
   </div>
 
-  <script>${adminScript(MENU_TYPES)}</script>
+  <script>${adminScript(MENU_TYPES, site)}</script>
 </body>
 </html>`;
 }

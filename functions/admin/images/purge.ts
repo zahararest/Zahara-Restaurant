@@ -6,6 +6,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import { purgeAllPhotoCache, type CachePurgeEnv } from './cache';
+import { adminSite } from '../../data/site';
 
 type Env = AuthEnv & CachePurgeEnv;
 
@@ -22,6 +23,6 @@ function json(body: object, status = 200): Response {
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
   const origin = new URL(request.url).origin;
-  const count = await purgeAllPhotoCache(origin, env);
+  const count = await purgeAllPhotoCache(origin, env, adminSite(request));
   return json({ ok: true, count });
 };

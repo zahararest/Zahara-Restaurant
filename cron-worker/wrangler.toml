@@ -32,3 +32,10 @@ id      = "f68b2dd65a1c4be8976f58bcbbeb2d5f"
 [[kv_namespaces]]
 binding = "MENU_DATA"
 id      = "028d7b7c8dde489ab34e6384346ad8ef"
+
+# Nucha Rooftop's own menu store — the cron syncs rooftop's OneDrive links here
+# (rooftop's config lives under `sync_config_rooftop` in the shared MENU_KV).
+# Create with:  wrangler kv namespace create MENU_DATA_ROOFTOP
+[[kv_namespaces]]
+binding = "MENU_DATA_ROOFTOP"
+id      = "3c27ac096a9044c896b1a23064225255"

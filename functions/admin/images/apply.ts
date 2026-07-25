@@ -16,8 +16,9 @@ import { checkAccess, type AuthEnv } from '../auth';
 import { PHOTO_CATALOGUE } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
+import { adminSite, siteScope, withSiteParam } from '../../data/site';
 
-interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES: R2Bucket; }
+interface Env extends AuthEnv, CachePurgeEnv, ContentEnv { IMAGES?: R2Bucket; }
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -44,7 +45,11 @@ function detectImageType(bytes: Uint8Array): string | null {
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
-  if (!env.IMAGES) return json({ ok: false, error: 'IMAGES binding missing' }, 500);
+
+  // The venue being edited — source read + target write both stay in its bucket.
+  const site   = adminSite(request);
+  const bucket = siteScope(env, site).images;
+  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
 
   // Accept either multipart/form-data or urlencoded.
   let form: FormData;
@@ -68,7 +73,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   let buffer: Uint8Array | null = null;
   let contentType = 'image/jpeg';
   try {
-    const obj = await env.IMAGES.get(`images/${sourceObjectKey}`);
+    const obj = await bucket.get(`images/${sourceObjectKey}`);
     if (obj) {
       buffer = new Uint8Array(await obj.arrayBuffer());
       contentType = obj.httpMetadata?.contentType ?? contentType;
@@ -82,10 +87,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       // No portrait crop exists for the source — nothing to copy.
       return json({ ok: false, error: 'Source has no mobile photo to copy' }, 404);
     }
-    // Fall back to the static/default image served at /photos/{filename}.
+    // Fall back to whatever this venue currently DISPLAYS for the source slot
+    // (its own R2 → Zahara fallback → static default), via ?site so rooftop
+    // resolves against rooftop's view.
     try {
       const origin = new URL(request.url).origin;
-      const res = await fetch(`${origin}/photos/${src.filename}`);
+      const res = await fetch(withSiteParam(`${origin}/photos/${src.filename}`, site));
       if (!res.ok) return json({ ok: false, error: 'Could not read source image' }, 404);
       buffer = new Uint8Array(await res.arrayBuffer());
       contentType = res.headers.get('Content-Type') ?? contentType;
@@ -102,7 +109,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!detected) return json({ ok: false, error: 'Source is not a valid image' }, 415);
 
   try {
-    await env.IMAGES.put(`images/${targetObjectKey}`, buffer, {
+    await bucket.put(`images/${targetObjectKey}`, buffer, {
       httpMetadata: { contentType: detected },
     });
   } catch (err) {
@@ -110,15 +117,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'Storage failed' }, 500);
   }
 
-  // Same freshness handling as a fresh upload: bump the asset version so the
-  // live site picks up the new image, and purge the edge for the desktop
-  // filename + anything that falls back to it.
-  await bumpAssetVersion(env);
+  // Same freshness handling as a fresh upload, scoped to this venue: bump its
+  // asset version so the live site picks up the new image, and purge the edge
+  // for the desktop filename + anything that falls back to it.
+  await bumpAssetVersion(env, site);
   const origin = new URL(request.url).origin;
   if (!isMobile) {
-    await purgePhotoCache(origin, target.filename, env);
+    await purgePhotoCache(origin, target.filename, env, site);
     for (const dep of PHOTO_CATALOGUE) {
-      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env);
+      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env, site);
     }
   }
 

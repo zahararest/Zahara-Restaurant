@@ -2,6 +2,7 @@
 import { pick, menu as labels }  from '../data/i18n';
 import { menuHe }               from '../data/menu-he';
 import { MENU_CATEGORIES }      from '../data/menu-spec';
+import { SITE_QUERY }           from '../lib/base';
 import type { Lang }            from '../data/i18n';
 import type { MenuKind }        from '../data/menu-spec';
 
@@ -110,7 +111,7 @@ const updatedLbl  = t.updatedLabel;
   </div>{/* end .menu-embed-main */}
 </div>
 
-<script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel, menuTitle: t.eyebrow, noCocktailsLabel: t.noCocktails, menuUnavailableLabel: t.notReady }}>
+<script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel, menuTitle: t.eyebrow, noCocktailsLabel: t.noCocktails, menuUnavailableLabel: t.notReady, siteParam: SITE_QUERY }}>
   // ── HTML escape ─────────────────────────────────────────────
   const esc = s => String(s ?? '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -272,7 +273,10 @@ const updatedLbl  = t.updatedLabel;
 
   async function loadSlug(slug, kind) {
     try {
-      const res = await fetch(`/api/menu/${slug}`, { cache: 'default' });
+      // siteParam ('?site=rooftop' on the rooftop build) scopes the menu read
+      // to this venue; the root /api/menu route falls back to Zahara then the
+      // built-in default when rooftop hasn't published this menu yet.
+      const res = await fetch(`/api/menu/${slug}${siteParam}`, { cache: 'default' });
       if (!res.ok) return;
       const data = await res.json();
       applyPayload(slug, kind, data);
