@@ -10,7 +10,7 @@ import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContentOwn,
-  readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
+  readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, EVENTS_MENU_OBJECT, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField,
 } from '../data/content';
 import { PHOTO_CATALOGUE } from '../data/photos-map';
@@ -119,6 +119,9 @@ const STYLE = `
   .fmtbtn--i { font-style: italic; font-family: Georgia, 'Times New Roman', serif; }
   .fmtbtn--u { text-decoration: underline; }
   .fmtbtn--dash { font-weight: 700; letter-spacing: 0.05em; }
+  .fmtbtn--align { display: inline-grid; place-items: center; padding: 0.34rem 0.42rem; }
+  .fmtbtn--align svg { display: block; }
+  .fmtbtn--clear { font-weight: 700; letter-spacing: -0.02em; }
   .fmtbtn.is-active { background: #1a1410; color: #F4EDDF; border-color: #1a1410; }
   .fmtbtn.is-active:hover { background: #9C4621; border-color: #9C4621; color: #fff; }
   .fmtbar__sep { width: 1px; align-self: stretch; background: #e3d7b8; margin-inline: 0.15rem; }
@@ -190,6 +193,17 @@ const STYLE = `
   .popup-picker__item img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; background: #ece3d0; }
   .popup-picker__item span { display: block; font-size: 0.62rem; color: #6f6457; padding: 0.2rem 0.3rem;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* ── Events menu PDF ──────────────────────────────────────────────── */
+  .evmenu { display: grid; gap: 0.7rem; }
+  .evmenu__state { margin: 0; font-size: 0.88rem; }
+  .evmenu__view { color: #9C4621; font-weight: 600; text-decoration: none; border-bottom: 1px solid #9C4621; }
+  .evmenu__view:hover { color: #6F2F12; }
+  .evmenu__none { color: #6f6457; }
+  .evmenu__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .evmenu__file { display: none; }
+  .evmenu__status { margin: 0; min-height: 1.1em; font-size: 0.78rem; color: #4f6b47; }
+  .evmenu__status--err { color: #a53623; }
+  .evmenu__hint { margin: 0; font-size: 0.76rem; color: #9a8d77; }
 `;
 
 const SCRIPT = `
@@ -228,34 +242,47 @@ const SCRIPT = `
     // (**bold**, *italic*, __underline__, newlines). execCommand runs with
     // styleWithCSS OFF, so bold/italic/underline come through as <b>/<i>/<u>
     // (or <strong>/<em>); we also honour inline styles as a fallback.
+    //
+    // CRITICAL: any whitespace at the EDGES of a formatted run is moved OUTSIDE
+    // the markers (so we emit "**word** " not "**word **"). Browsers routinely
+    // include a trailing space inside the <b> when you bold a single word, and
+    // the live-site formatter only renders **x** when x has no edge spaces —
+    // so without this, bolding one word silently did nothing.
     function serializeRich(root) {
-      var out = '';
-      (function walk(node) {
+      function wrap(inner, bold, ital, und) {
+        if (!bold && !ital && !und) return inner;
+        var m = inner.match(/^(\\s*)([\\s\\S]*?)(\\s*)$/);
+        var lead = m[1], core = m[2], trail = m[3];
+        if (core === '') return inner;                 // whitespace-only → skip
+        var open  = (bold ? '**' : '') + (ital ? '*' : '') + (und ? '__' : '');
+        var close = (und ? '__' : '') + (ital ? '*' : '') + (bold ? '**' : '');
+        return lead + open + core + close + trail;
+      }
+      function walk(node) {
+        var s = '';
         for (var i = 0; i < node.childNodes.length; i++) {
           var n = node.childNodes[i];
-          if (n.nodeType === 3) { out += n.nodeValue.replace(/\\u00a0/g, ' '); continue; }
+          if (n.nodeType === 3) { s += n.nodeValue.replace(/\\u00a0/g, ' '); continue; }
           if (n.nodeType !== 1) continue;
           var tag = n.tagName.toLowerCase();
-          if (tag === 'br') { out += '\\n'; continue; }
+          if (tag === 'br') { s += '\\n'; continue; }
+          if (tag === 'div' || tag === 'p') {
+            if (s && s.charAt(s.length - 1) !== '\\n') s += '\\n';
+            s += walk(n);
+            continue;
+          }
           var st = n.style || {};
           var fw = st.fontWeight || '';
           var bold = tag === 'b' || tag === 'strong' || fw === 'bold' || parseInt(fw, 10) >= 600;
           var ital = tag === 'i' || tag === 'em' || st.fontStyle === 'italic';
           var deco = (st.textDecoration || '') + ' ' + (st.textDecorationLine || '');
           var und  = tag === 'u' || deco.indexOf('underline') !== -1;
-          var isBlock = tag === 'div' || tag === 'p';
-          if (isBlock && out && out.charAt(out.length - 1) !== '\\n') out += '\\n';
-          if (bold) out += '**';
-          if (ital) out += '*';
-          if (und)  out += '__';
-          walk(n);
-          if (und)  out += '__';
-          if (ital) out += '*';
-          if (bold) out += '**';
+          s += wrap(walk(n), bold, ital, und);
         }
-      })(root);
-      return out.replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n')
-                .replace(/^\\s+|\\s+$/g, '');
+        return s;
+      }
+      return walk(root).replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n')
+                       .replace(/^\\s+|\\s+$/g, '');
     }
     function collect() {
       var map = {};
@@ -274,6 +301,12 @@ const SCRIPT = `
         var key = el.getAttribute('data-dash-key');
         if (!map[key]) map[key] = {};
         map[key].dash = el.classList.contains('is-active');
+      });
+      // Alignment: the one active button per field carries the chosen value.
+      document.querySelectorAll('[data-align-key].is-active').forEach(function (el) {
+        var key = el.getAttribute('data-align-key');
+        if (!map[key]) map[key] = {};
+        map[key].align = el.getAttribute('data-align');
       });
       return map;
     }
@@ -327,19 +360,45 @@ const SCRIPT = `
         else if (action === 'linebreak') document.execCommand('insertLineBreak');
       } catch (e) {}
     }
+    // Clear formatting — unwrap bold/italic/underline from BOTH boxes of a field
+    // while keeping the text + line breaks intact.
+    function clearFormatting(field) {
+      if (!field) return;
+      field.querySelectorAll('.rte').forEach(function (rte) {
+        rte.querySelectorAll('b, strong, i, em, u').forEach(function (el) {
+          while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+          el.parentNode.removeChild(el);
+        });
+        rte.normalize();
+        rte.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+    // Alignment — one of start/center/end is active per field (start = default).
+    function setAlign(btn) {
+      var key = btn.getAttribute('data-align-key');
+      document.querySelectorAll('[data-align-key="' + key + '"]').forEach(function (b) {
+        var on = b === btn;
+        b.classList.toggle('is-active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
     document.querySelectorAll('[data-fmtbar] .fmtbtn').forEach(function (btn) {
       // mousedown → preventDefault keeps the editor's selection/focus intact
       // when the button is pressed (so execCommand targets the right text).
       btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
       btn.addEventListener('click', function () {
+        // Alignment buttons — mutually exclusive per field.
+        if (btn.hasAttribute('data-align')) { setAlign(btn); return; }
+        var fmt = btn.getAttribute('data-fmt');
         // The dash button is a toggle, not a text command.
-        if (btn.getAttribute('data-fmt') === 'dash') {
+        if (fmt === 'dash') {
           var on = !btn.classList.contains('is-active');
           btn.classList.toggle('is-active', on);
           btn.setAttribute('aria-pressed', on ? 'true' : 'false');
           return;
         }
-        applyFmt(btn.closest('.field'), btn.getAttribute('data-fmt'));
+        if (fmt === 'clear') { clearFormatting(btn.closest('.field')); return; }
+        applyFmt(btn.closest('.field'), fmt);
       });
     });
     // ── Popup: style selector + photo management (Popup tab) ──
@@ -444,6 +503,63 @@ const SCRIPT = `
       });
     })();
 
+    // ── Events menu PDF (Events tab) — upload / replace / remove, live now. ──
+    (function () {
+      var fileInput = document.getElementById('evmenu-file');
+      var uploadBtn = document.getElementById('evmenu-upload');
+      var removeBtn = document.getElementById('evmenu-remove');
+      var statusEl  = document.getElementById('evmenu-status');
+      var stateEl   = document.getElementById('evmenu-state');
+      if (!uploadBtn) return;
+      var suffix = window.ADMIN_SITE_SUFFIX || '';
+      function setS(m, err) {
+        if (!statusEl) return;
+        statusEl.textContent = m || '';
+        statusEl.classList.toggle('evmenu__status--err', !!err);
+      }
+      function showView() {
+        if (stateEl) stateEl.innerHTML =
+          '<a class="evmenu__view" href="/events-menu?v=' + Date.now() + suffix +
+          '" target="_blank" rel="noopener">View the current PDF \\u2197</a>';
+      }
+      function showNone() {
+        if (stateEl) stateEl.innerHTML =
+          '<span class="evmenu__none">No menu uploaded — the button stays hidden on the Events page.</span>';
+      }
+      async function post(fd) {
+        var res  = await fetch('/admin/events-menu', { method: 'POST', body: fd });
+        var data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
+        return data;
+      }
+      uploadBtn.addEventListener('click', function () { if (fileInput) fileInput.click(); });
+      if (fileInput) fileInput.addEventListener('change', async function () {
+        if (!fileInput.files || !fileInput.files.length) return;
+        setS('Uploading…', false);
+        try {
+          var fd = new FormData(); fd.append('file', fileInput.files[0]);
+          await post(fd);
+          setS('Saved · the button is now live on the Events page.', false);
+          if (removeBtn) removeBtn.hidden = false;
+          uploadBtn.textContent = 'Replace PDF…';
+          showView();
+        } catch (err) { setS(String(err.message || err), true); }
+        finally { fileInput.value = ''; }
+      });
+      if (removeBtn) removeBtn.addEventListener('click', async function () {
+        if (!confirm('Remove the events menu PDF? The button disappears from the Events page.')) return;
+        setS('Removing…', false);
+        try {
+          var fd = new FormData(); fd.append('action', 'delete');
+          await post(fd);
+          setS('Removed.', false);
+          removeBtn.hidden = true;
+          uploadBtn.textContent = 'Upload PDF…';
+          showNone();
+        } catch (err) { setS(String(err.message || err), true); }
+      });
+    })();
+
     saveBtn.addEventListener('click', async function () {
       saveBtn.disabled = true;
       setStatus('Saving…', false);
@@ -510,8 +626,19 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
     .join('');
   const sizeSet = curSize !== 1 ? ' is-set' : '';
 
-  // Word/Docs-style toolbar: buttons act on whichever of the two inputs below
-  // is focused (Bold/Italic/Underline wrap the selection; A± step the size).
+  // Alignment (logical, so it mirrors in RTL). 'start' is the default.
+  const align = value?.align ?? 'start';
+  const alignSvg: Record<string, string> = {
+    start:  `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="10" y2="8"/><line x1="2" y1="12" x2="12" y2="12"/></svg>`,
+    center: `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="4" y1="8" x2="12" y2="8"/><line x1="3" y1="12" x2="13" y2="12"/></svg>`,
+    end:    `<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="4" x2="14" y2="4"/><line x1="6" y1="8" x2="14" y2="8"/><line x1="4" y1="12" x2="14" y2="12"/></svg>`,
+  };
+  const alignBtn = (a: string, label: string) =>
+    `<button type="button" class="fmtbtn fmtbtn--align${align === a ? ' is-active' : ''}" data-align="${a}" data-align-key="${esc(f.key)}" title="Align ${label}" aria-label="Align ${label}" aria-pressed="${align === a ? 'true' : 'false'}">${alignSvg[a]}</button>`;
+
+  // Word/Docs-style toolbar: Bold/Italic/Underline wrap the selection (shown in
+  // place); A± set the whole field's size; the align group + dash + clear round
+  // it out. Everything is grouped with thin separators.
   const toolbar = `
       <div class="fmtbar" data-fmtbar>
         <button type="button" class="fmtbtn fmtbtn--b" data-fmt="bold"      title="Bold (Ctrl/⌘+B)" aria-label="Bold">B</button>
@@ -521,12 +648,15 @@ function fieldHtml(f: ContentField, value: ContentMap[string]): string {
         <button type="button" class="fmtbtn" data-fmt="smaller" title="Make this text smaller" aria-label="Smaller text">A−</button>
         <button type="button" class="fmtbtn" data-fmt="bigger"  title="Make this text bigger" aria-label="Bigger text">A+</button>
         <span class="fmtbar__sep"></span>
-        <button type="button" class="fmtbtn" data-fmt="linebreak" title="Insert a line break" aria-label="Line break">↵</button>
+        ${alignBtn('start', 'start')}${alignBtn('center', 'centre')}${alignBtn('end', 'end')}
         <span class="fmtbar__sep"></span>
+        <button type="button" class="fmtbtn" data-fmt="linebreak" title="Insert a line break" aria-label="Line break">↵</button>
         <button type="button" class="fmtbtn fmtbtn--dash${value?.dash ? ' is-active' : ''}"
                 data-fmt="dash" data-dash-key="${esc(f.key)}"
                 title="Show a section dash (—) above this text (use it in place of an eyebrow)"
                 aria-label="Toggle section dash" aria-pressed="${value?.dash ? 'true' : 'false'}">—</button>
+        <button type="button" class="fmtbtn fmtbtn--clear" data-fmt="clear"
+                title="Clear bold / italic / underline from this field" aria-label="Clear formatting">T×</button>
         <span class="fmtbar__hint">select text, then B / I / U — styling shows in place</span>
       </div>`;
 
@@ -687,6 +817,35 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string, si
     </section>`;
 }
 
+// The Events tab's menu-PDF manager — upload / replace / remove the PDF shown
+// behind the "View events menu" button on the Events page. Uploads take effect
+// immediately (stored in R2, served at /events-menu).
+function eventsMenuHtml(hasPdf: boolean, version: string, site: Site): string {
+  const siteAmp = site === 'rooftop' ? '&site=rooftop' : '';
+  const viewUrl = `/events-menu?v=${esc(version)}${siteAmp}`;
+  const state = hasPdf
+    ? `<a class="evmenu__view" href="${viewUrl}" target="_blank" rel="noopener">View the current PDF ↗</a>`
+    : `<span class="evmenu__none">No menu uploaded — the button stays hidden on the Events page.</span>`;
+  return `
+    <section class="group">
+      <header class="group__head">
+        <h2>Events menu (PDF)</h2>
+        <small>Powers the “View events menu” button on the Events page.</small>
+      </header>
+      <div class="evmenu">
+        <p class="evmenu__state" id="evmenu-state">${state}</p>
+        <div class="evmenu__actions">
+          <input class="evmenu__file" type="file" id="evmenu-file" accept="application/pdf,.pdf" />
+          <button type="button" class="btn" id="evmenu-upload">${hasPdf ? 'Replace PDF…' : 'Upload PDF…'}</button>
+          <button type="button" class="btn" id="evmenu-remove"
+                  style="background:transparent;color:#1a1410;"${hasPdf ? '' : ' hidden'}>Remove</button>
+        </div>
+        <p class="evmenu__status" id="evmenu-status"></p>
+        <p class="evmenu__hint">PDF only, up to 15&nbsp;MB. It opens in the browser (no download). Uploads are live immediately.</p>
+      </div>
+    </section>`;
+}
+
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return unauthorized();
 
@@ -701,9 +860,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // downloading it.)
   const bucket = siteScope(env, site).images;
   let hasPopupImage = false;
+  let hasEventsMenu = false;
   if (bucket) {
     try { hasPopupImage = (await bucket.head(POPUP_IMAGE_OBJECT)) !== null; }
     catch (err) { console.warn('[admin/content] popup image head failed', err); }
+    try { hasEventsMenu = (await bucket.head(EVENTS_MENU_OBJECT)) !== null; }
+    catch (err) { console.warn('[admin/content] events menu head failed', err); }
   }
   // Per-load cache-buster for admin thumbnails.
   const adminVersion = Date.now().toString(36);
@@ -726,6 +888,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const pagesHtml = pages.map((p) => `
     <div class="page" data-page="${esc(p.id)}" role="tabpanel">
       ${p.id === 'popup' ? popupVisHtml(popupCfg) + popupStyleHtml(popupCfg, hasPopupImage, adminVersion, site) : ''}
+      ${p.id === 'events' ? eventsMenuHtml(hasEventsMenu, adminVersion, site) : ''}
       ${CONTENT_GROUPS.filter((g) => g.page === p.id).map(groupHtml).join('')}
     </div>`).join('');
 

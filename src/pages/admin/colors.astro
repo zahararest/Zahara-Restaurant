@@ -94,6 +94,16 @@ const TITLE = 'Color editor · Zahara';
         <option value="linen">Linen (crisp pale + navy)</option>
         <option value="rose-paper">Rose paper (wine accent)</option>
         <option value="sage">Sage (pale green + moss)</option>
+        <option value="olive-gold">Olive &amp; Gold (green + gold)</option>
+        <option value="sea-glass">Sea Glass (aqua-green + teal)</option>
+        <option value="fern-copper">Fern &amp; Copper (green + copper)</option>
+        <option value="honey-sage">Honey &amp; Sage (green + honey gold)</option>
+        <option value="lavender-haze">Lavender Haze (light purple)</option>
+        <option value="lilac-sage">Lilac &amp; Sage (purple + green)</option>
+        <option value="wisteria">Wisteria (lilac + blue-violet)</option>
+        <option value="amethyst-cream">Amethyst &amp; Cream (purple + gold)</option>
+        <option value="blush">Blush (soft rose)</option>
+        <option value="harbor">Harbor (blue-gray + slate-teal)</option>
       </optgroup>
       <optgroup label="Dark themes">
         <option value="midnight">Midnight (dark navy)</option>
@@ -105,6 +115,15 @@ const TITLE = 'Color editor · Zahara';
         <option value="moss">Moss (dark green + gold)</option>
         <option value="wine">Wine (deep aubergine)</option>
         <option value="cobalt-noir">Cobalt Noir (ink + electric blue)</option>
+        <option value="emerald-noir">Emerald Noir (green + gold)</option>
+        <option value="pine-gold">Pine &amp; Gold (green + gold)</option>
+        <option value="deep-jade">Deep Jade (teal-green)</option>
+        <option value="teal-abyss">Teal Abyss (electric teal)</option>
+        <option value="violet-dusk">Violet Dusk (purple + violet)</option>
+        <option value="orchid-noir">Orchid Noir (plum + orchid)</option>
+        <option value="amethyst-dark">Amethyst Dark (purple + gold)</option>
+        <option value="indigo-night">Indigo Night (indigo + periwinkle)</option>
+        <option value="rosewood">Rosewood (rose-brown + pink)</option>
         <option value="dark-frantzen">Dark · Frantzen (blue)</option>
         <option value="dark-white">Dark + white (stark)</option>
       </optgroup>
@@ -634,6 +653,128 @@ const TITLE = 'Color editor · Zahara';
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A06',
     },
 
+    // ── More light themes ─────────────────────────────────────────────────────
+
+    // Olive & Gold — warm olive-green accent with a gold companion.
+    'olive-gold': {
+      '--paper': '#F3F0E2', '--paper-deep': '#E7E3CF', '--paper-edge': '#D2CDB2',
+      '--paper-card': '#F9F6EA', '--paper-on-photo': '#F4F1E3',
+      '--ink': '#181A12', '--ink-soft': '#33362A', '--ink-muted': '#767A62', '--ink-faint': '#ABAD92',
+      '--rule': '#C6C4A6', '--rule-soft': '#DDDAC0',
+      '--accent': '#6B7A33', '--accent-deep': '#48521E', '--accent-soft': '#E1E3C4',
+      '--gold': '#B6923F',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0A0B05',
+    },
+
+    // Sea Glass — pale aqua-green paper, deep teal-green accent.
+    'sea-glass': {
+      '--paper': '#EBF1EC', '--paper-deep': '#DBE6DD', '--paper-edge': '#C3D3C7',
+      '--paper-card': '#F3F8F3', '--paper-on-photo': '#ECF2ED',
+      '--ink': '#101815', '--ink-soft': '#2A342F', '--ink-muted': '#647069', '--ink-faint': '#9EAAA2',
+      '--rule': '#BCCBC1', '--rule-soft': '#D2DED6',
+      '--accent': '#2E7D6E', '--accent-deep': '#155448', '--accent-soft': '#CBE4DC',
+      '--gold': '#9FA36A',
+      '--c-green': '#3E8A72', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#05100C',
+    },
+
+    // Fern & Copper — pale green paper, fern-green accent, copper gold.
+    'fern-copper': {
+      '--paper': '#EFEEE1', '--paper-deep': '#E1E1CF', '--paper-edge': '#CBCCB4',
+      '--paper-card': '#F6F5E9', '--paper-on-photo': '#F0EFE2',
+      '--ink': '#15180F', '--ink-soft': '#2F3327', '--ink-muted': '#6F7660', '--ink-faint': '#A6AB90',
+      '--rule': '#C1C4A8', '--rule-soft': '#D8DAC2',
+      '--accent': '#4E7B45', '--accent-deep': '#2E5228', '--accent-soft': '#D6E2C9',
+      '--gold': '#B57A45',
+      '--c-green': '#4E7B45', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A05',
+    },
+
+    // Honey & Sage — warm paper, sage-green accent, honey gold.
+    'honey-sage': {
+      '--paper': '#F3F1E4', '--paper-deep': '#E7E4D1', '--paper-edge': '#D2CEB4',
+      '--paper-card': '#F9F7EC', '--paper-on-photo': '#F4F2E5',
+      '--ink': '#171810', '--ink-soft': '#323428', '--ink-muted': '#767962', '--ink-faint': '#ABAD92',
+      '--rule': '#C7C5A8', '--rule-soft': '#DEDBC2',
+      '--accent': '#5E7A50', '--accent-deep': '#3C5230', '--accent-soft': '#DCE4CC',
+      '--gold': '#C29A44',
+      '--c-green': '#5E7A50', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0A0B04',
+    },
+
+    // Lavender Haze — light purple paper, violet accent.
+    'lavender-haze': {
+      '--paper': '#F1EEF6', '--paper-deep': '#E4DEEE', '--paper-edge': '#D0C6E0',
+      '--paper-card': '#F7F4FB', '--paper-on-photo': '#F2EEF8',
+      '--ink': '#16121E', '--ink-soft': '#322C3D', '--ink-muted': '#736A85', '--ink-faint': '#A9A0BC',
+      '--rule': '#CBC2DC', '--rule-soft': '#DED7EA',
+      '--accent': '#6E4CB0', '--accent-deep': '#472E80', '--accent-soft': '#E0D6F2',
+      '--gold': '#9E8A86',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#8A6EA8',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0A0710',
+    },
+
+    // Lilac & Sage — light purple paper, muted violet accent, green companion.
+    'lilac-sage': {
+      '--paper': '#EFEFEC', '--paper-deep': '#E2E2DB', '--paper-edge': '#CCCEC2',
+      '--paper-card': '#F6F6F1', '--paper-on-photo': '#F0F0EB',
+      '--ink': '#171620', '--ink-soft': '#312F3A', '--ink-muted': '#71707E', '--ink-faint': '#A7A6B2',
+      '--rule': '#C6C6BE', '--rule-soft': '#DAD9D0',
+      '--accent': '#7A5C9E', '--accent-deep': '#513A70', '--accent-soft': '#E1D9EC',
+      '--gold': '#9C9A66',
+      '--c-green': '#5F7E60', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#8E72AA',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#09080E',
+    },
+
+    // Wisteria — pale lilac paper, blue-violet accent.
+    wisteria: {
+      '--paper': '#EEEFF6', '--paper-deep': '#E0E2EE', '--paper-edge': '#C8CCE0',
+      '--paper-card': '#F5F6FB', '--paper-on-photo': '#F0F1F8',
+      '--ink': '#12141F', '--ink-soft': '#2C2F3C', '--ink-muted': '#6C7286', '--ink-faint': '#A2A8BC',
+      '--rule': '#C4C8DC', '--rule-soft': '#D8DBEA',
+      '--accent': '#5A5EC0', '--accent-deep': '#383C90', '--accent-soft': '#D6D9F2',
+      '--gold': '#8E92B4',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#8072B4',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#07080F',
+    },
+
+    // Amethyst & Cream — cream paper, amethyst-purple accent, gold companion.
+    'amethyst-cream': {
+      '--paper': '#F5F1EC', '--paper-deep': '#EAE3DA', '--paper-edge': '#D8CEC0',
+      '--paper-card': '#FBF7F1', '--paper-on-photo': '#F5F1EB',
+      '--ink': '#1A141C', '--ink-soft': '#372E38', '--ink-muted': '#7E7080', '--ink-faint': '#B4A6B4',
+      '--rule': '#D2C6CC', '--rule-soft': '#E4DADE',
+      '--accent': '#8A3F86', '--accent-deep': '#5C2258', '--accent-soft': '#EEDAEA',
+      '--gold': '#B6923F',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9A5E96',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0C060B',
+    },
+
+    // Blush — soft rose paper, dusty-rose accent.
+    blush: {
+      '--paper': '#F6EEEC', '--paper-deep': '#EBDEDA', '--paper-edge': '#DAC6C0',
+      '--paper-card': '#FCF4F1', '--paper-on-photo': '#F6EEEB',
+      '--ink': '#1D1412', '--ink-soft': '#3D2F2C', '--ink-muted': '#84685F', '--ink-faint': '#B8A099',
+      '--rule': '#D6BFB8', '--rule-soft': '#E8D6D0',
+      '--accent': '#B0596A', '--accent-deep': '#7E3040', '--accent-soft': '#F1DBDD',
+      '--gold': '#BA9058',
+      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#A5788C',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0706',
+    },
+
+    // Harbor — pale blue-gray paper, slate-teal accent.
+    harbor: {
+      '--paper': '#ECEFEF', '--paper-deep': '#DCE2E2', '--paper-edge': '#C3CDCD',
+      '--paper-card': '#F4F7F7', '--paper-on-photo': '#EDF0F0',
+      '--ink': '#101619', '--ink-soft': '#2A3235', '--ink-muted': '#647074', '--ink-faint': '#9EAAAD',
+      '--rule': '#BECACB', '--rule-soft': '#D4DEDE',
+      '--accent': '#2E6C82', '--accent-deep': '#164657', '--accent-soft': '#CDE0E7',
+      '--gold': '#9AA49E',
+      '--c-green': '#5A786A', '--c-teal': '#38788E', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
+      '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#050C0F',
+    },
+
     // ── Dark themes ───────────────────────────────────────────────────────────
     // All dark themes use dark paper surfaces so the entire UI goes dark.
     // paper-on-photo stays light (cream/white) so text on photo heroes stays readable.
@@ -746,6 +887,116 @@ const TITLE = 'Color editor · Zahara';
       '--gold': '#88A4D8',
       '--c-green': '#4A7868', '--c-teal': '#3878A0', '--c-slate': '#3A4E68', '--c-mauve': '#7868A0',
       '--ok': '#5BA670', '--err': '#E07060', '--shadow': '#02040A',
+    },
+
+    // ── More dark themes ──────────────────────────────────────────────────────
+
+    // Emerald Noir — dark green-black, emerald accent, warm gold.
+    'emerald-noir': {
+      '--paper': '#07120C', '--paper-deep': '#0E1C14', '--paper-edge': '#183020',
+      '--paper-card': '#0C1810', '--paper-on-photo': '#E2F0E4',
+      '--ink': '#DEEEDE', '--ink-soft': '#AEC2B2', '--ink-muted': '#5E7862', '--ink-faint': '#283C2C',
+      '--rule': '#183020', '--rule-soft': '#102416',
+      '--accent': '#2FA672', '--accent-deep': '#1C7450', '--accent-soft': '#0E2418',
+      '--gold': '#C8A860',
+      '--c-green': '#4FA07A', '--c-teal': '#3E8890', '--c-slate': '#3A5C58', '--c-mauve': '#8A80A0',
+      '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#020A05',
+    },
+
+    // Pine & Gold — dark pine green, gold accent.
+    'pine-gold': {
+      '--paper': '#0A1310', '--paper-deep': '#111E18', '--paper-edge': '#1D3028',
+      '--paper-card': '#0E1A15', '--paper-on-photo': '#E8F0E8',
+      '--ink': '#E2EEE4', '--ink-soft': '#B0C2B4', '--ink-muted': '#607A68', '--ink-faint': '#2A3C30',
+      '--rule': '#1D3028', '--rule-soft': '#14231C',
+      '--accent': '#C8A050', '--accent-deep': '#8E6C22', '--accent-soft': '#18241A',
+      '--gold': '#E4C674',
+      '--c-green': '#5A9078', '--c-teal': '#448082', '--c-slate': '#3E5C56', '--c-mauve': '#8C8272',
+      '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#030A06',
+    },
+
+    // Deep Jade — dark teal-green, bright jade accent.
+    'deep-jade': {
+      '--paper': '#06120F', '--paper-deep': '#0C1C18', '--paper-edge': '#163029',
+      '--paper-card': '#0A1814', '--paper-on-photo': '#DEF0EC',
+      '--ink': '#D8EEE8', '--ink-soft': '#A6C2BC', '--ink-muted': '#587872', '--ink-faint': '#243C36',
+      '--rule': '#163029', '--rule-soft': '#0E241E',
+      '--accent': '#26A896', '--accent-deep': '#147468', '--accent-soft': '#0A241E',
+      '--gold': '#84BCA8',
+      '--c-green': '#409886', '--c-teal': '#2E9498', '--c-slate': '#3A5E5C', '--c-mauve': '#7E86A0',
+      '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#020A08',
+    },
+
+    // Teal Abyss — dark teal, electric teal accent.
+    'teal-abyss': {
+      '--paper': '#06110F', '--paper-deep': '#0B1C1A', '--paper-edge': '#143030',
+      '--paper-card': '#081816', '--paper-on-photo': '#DCF0EE',
+      '--ink': '#D6EEEC', '--ink-soft': '#A4C2C0', '--ink-muted': '#547876', '--ink-faint': '#223C3A',
+      '--rule': '#143030', '--rule-soft': '#0C2422',
+      '--accent': '#28B0B0', '--accent-deep': '#147C7C', '--accent-soft': '#0A2424',
+      '--gold': '#7CC0BE',
+      '--c-green': '#409888', '--c-teal': '#2CA0A8', '--c-slate': '#385E60', '--c-mauve': '#7C86A0',
+      '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#020A08',
+    },
+
+    // Violet Dusk — dark purple, light violet accent.
+    'violet-dusk': {
+      '--paper': '#0D0918', '--paper-deep': '#150F28', '--paper-edge': '#241A40',
+      '--paper-card': '#110C20', '--paper-on-photo': '#ECE6F8',
+      '--ink': '#E8E0F6', '--ink-soft': '#BDB0D6', '--ink-muted': '#76689E', '--ink-faint': '#382850',
+      '--rule': '#241A40', '--rule-soft': '#170F2A',
+      '--accent': '#9C74E0', '--accent-deep': '#6A44B4', '--accent-soft': '#1C1038',
+      '--gold': '#C6A0D2',
+      '--c-green': '#5A7E70', '--c-teal': '#4A6C90', '--c-slate': '#3E4A60', '--c-mauve': '#9E78BC',
+      '--ok': '#4DB378', '--err': '#E05868', '--shadow': '#05020E',
+    },
+
+    // Orchid Noir — dark plum, orchid (light purple) accent.
+    'orchid-noir': {
+      '--paper': '#120A16', '--paper-deep': '#1C1024', '--paper-edge': '#301C3A',
+      '--paper-card': '#160C1C', '--paper-on-photo': '#F0E6F2',
+      '--ink': '#EEE0F0', '--ink-soft': '#C6AECC', '--ink-muted': '#846A88', '--ink-faint': '#3E2C42',
+      '--rule': '#301C3A', '--rule-soft': '#1F1226',
+      '--accent': '#C06AC8', '--accent-deep': '#8A3E92', '--accent-soft': '#24122A',
+      '--gold': '#CDA0A8',
+      '--c-green': '#5A7A6A', '--c-teal': '#4A6A88', '--c-slate': '#484A62', '--c-mauve': '#B074B4',
+      '--ok': '#4DB378', '--err': '#E05868', '--shadow': '#08040A',
+    },
+
+    // Amethyst Dark — dark purple-gray, amethyst accent, gold companion.
+    'amethyst-dark': {
+      '--paper': '#0F0C14', '--paper-deep': '#181320', '--paper-edge': '#282034',
+      '--paper-card': '#130F1A', '--paper-on-photo': '#ECE8F4',
+      '--ink': '#E6E2F0', '--ink-soft': '#B8B0C8', '--ink-muted': '#726A84', '--ink-faint': '#342C40',
+      '--rule': '#282034', '--rule-soft': '#1A1526',
+      '--accent': '#A070D8', '--accent-deep': '#6E44A8', '--accent-soft': '#1C1430',
+      '--gold': '#D6B46A',
+      '--c-green': '#5A7868', '--c-teal': '#48688C', '--c-slate': '#3E485C', '--c-mauve': '#9A78B8',
+      '--ok': '#4DB378', '--err': '#E05860', '--shadow': '#050309',
+    },
+
+    // Indigo Night — dark indigo, periwinkle accent.
+    'indigo-night': {
+      '--paper': '#080A16', '--paper-deep': '#0E1224', '--paper-edge': '#1A2038',
+      '--paper-card': '#0B0E1E', '--paper-on-photo': '#E4E8F6',
+      '--ink': '#DEE2F2', '--ink-soft': '#AEB4CE', '--ink-muted': '#606890', '--ink-faint': '#2A3048',
+      '--rule': '#1A2038', '--rule-soft': '#111628',
+      '--accent': '#7A88E8', '--accent-deep': '#4E5CC0', '--accent-soft': '#141838',
+      '--gold': '#A0A8D8',
+      '--c-green': '#4E7C74', '--c-teal': '#4074A0', '--c-slate': '#3C4A6A', '--c-mauve': '#8478B0',
+      '--ok': '#4DB378', '--err': '#E05868', '--shadow': '#02030C',
+    },
+
+    // Rosewood — dark rose-brown, dusty-pink accent.
+    rosewood: {
+      '--paper': '#130A0C', '--paper-deep': '#1E1014', '--paper-edge': '#341E24',
+      '--paper-card': '#180C10', '--paper-on-photo': '#F2E2E2',
+      '--ink': '#EEDCDC', '--ink-soft': '#C6A6A6', '--ink-muted': '#846266', '--ink-faint': '#3E262A',
+      '--rule': '#341E24', '--rule-soft': '#221318',
+      '--accent': '#C87888', '--accent-deep': '#94485A', '--accent-soft': '#28141A',
+      '--gold': '#D0A084',
+      '--c-green': '#5E7A6A', '--c-teal': '#4A6E80', '--c-slate': '#4A505E', '--c-mauve': '#A87890',
+      '--ok': '#4DB378', '--err': '#E06860', '--shadow': '#0A0406',
     },
 
     // ── Classic dark (kept for reference) ────────────────────────────────────

@@ -572,6 +572,8 @@ const schema = {
           // Optional owner-set "section dash" — a short accent rule above the
           // copy, standing in for an eyebrow the owner chose not to use.
           node.classList.toggle('has-lead-rule', entry.dash === true);
+          // Optional owner-set text alignment (logical, mirrors in RTL).
+          node.style.textAlign = (entry.align === 'center' || entry.align === 'end') ? entry.align : '';
           // Optional owner-set font-size multiplier (independent of text).
           if (typeof entry.size === 'number' && entry.size > 0 && entry.size !== 1) {
             applySize(node, entry.size);

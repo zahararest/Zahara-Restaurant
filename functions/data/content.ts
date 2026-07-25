@@ -29,7 +29,11 @@ export type ContentEnv = SiteBindings;
 // `dash` adds a short accent rule (the eyebrow's "—" kicker) above this piece
 // of copy on the live site. Lets the owner mark a heading as a section opener
 // when they've dropped the eyebrow above it, so it isn't left bare.
-export type ContentValue = { he?: string; en?: string; size?: number; dash?: boolean };
+// `align` overrides the text alignment of this piece of copy (logical values,
+// so they mirror correctly in RTL): 'start' is the default and never stored.
+export type ContentAlign = 'start' | 'center' | 'end';
+export type ContentValue = { he?: string; en?: string; size?: number; dash?: boolean; align?: ContentAlign };
+const ALIGNS = new Set<ContentAlign>(['start', 'center', 'end']);
 
 /** Clamp a posted size multiplier to a sane range; null if it's effectively
  *  "default" (1) or not a usable number. */
@@ -304,7 +308,10 @@ export function sanitiseContent(input: unknown): ContentMap {
     const sz = cleanSize((v as Record<string, unknown>).size);
     if (sz !== null) val.size = sz;
     if ((v as Record<string, unknown>).dash === true) val.dash = true;
-    if (val.he !== undefined || val.en !== undefined || val.size !== undefined || val.dash !== undefined) out[k] = val;
+    const al = (v as Record<string, unknown>).align;
+    if (ALIGNS.has(al as ContentAlign) && al !== 'start') val.align = al as ContentAlign;
+    if (val.he !== undefined || val.en !== undefined || val.size !== undefined
+        || val.dash !== undefined || val.align !== undefined) out[k] = val;
   }
   return out;
 }
@@ -341,7 +348,14 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
       if ((v as Record<string, unknown>).dash === true) cur.dash = true;
       else delete cur.dash;
     }
-    if (cur.he !== undefined || cur.en !== undefined || cur.size !== undefined || cur.dash !== undefined) merged[k] = cur;
+    // Align: 'start' (default) or absent clears it; 'center'/'end' are stored.
+    if ('align' in (v as Record<string, unknown>)) {
+      const al = (v as Record<string, unknown>).align;
+      if (al === 'center' || al === 'end') cur.align = al;
+      else delete cur.align;
+    }
+    if (cur.he !== undefined || cur.en !== undefined || cur.size !== undefined
+        || cur.dash !== undefined || cur.align !== undefined) merged[k] = cur;
     else delete merged[k];
   }
   return merged;
@@ -430,6 +444,11 @@ const POPUP_KEY = '__popup__';
 
 /** R2 object key for the optional popup photo (served at /popup-image). */
 export const POPUP_IMAGE_OBJECT = 'images/popup';
+
+/** R2 object key for the optional Events-page menu PDF (served at /events-menu).
+ *  Stored under the `images/` prefix so it rides the same per-venue bucket +
+ *  cross-venue fallback as everything else (see functions/data/photos-serve). */
+export const EVENTS_MENU_OBJECT = 'images/events-menu';
 
 /** How the entry popup is presented:
  *    text  — the classic paper card (title + body), the default.

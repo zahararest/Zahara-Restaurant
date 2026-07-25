@@ -9,6 +9,7 @@ import BleedPhoto    from '../sections/BleedPhoto.astro';
 import ContactForm   from '../sections/ContactForm.astro';
 import { pick, contact as copy, eventsPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
+import { SITE_QUERY } from '../../lib/base';
 import type { Lang } from '../../data/i18n';
 
 export interface Props { lang: Lang }
@@ -18,6 +19,12 @@ const t        = pick(copy, lang);
 const page     = pick(pageCopy, lang);
 const title    = page.pageTitle;
 const description = page.pageDescription;
+
+// The events-menu PDF lives in R2 (uploaded in /admin/content → Events). The
+// button below is hidden until a small HEAD probe confirms a PDF exists, so it
+// never links to a 404. Root route → carry the venue via ?site on rooftop.
+const menuUrl = `/events-menu${SITE_QUERY}`;
+const menuLabel = lang === 'he' ? 'לצפייה בתפריט האירועים ↗' : 'View the events menu ↗';
 ---
 
 {/* Photo first, tucked under the transparent header, then the title +
@@ -49,8 +56,22 @@ const description = page.pageDescription;
       />
       <span class="events-intro__ornament" aria-hidden="true"><i></i></span>
       <p class="events-intro__lede" data-content-key="events.lede">{t.eventsPageLede}</p>
+      <a class="btn btn--ghost events-intro__menu" href={menuUrl} target="_blank"
+         rel="noopener" data-events-menu data-track="events_menu_click" hidden>{menuLabel}</a>
     </div>
   </section>
+
+  {/* Show the menu button only when a PDF is actually uploaded (HEAD probe),
+      the same "don't render dead UI" approach the kosher certificate uses. */}
+  <script is:inline define:vars={{ menuUrl }}>
+    (function () {
+      var btn = document.querySelector('[data-events-menu]');
+      if (!btn) return;
+      fetch(menuUrl, { method: 'HEAD' })
+        .then(function (r) { if (r && r.ok) btn.hidden = false; })
+        .catch(function () { /* offline / error — leave the button hidden */ });
+    })();
+  </script>
 
   <style>
     /* Pull the opening photo up under the sticky header so its top edge is
@@ -95,6 +116,20 @@ const description = page.pageDescription;
       max-width: 52ch; margin: 0 auto;
       font-size: var(--step-1); line-height: 1.7; font-weight: 300;
       color: color-mix(in srgb, var(--events-band-text) 90%, transparent);
+    }
+    /* "View events menu" — a ghost button tuned to read on the warm band. It
+       stays hidden until the probe confirms a PDF exists (higher-specificity
+       rule so .btn's inline-flex can't override the [hidden] attribute). */
+    .events-intro__menu { margin-block-start: var(--space-s); }
+    .events-intro__menu[hidden] { display: none; }
+    .events-intro__menu.btn--ghost {
+      color: var(--events-band-text);
+      border-color: color-mix(in srgb, var(--events-band-text) 45%, transparent);
+    }
+    .events-intro__menu.btn--ghost:hover {
+      color: var(--events-band-num);
+      border-color: var(--events-band-num);
+      background: color-mix(in srgb, var(--events-band-text) 8%, transparent);
     }
   </style>
 

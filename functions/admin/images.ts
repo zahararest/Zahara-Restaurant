@@ -550,6 +550,10 @@ const STYLE = `
   }
   .ctl label { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.04em; }
   .ctl__val { font-family: 'Inter', monospace; font-size: 0.72rem; color: #6f6457; }
+  .ctl__reset { font: inherit; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase;
+    color: #9C4621; background: transparent; border: 0; padding: 0 0 1px; margin-inline-start: auto;
+    border-bottom: 1px solid transparent; cursor: pointer; }
+  .ctl__reset:hover { border-bottom-color: #9C4621; }
   .ctl input[type="range"] { width: 100%; accent-color: #9C4621; }
   .ctl select {
     font: inherit;
@@ -1002,6 +1006,7 @@ const SCRIPT = `
         contrast:   document.getElementById('ed-contrast'),
         saturate:   document.getElementById('ed-saturate'),
         zoom:       document.getElementById('ed-zoom'),
+        straighten: document.getElementById('ed-straighten'),
         width:      document.getElementById('ed-width'),
         quality:    document.getElementById('ed-quality'),
       };
@@ -1011,6 +1016,7 @@ const SCRIPT = `
         contrast:   document.getElementById('ed-contrast-v'),
         saturate:   document.getElementById('ed-saturate-v'),
         zoom:       document.getElementById('ed-zoom-v'),
+        straighten: document.getElementById('ed-straighten-v'),
       };
       const bwChip   = document.getElementById('ed-bw');
       const resetB   = document.getElementById('ed-reset');
@@ -1021,6 +1027,9 @@ const SCRIPT = `
       const rotateRB = document.getElementById('ed-rotate-r');
       const rotateV  = document.getElementById('ed-rotate-v');
       const centerB  = document.getElementById('ed-center');
+      const flipHB   = document.getElementById('ed-flip-h');
+      const flipVB   = document.getElementById('ed-flip-v');
+      const straightenB = document.getElementById('ed-straighten-0');
 
       let img = null;            // loaded HTMLImageElement
       let work = null;           // { el, w, h } — rotation-applied source
@@ -1031,6 +1040,7 @@ const SCRIPT = `
       let dirty = false;
       let comparing = false;
       let rotation = 0;          // 0/90/180/270, baked into export
+      let flipH = false, flipV = false;  // mirror, baked into export
       const PREVIEW_MAX = 460;   // px — preview longest edge (a little smaller)
 
       function markDirty() { dirty = true; }
@@ -1069,17 +1079,34 @@ const SCRIPT = `
         }
       }
 
-      // Rebuild the rotation-applied working source from the loaded image.
+      function fineDeg() { return inputs.straighten ? (parseFloat(inputs.straighten.value) || 0) : 0; }
+
+      // Rebuild the working source with every geometric transform baked in:
+      // the 90° rotation, horizontal/vertical flip, and the fine straighten
+      // angle. The straighten uses a cover-scale (enlarge just enough that the
+      // tilted image still fills the frame) so there are never transparent
+      // corners — the classic reason to reach for a desktop photo app.
       function buildWork() {
         if (!img) { work = null; return; }
-        if (rotation === 0) { work = { el: img, w: img.naturalWidth, h: img.naturalHeight }; return; }
         const rot90 = rotation % 180 !== 0;
         const w = rot90 ? img.naturalHeight : img.naturalWidth;
         const h = rot90 ? img.naturalWidth  : img.naturalHeight;
+        const fine = fineDeg() * Math.PI / 180;
+        if (rotation === 0 && !flipH && !flipV && fine === 0) {
+          work = { el: img, w: img.naturalWidth, h: img.naturalHeight };
+          return;
+        }
+        // Minimal uniform scale so a w×h frame stays covered after rotating by
+        // the fine angle (exact for same-frame rotation): |cos| + max(w/h,h/w)*|sin|.
+        const cover = Math.abs(Math.cos(fine)) +
+          Math.max(w / h, h / w) * Math.abs(Math.sin(fine));
         const c = document.createElement('canvas');
         c.width = w; c.height = h;
         const cc = c.getContext('2d');
         cc.translate(w / 2, h / 2);
+        cc.rotate(fine);
+        cc.scale(cover, cover);
+        cc.scale(flipH ? -1 : 1, flipV ? -1 : 1);
         cc.rotate(rotation * Math.PI / 180);
         cc.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
         work = { el: c, w: w, h: h };
@@ -1117,7 +1144,10 @@ const SCRIPT = `
         vals.saturate.textContent   = inputs.saturate.value + '%';
         vals.zoom.textContent       = zoom().toFixed(2) + '×';
         if (rotateV) rotateV.textContent = rotation + '\\u00B0';
+        if (vals.straighten) vals.straighten.textContent = (fineDeg() > 0 ? '+' : '') + fineDeg().toFixed(1) + '\\u00B0';
         bwChip.classList.toggle('is-on', inputs.grayscale.value === '100');
+        if (flipHB) flipHB.classList.toggle('is-on', flipH);
+        if (flipVB) flipVB.classList.toggle('is-on', flipV);
       }
 
       function setRotation(deg) {
@@ -1196,8 +1226,10 @@ const SCRIPT = `
         inputs.contrast.value = '100';
         inputs.saturate.value = '100';
         inputs.zoom.value = '1';
+        if (inputs.straighten) inputs.straighten.value = '0';
         cx = 0.5; cy = 0.5;
         rotation = 0;
+        flipH = false; flipV = false;
         buildWork();
         dirty = false;
         drawPreview();
@@ -1273,6 +1305,22 @@ const SCRIPT = `
       });
       if (rotateLB) rotateLB.addEventListener('click', () => setRotation(rotation - 90));
       if (rotateRB) rotateRB.addEventListener('click', () => setRotation(rotation + 90));
+      if (flipHB) flipHB.addEventListener('click', () => { flipH = !flipH; buildWork(); markDirty(); drawPreview(); });
+      if (flipVB) flipVB.addEventListener('click', () => { flipV = !flipV; buildWork(); markDirty(); drawPreview(); });
+      // Straighten slider — rebuild the (cover-scaled) work on each move, rAF-
+      // throttled so dragging stays smooth on large source images.
+      if (inputs.straighten) {
+        let straightenRaf = 0;
+        inputs.straighten.addEventListener('input', () => {
+          markDirty();
+          if (straightenRaf) return;
+          straightenRaf = requestAnimationFrame(() => { straightenRaf = 0; buildWork(); drawPreview(); });
+        });
+      }
+      if (straightenB) straightenB.addEventListener('click', () => {
+        if (inputs.straighten) inputs.straighten.value = '0';
+        buildWork(); markDirty(); drawPreview();
+      });
       if (centerB) centerB.addEventListener('click', () => { cx = 0.5; cy = 0.5; markDirty(); drawPreview(); });
       resetB.addEventListener('click', () => { reset(); markDirty(); });
       cancelB.addEventListener('click', tryClose);
@@ -1680,11 +1728,22 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
           <p class="ctl__hint">Or scroll over the preview to zoom toward the cursor.</p>
         </div>
         <div class="ctl">
-          <div class="ctl__row"><label>Rotate</label><span class="ctl__val" id="ed-rotate-v">0°</span></div>
+          <div class="ctl__row"><label>Rotate &amp; flip</label><span class="ctl__val" id="ed-rotate-v">0°</span></div>
           <div class="editor__toggles">
             <button type="button" class="chip" id="ed-rotate-l" title="Rotate 90° counter-clockwise">↺ Left</button>
             <button type="button" class="chip" id="ed-rotate-r" title="Rotate 90° clockwise">↻ Right</button>
+            <button type="button" class="chip" id="ed-flip-h" title="Mirror left ↔ right">⇋ Flip H</button>
+            <button type="button" class="chip" id="ed-flip-v" title="Mirror top ↕ bottom">⇵ Flip V</button>
           </div>
+        </div>
+        <div class="ctl">
+          <div class="ctl__row">
+            <label for="ed-straighten">Straighten</label>
+            <span class="ctl__val" id="ed-straighten-v">0.0°</span>
+            <button type="button" class="ctl__reset" id="ed-straighten-0" title="Reset straighten to 0°">Reset</button>
+          </div>
+          <input type="range" id="ed-straighten" min="-15" max="15" step="0.5" value="0" />
+          <p class="ctl__hint">Level a crooked horizon — the frame auto-fills, no empty corners.</p>
         </div>
 
         <div class="editor__divider"></div>
