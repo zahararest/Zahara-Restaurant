@@ -1,7 +1,7 @@
 ---
-// Entry announcement — one owner-controlled notice, shown on every page load
-// of every page (the owner wants it unmissable while it's on; there is no
-// per-visitor dismissed state).
+// Entry announcement — one owner-controlled notice, shown at most TWICE per
+// browser session (then suppressed until the tab session ends). Owner turns it
+// on/off in /admin/content → Popup.
 //
 // Design note: pillar 6 ("deliberately absent") forbids entry modals; this
 // exists because the owner explicitly asked for a temporary holiday
@@ -54,10 +54,18 @@ const brand = RESTAURANT.name[lang];
     var root = document.getElementById('zahara-announce');
     if (!root) return;
     // Owner switch — the middleware only injects this tag while the popup is on.
-    // No dismissed/seen state is kept: the owner wants the notice on EVERY
-    // page load (refresh included), not once per visit.
     var marker = document.getElementById('zahara-popup');
     if (!marker) return;
+
+    // Cap: appear at most twice per browser session, then never again until the
+    // tab session ends. sessionStorage persists across page navigations +
+    // reloads in this tab; a fresh tab/window starts a new session. The counter
+    // is bumped in open() (below), so only actual appearances count.
+    var SEEN_KEY = 'zahara-popup-seen';
+    var MAX_PER_SESSION = 2;
+    var seen = 0;
+    try { seen = parseInt(sessionStorage.getItem(SEEN_KEY) || '0', 10) || 0; } catch (e) {}
+    if (seen >= MAX_PER_SESSION) return;
 
     var panel = root.querySelector('.announce__panel');
     var prevFocus = null, prevOverflow = '';
@@ -113,6 +121,8 @@ const brand = RESTAURANT.name[lang];
     function open() {
       if (opened) return;          // photo.onload + the safety timer must not both fire
       opened = true;
+      // Count this appearance toward the per-session cap.
+      try { sessionStorage.setItem(SEEN_KEY, String(seen + 1)); } catch (e) {}
       prevFocus = document.activeElement;
       prevOverflow = document.body.style.overflow;
       document.body.style.overflow = 'hidden';

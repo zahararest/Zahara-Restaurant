@@ -29,7 +29,7 @@ const otherLangHref = altLangHref(currPath, lang);
 // this build serves (SITE_ID). Switching goes to the home page (same structure,
 // scoped data).
 const zaharaHome   = lang === 'he' ? '/' : '/en/';
-const rooftopHome  = lang === 'he' ? '/rooftop/' : '/rooftop/en/';
+const rooftopHome  = lang === 'he' ? '/' : '/en/'; //fix add rooftop 
 const onRooftop    = SITE_ID === 'rooftop';
 
 const isCurrent = (href: string) => {
