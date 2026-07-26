@@ -558,6 +558,16 @@ const schema = {
           if (nat) node.style.fontSize = (nat * scale) + 'px';
         }
 
+        // Styling (size / alignment / lead rule) is stored PER LANGUAGE —
+        // heStyle / enStyle — because the Hebrew and English copy rarely want
+        // the same treatment. Records saved before the split carry the flat
+        // size/align/dash fields instead; those still apply to both languages.
+        // Mirrors styleFor() in functions/data/content.ts.
+        function styleFor(entry, lang) {
+          var own = entry[lang === 'en' ? 'enStyle' : 'heStyle'];
+          return (own && typeof own === 'object') ? own : entry;
+        }
+
         var nodes = document.querySelectorAll('[data-content-key]');
         for (var i = 0; i < nodes.length; i++) {
           var node = nodes[i];
@@ -569,15 +579,17 @@ const schema = {
           // now renders through the safe formatter (bold / italic / line breaks
           // work anywhere), so data-content-html is no longer needed here.
           if (typeof v === 'string') node.innerHTML = formatRich(v);
+          var st = styleFor(entry, lang);
           // Optional owner-set "section dash" — a short accent rule above the
           // copy, standing in for an eyebrow the owner chose not to use.
-          node.classList.toggle('has-lead-rule', entry.dash === true);
+          node.classList.toggle('has-lead-rule', st.dash === true);
           // Optional owner-set text alignment (logical, mirrors in RTL).
-          node.style.textAlign = (entry.align === 'center' || entry.align === 'end') ? entry.align : '';
+          node.style.textAlign =
+            (st.align === 'center' || st.align === 'end' || st.align === 'start') ? st.align : '';
           // Optional owner-set font-size multiplier (independent of text).
-          if (typeof entry.size === 'number' && entry.size > 0 && entry.size !== 1) {
-            applySize(node, entry.size);
-            scaled.push({ node: node, scale: entry.size });
+          if (typeof st.size === 'number' && st.size > 0 && st.size !== 1) {
+            applySize(node, st.size);
+            scaled.push({ node: node, scale: st.size });
           }
         }
 
