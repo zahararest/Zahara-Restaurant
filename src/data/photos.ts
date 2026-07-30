@@ -40,6 +40,10 @@ export const PHOTOS = {
     src: `${base}/MOYAL-09574.jpg`,
     alt: { he: 'הבר', en: 'The bar' },
   },
+    rooftop: {
+    src: `${base}/pic1.jpg`,
+    alt: { he: 'rooftop', en: 'The rooftop' },
+  },
   detail2: {
     src: `${base}/MOYAL-09885.jpg`,
     alt: { he: 'אווירה', en: 'Atmosphere' },

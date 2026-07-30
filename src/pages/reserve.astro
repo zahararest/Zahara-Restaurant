@@ -37,9 +37,9 @@ const VENUES = [
     href:    RESTAURANT.reservationUrl,
     eyebrow: 'מסעדה',
     name:    'זהרה',
-    meta:    'בן סירא 16 · ירושלים',
+    // meta:    'בן סירא 16 · ירושלים',
     cta:     'הזמנת שולחן',
-    aria:    'הזמנת שולחן במסעדת זהרה',
+    // aria:    'הזמנת שולחן במסעדת זהרה',
     photo:   PHOTOS.moodDining,
     // Latin-script names want a little less size than the Hebrew wordmark to
     // sit at the same optical weight.
@@ -50,10 +50,10 @@ const VENUES = [
     href:    RESTAURANT.rooftopReservationUrl,
     eyebrow: 'בר גג',
     name:    'NUCHA ROOFTOP',
-    meta:    'מלון נוצ׳ה · ירושלים',
-    cta:     'הזמנת מקום',
-    aria:    'הזמנת מקום בבר הגג נוצ׳ה רוףטופ',
-    photo:   PHOTOS.bar,
+    // meta:    'מלון נוצ׳ה · ירושלים',
+    cta:     'הזמנת שולחן',
+    // aria:    'הזמנת מקום בבר הגג נוצ׳ה רוףטופ',
+    photo:   PHOTOS.rooftop,
     latin:   true,
   },
 ] as const;
@@ -97,7 +97,6 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
         target="_blank"
         rel="noopener"
         data-venue={v.id}
-        aria-label={v.aria}
         style={`--stagger:${i * 140}ms`}
       >
         <img
