@@ -13,7 +13,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
-import { PHOTO_CATALOGUE } from '../../data/photos-map';
+import { PHOTO_CATALOGUE, photoSite } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
 import { adminSite, siteScope, withSiteParam } from '../../data/site';
@@ -46,10 +46,11 @@ function detectImageType(bytes: Uint8Array): string | null {
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
 
-  // The venue being edited — source read + target write both stay in its bucket.
-  const site   = adminSite(request);
-  const bucket = siteScope(env, site).images;
-  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
+  // The venue being edited. Source and target buckets are resolved separately
+  // below, once both keys are known: a `shared` photo (the /reserve/ portal)
+  // lives in one bucket for both venues, so copying a venue photo INTO a shared
+  // slot crosses buckets and each side has to be resolved on its own key.
+  const editing = adminSite(request);
 
   // Accept either multipart/form-data or urlencoded.
   let form: FormData;
@@ -69,11 +70,19 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const sourceObjectKey = isMobile ? `${source}__mobile` : source;
   const targetObjectKey = isMobile ? `${key}__mobile`    : key;
 
+  const sourceSite   = photoSite(editing, source);
+  const targetSite   = photoSite(editing, key);
+  const sourceBucket = siteScope(env, sourceSite).images;
+  const targetBucket = siteScope(env, targetSite).images;
+  if (!sourceBucket || !targetBucket) {
+    return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
+  }
+
   // ── Resolve the source bytes: R2 override first, else the shipped file ──
   let buffer: Uint8Array | null = null;
   let contentType = 'image/jpeg';
   try {
-    const obj = await bucket.get(`images/${sourceObjectKey}`);
+    const obj = await sourceBucket.get(`images/${sourceObjectKey}`);
     if (obj) {
       buffer = new Uint8Array(await obj.arrayBuffer());
       contentType = obj.httpMetadata?.contentType ?? contentType;
@@ -92,7 +101,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // resolves against rooftop's view.
     try {
       const origin = new URL(request.url).origin;
-      const res = await fetch(withSiteParam(`${origin}/photos/${src.filename}`, site));
+      const res = await fetch(withSiteParam(`${origin}/photos/${src.filename}`, sourceSite));
       if (!res.ok) return json({ ok: false, error: 'Could not read source image' }, 404);
       buffer = new Uint8Array(await res.arrayBuffer());
       contentType = res.headers.get('Content-Type') ?? contentType;
@@ -109,7 +118,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!detected) return json({ ok: false, error: 'Source is not a valid image' }, 415);
 
   try {
-    await bucket.put(`images/${targetObjectKey}`, buffer, {
+    await targetBucket.put(`images/${targetObjectKey}`, buffer, {
       httpMetadata: { contentType: detected },
     });
   } catch (err) {
@@ -120,12 +129,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // Same freshness handling as a fresh upload, scoped to this venue: bump its
   // asset version so the live site picks up the new image, and purge the edge
   // for the desktop filename + anything that falls back to it.
-  await bumpAssetVersion(env, site);
+  await bumpAssetVersion(env, targetSite);
   const origin = new URL(request.url).origin;
   if (!isMobile) {
-    await purgePhotoCache(origin, target.filename, env, site);
+    await purgePhotoCache(origin, target.filename, env, targetSite);
     for (const dep of PHOTO_CATALOGUE) {
-      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env, site);
+      if (dep.fallbackKey === key) await purgePhotoCache(origin, dep.filename, env, targetSite);
     }
   }
 

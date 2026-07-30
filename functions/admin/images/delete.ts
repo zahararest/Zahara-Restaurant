@@ -4,7 +4,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
-import { PHOTO_CATALOGUE } from '../../data/photos-map';
+import { PHOTO_CATALOGUE, photoSite } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
 import { adminSite, siteScope } from '../../data/site';
@@ -26,9 +26,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   // Delete from the venue being edited — removing a rooftop override makes that
   // slot fall back to Zahara (then the static default) again, not touch Zahara.
-  const site   = adminSite(request);
-  const bucket = siteScope(env, site).images;
-  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
+  // The bucket is resolved after the key is read, because a `shared` photo (the
+  // /reserve/ portal) has one home for both venues.
+  const editing = adminSite(request);
 
   let key = '';
   let isMobile = false;
@@ -42,6 +42,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const meta = PHOTO_CATALOGUE.find((p) => p.key === key);
   if (!meta) return json({ ok: false, error: 'Unknown key' }, 400);
+
+  const site   = photoSite(editing, key);
+  const bucket = siteScope(env, site).images;
+  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
 
   const objectKey = isMobile ? `${key}__mobile` : key;
   try {

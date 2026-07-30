@@ -13,7 +13,7 @@
 import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import {
-  readContentOwn, writeContent, mergeContent,
+  readContentForEditor, writeContentSplit, mergeContent,
   readPopupConfigOwn, writePopupConfig, popupActive,
   type ContentEnv, type PopupMode,
 } from '../../data/content';
@@ -48,14 +48,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     : body;
 
   // Which venue is being edited (admin site-switch cookie). All reads + writes
-  // below target that venue's OWN store. We read the OWN copy (not the display
-  // copy) so the diff-against-default logic can't bake the other venue's live
-  // text into this one.
+  // below target that venue's OWN store, EXCEPT the reserve-portal keys: that
+  // page is shared by both venues and built only once, so its copy is pinned to
+  // the shared store and either venue can edit it (see writeContentSplit).
   const site     = adminSite(request);
-  const existing = await readContentOwn(env, site);
+  const existing = await readContentForEditor(env, site);
   const merged   = mergeContent(existing, posted);
 
-  const ok = await writeContent(env, site, merged);
+  const ok = await writeContentSplit(env, site, merged);
   if (!ok) return json({ ok: false, error: 'No KV namespace bound for this venue' }, 500);
 
   // ── Entry popup visibility ────────────────────────────────────────────

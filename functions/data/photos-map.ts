@@ -25,7 +25,7 @@
 // section each card appears under in /admin/images, and the order within
 // it (kept the same as the photo's real scroll order on the page).
 
-export type PhotoGroup = 'home' | 'menu' | 'events' | 'about';
+export type PhotoGroup = 'home' | 'menu' | 'events' | 'about' | 'reserve';
 
 export interface PhotoMeta {
   key:          string;       // PHOTOS map key (e.g. 'hero')
@@ -34,6 +34,9 @@ export interface PhotoMeta {
   where:        string;       // where it appears on the live site
   group:        PhotoGroup;   // which page it belongs to
   fallbackKey?: string;       // serve this key's override if `key` has none
+  /** Lives in ONE bucket for both venues instead of being venue-scoped — for
+   *  photos on a page that is shared between them. See isSharedPhotoKey(). */
+  shared?:      boolean;
   reused?:      boolean;      // the same image shows in more than one spot
   reserved?:    boolean;      // defined but not currently shown on the site
   optional?:    boolean;      // optional slot — only appears once an image is
@@ -116,7 +119,51 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
   { key: 'kosherCert', filename: 'kosher-certificate.jpg', group: 'about', optional: true, aspect: '5 / 7', fit: 'contain',
     label: 'Kosher certificate', where: 'Opens when a visitor clicks “Rabbanut Yerushalayim” in the home info-strip, or “View kosher certificate” on the About page',
     note: 'Empty — the certificate links stay hidden until you upload it. A clear photo or scan of the kashrut certificate (JPG/PNG) works best.' },
+
+  // ── RESERVE PORTAL (/reserve/) — the unlisted two-venue booking page ──
+  // One full-height panel each. `fallbackKey` points at the photo the panel
+  // currently borrows from the home page, so the portal keeps working (and
+  // looking finished) until a dedicated image is uploaded here.
+  //
+  // The aspect is deliberately portrait: on a desktop each panel is half the
+  // window WIDE and the full window TALL, so the admin thumbnail previews at
+  // 3/4 to show the crop the visitor actually gets, not a landscape box that
+  // would hide how much of the sides gets cut off.
+  { key: 'reserveZahara', filename: 'reserve-zahara.jpg', group: 'reserve',
+    fallbackKey: 'moodDining', aspect: '3 / 4', shared: true,
+    label: 'Zahara panel',
+    where: 'The Zahara half of /reserve/ — the booking page shared as a direct link' },
+  { key: 'reserveRooftop', filename: 'reserve-rooftop.jpg', group: 'reserve',
+    fallbackKey: 'bar', aspect: '3 / 4', shared: true,
+    label: 'Nucha Rooftop panel',
+    where: 'The rooftop half of /reserve/ — the booking page shared as a direct link' },
 ];
+
+// ── Shared (venue-independent) photos ───────────────────────────────────────
+//
+// Nearly every photo belongs to ONE venue: Zahara and the rooftop keep their
+// own R2 buckets, and the venue switch in /admin decides which one an upload
+// lands in. The /reserve/ portal is the exception. It is a single page that
+// chooses BETWEEN the venues, so it is built once (the rooftop copy redirects
+// to it) and therefore only ever reads Zahara's bucket.
+//
+// Left venue-scoped, that asymmetry is a silent trap: upload the rooftop panel
+// with "Rooftop" selected in the topbar and the file would go to the rooftop
+// bucket, which this page never reads — the upload appears to succeed and
+// nothing changes. So a `shared` photo is pinned to ONE home for both reading
+// and writing, and either venue can manage it.
+
+/** True when this photo key lives in the shared (Zahara) bucket regardless of
+ *  which venue the admin is editing. */
+export function isSharedPhotoKey(key: string): boolean {
+  return PHOTO_CATALOGUE.some((p) => p.key === key && p.shared);
+}
+
+/** Which venue's bucket a photo key belongs to. Pass the venue currently being
+ *  edited (or serving the request); shared keys ignore it. */
+export function photoSite<T extends string>(site: T, key: string): T | 'zahara' {
+  return isSharedPhotoKey(key) ? 'zahara' : site;
+}
 
 /** Map from /photos/{filename} back to its catalogue entry. Used by the
  *  middleware to find the R2 override (and fallback) for a static asset. */
@@ -129,8 +176,9 @@ export const FILENAME_TO_KEY: Record<string, string> =
 
 /** Friendly, page-based grouping for the admin UI (rendered in this order). */
 export const PHOTO_GROUPS = {
-  home:   'Home page',
-  menu:   'Menu pages',
-  events: 'Events page',
-  about:  'About page',
+  home:    'Home page',
+  menu:    'Menu pages',
+  events:  'Events page',
+  about:   'About page',
+  reserve: 'Reserve portal',
 } as const;

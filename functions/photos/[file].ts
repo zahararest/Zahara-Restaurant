@@ -12,7 +12,7 @@
 // see findOverride() for the precedence. Zahara requests are unchanged.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { FILENAME_TO_META } from '../data/photos-map';
+import { FILENAME_TO_META, photoSite } from '../data/photos-map';
 import { siteFromRequest, siteScope, type SiteBindings } from '../data/site';
 import { serveR2Object, findOverride } from '../data/photos-serve';
 
@@ -23,7 +23,10 @@ export const onRequestGet: PagesFunction<SiteBindings> = async ({ params, env, n
   const meta = FILENAME_TO_META[file];
 
   if (meta) {
-    const scope = siteScope(env, siteFromRequest(request));
+    // A `shared` photo (the /reserve/ portal) resolves against the shared
+    // bucket whatever venue asked for it, so both venues see the same image
+    // and neither can shadow it with its own copy.
+    const scope = siteScope(env, photoSite(siteFromRequest(request), meta.key));
     // The photo's own override first; if a split key has none yet, the key it
     // was split from (e.g. contact → interior).
     const keys = meta.fallbackKey ? [meta.key, meta.fallbackKey] : [meta.key];

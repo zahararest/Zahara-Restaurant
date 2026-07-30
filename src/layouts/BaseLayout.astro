@@ -5,6 +5,7 @@ import Footer        from '../components/Footer.astro';
 import Motion        from '../components/Motion.astro';
 import Accessibility from '../components/Accessibility.astro';
 import ConsentBanner from '../components/ConsentBanner.astro';
+import ContentOverlay from '../components/ContentOverlay.astro';
 import AnnouncementPopup from '../components/AnnouncementPopup.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
@@ -515,95 +516,11 @@ const schema = {
       })();
     </script>
 
-    {/* Editable-copy overlay. The middleware injects the owner's saved
-        text as a <script id="zahara-content"> JSON blob in <head>; this
-        applies it to every [data-content-key] element. Runs synchronously
-        here (after the content is in the DOM, before Motion boots) so any
-        overridden heading is in place BEFORE the word-reveal splitter runs.
-        No network call — the data is already inline. */}
-    <script is:inline>
-      (function () {
-        var tag = document.getElementById('zahara-content');
-        if (!tag) return;
-        var data;
-        try { data = JSON.parse(tag.textContent || '{}'); } catch (e) { return; }
-        var lang = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'he';
-
-        // Safe inline formatter for owner-edited copy. Escapes EVERYTHING first,
-        // then re-allows only: **bold**, *italic*, line breaks, and a tiny tag
-        // whitelist (so older raw <strong>/<em>/<br> overrides keep working).
-        // Nothing else can reach innerHTML, so this stays XSS-safe on admin
-        // input. Keep in sync with the editor hint in functions/admin/content.ts.
-        function formatRich(s) {
-          var h = String(s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          h = h.replace(/&lt;(\/?)(br|strong|em|b|i|u)\s*\/?&gt;/gi, function (_m, sl, tg) {
-            return '<' + sl + tg.toLowerCase() + '>';
-          });
-          h = h.replace(/\*\*(\S(?:[^*\n]*\S)?)\*\*/g, '<strong>$1</strong>');
-          h = h.replace(/(^|[^*])\*(\S(?:[^*\n]*\S)?)\*(?!\*)/g, '$1<em>$2</em>');
-          // __underline__ — a friendlier token for the editor's Underline button.
-          h = h.replace(/__(\S(?:[^_\n]*\S)?)__/g, '<u>$1</u>');
-          return h.replace(/\r?\n/g, '<br>');
-        }
-
-        // Elements given a custom size — re-scaled on resize so the multiplier
-        // rides on top of the element's natural (responsive) font-size at each
-        // viewport instead of being pinned to one px value.
-        var scaled = [];
-        function applySize(node, scale) {
-          node.style.fontSize = '';                       // back to natural first
-          if (!scale || scale === 1) return;
-          var nat = parseFloat(getComputedStyle(node).fontSize);
-          if (nat) node.style.fontSize = (nat * scale) + 'px';
-        }
-
-        // Styling (size / alignment / lead rule) is stored PER LANGUAGE —
-        // heStyle / enStyle — because the Hebrew and English copy rarely want
-        // the same treatment. Records saved before the split carry the flat
-        // size/align/dash fields instead; those still apply to both languages.
-        // Mirrors styleFor() in functions/data/content.ts.
-        function styleFor(entry, lang) {
-          var own = entry[lang === 'en' ? 'enStyle' : 'heStyle'];
-          return (own && typeof own === 'object') ? own : entry;
-        }
-
-        var nodes = document.querySelectorAll('[data-content-key]');
-        for (var i = 0; i < nodes.length; i++) {
-          var node = nodes[i];
-          var entry = data[node.getAttribute('data-content-key')];
-          if (!entry) continue;
-          var v = entry[lang];
-          // A present override is applied even when empty — an explicit ''
-          // means the owner cleared the field to HIDE this text. Every field
-          // now renders through the safe formatter (bold / italic / line breaks
-          // work anywhere), so data-content-html is no longer needed here.
-          if (typeof v === 'string') node.innerHTML = formatRich(v);
-          var st = styleFor(entry, lang);
-          // Optional owner-set "section dash" — a short accent rule above the
-          // copy, standing in for an eyebrow the owner chose not to use.
-          node.classList.toggle('has-lead-rule', st.dash === true);
-          // Optional owner-set text alignment (logical, mirrors in RTL).
-          node.style.textAlign =
-            (st.align === 'center' || st.align === 'end' || st.align === 'start') ? st.align : '';
-          // Optional owner-set font-size multiplier (independent of text).
-          if (typeof st.size === 'number' && st.size > 0 && st.size !== 1) {
-            applySize(node, st.size);
-            scaled.push({ node: node, scale: st.size });
-          }
-        }
-
-        if (scaled.length) {
-          var rt;
-          window.addEventListener('resize', function () {
-            clearTimeout(rt);
-            rt = setTimeout(function () {
-              for (var j = 0; j < scaled.length; j++) applySize(scaled[j].node, scaled[j].scale);
-            }, 150);
-          }, { passive: true });
-        }
-      })();
-    </script>
+    {/* Editable-copy overlay — applies the owner's saved /admin/content text
+        to every [data-content-key] element. Placed here (before Motion boots)
+        so an overridden heading is in place BEFORE the word-reveal splitter
+        measures it. Shared with /reserve/, which has no BaseLayout. */}
+    <ContentOverlay />
 
     {/* Motion owns every animation primitive — reveals, section HUD,
         parallax, progress bar, past-hero hand-off. Native browser scroll

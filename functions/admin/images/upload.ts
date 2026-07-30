@@ -8,7 +8,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
-import { PHOTO_CATALOGUE } from '../../data/photos-map';
+import { PHOTO_CATALOGUE, photoSite } from '../../data/photos-map';
 import { purgePhotoCache, type CachePurgeEnv } from './cache';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
 import { adminSite, siteScope } from '../../data/site';
@@ -51,11 +51,11 @@ function detectImageType(bytes: Uint8Array): string | null {
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
 
-  // The venue being edited (admin site-switch cookie). Upload targets its OWN
-  // R2 bucket — a rooftop upload never touches Zahara's images and vice versa.
-  const site   = adminSite(request);
-  const bucket = siteScope(env, site).images;
-  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
+  // The venue being edited (admin site-switch cookie). The bucket is resolved
+  // below, once the photo key is known — a `shared` photo (the /reserve/
+  // portal) lives in one bucket for both venues, so the key decides, not the
+  // switch. See photoSite() in functions/data/photos-map.ts.
+  const editing = adminSite(request);
 
   let form: FormData;
   try { form = await request.formData(); }
@@ -66,6 +66,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!meta) {
     return json({ ok: false, error: `Unknown image key: ${key}` }, 400);
   }
+
+  // Venue-scoped for almost everything; pinned to the shared bucket for the
+  // /reserve/ portal, so either venue can manage that page's photos and the
+  // upload lands where the page actually reads from.
+  const site   = photoSite(editing, key);
+  const bucket = siteScope(env, site).images;
+  if (!bucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
 
   // Optional mobile (portrait) variant — stored separately and served on
   // phones via /photos-m. Allowed for ANY photo: the owner can give any image

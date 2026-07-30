@@ -23,6 +23,7 @@
 import '../styles/font-faces.css';
 import '../styles/font-config.css';
 import '../styles/tokens.css';
+import ContentOverlay from '../components/ContentOverlay.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
 import { resized, resizedSrcset } from '../lib/photo';
@@ -31,16 +32,23 @@ import { resized, resizedSrcset } from '../lib/photo';
 // body for why it carries no consent banner of its own.
 const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID || 'G-CWBXVJNYFB';
 
+// Every string below is the BUILT-IN default. /admin/content → "Reserve portal"
+// overrides any of them at display time via the data-content-key attributes in
+// the markup, so these are what ships before the owner has edited anything —
+// keep them in step with CONTENT_GROUPS in functions/data/content.ts.
+//
+// `meta` is empty by default: the address line is a slot the owner can switch
+// on by typing into it. Empty text renders no element at all (:empty in the CSS
+// below), so nothing takes up space until it is filled in.
 const VENUES = [
   {
     id:      'zahara',
     href:    RESTAURANT.reservationUrl,
     eyebrow: 'מסעדה',
     name:    'זהרה',
-    // meta:    'בן סירא 16 · ירושלים',
+    meta:    '',
     cta:     'הזמנת שולחן',
-    // aria:    'הזמנת שולחן במסעדת זהרה',
-    photo:   PHOTOS.moodDining,
+    photo:   PHOTOS.reserveZahara,
     // Latin-script names want a little less size than the Hebrew wordmark to
     // sit at the same optical weight.
     latin:   false,
@@ -50,10 +58,9 @@ const VENUES = [
     href:    RESTAURANT.rooftopReservationUrl,
     eyebrow: 'בר גג',
     name:    'NUCHA ROOFTOP',
-    // meta:    'מלון נוצ׳ה · ירושלים',
+    meta:    '',
     cta:     'הזמנת שולחן',
-    // aria:    'הזמנת מקום בבר הגג נוצ׳ה רוףטופ',
-    photo:   PHOTOS.bar,
+    photo:   PHOTOS.reserveRooftop,
     latin:   true,
   },
 ] as const;
@@ -84,9 +91,11 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
   />
 </head>
 <body>
+  {/* Every data-content-key below is editable in /admin/content → Reserve
+      portal. The keys must match CONTENT_GROUPS in functions/data/content.ts. */}
   <header class="portal__head">
-    <p class="portal__eyebrow">מלון נוצ׳ה · ירושלים</p>
-    <h1 class="portal__title">איפה נשמור לכם מקום?</h1>
+    <p class="portal__eyebrow" data-content-key="reserve.eyebrow">מלון נוצ׳ה · ירושלים</p>
+    <h1 class="portal__title" data-content-key="reserve.title">איפה נשמור לכם מקום?</h1>
   </header>
 
   <main class="portal">
@@ -112,10 +121,13 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
         />
         <span class="venue__scrim"></span>
         <span class="venue__body">
-          <span class="venue__eyebrow">{v.eyebrow}</span>
-          <span class={`venue__name${v.latin ? ' venue__name--latin' : ''}`}>{v.name}</span>
-          {/* <span class="venue__meta">{v.meta}</span> */}
-          <span class="venue__cta">{v.cta}</span>
+          <span class="venue__eyebrow" data-content-key={`reserve.${v.id}Eyebrow`}>{v.eyebrow}</span>
+          <span
+            class={`venue__name${v.latin ? ' venue__name--latin' : ''}`}
+            data-content-key={`reserve.${v.id}Name`}
+          >{v.name}</span>
+          <span class="venue__meta" data-content-key={`reserve.${v.id}Meta`}>{v.meta}</span>
+          <span class="venue__cta" data-content-key={`reserve.${v.id}Cta`}>{v.cta}</span>
         </span>
       </a>
     ))}
@@ -300,6 +312,18 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
       /* The arrow is a direction, not decoration — keep it quiet. */
       color: var(--accent);
     }
+
+    /* Any line cleared in /admin/content renders as an empty element. :empty is
+       live, so hiding them here makes a cleared field genuinely remove the line
+       — no stray gap in the grid, no orphan accent rule above a missing
+       eyebrow, no lone ↗ on an empty booking line. This is what lets the
+       address lines ship switched off and be turned on by typing. */
+    .portal__eyebrow:empty,
+    .portal__title:empty,
+    .venue__eyebrow:empty,
+    .venue__name:empty,
+    .venue__meta:empty,
+    .venue__cta:empty { display: none; }
 
     /* Short viewports — an SE-class phone, or any phone held sideways. Each
        half is barely 300px tall there, so the head and the gaps give up their

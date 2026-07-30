@@ -1578,16 +1578,37 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // Which keys have an override / mobile variant in THIS venue's R2 right now.
   const overrideSet = new Set<string>();
   const mobileSet   = new Set<string>();
-  if (bucket) {
+
+  async function collect(from: typeof bucket, into: Set<string>, intoMobile: Set<string>) {
+    if (!from) return;
     try {
-      const listing = await bucket.list({ prefix: 'images/' });
+      const listing = await from.list({ prefix: 'images/' });
       for (const obj of listing.objects) {
         const k = obj.key.replace(/^images\//, '');
-        if (k.endsWith('__mobile')) mobileSet.add(k.slice(0, -'__mobile'.length));
-        else overrideSet.add(k);
+        if (k.endsWith('__mobile')) intoMobile.add(k.slice(0, -'__mobile'.length));
+        else into.add(k);
       }
     } catch (err) {
       console.warn('[admin/images] R2 list failed', err);
+    }
+  }
+
+  await collect(bucket, overrideSet, mobileSet);
+
+  // Shared photos (the /reserve/ portal) always live in the shared bucket, so
+  // when the rooftop is being edited their badges have to come from THERE —
+  // otherwise those slots would read "Missing" while the image is live on the
+  // page, and the owner would upload it again to no effect.
+  if (site !== 'zahara') {
+    const sharedOverride = new Set<string>();
+    const sharedMobile   = new Set<string>();
+    await collect(siteScope(env, 'zahara').images, sharedOverride, sharedMobile);
+    for (const p of PHOTO_CATALOGUE) {
+      if (!p.shared) continue;
+      overrideSet.delete(p.key);
+      mobileSet.delete(p.key);
+      if (sharedOverride.has(p.key)) overrideSet.add(p.key);
+      if (sharedMobile.has(p.key))   mobileSet.add(p.key);
     }
   }
 

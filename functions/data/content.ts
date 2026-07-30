@@ -162,7 +162,7 @@ export interface ContentGroup { title: string; note?: string; page: PageId; fiel
 /** Which site page a group of copy belongs to. Drives the page tabs in the
  *  /admin/content editor (one button per page, like the Menu editor's tabs)
  *  so the owner edits one page's text at a time instead of one long scroll. */
-export type PageId = 'home' | 'about' | 'events' | 'menu' | 'privacy' | 'accessibility' | 'popup';
+export type PageId = 'home' | 'about' | 'events' | 'menu' | 'privacy' | 'accessibility' | 'popup' | 'reserve';
 
 export interface PageTab {
   id:     PageId;
@@ -190,6 +190,8 @@ export const CONTENT_PAGES: PageTab[] = [
     note: 'The heading of the accessibility statement page.' },
   { id: 'popup',         label: 'Entry popup',
     note: 'The announcement shown over every page when someone arrives.' },
+  { id: 'reserve',       label: 'Reserve portal', path: '/reserve',
+    note: 'The two-venue booking page. Nothing on the site links to it — it is the link you hand out in an Instagram bio, a WhatsApp reply or a QR code.' },
 ];
 
 /** Gallery photo keys that get an editable caption. Mirrors the gallery in
@@ -397,6 +399,55 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       he: 'הכנו תפריט מיוחד לתשעת הימים — הוא יעלה לאתר בימים הקרובים.',
       en: 'We have prepared a special menu for the Nine Days — it will be published here in the coming days.' },
   ] },
+
+  // ── RESERVE PORTAL (/reserve/) ────────────────────────────────────────────
+  // Every line of text on the portal, in the order it reads down the page.
+  // All of it sits over a photograph, so `onPhoto` previews it on a dark plate.
+  //
+  // The two "Address line" fields ship EMPTY on purpose: the page currently
+  // runs without them. Type something in and the line appears; clear it again
+  // and it disappears. Same for every field here — an empty box means the line
+  // is simply not shown, which is how any of these can be switched off without
+  // touching code.
+  { title: 'Top of the page', page: 'reserve',
+    note: 'The two lines floating over the middle of the split, above both venues.', fields: [
+    { key: 'reserve.eyebrow', label: 'Small line', role: 'eyebrow', onPhoto: true, align: 'center',
+      he: 'מלון נוצ׳ה · ירושלים', en: 'Nucha Hotel · Jerusalem',
+      hint: 'The tiny gold line at the very top.' },
+    { key: 'reserve.title', label: 'Question', role: 'title', onPhoto: true, align: 'center',
+      he: 'איפה נשמור לכם מקום?', en: 'Where shall we save you a table?',
+      hint: 'The one line that asks the visitor to choose.' },
+  ] },
+
+  { title: 'Zahara side', page: 'reserve',
+    note: 'The half that opens Zahara’s booking page.', fields: [
+    { key: 'reserve.zaharaEyebrow', label: 'Small line above the name', role: 'eyebrow', onPhoto: true, align: 'center',
+      he: 'מסעדה', en: 'Restaurant' },
+    { key: 'reserve.zaharaName', label: 'Name', role: 'display', onPhoto: true, align: 'center',
+      he: 'זהרה', en: 'Zahara',
+      hint: 'The big serif wordmark.' },
+    { key: 'reserve.zaharaMeta', label: 'Address line', role: 'note', onPhoto: true, align: 'center',
+      he: '', en: '',
+      hint: 'Empty, so this line is hidden. Type an address to show it — e.g. בן סירא 16 · ירושלים' },
+    { key: 'reserve.zaharaCta', label: 'Booking line', role: 'button', onPhoto: true, align: 'center',
+      he: 'הזמנת שולחן', en: 'Reserve a table',
+      hint: 'The underlined line at the bottom. The ↗ arrow is added automatically.' },
+  ] },
+
+  { title: 'Nucha Rooftop side', page: 'reserve',
+    note: 'The half that opens the rooftop bar’s booking page.', fields: [
+    { key: 'reserve.rooftopEyebrow', label: 'Small line above the name', role: 'eyebrow', onPhoto: true, align: 'center',
+      he: 'בר גג', en: 'Rooftop bar' },
+    { key: 'reserve.rooftopName', label: 'Name', role: 'display', onPhoto: true, align: 'center',
+      he: 'NUCHA ROOFTOP', en: 'NUCHA ROOFTOP',
+      hint: 'The big serif wordmark. Latin names are set a little smaller than the Hebrew one so both read at the same weight.' },
+    { key: 'reserve.rooftopMeta', label: 'Address line', role: 'note', onPhoto: true, align: 'center',
+      he: '', en: '',
+      hint: 'Empty, so this line is hidden. Type an address to show it — e.g. מלון נוצ׳ה · ירושלים' },
+    { key: 'reserve.rooftopCta', label: 'Booking line', role: 'button', onPhoto: true, align: 'center',
+      he: 'הזמנת שולחן', en: 'Reserve a spot',
+      hint: 'The underlined line at the bottom. The ↗ arrow is added automatically.' },
+  ] },
 ];
 
 /** Every key the editor (and gallery captions) may write. Anything outside
@@ -572,8 +623,67 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
 /** This venue's OWN saved copy — NO cross-venue fallback. The admin editor
  *  uses this so its save/diff compares each field against the built-in default
  *  (not the other venue's live text), keeping the two stores independent. */
+// ── Shared (venue-independent) copy ─────────────────────────────────────────
+//
+// The /reserve/ portal is ONE page that chooses between the two venues. It is
+// built once (the rooftop copy redirects to it), so it only ever reads Zahara's
+// store. Left venue-scoped, editing its text with "Rooftop" selected in the
+// topbar would write to the rooftop store, which the page never reads: the save
+// would report success and the page would not change.
+//
+// So the portal's keys are pinned to the shared store and either venue may edit
+// them. Mirrors `shared` on PhotoMeta in functions/data/photos-map.ts.
+
+const SHARED_CONTENT_PREFIXES = ['reserve.'] as const;
+
+/** True when this copy is shared by both venues rather than venue-scoped. */
+export function isSharedContentKey(key: string): boolean {
+  return SHARED_CONTENT_PREFIXES.some((p) => key.startsWith(p));
+}
+
+/** Split a posted/loaded map into the venue's own copy and the shared copy. */
+export function splitSharedContent(map: ContentMap): { own: ContentMap; shared: ContentMap } {
+  const own: ContentMap = {};
+  const shared: ContentMap = {};
+  for (const [k, v] of Object.entries(map)) {
+    (isSharedContentKey(k) ? shared : own)[k] = v;
+  }
+  return { own, shared };
+}
+
 export async function readContentOwn(env: ContentEnv, site: Site = 'zahara'): Promise<ContentMap> {
   return readMapFrom(siteScope(env, site).kv);
+}
+
+/** What the /admin/content editor should PREFILL for `site`: that venue's own
+ *  copy, with the shared keys taken from the shared store so the reserve-portal
+ *  fields show the same text whichever venue is selected. */
+export async function readContentForEditor(env: ContentEnv, site: Site): Promise<ContentMap> {
+  const own = await readContentOwn(env, site);
+  if (site === 'zahara') return own;                 // already the shared store
+  const shared = splitSharedContent(await readContentOwn(env, 'zahara')).shared;
+  const merged = splitSharedContent(own).own;
+  return { ...merged, ...shared };
+}
+
+/** Save a merged map, sending the shared keys to the shared store and the rest
+ *  to `site`'s own store. One write when editing Zahara (same store), two when
+ *  editing the rooftop. Returns false if a required namespace is unbound. */
+export async function writeContentSplit(
+  env: ContentEnv, site: Site, map: ContentMap,
+): Promise<boolean> {
+  if (site === 'zahara') return writeContent(env, 'zahara', map);
+
+  const { own, shared } = splitSharedContent(map);
+
+  // The rooftop's own store keeps only its own keys; the shared keys are
+  // folded into Zahara's existing map so nothing else there is disturbed.
+  const zaharaExisting = splitSharedContent(await readContentOwn(env, 'zahara'));
+  const [a, b] = await Promise.all([
+    writeContent(env, site, own),
+    writeContent(env, 'zahara', { ...zaharaExisting.own, ...shared }),
+  ]);
+  return a && b;
 }
 
 /** DISPLAY read. Zahara returns its own copy. Rooftop returns its own copy with

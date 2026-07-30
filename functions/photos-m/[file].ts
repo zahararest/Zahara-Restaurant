@@ -11,7 +11,7 @@
 // /photos fall-through below, query preserved) the shared static default.
 
 import type { PagesFunction } from '@cloudflare/workers-types';
-import { FILENAME_TO_META } from '../data/photos-map';
+import { FILENAME_TO_META, photoSite } from '../data/photos-map';
 import { siteFromRequest, siteScope, type SiteBindings } from '../data/site';
 import { serveR2Object, findOverride } from '../data/photos-serve';
 
@@ -23,7 +23,9 @@ export const onRequestGet: PagesFunction<SiteBindings> = async ({ params, env, r
   const meta = FILENAME_TO_META[file];
 
   if (meta) {
-    const scope = siteScope(env, siteFromRequest(request));
+    // Shared photos (the /reserve/ portal) live in one bucket for both
+    // venues — same rule as the desktop route.
+    const scope = siteScope(env, photoSite(siteFromRequest(request), meta.key));
     // Mobile override first, then the desktop override(s).
     const keys = [
       `${meta.key}${MOBILE_SUFFIX}`,

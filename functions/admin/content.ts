@@ -29,7 +29,7 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
 import {
-  CONTENT_GROUPS, CONTENT_PAGES, readContentOwn, defaultTokens, defaultAlignFor, styleFor,
+  CONTENT_GROUPS, CONTENT_PAGES, readContentForEditor, defaultTokens, defaultAlignFor, styleFor,
   readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, EVENTS_MENU_OBJECT, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField, type ContentGroup,
   type ContentAlign, type FieldRole, type PageId,
@@ -1405,7 +1405,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // the save/diff compares against code defaults, never the other venue's copy.
   const site = adminSite(request);
   const [overrides, popupCfg, palette] = await Promise.all([
-    readContentOwn(env, site), readPopupConfigOwn(env, site), readPalette(env, site),
+    readContentForEditor(env, site), readPopupConfigOwn(env, site), readPalette(env, site),
   ]);
 
   // Is a popup photo / events PDF actually stored right now for THIS venue?

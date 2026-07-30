@@ -40,9 +40,19 @@ export const PHOTOS = {
     src: `${base}/MOYAL-09574.jpg`,
     alt: { he: 'הבר', en: 'The bar' },
   },
-    rooftop: {
-    src: `${base}/pic1.jpg`,
-    alt: { he: 'rooftop', en: 'The rooftop' },
+  // ── /reserve/ venue portal — one full-height panel each.
+  // Their own keys (not the home page's) so the portal's photography can be
+  // swapped in /admin/images without changing anything else on the site. Until
+  // an image is uploaded, each falls back to the shot it stands in for — see
+  // the `fallbackKey` rows in functions/data/photos-map.ts — so the portal is
+  // never broken, just not yet customised.
+  reserveZahara: {
+    src: `${base}/reserve-zahara.jpg`,
+    alt: { he: 'אולם המסעדה', en: 'The dining room' },
+  },
+  reserveRooftop: {
+    src: `${base}/reserve-rooftop.jpg`,
+    alt: { he: 'בר הגג', en: 'The rooftop bar' },
   },
   detail2: {
     src: `${base}/MOYAL-09885.jpg`,
