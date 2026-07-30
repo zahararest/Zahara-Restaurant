@@ -40,8 +40,11 @@ export default defineConfig({
       // Exclude admin, API, and alternate menu paths now redirected
       filter: (url) => {
         const p = new URL(url).pathname;
+        // /reserve/ is the unlisted venue portal — handed out directly (bio
+        // link, QR, ads), never crawled or linked. See src/pages/reserve.astro.
         return !p.startsWith('/admin') &&
-               !p.startsWith('/api/');
+               !p.startsWith('/api/') &&
+               !p.startsWith('/reserve');
       },
       // Custom priority / changefreq per section
       customPages: [],

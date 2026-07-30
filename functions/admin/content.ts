@@ -27,7 +27,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
-import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
+import { CHROME_CSS, adminHead, topbar } from './chrome';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContentOwn, defaultTokens, defaultAlignFor, styleFor,
   readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, EVENTS_MENU_OBJECT, type PopupConfig,
@@ -147,12 +147,14 @@ const STYLE = String.raw`
 
   /* ══ Work area ════════════════════════════════════════════════════════ */
   .work { min-width: 0; padding-block-end: 6rem; }
+  /* Fully opaque — a translucent bar let the fields scroll through it and
+     read as a smear of overlapping text. */
   .tools {
     position: sticky; top: var(--topbar-h, 88px); z-index: 20;
     display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
     padding: .7rem clamp(1rem, 3vw, 2rem);
-    background: color-mix(in srgb, var(--paper) 92%, transparent);
-    backdrop-filter: blur(10px); border-bottom: 1px solid var(--line-soft);
+    background: var(--paper); border-bottom: 1px solid var(--line);
+    box-shadow: 0 6px 12px -12px rgba(26,20,16,.55);
   }
   .search { position: relative; flex: 1 1 15rem; min-width: 12rem; max-width: 26rem; }
   .search input {
@@ -363,6 +365,15 @@ const STYLE = String.raw`
   .col__state { font-size: .72rem; color: var(--muted); margin-inline-end: auto; }
   .col__state--hidden { color: var(--err); font-weight: 600; }
   .col__state--edited { color: var(--accent); font-weight: 600; }
+  /* Marks a field whose "original" is the owner's own pinned copy. */
+  .pin {
+    font: inherit; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase;
+    font-weight: 700; padding: .2rem .45rem; cursor: pointer;
+    color: var(--accent); background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .pin:hover { background: var(--accent); color: var(--paper); }
+  .pin[hidden] { display: none; }
 
   /* ── Retired fields (kept, but not on the page any more) ── */
   .retired { border: 1px dashed var(--line); background: var(--deep); padding: .7rem .9rem;
@@ -451,8 +462,8 @@ const STYLE = String.raw`
     position: fixed; inset-block-end: 0; inset-inline: 0; z-index: 40;
     display: flex; align-items: center; gap: 1rem;
     padding: .7rem clamp(1rem, 3vw, 2rem);
-    background: color-mix(in srgb, var(--card) 96%, transparent);
-    backdrop-filter: blur(10px); border-top: 1px solid var(--line);
+    background: var(--card); border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 14px -12px rgba(26,20,16,.5);
   }
   .savebar__count { font-size: .82rem; font-weight: 600; color: var(--muted); }
   .savebar__count.is-dirty { color: var(--accent); }
@@ -540,12 +551,43 @@ const SCRIPT = String.raw`
       dash:  col.getAttribute('data-dash') === '1'
     };
   }
+
+  // The owner's own "original" per field+language, pinned with "Set as
+  // original". BASES[key][lang] === null means "use the built-in copy".
+  var BASES = {};
+  fields_init();
+  function fields_init() {
+    for (var key in DEFAULTS) {
+      if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) continue;
+      BASES[key] = { he: DEFAULTS[key].heBase || null, en: DEFAULTS[key].enBase || null };
+    }
+  }
+  /** What this language goes back to: the pinned original, else what the
+   *  page ships with. */
+  function originalOf(fld, lang) {
+    var key = fld.getAttribute('data-key');
+    var def = DEFAULTS[key] || {};
+    var own = (BASES[key] || {})[lang];
+    if (own) {
+      return {
+        text:  own.text || '',
+        size:  own.size || 1,
+        align: own.align || def.align || 'start',
+        dash:  own.dash === true,
+        pinned: true
+      };
+    }
+    return { text: def[lang] || '', size: 1, align: def.align || 'start', dash: false, pinned: false };
+  }
+
   function entryOf(fld) {
     var out = {};
+    var key = fld.getAttribute('data-key');
     ['he', 'en'].forEach(function (lang) {
       var col = colOf(fld, lang);
       out[lang] = serializeRich($('.pv', col));
       out[lang === 'he' ? 'heStyle' : 'enStyle'] = styleOf(col);
+      out[lang === 'he' ? 'heBase'  : 'enBase' ] = (BASES[key] || {})[lang] || null;
     });
     return out;
   }
@@ -555,19 +597,13 @@ const SCRIPT = String.raw`
   var baseline = {};                      // key → signature at last save
   fields.forEach(function (f) { baseline[f.getAttribute('data-key')] = sigOf(f); });
 
-  /** Has this language been changed away from what the page ships with? */
+  /** Has this language been changed away from the original it goes back to? */
   function isEdited(fld, lang) {
-    var key = fld.getAttribute('data-key');
-    var def = DEFAULTS[key] || {};
     var col = colOf(fld, lang);
     var st  = styleOf(col);
-    if (serializeRich($('.pv', col)) !== (def[lang] || '')) return true;
-    return st.size !== 1 || st.dash || st.align !== (def.align || 'start');
-  }
-  function isHidden(fld, lang) {
-    var key = fld.getAttribute('data-key');
-    var def = DEFAULTS[key] || {};
-    return serializeRich($('.pv', colOf(fld, lang))) === '' && (def[lang] || '') !== '';
+    var og  = originalOf(fld, lang);
+    if (serializeRich($('.pv', col)) !== og.text) return true;
+    return st.size !== og.size || st.dash !== og.dash || st.align !== og.align;
   }
 
   // ── Painting one field's badges + the page/save counters ───────────────
@@ -580,13 +616,28 @@ const SCRIPT = String.raw`
     ['he', 'en'].forEach(function (lang) {
       var col   = colOf(fld, lang);
       var state = $('[data-state]', col);
+      var og    = originalOf(fld, lang);
       var ed    = isEdited(fld, lang);
+      var empty = serializeRich($('.pv', col)) === '';
       edited = edited || ed;
-      state.className = 'col__state' + (isHidden(fld, lang) ? ' col__state--hidden'
-                                     : ed ? ' col__state--edited' : '');
-      state.textContent = isHidden(fld, lang) ? 'Hidden on the site'
-                        : ed ? 'Changed from the original' : '';
+
+      // Three honest states: nothing here at all, deliberately hidden, or
+      // changed. An empty box whose original is ALSO empty isn't "hidden" —
+      // there was never anything to hide.
+      var blank  = empty && og.text === '';
+      var hidden = empty && og.text !== '';
+      state.className = 'col__state' + (hidden ? ' col__state--hidden' : ed ? ' col__state--edited' : '');
+      state.textContent = hidden ? 'Hidden on the site'
+                        : blank  ? 'Nothing here — the site shows nothing'
+                        : ed     ? 'Changed from the original' : '';
+
       $('[data-reset-lang]', col).disabled = !ed;
+      // Nothing to hide when the box is already empty.
+      $('[data-hide-lang]', col).disabled = empty;
+      // Nothing to pin while the box already matches its original.
+      $('[data-set-base]', col).disabled = !ed;
+      $('[data-set-base]', col).textContent = og.pinned ? 'Update original' : 'Set as original';
+      $('[data-clear-base]', col).hidden = !og.pinned;
     });
     fld.setAttribute('data-edited', edited ? '1' : '0');
     $('[data-tag-edited]', fld).hidden = !edited;
@@ -683,7 +734,7 @@ const SCRIPT = String.raw`
     if (e.target.closest && e.target.closest('.fb')) e.preventDefault();
   });
   document.addEventListener('click', function (e) {
-    var btn = e.target.closest ? e.target.closest('.fb, .mini') : null;
+    var btn = e.target.closest ? e.target.closest('.fb, .mini, .pin') : null;
     if (!btn) return;
     var col = btn.closest('[data-col]');
     var fld = btn.closest('[data-field]');
@@ -691,6 +742,8 @@ const SCRIPT = String.raw`
     if (btn.hasAttribute('data-align')) { setStyle(col, { align: btn.getAttribute('data-align') }); return; }
     if (btn.hasAttribute('data-size-out')) { setStyle(col, { size: 1 }); return; }
     if (btn.hasAttribute('data-reset-lang')) { resetLang(fld, col.getAttribute('data-col')); return; }
+    if (btn.hasAttribute('data-set-base'))   { setBase(fld, col.getAttribute('data-col')); return; }
+    if (btn.hasAttribute('data-clear-base')) { clearBase(fld, col.getAttribute('data-col')); return; }
     if (btn.hasAttribute('data-hide-lang')) {
       var pv = $('.pv', col);
       pv.innerHTML = '';
@@ -719,15 +772,36 @@ const SCRIPT = String.raw`
     touch(fld);
   });
 
-  /** Put one language back to the copy + styling the page ships with. */
+  /** Put one language back to its original — the owner's pinned copy when
+   *  there is one, otherwise the copy the page ships with. */
   function resetLang(fld, lang) {
-    var key = fld.getAttribute('data-key');
-    var def = DEFAULTS[key] || {};
+    var og  = originalOf(fld, lang);
     var col = colOf(fld, lang);
     var pv  = $('.pv', col);
-    pv.innerHTML = formatRich(def[lang] || '');
+    pv.innerHTML = formatRich(og.text);
     refreshEmpty(pv);
-    setStyle(col, { size: 1, align: def.align || 'start', dash: false });
+    setStyle(col, { size: og.size, align: og.align, dash: og.dash });
+  }
+
+  /** Pin what's in the box now as this language's original, so "Original"
+   *  brings THIS back instead of the built-in copy. Saved with everything
+   *  else; nothing on the live site reads it. */
+  function setBase(fld, lang) {
+    var key = fld.getAttribute('data-key');
+    var col = colOf(fld, lang);
+    var st  = styleOf(col);
+    BASES[key] = BASES[key] || { he: null, en: null };
+    BASES[key][lang] = {
+      text: serializeRich($('.pv', col)),
+      size: st.size, align: st.align, dash: st.dash
+    };
+    touch(fld);
+  }
+  /** Hand the field back to the copy the site ships with. */
+  function clearBase(fld, lang) {
+    var key = fld.getAttribute('data-key');
+    if (BASES[key]) BASES[key][lang] = null;
+    touch(fld);
   }
   /** The site's own formatter, so a restored default renders like the page. */
   function formatRich(s) {
@@ -1128,8 +1202,12 @@ function columnHtml(f: ContentField, lang: 'he' | 'en', value: ContentMap[string
         </div>
         <div class="col__foot">
           <span class="col__state" data-state></span>
+          <button type="button" class="pin" data-clear-base hidden
+                  title="Drop your own original and go back to the copy the site ships with">Your original ✕</button>
           <button type="button" class="mini" data-reset-lang
                   title="Put the original text and styling back">Original</button>
+          <button type="button" class="mini" data-set-base
+                  title="Make what's in the box now the original this field goes back to">Set as original</button>
           <button type="button" class="mini" data-hide-lang
                   title="Clear the text so this doesn't show on the site">Hide</button>
         </div>
@@ -1386,27 +1464,23 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   // The built-in copy (in the editor's own token form) + the alignment each
   // field already has, so the browser can tell "changed" from "untouched" and
-  // put a field back exactly as the page ships it.
+  // put a field back exactly as the page ships it. Any "original" the owner
+  // pinned for this venue rides along and takes over that job.
   const defaults = Object.fromEntries(
-    CONTENT_GROUPS.flatMap((g) => g.fields.map((f) => [f.key, {
-      he: defaultTokens(f.key, 'he'),
-      en: defaultTokens(f.key, 'en'),
-      align: defaultAlignFor(f.key),
-    }])),
+    CONTENT_GROUPS.flatMap((g) => g.fields.map((f) => {
+      const saved = overrides[f.key];
+      return [f.key, {
+        he: defaultTokens(f.key, 'he'),
+        en: defaultTokens(f.key, 'en'),
+        align: defaultAlignFor(f.key),
+        ...(saved?.heBase ? { heBase: saved.heBase } : {}),
+        ...(saved?.enBase ? { enBase: saved.enBase } : {}),
+      }];
+    })),
   );
 
-  const html = `<!doctype html>
-<html lang="en" dir="ltr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>Content · Zahara admin</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="${ADMIN_FONTS_HREF}" />
-  <style>${CHROME_CSS}${STYLE}${paletteCss ? `.stage{${paletteCss}}` : ''}</style>
-</head>
+  const html = `${adminHead(site, 'Content',
+    `<style>${CHROME_CSS}${STYLE}${paletteCss ? `.stage{${paletteCss}}` : ''}</style>`)}
 <body>
   ${topbar('content', { site })}
   <div class="wb" id="wb">
@@ -1421,6 +1495,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <strong>U</strong> to style them, and use <strong>A−</strong> /
         <strong>A+</strong> to size the whole line. Hebrew and English are
         styled separately.
+      </p>
+      <p class="rail__foot">
+        <strong>Original</strong> puts a box back the way it was;
+        <strong>Set as original</strong> makes what you’ve written the thing it
+        goes back to. <strong>⌘S</strong> saves.
       </p>
     </aside>
 

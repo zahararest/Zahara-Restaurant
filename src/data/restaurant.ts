@@ -53,6 +53,11 @@ export const RESTAURANT = {
   // Rooftop bar — coming soon. Update this URL when the site is live.
   // Set to null to hide the header button entirely.
   rooftopUrl:     null as string | null,
+
+  // Nucha Rooftop's own Tabit booking page. The rooftop has no site yet, but
+  // it DOES take reservations — the /reserve/ venue portal is the one place
+  // that link is published (see src/pages/reserve.astro).
+  rooftopReservationUrl: 'https://tbit.be/0SB3xP',
 } as const;
 
 // Cloudflare Turnstile (free CAPTCHA) — spam protection on the contact form.

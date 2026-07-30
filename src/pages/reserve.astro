@@ -1,0 +1,476 @@
+---
+// /reserve/ — the venue portal.
+//
+// A standalone, unlisted page whose only job is to send a visitor to the right
+// Tabit booking page: Zahara (the restaurant) or Nucha Rooftop (the bar). It is
+// linked from NOWHERE on the site — it exists to be handed out directly, in an
+// Instagram bio, a WhatsApp reply, a QR code on the bar, a paid ad — so the
+// traffic that reaches it is attributable and the choice it captures is clean.
+//
+// Deliberately NOT built on BaseLayout: no header, no footer, no popup, no
+// floating CTA. The split IS the page. That means it also skips global.css and
+// pulls only the fonts + design tokens, so the document is a couple of KB and
+// the two photographs are effectively the whole payload.
+//
+// DESIGN NOTE — this is the one page that breaks pillar 1's "no half-and-half
+// splits". The rule exists to stop a HERO being chopped up; here the split is
+// the content itself, two venues at equal weight with nothing to rank them.
+// Everything else holds: full-bleed photography, serif display over sans meta,
+// eyebrow rules in the single accent, and motion that only ever fades or lifts.
+//
+// Tracking is documented in functions/data/reserve-track.ts. Read the numbers
+// at /admin/reserve/.
+import '../styles/font-faces.css';
+import '../styles/font-config.css';
+import '../styles/tokens.css';
+import { RESTAURANT } from '../data/restaurant';
+import { PHOTOS } from '../data/photos';
+import { resized, resizedSrcset } from '../lib/photo';
+
+// GA4 rides along as the secondary view — see the <script> at the foot of the
+// body for why it carries no consent banner of its own.
+const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID || 'G-CWBXVJNYFB';
+
+const VENUES = [
+  {
+    id:      'zahara',
+    href:    RESTAURANT.reservationUrl,
+    eyebrow: 'מסעדה',
+    name:    'זהרה',
+    meta:    'בן סירא 16 · ירושלים',
+    cta:     'הזמנת שולחן',
+    aria:    'הזמנת שולחן במסעדת זהרה',
+    photo:   PHOTOS.moodDining,
+    // Latin-script names want a little less size than the Hebrew wordmark to
+    // sit at the same optical weight.
+    latin:   false,
+  },
+  {
+    id:      'rooftop',
+    href:    RESTAURANT.rooftopReservationUrl,
+    eyebrow: 'בר גג',
+    name:    'NUCHA ROOFTOP',
+    meta:    'מלון נוצ׳ה · ירושלים',
+    cta:     'הזמנת מקום',
+    aria:    'הזמנת מקום בבר הגג נוצ׳ה רוףטופ',
+    photo:   PHOTOS.bar,
+    latin:   true,
+  },
+] as const;
+
+const WIDTHS = [640, 960, 1280, 1600, 2000] as const;
+const SIZES  = '(min-width: 900px) 50vw, 100vw';
+---
+
+<!doctype html>
+<html lang="he" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {/* Unlisted by design: nothing links here, it is kept out of the sitemap
+      (astro.config.mjs), and the header in public/_headers repeats this for
+      crawlers that never parse the HTML. */}
+  <meta name="robots" content="noindex, nofollow" />
+  <title>הזמנת מקום — זהרה / Nucha Rooftop</title>
+  <meta name="description" content="בחרו איפה לשמור מקום — מסעדת זהרה או בר הגג של מלון נוצ׳ה, ירושלים." />
+
+  {/* The Zahara panel is the LCP on every viewport. Preload it at the exact
+      responsive sizes the <img> asks for so it downloads during head parse. */}
+  <link
+    rel="preload" as="image" fetchpriority="high"
+    href={resized(VENUES[0].photo.src, 1280)}
+    imagesrcset={resizedSrcset(VENUES[0].photo.src, WIDTHS)}
+    imagesizes={SIZES}
+  />
+</head>
+<body>
+  <header class="portal__head">
+    <p class="portal__eyebrow">מלון נוצ׳ה · ירושלים</p>
+    <h1 class="portal__title">איפה נשמור לכם מקום?</h1>
+  </header>
+
+  <main class="portal">
+    {VENUES.map((v, i) => (
+      <a
+        class={`venue venue--${v.id}`}
+        href={v.href}
+        target="_blank"
+        rel="noopener"
+        data-venue={v.id}
+        aria-label={v.aria}
+        style={`--stagger:${i * 140}ms`}
+      >
+        <img
+          class="venue__photo"
+          src={resized(v.photo.src, 1280)}
+          srcset={resizedSrcset(v.photo.src, WIDTHS)}
+          sizes={SIZES}
+          alt=""
+          width="1280" height="854"
+          loading="eager"
+          decoding="async"
+          fetchpriority={i === 0 ? 'high' : 'auto'}
+        />
+        <span class="venue__scrim"></span>
+        <span class="venue__body">
+          <span class="venue__eyebrow">{v.eyebrow}</span>
+          <span class={`venue__name${v.latin ? ' venue__name--latin' : ''}`}>{v.name}</span>
+          <span class="venue__meta">{v.meta}</span>
+          <span class="venue__cta">{v.cta}</span>
+        </span>
+      </a>
+    ))}
+  </main>
+
+  <style>
+    /* ── Shell ─────────────────────────────────────────────────────────── */
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--paper-on-photo);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      /* The head floats over the panels, so its height has to be a number the
+         panels can subtract. Declared here (not on .portal__head) so both can
+         read it; the head takes it as a MIN height, which keeps the value
+         honest — the real head can never be taller than the offset. */
+      --head-h: clamp(5rem, 14vw, 6.5rem);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* dvh, not vh — on mobile Safari and Chrome the dynamic unit accounts for
+       the collapsing address bar, so the two halves meet exactly at the middle
+       of what the visitor can actually see. `vh` first as the fallback for
+       browsers that don't know dvh; they simply keep the older behaviour. */
+    /* MIN height, not a fixed one, and no overflow:hidden anywhere. At normal
+       text sizes the two halves fill the screen exactly and nothing scrolls;
+       at 200% browser text zoom the rows grow and the page scrolls instead of
+       clipping the caption out of reach (WCAG 1.4.4). */
+    .portal {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      min-block-size: 100vh;
+      min-block-size: 100dvh;
+    }
+    /* Side by side once there's width for it — on tablets and desktops, and on
+       a phone held sideways, where two stacked halves would each be ~180px
+       tall and squeeze the captions out. */
+    @media (min-width: 900px), (orientation: landscape) and (max-height: 560px) {
+      .portal { grid-template-rows: none; grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Page head — floats over the seam ──────────────────────────────── */
+    .portal__head {
+      position: fixed;
+      inset-block-start: 0;
+      inset-inline: 0;
+      z-index: 2;
+      min-block-size: var(--head-h);
+      padding: clamp(1.1rem, 4vw, 2.4rem) 1rem;
+      text-align: center;
+      pointer-events: none;
+      /* A whisper of shade so the type holds over any part of either photo,
+         without a band that would cut the images in two. */
+      background: linear-gradient(to bottom, rgba(8, 6, 4, .55), transparent);
+    }
+    .portal__eyebrow {
+      margin: 0 0 .5rem;
+      font-size: clamp(.58rem, 1.6vw, .68rem);
+      letter-spacing: .3em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .portal__title {
+      margin: 0;
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: clamp(1.05rem, 3.4vw, 1.6rem);
+      letter-spacing: -.018em;
+      color: var(--paper-on-photo);
+    }
+
+    /* ── One venue ─────────────────────────────────────────────────────── */
+    .venue {
+      position: relative;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      text-decoration: none;
+      color: var(--paper-on-photo);
+      isolation: isolate;
+    }
+    /* A hairline seam, not a border — the photographs should look like two
+       frames laid side by side. */
+    .venue + .venue { box-shadow: inset 0 1px 0 rgba(244, 236, 207, .18); }
+    /* Matches the columns breakpoint above — the seam has to follow whichever
+       way the halves are stacked. In RTL the second panel sits on the LEFT,
+       so its inset edge flips with it. */
+    @media (min-width: 900px), (orientation: landscape) and (max-height: 560px) {
+      .venue + .venue {
+        box-shadow: inset 1px 0 0 rgba(244, 236, 207, .18);
+      }
+      html[dir="rtl"] .venue + .venue {
+        box-shadow: inset -1px 0 0 rgba(244, 236, 207, .18);
+      }
+    }
+
+    .venue__photo {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      /* Documentary, not catalogue. */
+      filter: saturate(.92);
+      transition: transform 1.2s var(--ease-out);
+      z-index: -2;
+    }
+    .venue__scrim {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(to top, rgba(8, 6, 4, .74), rgba(8, 6, 4, .28) 55%, rgba(8, 6, 4, .42));
+      transition: opacity .8s var(--ease-out);
+    }
+
+    .venue__body {
+      display: grid;
+      justify-items: center;
+      gap: .55rem;
+      padding: clamp(1.5rem, 6vw, 3rem);
+      text-align: center;
+    }
+
+    /* Stacked portrait — the one case where the floating head lands ON a
+       caption. On a 667px-tall phone each half is ~330px and the caption
+       centres at ~73px, right under an ~80px head.
+       The offset goes on the PANEL, not the caption: padding on the grid
+       container both starts the content box below the head and shortens it, so
+       the caption re-centres in the space the head actually leaves. Padding on
+       the caption itself would only move it half as far, and the photograph is
+       absolutely positioned so it stays full-bleed either way. */
+    @media (max-width: 899px) and (orientation: portrait) {
+      .venue:first-child { padding-block-start: var(--head-h); }
+    }
+
+    .venue__eyebrow {
+      font-size: clamp(.58rem, 1.7vw, .68rem);
+      letter-spacing: .3em;
+      color: var(--accent);
+    }
+    /* The eyebrow's accent rule — pillar 2's magazine kicker. */
+    .venue__eyebrow::before {
+      content: '';
+      display: block;
+      inline-size: 1.6rem;
+      block-size: 1px;
+      margin: 0 auto .7rem;
+      background: var(--accent);
+    }
+
+    .venue__name {
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: clamp(2.6rem, 9vw, 5rem);
+      line-height: 1.05;
+      letter-spacing: -.018em;
+    }
+    /* Latin caps run optically larger than the Hebrew wordmark at the same
+       size, so they get a step down and tracking out instead. */
+    .venue__name--latin {
+      font-size: clamp(1.5rem, 5vw, 2.9rem);
+      letter-spacing: .07em;
+    }
+
+    .venue__meta {
+      font-size: clamp(.78rem, 2.2vw, .9rem);
+      color: color-mix(in srgb, var(--paper-on-photo) 76%, transparent);
+    }
+
+    .venue__cta {
+      margin-block-start: clamp(.6rem, 2.5vw, 1.1rem);
+      font-size: clamp(.7rem, 2vw, .8rem);
+      letter-spacing: .2em;
+      padding-block-end: .45rem;
+      border-block-end: 1px solid var(--accent);
+      transition: color .4s var(--ease-out);
+    }
+    .venue__cta::after {
+      content: ' ↗';
+      /* The arrow is a direction, not decoration — keep it quiet. */
+      color: var(--accent);
+    }
+
+    /* Short viewports — an SE-class phone, or any phone held sideways. Each
+       half is barely 300px tall there, so the head and the gaps give up their
+       air first; the wordmark keeps its size, because it is the thing being
+       chosen. */
+    @media (max-height: 640px) {
+      .portal__head  { padding-block: .7rem .9rem; }
+      .portal__title { font-size: clamp(.92rem, 3vw, 1.15rem); }
+      .venue__body   { gap: .3rem; padding: 1rem; }
+      .venue__eyebrow::before { margin-block-end: .5rem; }
+      .venue__cta    { margin-block-start: .5rem; }
+    }
+
+    /* ── Motion — a camera refocusing, nothing more ────────────────────── */
+    /* Desktop only: a pointer that can hover is a mouse, and a slow push-in on
+       the panel under it reads as the photographer leaning toward that room. */
+    @media (hover: hover) and (min-width: 900px) {
+      .venue:hover .venue__photo { transform: scale(1.04); }
+      .venue:hover .venue__scrim { opacity: .72; }
+      .venue:hover .venue__cta   { color: var(--accent); }
+    }
+    .venue:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -6px;
+    }
+
+    /* The entrance animates ONLY the caption. The photographs are painted at
+       full opacity from the first frame, so the LCP is never gated behind an
+       animation — and because this is a plain CSS keyframe with no JS class to
+       wait for, a failed script can't leave the text stuck invisible. */
+    @keyframes portal-settle {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: none; }
+    }
+    .portal__head,
+    .venue__body {
+      animation: portal-settle .9s var(--ease-out) both;
+    }
+    .venue__body { animation-delay: calc(180ms + var(--stagger, 0ms)); }
+
+    @media (prefers-reduced-motion: reduce) {
+      .portal__head,
+      .venue__body { animation: none; }
+      .venue__photo,
+      .venue__scrim,
+      .venue__cta { transition: none; }
+      .venue:hover .venue__photo { transform: none; }
+    }
+  </style>
+
+  {/* ── Google Analytics 4 ────────────────────────────────────────────────
+      Same Consent Mode v2 defaults as the rest of the site: everything denied
+      until the visitor opts in, so this page sets no cookie on its own. It
+      REPLAYS an acceptance made elsewhere on the site but shows no banner of
+      its own — a consent bar over a two-choice portal would be most of the
+      screen, and it isn't needed here, because the numbers the owner actually
+      relies on come from the cookieless first-party beacon below. GA4 is the
+      bonus view for visitors who already said yes. */}
+  {gaMeasurementId && (
+    <>
+      <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>
+      <script is:inline define:vars={{ gaMeasurementId }}>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ dataLayer.push(arguments); }
+        gtag('consent', 'default', {
+          ad_storage:         'denied',
+          analytics_storage:  'denied',
+          ad_user_data:       'denied',
+          ad_personalization: 'denied',
+          wait_for_update:    500,
+        });
+        try {
+          if (localStorage.getItem('zahara-consent') === 'granted') {
+            gtag('consent', 'update', {
+              ad_storage:         'granted',
+              analytics_storage:  'granted',
+              ad_user_data:       'granted',
+              ad_personalization: 'granted',
+            });
+          }
+        } catch (_) { /* storage blocked — stay denied */ }
+        gtag('js', new Date());
+        // A distinct page_title keeps the portal from blending into the site's
+        // other pageviews in GA4's reports.
+        gtag('config', gaMeasurementId, { page_title: 'Reserve portal' });
+      </script>
+    </>
+  )}
+
+  {/* ── First-party tracking ──────────────────────────────────────────────
+      Ground truth: survives ad blockers and consent-denied visitors, which on
+      a page whose entire purpose is the click is the difference between
+      knowing the conversion rate and guessing it. Fires at most two beacons —
+      one on arrival, one on the chosen venue. See functions/api/reserve-track.ts. */}
+  <script is:inline>
+    (function () {
+      var ENDPOINT = '/api/reserve-track';
+
+      // Own gtag shim rather than the one the GA block declares — pushing
+      // straight to dataLayer means these events queue correctly even if
+      // gtag.js is still loading, blocked, or never arrives.
+      function gtag() { (window.dataLayer = window.dataLayer || []).push(arguments); }
+
+      // Per-pageload nonce. Regenerated on every load and never written to
+      // storage, so it links a click to ITS view and nothing else.
+      var sid;
+      try {
+        var buf = new Uint8Array(6);
+        crypto.getRandomValues(buf);
+        sid = Array.prototype.map.call(buf, function (b) {
+          return (b + 0x100).toString(16).slice(1);
+        }).join('');
+      } catch (_) {
+        sid = (Math.random().toString(36) + '000000').slice(2, 14);
+      }
+
+      var q = new URLSearchParams(location.search);
+      var ctx = {
+        s:  sid,
+        r:  document.referrer || '',
+        us: q.get('utm_source')   || '',
+        um: q.get('utm_medium')   || '',
+        uc: q.get('utm_campaign') || '',
+      };
+
+      function send(extra) {
+        var payload = { e: extra.e, s: ctx.s, r: ctx.r, us: ctx.us, um: ctx.um, uc: ctx.uc };
+        if (extra.v) payload.v = extra.v;
+        var body = JSON.stringify(payload);
+        try {
+          // sendBeacon survives the page being torn down by the navigation,
+          // which is exactly what a click here causes.
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'application/json' }));
+            return;
+          }
+        } catch (_) { /* fall through to fetch */ }
+        try {
+          fetch(ENDPOINT, {
+            method:      'POST',
+            headers:     { 'Content-Type': 'application/json' },
+            body:        body,
+            keepalive:   true,
+            credentials: 'omit',
+          });
+        } catch (_) { /* tracking must never break the page */ }
+      }
+
+      send({ e: 'view' });
+      gtag('event', 'reserve_portal_view', {
+        utm_source:   ctx.us,
+        utm_campaign: ctx.uc,
+      });
+
+      var links = document.querySelectorAll('[data-venue]');
+      for (var i = 0; i < links.length; i++) {
+        (function (a) {
+          var venue = a.getAttribute('data-venue');
+          function choose() {
+            send({ e: 'click', v: venue });
+            gtag('event', 'reserve_portal_click', { venue: venue, link_url: a.href });
+          }
+          // click covers tap, Enter, and cmd/ctrl-click; auxclick catches the
+          // middle-click "open in new tab" that click never sees. Together they
+          // cover every way a venue gets chosen, without double-firing.
+          a.addEventListener('click', choose);
+          a.addEventListener('auxclick', function (e) { if (e.button === 1) choose(); });
+        })(links[i]);
+      }
+    })();
+  </script>
+</body>
+</html>

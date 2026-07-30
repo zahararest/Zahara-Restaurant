@@ -8,22 +8,11 @@
 import { ADMIN_CSS }              from './styles';
 import { adminScript }            from './script';
 import { MENU_TYPES }             from './menus';
-import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
+import { CHROME_CSS, adminHead, topbar } from './chrome';
 import type { Site }              from '../data/site';
 
-export function adminPage(site: Site = 'zahara'): string {
-  return `<!doctype html>
-<html lang="en" dir="ltr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots"   content="noindex,nofollow" />
-  <title>Menu editor · Zahara</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="${ADMIN_FONTS_HREF}" />
-  <style>${CHROME_CSS}${ADMIN_CSS}</style>
-</head>
+export function adminPage(site: Site = 'zahara', menusOff: string[] = []): string {
+  return `${adminHead(site, 'Menu editor', `<style>${CHROME_CSS}${ADMIN_CSS}</style>`)}
 <body>
   ${topbar('menu', { site })}
 
@@ -32,7 +21,7 @@ export function adminPage(site: Site = 'zahara'): string {
     <main class="main"   id="main-area"></main>
   </div>
 
-  <script>${adminScript(MENU_TYPES, site)}</script>
+  <script>${adminScript(MENU_TYPES, site, menusOff)}</script>
 </body>
 </html>`;
 }

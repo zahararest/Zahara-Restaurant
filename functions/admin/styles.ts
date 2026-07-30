@@ -53,6 +53,19 @@ export const ADMIN_CSS = String.raw`
   font-weight: 600;
   background: var(--paper);
 }
+/* A menu this venue doesn't use — still editable, just not on the site. */
+.sidebar__item.is-off { color: var(--muted); }
+.sidebar__badge {
+  margin-inline-start: .5rem; font-size: .58rem; letter-spacing: .12em;
+  text-transform: uppercase; font-weight: 700; color: var(--muted);
+  border: 1px solid var(--edge); padding: 0 .3rem;
+}
+/* Unsaved edits in that menu. */
+.sidebar__item.is-dirty::after {
+  content: ''; display: inline-block; inline-size: .4rem; block-size: .4rem;
+  border-radius: 50%; background: var(--accent); margin-inline-start: .45rem;
+  vertical-align: middle;
+}
 .main {
   flex: 1;
   padding: 2.75rem clamp(1.75rem, 4vw, 3rem);
@@ -219,9 +232,44 @@ export const ADMIN_CSS = String.raw`
 }
 .btn-save:hover    { background: var(--accent); border-color: var(--accent); }
 .btn-save:disabled { opacity: .5; cursor: default; }
+/* Unsaved edits — the button says so instead of looking idle. */
+.btn-save.is-dirty { background: var(--accent); border-color: var(--accent); }
 .save-status       { font-size: .82rem; font-weight: 500; }
 .save-status.ok    { color: var(--ok); }
 .save-status.err   { color: var(--err); }
+.save-hint {
+  margin-inline-start: auto; font-size: .68rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* ── Notice band (e.g. "this menu is switched off") ── */
+.notice {
+  display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+  margin-bottom: 1.2rem; padding: .7rem .9rem;
+  background: var(--deep); border-inline-start: 3px solid var(--accent);
+  font-size: .85rem;
+}
+.notice__btn {
+  font: inherit; font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+  font-weight: 700; padding: .35rem .7rem; cursor: pointer;
+  background: var(--ink); color: var(--paper); border: 1px solid var(--ink);
+}
+.notice__btn:hover { background: var(--accent); border-color: var(--accent); }
+
+/* ── Menus-in-use rows ── */
+.setup-row {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: .8rem .9rem; border: 1px solid var(--line-soft); background: #fff;
+  margin-bottom: .5rem;
+}
+.setup-row.is-off { background: var(--deep); }
+.setup-row__name  { font-weight: 600; }
+.setup-row__slugs { font-size: .74rem; color: var(--muted); font-family: ui-monospace, monospace; }
+.setup-row__state {
+  margin-inline-start: auto; font-size: .66rem; letter-spacing: .14em;
+  text-transform: uppercase; font-weight: 700; color: var(--ok);
+}
+.setup-row.is-off .setup-row__state { color: var(--muted); }
 
 /* ── Sections ── */
 .section-block { border: 1px solid var(--line-soft); background: #fff; margin-bottom: .85rem; }
@@ -306,6 +354,10 @@ html[dir="rtl"] .section-block.is-collapsed .section-toggle { transform: rotate(
 }
 .btn-icon:hover     { color: var(--err); background: var(--err-bg); }
 .btn-icon.add:hover { color: var(--ok);  background: var(--ok-bg); }
+/* Move up / down — the same quiet icon button, but not a destructive one. */
+.btn-move { font-size: .82rem; padding: .3rem .4rem; }
+.btn-move:hover { color: var(--accent); background: var(--accent-soft); }
+.row-tools { display: inline-flex; align-items: center; gap: .1rem; }
 .section-body                                  { display: block; }
 .section-block.is-collapsed .section-body      { display: none; }
 
@@ -373,8 +425,8 @@ textarea.item-input { resize: none; overflow: hidden; min-height: 2.4rem; }
   .item-input.name  { grid-area: name; }
   .item-input.desc  { grid-area: desc; }
   .item-input.price { grid-area: price; text-align: start; max-width: 8rem; }
-  .item-row > .btn-star { grid-area: star; }
-  .item-row > .btn-icon { grid-area: del; }
+  .item-row > .btn-star  { grid-area: star; }
+  .item-row > .row-tools { grid-area: del; }
 }
 
 .section-footer { padding: .55rem .75rem; border-top: 1px solid var(--line-soft); }

@@ -13,6 +13,13 @@
 /menu/v3/     /menu/         301
 /en/menu/v3/  /en/menu/      301
 
+# The venue portal is built once per venue (the dual-base build runs the same
+# source twice), so a duplicate lands at /rooftop/reserve/. There is only ONE
+# portal — it chooses BETWEEN the venues — and two copies would split its
+# tracking, so the rooftop copy folds into the real one.
+/rooftop/reserve/  /reserve/  301
+/rooftop/reserve   /reserve/  301
+
 # security.txt — canonical location is /.well-known/ (RFC 9116). Redirect the
 # legacy root path so scanners that probe /security.txt still find it.
 /security.txt  /.well-known/security.txt  301

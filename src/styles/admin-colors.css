@@ -31,6 +31,27 @@
       --button-border-width:  1px;
       --button-border-radius: 0;
       --button-transition:    background 0.18s, border-color 0.18s, color 0.18s;
+
+      /* Venue tint — mirrors functions/admin/chrome.ts so this editor reads as
+         the same tool, and so the venue being edited is never in doubt. */
+      --venue:      #9C4621;
+      --venue-soft: #F2DFCF;
+    }
+    html[data-venue="rooftop"] {
+      --e-bg:  #EFEAE0;
+      --e-acc: #1F6260;
+      --venue: #1F6260;
+      --venue-soft: #D8E8E5;
+    }
+    /* The venue stripe across the top of every admin page. */
+    body::before {
+      content: ''; position: fixed; inset-block-start: 0; inset-inline: 0;
+      block-size: 4px; background: var(--venue); z-index: 100; pointer-events: none;
+    }
+    .editor-top__venuename { color: var(--venue); }
+    .editor-top__venuename::before {
+      content: ''; display: inline-block; inline-size: 0.5rem; block-size: 0.5rem;
+      background: var(--venue); margin-inline-end: 0.4rem; border-radius: 50%;
     }
     *, *::before, *::after { box-sizing: border-box; }
     body {

@@ -53,3 +53,15 @@
 /admin/*
   Cache-Control: no-store
   X-Robots-Tag: noindex, nofollow
+
+# The /reserve/ venue portal is unlisted: nothing on the site links to it, it
+# is kept out of the sitemap, and it carries a noindex meta tag. This repeats
+# the directive as a header for crawlers that never parse the HTML.
+#
+# Note it is deliberately NOT blocked in robots.txt — a Disallow would stop
+# Google fetching the page, and a noindex it never fetches is a noindex it
+# never obeys. Allowing the crawl is what gets it dropped from the index.
+/reserve/*
+  X-Robots-Tag: noindex, nofollow
+/reserve
+  X-Robots-Tag: noindex, nofollow

@@ -26,7 +26,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
-import { CHROME_CSS, ADMIN_FONTS_HREF, topbar } from './chrome';
+import { CHROME_CSS, adminHead, topbar } from './chrome';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
 import {
   readContentOwn, galleryCaptionKey, GALLERY_CAPTION_KEYS,
@@ -1651,18 +1651,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
        </p>`
     : '';
 
-  const html = `<!doctype html>
-<html lang="en" dir="ltr">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="robots" content="noindex, nofollow" />
-  <title>Image manager · Zahara admin</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="${ADMIN_FONTS_HREF}" />
-  <style>${CHROME_CSS}${STYLE}</style>
-</head>
+  const html = `${adminHead(site, 'Images', `<style>${CHROME_CSS}${STYLE}</style>`)}
 <body>
   ${topbar('images', {
     site,

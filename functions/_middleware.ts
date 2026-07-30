@@ -19,11 +19,12 @@ import {
   readContent, contentToJson, readAssetVersion,
   readPopupConfig, popupActive, popupShowsImage, type ContentEnv,
 } from './data/content';
+import { readMenusOff, type MenuVisEnv } from './data/menu-visibility';
 import { siteFromRequest, withSiteParam } from './data/site';
 
 const ASSET_VERSION_TOKEN = '__ZASSETV__';
 
-type Env = PaletteEnv & ContentEnv;
+type Env = PaletteEnv & ContentEnv & MenuVisEnv;
 
 export const onRequest: PagesFunction<Env> = async (ctx) => {
   // Let the request resolve normally first — we only rewrite the
@@ -40,11 +41,12 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
   // Palette, editable copy, the asset version, and the popup switch — four
   // tiny KV reads run together so the added latency stays a single round trip.
-  const [palette, content, assetVersion, popupCfg] = await Promise.all([
+  const [palette, content, assetVersion, popupCfg, menusOff] = await Promise.all([
     readPalette(ctx.env, site),
     readContent(ctx.env, site),
     readAssetVersion(ctx.env, site),
     readPopupConfig(ctx.env, site),
+    readMenusOff(ctx.env, site),
   ]);
 
   const css        = paletteToCss(palette);
@@ -54,9 +56,9 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   // on in /admin/content → Popup and any auto-hide window hasn't ended.
   const popupOn    = popupActive(popupCfg);
 
-  // Inject the palette + content + popup tags into <head> (when present).
+  // Inject the palette + content + popup + menu tags into <head> (when present).
   let res = response;
-  if (css || hasContent || popupOn) {
+  if (css || hasContent || popupOn || menusOff.length) {
     const styleTag = css
       ? `<style id="zahara-palette-server" data-zahara-palette>${css}</style>`
       : '';
@@ -79,12 +81,20 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
           JSON.stringify(popupPayload).replace(/</g, '\\u003c')
         }</script>`
       : '';
+    // Menus this venue doesn't use — the menu embed and the home tiles drop
+    // those categories before first paint.
+    const menusTag = menusOff.length
+      ? `<script id="zahara-menus" type="application/json">${
+          JSON.stringify({ off: menusOff }).replace(/</g, '\\u003c')
+        }</script>`
+      : '';
     res = new HTMLRewriter()
       .on('head', {
         element(el) {
           if (styleTag)   el.append(styleTag,   { html: true });
           if (contentTag) el.append(contentTag, { html: true });
           if (popupTag)   el.append(popupTag,   { html: true });
+          if (menusTag)   el.append(menusTag,   { html: true });
         },
       })
       .transform(res);

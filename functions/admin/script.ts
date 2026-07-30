@@ -5,7 +5,7 @@
 import type { MenuType } from './menus';
 import type { Site }     from '../data/site';
 
-export function adminScript(menuTypes: MenuType[], site: Site = 'zahara'): string {
+export function adminScript(menuTypes: MenuType[], site: Site = 'zahara', menusOff: string[] = []): string {
   return String.raw`
 const MENUS = ${JSON.stringify(menuTypes)};
 
@@ -19,25 +19,35 @@ let bc = null;
 try { bc = new BroadcastChannel('zahara-menu'); } catch {}
 
 const state = {
-  view:          'editor',   // 'editor' | 'sync'
+  // Sync is the front door: it's what the owner comes here to do most days,
+  // so it opens first and sits at the top of the list.
+  view:          'sync',     // 'sync' | 'editor' | 'setup'
   menuId:        MENUS[0].id,
   data:          {},
   collapsed:     {},
   activeVariant: {},
   syncConfig:    null,       // { enabled, hours, menus } once loaded
+  // Menus this venue doesn't use — greyed out here, dropped from the site.
+  menusOff:      new Set(${JSON.stringify(menusOff)}),
+  dirty:         new Set(),  // slugs with unsaved edits
 };
+
+const menuLabel = id => (MENUS.find(m => m.id === id) || {}).label || id;
+const isOff     = id => state.menusOff.has(id);
 
 // Flat list of every syncable menu slug → friendly label, derived from the
 // same MENUS config the editor uses. Events have no OneDrive doc, so skip them.
-const SYNC_MENUS = (() => {
+// Menus the venue has switched off are skipped too — no point pulling a menu
+// nobody can see.
+function syncMenus() {
   const out = [];
   for (const m of MENUS) {
-    if (m.id === 'events') continue;
+    if (m.id === 'events' || isOff(m.id)) continue;
     if (m.variants) for (const v of m.variants) out.push({ slug: v.slug, label: m.label + ' · ' + v.label });
     else            out.push({ slug: m.slug, label: m.label });
   }
   return out;
-})();
+}
 
 // ── DOM helpers ──────────────────────────────────────────────
 function el(tag, attrs, ...children) {
@@ -83,18 +93,79 @@ function ensureData(slug) {
 function renderSidebar() {
   const sidebar = document.getElementById('sidebar');
   sidebar.innerHTML = '';
-  sidebar.appendChild(el('div', { class: 'sidebar__group' }, 'Menus'));
-  for (const m of MENUS) {
-    sidebar.appendChild(el('button', {
-      class:   'sidebar__item' + (state.view === 'editor' && m.id === state.menuId ? ' is-active' : ''),
-      onclick: () => switchMenu(m.id),
-    }, m.label));
-  }
-  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'OneDrive'));
+
+  // Sync sits at the top — it's the daily job.
+  sidebar.appendChild(el('div', { class: 'sidebar__group' }, 'OneDrive'));
   sidebar.appendChild(el('button', {
     class:   'sidebar__item' + (state.view === 'sync' ? ' is-active' : ''),
     onclick: () => switchToSync(),
-  }, 'Sync'));
+  }, 'Sync menus'));
+
+  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'Menus'));
+  for (const m of MENUS) {
+    const off  = isOff(m.id);
+    const item = el('button', {
+      class:   'sidebar__item' + (state.view === 'editor' && m.id === state.menuId ? ' is-active' : '')
+               + (off ? ' is-off' : '') + (isMenuDirty(m) ? ' is-dirty' : ''),
+      title:   off ? m.label + ' is switched off — it isn’t shown on the site' : m.label,
+      onclick: () => switchMenu(m.id),
+    }, m.label);
+    if (off) item.appendChild(el('span', { class: 'sidebar__badge' }, 'off'));
+    sidebar.appendChild(item);
+  }
+
+  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'This venue'));
+  sidebar.appendChild(el('button', {
+    class:   'sidebar__item' + (state.view === 'setup' ? ' is-active' : ''),
+    onclick: () => switchToSetup(),
+  }, 'Menus in use'));
+}
+
+/** Does any of this menu's languages have unsaved edits? */
+function isMenuDirty(m) {
+  const slugs = m.variants ? m.variants.map(v => v.slug) : [m.slug];
+  return slugs.some(s => state.dirty.has(s));
+}
+
+// ── Unsaved-changes tracking ─────────────────────────────────
+// Every edit marks its menu dirty: the sidebar gets a dot, the save button
+// lights up, and leaving the page asks first. Saving clears it.
+function markDirty(slug) {
+  if (state.dirty.has(slug)) return;
+  state.dirty.add(slug);
+  renderSidebar();
+  paintSaveBar();
+}
+function clearDirty(slug) {
+  if (!state.dirty.delete(slug)) return;
+  renderSidebar();
+  paintSaveBar();
+}
+function paintSaveBar() {
+  const btn = document.getElementById('save-btn');
+  if (!btn) return;
+  const dirty = state.dirty.has(currentSlug());
+  btn.classList.toggle('is-dirty', dirty);
+  btn.textContent = dirty ? 'Save changes •' : 'Save changes';
+}
+window.addEventListener('beforeunload', (e) => {
+  if (state.dirty.size) { e.preventDefault(); e.returnValue = ''; }
+});
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 's') {
+    e.preventDefault();
+    const btn = document.getElementById('save-btn');
+    if (btn) btn.click();
+  }
+});
+
+/** Move an element one slot up (dir < 0) or down (dir > 0) among its siblings. */
+function moveEl(node, dir) {
+  const parent = node.parentElement;
+  if (!parent) return false;
+  if (dir < 0 && node.previousElementSibling) { parent.insertBefore(node, node.previousElementSibling); return true; }
+  if (dir > 0 && node.nextElementSibling)     { parent.insertBefore(node.nextElementSibling, node);     return true; }
+  return false;
 }
 
 // ── State serialization ──────────────────────────────────────
@@ -153,7 +224,8 @@ function uploadHintFor(menu) {
 }
 
 function renderPanel() {
-  if (state.view === 'sync') return renderSyncPanel();
+  if (state.view === 'sync')  return renderSyncPanel();
+  if (state.view === 'setup') return renderSetupPanel();
   const menu = activeMenu();
   const slug = currentSlug();
   const dir  = currentDir();
@@ -177,6 +249,16 @@ function renderPanel() {
       el('p',  { class: 'panel__sub'   }, subLine),
     ),
   ));
+
+  // A menu the venue has switched off is still fully editable — it just
+  // isn't on the site. Say so, and offer the one-click way back.
+  if (isOff(menu.id)) {
+    panel.appendChild(el('div', { class: 'notice' },
+      el('span', {}, menu.label + ' is switched off — visitors don’t see this menu on ' +
+        (SITE === 'rooftop' ? 'the rooftop site' : 'the site') + '.'),
+      el('button', { class: 'notice__btn', onclick: () => setMenuOff(menu.id, false) }, 'Switch it on'),
+    ));
+  }
 
   // Sub-tabs (HE / EN variants)
   if (menu.variants) {
@@ -225,8 +307,9 @@ function renderPanel() {
 
   // Save bar
   const saveStatus = el('span',   { class: 'save-status' });
-  const saveBtn    = el('button', { class: 'btn-save', onclick: () => saveCurrent(saveStatus) }, 'Save changes');
-  panel.appendChild(el('div', { class: 'save-bar' }, saveBtn, saveStatus));
+  const saveBtn    = el('button', { class: 'btn-save', id: 'save-btn', onclick: () => saveCurrent(saveStatus) }, 'Save changes');
+  panel.appendChild(el('div', { class: 'save-bar' }, saveBtn, saveStatus,
+    el('span', { class: 'save-hint' }, '⌘S')));
 
   // Featured-items hint
   panel.appendChild(el('p', { class: 'featured-hint' },
@@ -253,6 +336,12 @@ function renderPanel() {
   }, '+ Add category'));
 
   main.appendChild(panel);
+
+  // Any typing in this panel means the menu has unsaved edits.
+  panel.addEventListener('input', (e) => {
+    if (e.target && e.target.closest('.sections, .date-input')) markDirty(slug);
+  });
+  paintSaveBar();
 
   requestAnimationFrame(() => {
     panel.querySelectorAll('textarea.item-input').forEach(autosize);
@@ -348,15 +437,28 @@ function buildSectionBlock(slug, section, si) {
         setStar(false);
       }
       updateFeaturedCount();
+      markDirty(slug);
     });
 
     const delBtn = el('button', {
       class:   'btn-icon',
       title:   'Delete item',
-      onclick: () => { row.remove(); updateSectionCount(block); updateFeaturedCount(); },
+      onclick: () => { row.remove(); updateSectionCount(block); updateFeaturedCount(); markDirty(slug); },
     }, '✕');
 
-    const row = el('div', { class: 'item-row' }, starBtn, nameI, descI, priceI, delBtn);
+    // Move the dish up or down its list — the order here is the order on the
+    // menu, and until now the only way to change it was to retype the rows.
+    const upBtn = el('button', {
+      class: 'btn-icon btn-move', title: 'Move up',
+      onclick: () => { if (moveEl(row, -1)) markDirty(slug); },
+    }, '↑');
+    const downBtn = el('button', {
+      class: 'btn-icon btn-move', title: 'Move down',
+      onclick: () => { if (moveEl(row, +1)) markDirty(slug); },
+    }, '↓');
+
+    const row = el('div', { class: 'item-row' }, starBtn, nameI, descI, priceI,
+      el('span', { class: 'row-tools' }, upBtn, downBtn, delBtn));
     if (item.featured) setStar(true);
     itemsList.appendChild(row);
     requestAnimationFrame(() => { autosize(nameI); autosize(descI); });
@@ -369,7 +471,13 @@ function buildSectionBlock(slug, section, si) {
     el('div', { class: 'section-footer' },
       el('button', {
         class:   'btn-add-item',
-        onclick: () => { addItemRow(); updateSectionCount(block); },
+        onclick: () => {
+          const row = addItemRow();
+          updateSectionCount(block);
+          markDirty(slug);
+          const first = row.querySelector('.item-input.name');
+          if (first) first.focus();
+        },
       }, '+ Add item'),
     ),
   );
@@ -384,9 +492,22 @@ function buildSectionBlock(slug, section, si) {
   const count          = el('span', { class: 'section-count' }, items.length + ' items');
   const featuredCountEl = el('span', { class: 'section-featured', title: 'Items featured on the home page' }, '★ 0/' + MAX_FEATURED);
   const toggleBtn = el('button', { class: 'section-toggle', title: 'Collapse / expand', type: 'button' }, '▾');
+  // Categories can be reordered too — the order here is the order on the menu.
+  const secUp = el('button', {
+    class: 'btn-icon btn-move', title: 'Move category up',
+    onclick: () => { if (moveEl(block, -1)) { state.collapsed[slug] = new Set(); markDirty(slug); } },
+  }, '↑');
+  const secDown = el('button', {
+    class: 'btn-icon btn-move', title: 'Move category down',
+    onclick: () => { if (moveEl(block, +1)) { state.collapsed[slug] = new Set(); markDirty(slug); } },
+  }, '↓');
   const delSec    = el('button', { class: 'btn-icon', title: 'Delete category',
-    onclick: () => block.remove() }, '🗑');
-  const sHead     = el('div', { class: 'section-head-row' }, toggleBtn, titleInput, count, featuredCountEl, delSec);
+    onclick: () => {
+      if (!confirm('Delete “' + (titleInput.value || 'this category') + '” and all its items?')) return;
+      block.remove(); markDirty(slug);
+    } }, '🗑');
+  const sHead     = el('div', { class: 'section-head-row' }, toggleBtn, titleInput, count, featuredCountEl,
+    el('span', { class: 'row-tools' }, secUp, secDown, delSec));
 
   const isCollapsed = state.collapsed[slug] && state.collapsed[slug].has(si);
   const block = el('div', {
@@ -412,6 +533,7 @@ function addSection(slug) {
   if (empty) container.removeChild(empty);
   const block = buildSectionBlock(slug, { title: '', items: [] }, container.children.length);
   container.appendChild(block);
+  markDirty(slug);
   block.querySelector('.section-title-input')?.focus();
 }
 
@@ -427,6 +549,7 @@ async function saveSlug(slug) {
     const json = await res.json();
     if (json.ok) {
       state.data[slug] = payload;
+      clearDirty(slug);
       try { bc?.postMessage({ slug, ts: Date.now() }); } catch {}
       return { ok: true };
     }
@@ -792,6 +915,74 @@ async function handleDocx(input, menu, infoEl) {
   }
 }
 
+// ── Menus in use (per venue) ─────────────────────────────────
+// The rooftop bar doesn't serve everything the restaurant does. Switching a
+// menu off here drops its tab from the menu page and its tile from the home
+// page for THIS venue only — the menu itself, and everything in it, is kept.
+async function setMenuOff(id, off) {
+  if (off) state.menusOff.add(id); else state.menusOff.delete(id);
+  renderSidebar();
+  renderPanel();
+  const statusEl = document.getElementById('setup-status');
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.className = 'save-status'; }
+  try {
+    const res = await fetch('/admin/menu-visibility', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ off: Array.from(state.menusOff) }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Save failed');
+    state.menusOff = new Set(j.off);
+    renderSidebar();
+    if (statusEl) { statusEl.textContent = '✓ Saved · live on the site'; statusEl.className = 'save-status ok'; }
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = 'Error: ' + (e.message || e); statusEl.className = 'save-status err'; }
+  }
+}
+
+function switchToSetup() {
+  state.view = 'setup';
+  renderSidebar();
+  renderSetupPanel();
+}
+
+function renderSetupPanel() {
+  const main = document.getElementById('main-area');
+  main.innerHTML = '';
+  const panel = el('div', { class: 'panel is-active' });
+  panel.appendChild(el('div', { class: 'panel__head' },
+    el('div', {},
+      el('h1', { class: 'panel__title' }, 'Menus in use'),
+      el('p',  { class: 'panel__sub'   },
+        'Which menus ' + (SITE === 'rooftop' ? 'the rooftop' : 'Zahara') + ' shows on its site'),
+    ),
+  ));
+
+  panel.appendChild(el('div', { class: 'save-bar' },
+    el('span', { class: 'save-status', id: 'setup-status' })));
+
+  panel.appendChild(el('p', { class: 'featured-hint' },
+    'Switching a menu off removes its tab from the menu page and its tile from the ' +
+    'home page — for this venue only. Nothing is deleted: switch it back on and it ' +
+    'returns exactly as it was. Changes are live the moment you flip a switch.'));
+
+  const list = el('div', { class: 'sections' });
+  for (const m of MENUS) {
+    const on = !isOff(m.id);
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = on;
+    cb.addEventListener('change', () => setMenuOff(m.id, !cb.checked));
+    const slugs = m.variants ? m.variants.map(v => v.slug).join(' · ') : m.slug;
+    list.appendChild(el('div', { class: 'setup-row' + (on ? '' : ' is-off') },
+      el('label', { class: 'sync-toggle' }, cb, el('span', { class: 'setup-row__name' }, m.label)),
+      el('span', { class: 'setup-row__slugs' }, slugs),
+      el('span', { class: 'setup-row__state' }, on ? 'On the site' : 'Hidden'),
+    ));
+  }
+  panel.appendChild(list);
+  main.appendChild(panel);
+}
+
 // ── Switching ────────────────────────────────────────────────
 async function switchMenu(menuId) {
   state.view   = 'editor';
@@ -895,7 +1086,7 @@ function renderSyncPanel() {
 
   // Menu rows
   const list = el('div', { class: 'sections' });
-  for (const def of SYNC_MENUS) {
+  for (const def of syncMenus()) {
     const m     = cfg.menus[def.slug] || {};
     const input = el('input', { class: 'sync-link', type: 'text', value: m.link || '',
       placeholder: 'OneDrive link', 'data-slug': def.slug });
@@ -974,10 +1165,10 @@ async function syncAll(btn, statusEl) {
 }
 
 // ── Init ─────────────────────────────────────────────────────
+// Sync opens first — pulling the day's menus is the job people come here for.
 async function init() {
   renderSidebar();
-  await loadSlug(currentSlug());
-  renderPanel();
+  await switchToSync();
 }
 
 init();

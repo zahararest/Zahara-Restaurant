@@ -41,15 +41,22 @@ export type ContentEnv = SiteBindings;
 // once a field is saved from the current editor.
 export type ContentAlign = 'start' | 'center' | 'end';
 export interface ContentStyle { size?: number; align?: ContentAlign; dash?: boolean }
+/** The owner's own "original" for one language — the copy (and styling) they
+ *  pinned with "Set as original" in the editor. When present it replaces the
+ *  built-in default as the thing the Original button restores and the thing
+ *  the "Edited" badge compares against. Nothing on the live site reads it. */
+export interface ContentBase extends ContentStyle { text?: string }
 export type ContentValue = {
   he?: string; en?: string;
   heStyle?: ContentStyle; enStyle?: ContentStyle;
+  heBase?: ContentBase;   enBase?: ContentBase;
   /** Pre-split shared styling (applies to both languages) — read-only
    *  fallback, superseded by heStyle/enStyle on the next save. */
   size?: number; dash?: boolean; align?: ContentAlign;
 };
 const ALIGNS = new Set<ContentAlign>(['start', 'center', 'end']);
 export const STYLE_KEY = { he: 'heStyle', en: 'enStyle' } as const;
+export const BASE_KEY  = { he: 'heBase',  en: 'enBase'  } as const;
 
 /** Clamp a posted size multiplier to a sane range; null if it's effectively
  *  "default" (1) or not a usable number. */
@@ -71,6 +78,21 @@ function cleanStyle(raw: unknown, defAlign: ContentAlign = 'start'): ContentStyl
   if (ALIGNS.has(o.align as ContentAlign) && o.align !== defAlign) out.align = o.align as ContentAlign;
   if (o.dash === true) out.dash = true;
   return (out.size !== undefined || out.align !== undefined || out.dash !== undefined) ? out : null;
+}
+
+/** Reduce arbitrary input to a clean ContentBase (the owner's pinned
+ *  "original"). Unlike a style, an explicit empty text IS meaningful — it
+ *  pins "this field shows nothing". */
+function cleanBase(raw: unknown): ContentBase | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const out: ContentBase = {};
+  if (typeof o.text === 'string') out.text = o.text.slice(0, MAX_LEN);
+  const sz = cleanSize(o.size);
+  if (sz !== null) out.size = sz;
+  if (ALIGNS.has(o.align as ContentAlign)) out.align = o.align as ContentAlign;
+  if (o.dash === true) out.dash = true;
+  return out.text !== undefined ? out : null;
 }
 
 /** The styling that applies to one language — the per-language record when it
@@ -456,10 +478,12 @@ export function sanitiseContent(input: unknown): ContentMap {
       const s = (v as Record<string, unknown>)[lang];
       if (typeof s === 'string') val[lang] = s.slice(0, MAX_LEN);
     }
-    // Per-language styling (current format).
+    // Per-language styling + the owner's pinned "original" (current format).
     for (const lang of ['he', 'en'] as const) {
       const st = cleanStyle((v as Record<string, unknown>)[STYLE_KEY[lang]], defaultAlignFor(k));
       if (st) val[STYLE_KEY[lang]] = st;
+      const bs = cleanBase((v as Record<string, unknown>)[BASE_KEY[lang]]);
+      if (bs) val[BASE_KEY[lang]] = bs;
     }
     // Legacy shared styling — kept so records saved before the split keep
     // rendering; the next save from the editor replaces them.
@@ -470,7 +494,8 @@ export function sanitiseContent(input: unknown): ContentMap {
     if (ALIGNS.has(al as ContentAlign) && al !== 'start') val.align = al as ContentAlign;
     if (val.he !== undefined || val.en !== undefined || val.size !== undefined
         || val.dash !== undefined || val.align !== undefined
-        || val.heStyle !== undefined || val.enStyle !== undefined) out[k] = val;
+        || val.heStyle !== undefined || val.enStyle !== undefined
+        || val.heBase !== undefined || val.enBase !== undefined) out[k] = val;
   }
   return out;
 }
@@ -507,6 +532,16 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
         else delete cur[slot];
       }
       delete cur.size; delete cur.dash; delete cur.align;
+      // The owner's pinned "original", saved alongside. Sending null (or an
+      // object with no text) clears it and hands the field back to the
+      // built-in default.
+      for (const lang of ['he', 'en'] as const) {
+        const slot = BASE_KEY[lang];
+        if (!(slot in (v as object))) continue;
+        const bs = cleanBase((v as Record<string, unknown>)[slot]);
+        if (bs) cur[slot] = bs;
+        else delete cur[slot];
+      }
     } else {
       // Legacy shared controls (older clients). Same semantics as before:
       // 1 / false / 'start' / absent clears the stored value.
@@ -527,7 +562,8 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
     }
     if (cur.he !== undefined || cur.en !== undefined || cur.size !== undefined
         || cur.dash !== undefined || cur.align !== undefined
-        || cur.heStyle !== undefined || cur.enStyle !== undefined) merged[k] = cur;
+        || cur.heStyle !== undefined || cur.enStyle !== undefined
+        || cur.heBase !== undefined || cur.enBase !== undefined) merged[k] = cur;
     else delete merged[k];
   }
   return merged;

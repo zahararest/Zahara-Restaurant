@@ -418,9 +418,9 @@ const emptyLabel = t.emptyLabel;
           // { label: t.menuSplitDessert,   tab: 'dessert',   photo: PHOTOS.menuDessert   },
         ];
         return (
-      <ol class="menu-tiles reveal-on-scroll" style={`--tile-count:${parts.length}`}>
+      <ol class="menu-tiles reveal-on-scroll" style={`--tile-count:${parts.length}`} data-menu-tiles>
         {parts.map((part, i) => (
-          <li class="menu-tiles__item">
+          <li class="menu-tiles__item" data-menu-cat={part.tab}>
             {/* One click goes straight to the matching section of the menu
                 page (the #tab-… hash activates the right category there).
                 Same behaviour on desktop and mobile. */}
@@ -457,6 +457,31 @@ const emptyLabel = t.emptyLabel;
       </ol>
         );
       })()}
+
+      {/* Drop the tiles for categories this venue doesn't use (the rooftop
+          may serve only some of them). The list is injected by the
+          middleware; this runs while the strip is still parsing, so a
+          dropped tile never paints. */}
+      <script is:inline>
+        (function () {
+          var tag = document.getElementById('zahara-menus');
+          var list = document.querySelector('[data-menu-tiles]');
+          if (!tag || !list) return;
+          var off;
+          try { off = (JSON.parse(tag.textContent || '{}').off) || []; } catch (e) { return; }
+          if (!off.length) return;
+          off.forEach(function (id) {
+            var tile = list.querySelector('[data-menu-cat="' + id + '"]');
+            if (tile) tile.remove();
+          });
+          var left = list.querySelectorAll('[data-menu-cat]');
+          list.style.setProperty('--tile-count', String(left.length));
+          for (var i = 0; i < left.length; i++) {
+            var num = left[i].querySelector('.menu-tile__num');
+            if (num) num.textContent = ('0' + (i + 1)).slice(-2);
+          }
+        })();
+      </script>
 
       <!-- <div class="menu-split__cta reveal-on-scroll">
         <a class="btn menu-split__btn" href={menuPath} data-content-key="home.menuSplitCta">{t.menuSplitCta}</a>

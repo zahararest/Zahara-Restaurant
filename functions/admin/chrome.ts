@@ -12,7 +12,12 @@ export const ADMIN_FONTS_HREF =
   'https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500' +
   '&family=Heebo:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap';
 
-/** Palette tokens + base body + the shared `.topbar` header styles. */
+/** Palette tokens + base body + the shared `.topbar` header styles.
+ *
+ *  The VENUE tints the whole tool. Zahara keeps the terracotta admin accent;
+ *  the rooftop switches to a deep teal and paints a stripe across the top of
+ *  every page, so it's impossible to type rooftop copy into Zahara by
+ *  accident. Only the tokens change — no page needs venue-specific CSS. */
 export const CHROME_CSS = String.raw`
 :root {
   --paper:#F4EDDF; --deep:#ECE3D0; --edge:#DFD4BB; --card:#FBF7EE;
@@ -21,6 +26,17 @@ export const CHROME_CSS = String.raw`
   --accent:#9C4621; --accent-d:#6F2F12; --accent-soft:#F2DFCF;
   --ok:#4F6B47;    --err:#A53623;
   --ok-bg:rgba(79,107,71,.08); --err-bg:rgba(165,54,35,.08);
+  --venue:#9C4621; --venue-soft:#F2DFCF;
+}
+html[data-venue="rooftop"] {
+  --paper:#EFEAE0; --deep:#E4DFD2; --edge:#CFC9BA; --card:#F8F5EE;
+  --accent:#1F6260; --accent-d:#134442; --accent-soft:#D8E8E5;
+  --venue:#1F6260; --venue-soft:#D8E8E5;
+}
+/* The venue stripe — always the first thing on screen. */
+body::before {
+  content: ''; position: fixed; inset-block-start: 0; inset-inline: 0;
+  block-size: 4px; background: var(--venue); z-index: 100; pointer-events: none;
 }
 *,*::before,*::after { box-sizing: border-box; }
 body {
@@ -38,17 +54,23 @@ button, input, select, textarea { font: inherit; }
 ::selection { background: var(--accent-soft); color: var(--ink); }
 
 .topbar {
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  border-bottom: 1px solid var(--line-soft);
-  padding: .7rem 1.75rem .9rem;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  padding: .8rem 1.75rem .9rem;
   display: grid; gap: .55rem;
   position: sticky; top: 0; z-index: 30;
-  backdrop-filter: blur(10px);
 }
 .topbar__nav { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
 .topbar__brand {
+  display: inline-flex; align-items: baseline; gap: .45rem;
   font-size: .78rem; font-weight: 700; letter-spacing: .24em; text-transform: uppercase;
-  color: var(--ink); padding-inline-end: .4rem; border-inline-end: 1px solid var(--edge); margin-inline-end: .4rem;
+  color: var(--ink); padding-inline-end: .55rem; border-inline-end: 1px solid var(--edge); margin-inline-end: .4rem;
+}
+/* The venue's own name, in its own colour, sitting in the brand lockup. */
+.topbar__venuename { color: var(--venue); }
+.topbar__venuename::before {
+  content: ''; display: inline-block; inline-size: .5rem; block-size: .5rem;
+  background: var(--venue); margin-inline-end: .4rem; border-radius: 50%;
 }
 .topbar__navlink {
   font-size: .78rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 600;
@@ -64,17 +86,43 @@ button, input, select, textarea { font: inherit; }
 /* Venue switch — flip the whole admin between the Zahara restaurant and the
    Nucha Rooftop bar. It writes a cookie (path=/admin) that every /admin/*
    read + write scopes to, so editing one venue never touches the other. */
-.topbar__venue { display: inline-flex; border: 1px solid var(--edge); background: var(--card); }
+.topbar__venue { display: inline-flex; align-items: center; gap: .5rem; }
+.topbar__venuelabel {
+  font-size: .62rem; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; color: var(--muted);
+}
+.topbar__venuebtns { display: inline-flex; border: 1px solid var(--venue); background: var(--card); }
 .topbar__venuebtn {
   font: inherit; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
-  padding: .35rem .7rem; background: transparent; color: var(--muted); border: 0;
+  padding: .35rem .8rem; background: transparent; color: var(--muted); border: 0;
   border-inline-end: 1px solid var(--edge); cursor: pointer; transition: background .15s, color .15s;
 }
 .topbar__venuebtn:last-child { border-inline-end: 0; }
 .topbar__venuebtn:hover { color: var(--ink); }
-.topbar__venuebtn.is-active { background: var(--ink); color: var(--paper); }
-.topbar__venuebtn.is-active[data-venue="rooftop"] { background: var(--accent); }
+.topbar__venuebtn.is-active { background: var(--venue); color: #fff; }
 `;
+
+/** How each venue is named in the admin chrome. */
+export const VENUE_NAME: Record<'zahara' | 'rooftop', string> = {
+  zahara: 'Zahara', rooftop: 'Nucha Rooftop',
+};
+
+/** The opening tags of an admin page. `data-venue` is server-rendered so the
+ *  venue tint is right on the FIRST paint — no flash of the other venue's
+ *  colours — and the tab title says which venue you're in. */
+export function adminHead(site: 'zahara' | 'rooftop', pageTitle: string, extraHead = ''): string {
+  return `<!doctype html>
+<html lang="en" dir="ltr" data-venue="${site}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>${VENUE_NAME[site]} · ${pageTitle} · Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="${ADMIN_FONTS_HREF}" />
+  ${extraHead}
+</head>`;
+}
 
 interface NavItem { id: string; href: string; label: string; }
 const NAV: NavItem[] = [
@@ -82,10 +130,14 @@ const NAV: NavItem[] = [
   { id: 'images',  href: '/admin/images/',  label: 'Images' },
   { id: 'content', href: '/admin/content/', label: 'Content' },
   { id: 'colors',  href: '/admin/colors/',  label: 'Colors' },
+  // Read-only, and the one section that is NOT venue-scoped — the /reserve/
+  // portal sits above both venues (see functions/admin/reserve.ts).
+  { id: 'reserve', href: '/admin/reserve/', label: 'Reserve stats' },
 ];
 
 const TITLES: Record<string, string> = {
   menu: 'Menu editor', images: 'Images', content: 'Content', colors: 'Colors',
+  reserve: 'Reserve portal',
 };
 
 /**
@@ -113,11 +165,14 @@ export function topbar(
 
   return `<header class="topbar">
     <nav class="topbar__nav" aria-label="Admin sections">
-      <a class="topbar__brand" href="/admin/">Zahara · Admin</a>
+      <a class="topbar__brand" href="/admin/">
+        <span class="topbar__venuename">${VENUE_NAME[site]}</span><span aria-hidden="true">·</span><span>Admin</span>
+      </a>
       ${links}
       <span class="topbar__spacer"></span>
       <div class="topbar__venue" role="group" aria-label="Venue being edited">
-        ${venueBtn('zahara', 'Zahara')}${venueBtn('rooftop', 'Rooftop')}
+        <span class="topbar__venuelabel">Editing</span>
+        <span class="topbar__venuebtns">${venueBtn('zahara', 'Zahara')}${venueBtn('rooftop', 'Rooftop')}</span>
       </div>
       ${opts.rightSlot ?? ''}
       <a class="topbar__site" href="${viewHref}" target="_blank" rel="noopener">View site ↗</a>
@@ -128,7 +183,10 @@ export function topbar(
     var CK='zahara_admin_site';
     function cur(){var m=document.cookie.match(/(?:^|;\\s*)zahara_admin_site=(rooftop|zahara)/);return m?m[1]:'zahara';}
     var now=cur();
+    // Tint the whole tool for the venue being edited, before anything paints.
+    document.documentElement.setAttribute('data-venue', now);
     document.querySelectorAll('[data-venue]').forEach(function(b){
+      if (b === document.documentElement) return;
       var v=b.getAttribute('data-venue');
       b.classList.toggle('is-active', v===now);
       b.addEventListener('click', function(){

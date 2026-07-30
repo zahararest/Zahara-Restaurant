@@ -47,7 +47,7 @@ const TITLE = 'Color editor · Zahara';
 
 <header class="editor-top">
   <nav class="editor-top__nav" aria-label="Admin sections">
-    <a class="editor-top__brand" href="/admin/">Zahara · Admin</a>
+    <a class="editor-top__brand" href="/admin/"><span class="editor-top__venuename" data-venue-name>Zahara</span> · Admin</a>
     <a class="editor-top__navlink"           href="/admin/">Menu editor</a>
     <a class="editor-top__navlink"           href="/admin/images/">Images</a>
     <a class="editor-top__navlink"           href="/admin/content/">Content</a>
@@ -56,6 +56,7 @@ const TITLE = 'Color editor · Zahara';
     {/* Venue switch — mirrors the shared admin topbar; scopes which venue's
         palette this editor loads + saves (via the zahara_admin_site cookie). */}
     <div class="editor-venue" role="group" aria-label="Venue being edited">
+      <span style="font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--e-mut);margin-inline-end:.4rem;">Editing</span>
       <button type="button" data-venue="zahara">Zahara</button>
       <button type="button" data-venue="rooftop">Rooftop</button>
     </div>
@@ -65,10 +66,17 @@ const TITLE = 'Color editor · Zahara';
     var CK='zahara_admin_site';
     function cur(){var m=document.cookie.match(/(?:^|;\s*)zahara_admin_site=(rooftop|zahara)/);return m?m[1]:'zahara';}
     var now=cur();
+    // Tint the whole editor for the venue being edited (stripe + accent), and
+    // name it in the brand lockup — same signal as every other admin page.
+    document.documentElement.setAttribute('data-venue', now);
+    var nameEl=document.querySelector('[data-venue-name]');
+    if(nameEl) nameEl.textContent = now==='rooftop' ? 'Nucha Rooftop' : 'Zahara';
+    document.title = (now==='rooftop' ? 'Nucha Rooftop' : 'Zahara') + ' · Colors · Admin';
     document.querySelectorAll('.editor-venue [data-venue]').forEach(function(b){
       var v=b.getAttribute('data-venue');
       var on=v===now;
-      b.style.cssText='font:inherit;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:.35rem .7rem;cursor:pointer;border:1px solid #D5CBB1;background:'+(on?(v==='rooftop'?'#9C4621':'#1a1410'):'transparent')+';color:'+(on?'#F4EDDF':'#6f6457')+';';
+      var venue=now==='rooftop'?'#1F6260':'#9C4621';
+      b.style.cssText='font:inherit;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:.35rem .8rem;cursor:pointer;border:1px solid '+venue+';background:'+(on?venue:'transparent')+';color:'+(on?'#fff':'#6f6457')+';';
       b.addEventListener('click',function(){
         if(v===cur())return;
         document.cookie=CK+'='+v+';path=/admin;max-age=31536000;samesite=lax';

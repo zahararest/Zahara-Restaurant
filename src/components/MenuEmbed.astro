@@ -111,6 +111,38 @@ const updatedLbl  = t.updatedLabel;
   </div>{/* end .menu-embed-main */}
 </div>
 
+{/* Categories this venue doesn't use. The middleware injects the list as
+    <script id="zahara-menus">; this runs while the block is still parsing,
+    so a dropped tab never paints. Whatever survives keeps working normally —
+    the main script below queries the DOM after this has run. */}
+<script is:inline>
+  (function () {
+    var tag = document.getElementById('zahara-menus');
+    if (!tag) return;
+    var off;
+    try { off = (JSON.parse(tag.textContent || '{}').off) || []; } catch (e) { return; }
+    if (!off.length) return;
+    var embed = document.getElementById('menu-embed');
+    if (!embed) return;
+    off.forEach(function (id) {
+      var tab = embed.querySelector('.menu-tab[data-tab-id="' + id + '"]');
+      var pan = embed.querySelector('.menu-panel[data-tab-id="' + id + '"]');
+      if (tab) tab.remove();
+      if (pan) pan.remove();
+    });
+    // Renumber, and make sure something is still selected.
+    var tabs   = embed.querySelectorAll('.menu-tab');
+    var panels = embed.querySelectorAll('.menu-panel');
+    for (var i = 0; i < tabs.length; i++) tabs[i].setAttribute('data-index', String(i));
+    for (var j = 0; j < panels.length; j++) panels[j].setAttribute('data-panel', String(j));
+    if (tabs.length && !embed.querySelector('.menu-tab.is-active')) {
+      tabs[0].classList.add('is-active');
+      tabs[0].setAttribute('aria-selected', 'true');
+      if (panels[0]) panels[0].classList.add('is-active');
+    }
+  })();
+</script>
+
 <script define:vars={{ pageLang: lang, updatedLbl, bottleLabel, glassLabel, menuTitle: t.eyebrow, noCocktailsLabel: t.noCocktails, menuUnavailableLabel: t.notReady, siteParam: SITE_QUERY }}>
   // ── HTML escape ─────────────────────────────────────────────
   const esc = s => String(s ?? '')

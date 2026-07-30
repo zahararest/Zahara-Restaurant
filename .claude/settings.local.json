@@ -8,7 +8,8 @@
       "Bash(python3 -c ' *)",
       "Bash(npx astro *)",
       "PowerShell(cd \"c:\\\\Users\\\\gotsh\\\\Documents\\\\Zahara\\\\restaurant-site-2\"; \\(Get-Item src/pages/admin/colors.astro\\).Length)",
-      "Bash(awk -F: '$1>735')"
+      "Bash(awk -F: '$1>735')",
+      "Bash(lsof -nP -iTCP -sTCP:LISTEN)"
     ]
   }
 }
