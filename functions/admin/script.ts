@@ -21,12 +21,15 @@ try { bc = new BroadcastChannel('zahara-menu'); } catch {}
 const state = {
   // Sync is the front door: it's what the owner comes here to do most days,
   // so it opens first and sits at the top of the list.
-  view:          'sync',     // 'sync' | 'editor' | 'setup'
+  view:          'sync',     // 'sync' | 'editor' | 'setup' | 'eventsPdf'
   menuId:        MENUS[0].id,
   data:          {},
   collapsed:     {},
   activeVariant: {},
   syncConfig:    null,       // { enabled, hours, menus } once loaded
+  // The Events-page menu PDF: { config, hasPdf }. Its own source and its own
+  // "Sync now" — never part of the .docx sync above.
+  eventsPdf:     null,
   // Menus this venue doesn't use — greyed out here, dropped from the site.
   menusOff:      new Set(${JSON.stringify(menusOff)}),
   dirty:         new Set(),  // slugs with unsaved edits
@@ -36,9 +39,11 @@ const menuLabel = id => (MENUS.find(m => m.id === id) || {}).label || id;
 const isOff     = id => state.menusOff.has(id);
 
 // Flat list of every syncable menu slug → friendly label, derived from the
-// same MENUS config the editor uses. Events have no OneDrive doc, so skip them.
-// Menus the venue has switched off are skipped too — no point pulling a menu
-// nobody can see.
+// same MENUS config the editor uses. The events menu is skipped: it has no
+// .docx of its own, and its PDF has a SEPARATE source and sync button of its
+// own (see the "Events menu (PDF)" panel), deliberately out of reach of
+// "Sync all now" and the schedule. Menus the venue has switched off are
+// skipped too — no point pulling a menu nobody can see.
 function syncMenus() {
   const out = [];
   for (const m of MENUS) {
@@ -113,6 +118,14 @@ function renderSidebar() {
     if (off) item.appendChild(el('span', { class: 'sidebar__badge' }, 'off'));
     sidebar.appendChild(item);
   }
+
+  // The events menu is a finished PDF rather than a list of dishes, so it gets
+  // its own panel at the foot of the menu list — file + its own OneDrive sync.
+  sidebar.appendChild(el('button', {
+    class:   'sidebar__item' + (state.view === 'eventsPdf' ? ' is-active' : ''),
+    title:   'The PDF behind the button on the Events page',
+    onclick: () => switchToEventsPdf(),
+  }, 'Events menu (PDF)'));
 
   sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'This venue'));
   sidebar.appendChild(el('button', {
@@ -224,8 +237,9 @@ function uploadHintFor(menu) {
 }
 
 function renderPanel() {
-  if (state.view === 'sync')  return renderSyncPanel();
-  if (state.view === 'setup') return renderSetupPanel();
+  if (state.view === 'sync')      return renderSyncPanel();
+  if (state.view === 'setup')     return renderSetupPanel();
+  if (state.view === 'eventsPdf') return renderEventsPdfPanel();
   const menu = activeMenu();
   const slug = currentSlug();
   const dir  = currentDir();
@@ -983,6 +997,243 @@ function renderSetupPanel() {
   main.appendChild(panel);
 }
 
+// ── Events menu (PDF) ────────────────────────────────────────
+// The Events page shows a designed PDF, not a list of dishes: it is uploaded
+// (or pulled from OneDrive) as a file and served straight from R2. It keeps
+// its OWN OneDrive source and its OWN "Sync now" — the .docx sync panel and
+// the hourly schedule never touch it, so replacing the events menu is always
+// a deliberate act.
+async function loadEventsPdf() {
+  try {
+    const res = await fetch('/admin/events-menu/sync', { cache: 'no-store' });
+    const j   = await res.json();
+    state.eventsPdf = { config: (j && j.config) || {}, hasPdf: !!(j && j.hasPdf) };
+  } catch {
+    state.eventsPdf = { config: {}, hasPdf: false };
+  }
+}
+
+async function switchToEventsPdf() {
+  state.view = 'eventsPdf';
+  renderSidebar();
+  document.getElementById('main-area').innerHTML =
+    '<div class="panel is-active"><p class="upload-info">Loading the events menu…</p></div>';
+  if (!state.eventsPdf) await loadEventsPdf();
+  renderEventsPdfPanel();
+}
+
+/** The live PDF's URL, cache-busted so a just-replaced file really opens. */
+function eventsPdfUrl() {
+  return '/events-menu?v=' + Date.now() + (SITE === 'rooftop' ? '&site=rooftop' : '');
+}
+
+function eventsPdfSyncText(cfg) {
+  if (!cfg || !cfg.lastSync) return '';
+  const when = new Date(cfg.lastSync).toLocaleString();
+  if (cfg.lastStatus === 'ok') {
+    const size = cfg.lastSize ? ' · ' + Math.max(1, Math.round(cfg.lastSize / 1024)) + ' KB' : '';
+    return '✓ ' + (cfg.lastName || 'PDF') + size + ' · ' + when;
+  }
+  return '✕ ' + (cfg.lastStatus || 'error') + ' · ' + when;
+}
+
+function renderEventsPdfPanel() {
+  const st   = state.eventsPdf || { config: {}, hasPdf: false };
+  const cfg  = st.config || {};
+  const main = document.getElementById('main-area');
+  main.innerHTML = '';
+  const panel = el('div', { class: 'panel is-active' });
+
+  panel.appendChild(el('div', { class: 'panel__head' },
+    el('div', {},
+      el('h1', { class: 'panel__title' }, 'Events menu (PDF)'),
+      el('p',  { class: 'panel__sub'   }, 'The menu behind the button on the Events page'),
+    ),
+  ));
+
+  panel.appendChild(el('div', { class: 'notice' },
+    el('span', {}, 'This menu syncs on its own. “Sync all now” and the daily ' +
+      'schedule on the Sync menus panel never touch it — it changes only when ' +
+      'you upload a file or press Sync now here.'),
+  ));
+
+  // ── The live file ────────────────────────────────────────────
+  const stateEl  = el('p', { class: 'upload-info' });
+  const statusEl = el('div', { class: 'sync-row-status' });
+  const removeBtn = el('button', {
+    class: 'subtab', style: 'border:1px solid var(--line)',
+    onclick: () => removeEventsPdf(),
+  }, 'Remove');
+
+  function paintFile() {
+    // Read state fresh: a sync REPLACES state.eventsPdf, so the object this
+    // panel closed over goes stale the moment "Sync now" succeeds.
+    const cur = state.eventsPdf || { hasPdf: false };
+    stateEl.innerHTML = '';
+    if (cur.hasPdf) {
+      stateEl.appendChild(el('a', {
+        href: eventsPdfUrl(), target: '_blank', rel: 'noopener',
+        style: 'color:var(--accent);font-weight:600',
+      }, 'View the menu that’s live now ↗'));
+    } else {
+      stateEl.appendChild(el('span', {},
+        'No menu uploaded — the button stays hidden on the Events page.'));
+    }
+    removeBtn.hidden = !cur.hasPdf;
+    uploadSpan.textContent = cur.hasPdf ? 'Replace PDF' : 'Upload PDF';
+  }
+
+  const fileInput = el('input', { type: 'file', accept: 'application/pdf,.pdf' });
+  const uploadSpan = el('span', {}, 'Upload PDF');
+  fileInput.addEventListener('change', () => uploadEventsPdf(fileInput));
+
+  const fileTile = el('div', { class: 'tile' },
+    el('p', { class: 'tile__label' }, 'The file on the site'),
+    el('div', { class: 'tile__body', style: 'flex-direction:column;align-items:stretch;gap:.7rem' },
+      stateEl,
+      el('div', { class: 'tile__body' },
+        el('div', { class: 'file-btn' }, fileInput, uploadSpan),
+        removeBtn,
+        el('span', { class: 'upload-info' }, 'PDF only, up to 15 MB. Live the moment it finishes.'),
+      ),
+      statusEl,
+    ),
+  );
+
+  // ── Its own OneDrive source ──────────────────────────────────
+  const linkInput = el('input', {
+    class: 'sync-link', type: 'text', id: 'events-pdf-link',
+    value: cfg.link || '', placeholder: 'OneDrive link to the events menu PDF',
+  });
+  const syncStatusEl = el('div', {
+    class: 'sync-row-status' + (cfg.lastStatus === 'ok' ? ' ok' : (cfg.lastStatus ? ' err' : '')),
+  }, eventsPdfSyncText(cfg));
+  const syncBtn = el('button', {
+    class: 'btn-save', style: 'background:var(--accent);border-color:var(--accent)',
+    onclick: () => syncEventsPdf(syncBtn, syncStatusEl),
+  }, 'Sync now');
+  const saveLinkBtn = el('button', {
+    class: 'btn-save', onclick: () => saveEventsPdfLink(saveLinkBtn, syncStatusEl),
+  }, 'Save link');
+
+  const syncTile = el('div', { class: 'tile' },
+    el('p', { class: 'tile__label' }, 'OneDrive — this menu only'),
+    el('div', { class: 'tile__body', style: 'flex-direction:column;align-items:stretch;gap:.7rem' },
+      linkInput,
+      el('div', { class: 'tile__body' }, saveLinkBtn, syncBtn,
+        el('span', { class: 'upload-info' },
+          'Paste the link to the PDF in OneDrive. Sync now saves the link, then replaces the menu on the site with it.')),
+      syncStatusEl,
+    ),
+  );
+
+  panel.appendChild(el('div', { class: 'toolbar', style: 'grid-template-columns:1fr' }, fileTile, syncTile));
+
+  panel.appendChild(el('p', { class: 'featured-hint' },
+    'The button on the Events page appears only while a PDF is here, and ' +
+    'disappears the moment you remove it. Visitors read the menu on the page ' +
+    'itself, or open it full screen.'));
+
+  main.appendChild(panel);
+  paintFile();
+
+  // Re-paint the file card after an upload / removal / sync elsewhere in here.
+  state.repaintEventsPdf = () => { paintFile(); };
+  state.eventsPdfStatus  = statusEl;
+}
+
+function setEventsPdfStatus(msg, err) {
+  const elx = state.eventsPdfStatus;
+  if (!elx) return;
+  elx.textContent = msg || '';
+  elx.className   = 'sync-row-status' + (err ? ' err' : (msg ? ' ok' : ''));
+}
+
+async function postEventsPdf(fd) {
+  const res = await fetch('/admin/events-menu', { method: 'POST', body: fd });
+  const j   = await res.json();
+  if (!res.ok || !j.ok) throw new Error(j.error || 'Failed');
+  return j;
+}
+
+async function uploadEventsPdf(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  setEventsPdfStatus('Uploading…', false);
+  try {
+    const fd = new FormData(); fd.append('file', file);
+    await postEventsPdf(fd);
+    state.eventsPdf.hasPdf = true;
+    if (state.repaintEventsPdf) state.repaintEventsPdf();
+    setEventsPdfStatus('✓ Saved · live on the Events page now', false);
+  } catch (e) {
+    setEventsPdfStatus(String(e.message || e), true);
+  } finally {
+    input.value = '';
+  }
+}
+
+async function removeEventsPdf() {
+  if (!confirm('Remove the events menu PDF? The button disappears from the Events page.')) return;
+  setEventsPdfStatus('Removing…', false);
+  try {
+    const fd = new FormData(); fd.append('action', 'delete');
+    await postEventsPdf(fd);
+    state.eventsPdf.hasPdf = false;
+    if (state.repaintEventsPdf) state.repaintEventsPdf();
+    setEventsPdfStatus('Removed.', false);
+  } catch (e) {
+    setEventsPdfStatus(String(e.message || e), true);
+  }
+}
+
+/** POST the link (and optionally run the sync). Returns the refreshed state. */
+async function postEventsPdfSync(body) {
+  const res = await fetch('/admin/events-menu/sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const j = await res.json();
+  state.eventsPdf = { config: (j && j.config) || {}, hasPdf: !!(j && j.hasPdf) };
+  if (state.repaintEventsPdf) state.repaintEventsPdf();
+  return j;
+}
+
+function currentEventsPdfLink() {
+  const input = document.getElementById('events-pdf-link');
+  return input ? input.value.trim() : '';
+}
+
+async function saveEventsPdfLink(btn, statusEl) {
+  btn.disabled = true;
+  try {
+    await postEventsPdfSync({ link: currentEventsPdfLink() });
+    statusEl.textContent = '✓ Link saved';
+    statusEl.className   = 'sync-row-status ok';
+  } catch {
+    statusEl.textContent = 'Network error';
+    statusEl.className   = 'sync-row-status err';
+  }
+  btn.disabled = false;
+}
+
+async function syncEventsPdf(btn, statusEl) {
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Syncing…';
+  try {
+    const j = await postEventsPdfSync({ link: currentEventsPdfLink(), run: true });
+    statusEl.textContent = j.ok
+      ? eventsPdfSyncText(state.eventsPdf.config) || '✓ Synced'
+      : '✕ ' + (j.error || 'Sync failed');
+    statusEl.className = 'sync-row-status ' + (j.ok ? 'ok' : 'err');
+  } catch {
+    statusEl.textContent = 'Network error';
+    statusEl.className   = 'sync-row-status err';
+  }
+  btn.disabled = false;
+  btn.textContent = old;
+}
+
 // ── Switching ────────────────────────────────────────────────
 async function switchMenu(menuId) {
   state.view   = 'editor';
@@ -1098,6 +1349,19 @@ function renderSyncPanel() {
       btn,
     ));
   }
+
+  // The events menu is a PDF with its own source and its own button — say so
+  // here, where "Sync all now" might otherwise look like it covers everything.
+  list.appendChild(el('div', { class: 'sync-menu-row' },
+    el('div', { class: 'sync-menu-label' }, 'Events menu (PDF)'),
+    el('div', {}, el('div', { class: 'sync-row-status' },
+      'Kept out of “Sync all now” and the schedule — it has its own link and its own button.')),
+    el('button', {
+      class: 'subtab', style: 'border:1px solid var(--line)',
+      onclick: () => switchToEventsPdf(),
+    }, 'Open'),
+  ));
+
   panel.appendChild(list);
   main.appendChild(panel);
 }

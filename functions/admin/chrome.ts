@@ -124,8 +124,18 @@ export function adminHead(site: 'zahara' | 'rooftop', pageTitle: string, extraHe
 </head>`;
 }
 
-interface NavItem { id: string; href: string; label: string; }
-const NAV: NavItem[] = [
+export interface NavItem { id: string; href: string; label: string; }
+
+/** Every section of the admin, in header order — the ONE list.
+ *
+ *  Exported because /admin/colors/ is a static Astro page rather than a Pages
+ *  Function, so it can't call topbar(): it is the colour editor, and the
+ *  palette it edits lives on `:root`, which is exactly where CHROME_CSS puts
+ *  the admin's own tokens (the chrome would repaint itself as the owner drags
+ *  a colour). It therefore keeps its own `--e-*` chrome — but renders THESE
+ *  links, so a section added here shows up there too instead of quietly
+ *  going missing. */
+export const ADMIN_NAV: NavItem[] = [
   { id: 'menu',    href: '/admin/',         label: 'Menu editor' },
   { id: 'images',  href: '/admin/images/',  label: 'Images' },
   { id: 'content', href: '/admin/content/', label: 'Content' },
@@ -152,7 +162,7 @@ export function topbar(
   active: string,
   opts: { rightSlot?: string; titleSlot?: string; siteHref?: string; site?: 'zahara' | 'rooftop' } = {},
 ): string {
-  const links = NAV.map(n =>
+  const links = ADMIN_NAV.map(n =>
     `<a class="topbar__navlink${n.id === active ? ' is-active' : ''}" href="${n.href}"${n.id === active ? ' aria-current="page"' : ''}>${n.label}</a>`,
   ).join('\n      ');
 

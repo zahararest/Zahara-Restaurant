@@ -411,6 +411,13 @@ const STYLE = String.raw`
   .num { font: inherit; font-size: .85rem; inline-size: 4.2rem; text-align: center;
     padding: .35rem .4rem; border: 1px solid var(--line); background: #fff; color: var(--ink); }
   .num:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  /* When the popup should hide itself — a date + time, in Israel time. */
+  .when { font: inherit; font-size: .85rem; padding: .35rem .5rem;
+    border: 1px solid var(--line); background: #fff; color: var(--ink); }
+  .when:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  /* The words card, hidden while the popup style is the photo alone. Separate
+     from .is-hidden so the search/“changed only” filters keep working. */
+  .grp.is-mode-off { display: none; }
 
   .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem; }
   .mode {
@@ -831,22 +838,32 @@ const SCRIPT = String.raw`
       p.classList.toggle('is-active', p.getAttribute('data-page-panel') === id);
     });
     var panel = panels.filter(function (p) { return p.getAttribute('data-page-panel') === id; })[0];
-    // Rebuild the "on this page" jump list from the active panel's groups.
-    jump.innerHTML = '';
+    buildJump(panel);
     if (panel) {
-      $$('[data-group]', panel).forEach(function (g) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'rail__jumplink';
-        b.textContent = g.getAttribute('data-group');
-        b.addEventListener('click', function () { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-        jump.appendChild(b);
-      });
       var href = panel.getAttribute('data-page-href');
       viewLink.hidden = !href;
       if (href) viewLink.href = href;
     }
     try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  }
+
+  /** Rebuild the "on this page" list from a panel's groups, skipping any the
+   *  current settings have switched off (the popup's words in Photo style). */
+  function buildJump(panel) {
+    jump.innerHTML = '';
+    if (!panel) return;
+    $$('[data-group]', panel).forEach(function (g) {
+      if (g.classList.contains('is-mode-off')) return;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'rail__jumplink';
+      b.textContent = g.getAttribute('data-group');
+      b.addEventListener('click', function () { g.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      jump.appendChild(b);
+    });
+  }
+  function refreshJump() {
+    buildJump(panels.filter(function (p) { return p.classList.contains('is-active'); })[0]);
   }
   tabs.forEach(function (t) {
     t.addEventListener('click', function () { showPage(t.getAttribute('data-page-tab')); });
@@ -919,18 +936,44 @@ const SCRIPT = String.raw`
     fields.forEach(function (f) { map[f.getAttribute('data-key')] = entryOf(f); });
     return map;
   }
+
+  // ── "Hide the popup on …" — read as ISRAEL wall-clock time ─────────────
+  // The picker says 20:00 and the restaurant means 20:00 in Jerusalem, whatever
+  // zone the laptop is in (and whatever the server thinks). Server-side twin:
+  // jerusalemInputValue() fills the same box back in.
+  function israelOffset(ms) {
+    var f = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem', hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    var p = {};
+    f.formatToParts(new Date(ms)).forEach(function (x) { p[x.type] = x.value; });
+    var h = p.hour === '24' ? '00' : p.hour;
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +h, +p.minute, +p.second) - ms;
+  }
+  function israelInputToMs(value) {
+    var v = (value || '').trim();
+    if (!v) return 0;                                    // empty = no end time
+    var utc = Date.parse(v.slice(0, 16) + ':00Z');       // read the digits as UTC…
+    if (isNaN(utc)) return 0;
+    // …then subtract Israel's offset AT THAT MOMENT. Twice, so a time that
+    // lands near a daylight-saving switch settles on the right side of it.
+    var ms = utc - israelOffset(utc);
+    return utc - israelOffset(ms);
+  }
   async function save() {
     saveBtn.disabled = true;
     setMsg('Saving…', false);
     try {
       var payload = { map: collect() };
       var enabled = $('#popup-enabled');
-      var days    = $('#popup-days');
+      var until   = $('#popup-until');
       var mode    = $('#popup-mode');
-      if (enabled && days) {
+      if (enabled && until) {
         payload.popup = {
           enabled: enabled.checked,
-          days: Math.max(0, Math.round(parseFloat(days.value) || 0)),
+          until: israelInputToMs(until.value),
           mode: mode ? mode.value : undefined
         };
       }
@@ -990,18 +1033,45 @@ const SCRIPT = String.raw`
     function refreshNeed() {
       if (needEl) needEl.classList.toggle('is-hidden', !(modeInput.value !== 'text' && !hasImg));
     }
+    // In "Photo" style the popup shows no words at all, so the two text boxes
+    // below would be editing something nobody sees. They're hidden (never
+    // cleared — switch back to a style with words and they're still there).
+    var styleNote = $('#popup-style-note');
+    function paintTextGroups(mode) {
+      var off = mode === 'photo';
+      $$('[data-page-panel="popup"] .grp').forEach(function (g) {
+        g.classList.toggle('is-mode-off', off);
+      });
+      if (styleNote) {
+        styleNote.textContent = off
+          ? 'This style shows no words at all, so the two text boxes are hidden. Your words are kept — pick a style with text and they come back.'
+          : 'The words themselves are the two fields below.';
+      }
+      refreshJump();
+    }
     function setMode(mode) {
       modeInput.value = mode;
       $$('[data-popup-mode]').forEach(function (b) {
         b.classList.toggle('is-active', b.getAttribute('data-popup-mode') === mode);
       });
       if (photoWrap) photoWrap.classList.toggle('is-hidden', mode === 'text');
+      paintTextGroups(mode);
       refreshNeed();
       popupTouched = true;
       repaintCounts();
     }
     $$('[data-popup-mode]').forEach(function (b) {
       b.addEventListener('click', function () { setMode(b.getAttribute('data-popup-mode')); });
+    });
+    paintTextGroups(modeInput.value);   // whatever style is saved right now
+
+    // "No end time" — empties the picker, which saves as "stays until switched off".
+    var clearBtn = $('#popup-until-clear');
+    var untilEl  = $('#popup-until');
+    if (clearBtn && untilEl) clearBtn.addEventListener('click', function () {
+      untilEl.value = '';
+      popupTouched = true;
+      repaintCounts();
     });
     function swapThumb(node) { if (thumb && thumb.parentNode) { thumb.parentNode.replaceChild(node, thumb); thumb = node; } }
     function onHasImage(has) {
@@ -1065,7 +1135,7 @@ const SCRIPT = String.raw`
     });
     // The on/off switch and the day count are saved with everything else, so
     // touching them should light up the save bar too.
-    ['popup-enabled', 'popup-days'].forEach(function (id) {
+    ['popup-enabled', 'popup-until'].forEach(function (id) {
       var el = $('#' + id);
       if (el) el.addEventListener('change', function () { popupTouched = true; repaintCounts(); });
     });
@@ -1284,12 +1354,12 @@ function popupVisHtml(cfg: PopupConfig): string {
   });
   let status: string;
   if (active) {
-    status = cfg.days > 0
-      ? `Showing now — it hides itself on ${fmt(cfg.until)}.`
-      : 'Showing now — visitors see it until you switch it off.';
-  } else if (cfg.enabled && cfg.days > 0 && cfg.until) {
-    status = `The ${cfg.days}-day window ended on ${fmt(cfg.until)}, so nobody sees the popup. `
-      + 'Switch it on again and save to start a new window.';
+    status = cfg.until > 0
+      ? `Showing now — it hides itself on ${fmt(cfg.until)} (Israel time).`
+      : 'Showing now, with no end time — it stays until you switch it off.';
+  } else if (cfg.enabled && cfg.until > 0) {
+    status = `The end time (${fmt(cfg.until)}, Israel time) has passed, so nobody sees the popup. `
+      + 'Pick a new one — or clear it — and save.';
   } else {
     status = 'Switched off — visitors don’t see it.';
   }
@@ -1299,20 +1369,35 @@ function popupVisHtml(cfg: PopupConfig): string {
       <p class="card__note">Takes effect when you press Save changes.</p>
       <div class="row">
         <label class="switch">
-          <input type="checkbox" id="popup-enabled"${active ? ' checked' : ''}>
+          <input type="checkbox" id="popup-enabled"${cfg.enabled ? ' checked' : ''}>
           <span class="switch__track" aria-hidden="true"></span>
           <span>Show the popup</span>
         </label>
       </div>
       <div class="row">
-        <span>Hide it automatically after</span>
-        <input class="num" type="number" id="popup-days" min="0" max="365" step="1" value="${cfg.days}">
-        <span>days</span>
-        <span class="row__hint">0 = no time limit. The countdown restarts when you switch the
-          popup on or change this number.</span>
+        <span>Hide it automatically on</span>
+        <input class="when" type="datetime-local" id="popup-until" value="${esc(jerusalemInputValue(cfg.until))}">
+        <button type="button" class="mini" id="popup-until-clear">No end time</button>
+        <span class="row__hint">Date and time in Israel. Leave it empty and the popup
+          stays up until you switch it off.</span>
       </div>
       <div class="row"><p class="status${active ? ' status--on' : ''}">${esc(status)}</p></div>
     </section>`;
+}
+
+/** The `datetime-local` value ("YYYY-MM-DDTHH:mm") for an instant, read as
+ *  Israel wall-clock time — the zone the owner thinks in, and the one the
+ *  status line prints. Empty string for "no end time". Mirrored in the
+ *  browser by israelInputToMs() in the editor script. */
+function jerusalemInputValue(ms: number): string {
+  if (!ms || ms <= 0) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  }).formatToParts(new Date(ms));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  const hour = get('hour') === '24' ? '00' : get('hour');   // some runtimes emit 24 at midnight
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:${get('minute')}`;
 }
 
 /** Style: text card / photo / photo + text, plus the photo itself. Photo
@@ -1348,7 +1433,7 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string, si
   return `
     <section class="card">
       <h3 class="card__title">What the popup looks like</h3>
-      <p class="card__note">The words themselves are the two fields below.</p>
+      <p class="card__note" id="popup-style-note">The words themselves are the two fields below.</p>
       <div class="modes" role="group" aria-label="Popup style">${modeBtns}</div>
       <input type="hidden" id="popup-mode" value="${esc(cfg.mode)}" />
 
@@ -1384,7 +1469,10 @@ function eventsMenuHtml(hasPdf: boolean, version: string, site: Site): string {
   return `
     <section class="card">
       <h3 class="card__title">Events menu (PDF)</h3>
-      <p class="card__note">The file behind the “View events menu” button. Saved the moment you upload it.</p>
+      <p class="card__note">The file behind the menu button — visitors read it on the page itself.
+        Saved the moment you upload it. To pull it from OneDrive instead, open
+        <a class="pdf__link" href="/admin/">Menu editor → Events menu (PDF)</a>,
+        which syncs on its own and is left out of “Sync all now”.</p>
       <div class="row"><p id="pdf-state">${state}</p></div>
       <div class="row">
         <input class="pdf__file" type="file" id="pdf-file" accept="application/pdf,.pdf" />

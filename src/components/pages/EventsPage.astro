@@ -20,11 +20,17 @@ const page     = pick(pageCopy, lang);
 const title    = page.pageTitle;
 const description = page.pageDescription;
 
-// The events-menu PDF lives in R2 (uploaded in /admin/content → Events). The
-// button below is hidden until a small HEAD probe confirms a PDF exists, so it
-// never links to a 404. Root route → carry the venue via ?site on rooftop.
+// The events-menu PDF lives in R2 (uploaded in /admin → Events menu (PDF), or
+// pulled from OneDrive there). The button below is hidden until a small HEAD
+// probe confirms a PDF exists, so it never opens an empty panel. Root route →
+// carry the venue via ?site on rooftop.
 const menuUrl = `/events-menu${SITE_QUERY}`;
-const menuLabel = lang === 'he' ? 'לצפייה בתפריט האירועים ↗' : 'View the events menu ↗';
+// Viewer parameters for the embed: fit the page to the frame's width (what
+// makes a portrait A4 menu readable), and drop the viewer's own toolbar and
+// thumbnail rail so the document sits on the page as a document rather than
+// inside a grey browser panel. Zoom, print and download live one tap away in
+// the "open in a separate page" button, which the note under the frame says.
+const menuEmbedUrl = `${menuUrl}#view=FitH&toolbar=0&navpanes=0`;
 ---
 
 {/* Photo first, tucked under the transparent header, then the title +
@@ -56,20 +62,113 @@ const menuLabel = lang === 'he' ? 'לצפייה בתפריט האירועים �
       />
       <span class="events-intro__ornament" aria-hidden="true"><i></i></span>
       <p class="events-intro__lede" data-content-key="events.lede">{t.eventsPageLede}</p>
-      <a class="btn btn--ghost events-intro__menu" href={menuUrl} target="_blank"
-         rel="noopener" data-events-menu data-track="events_menu_click" hidden>{menuLabel}</a>
+      {/* Both labels ship in the markup and CSS shows one at a time, so the
+          admin's editable copy reaches BOTH states (the content overlay only
+          writes into [data-content-key] elements — it can't swap a label a
+          script would otherwise flip). */}
+      <button class="btn btn--ghost events-intro__menu" type="button"
+              aria-expanded="false" aria-controls="events-menu-panel"
+              data-events-menu-toggle data-track="events_menu_click" hidden>
+        <span class="events-intro__menu-label" data-content-key="events.menuCta">{t.eventsMenuCta}</span>
+        <span class="events-intro__menu-label events-intro__menu-label--close"
+              data-content-key="events.menuHide">{t.eventsMenuHide}</span>
+      </button>
     </div>
   </section>
 
-  {/* Show the menu button only when a PDF is actually uploaded (HEAD probe),
-      the same "don't render dead UI" approach the kosher certificate uses. */}
-  <script is:inline define:vars={{ menuUrl }}>
+  {/* The menu itself — a quiet paper band that unfolds under the opening one.
+      Hidden until the button opens it, and the PDF is only fetched on that
+      first open, so the page costs nothing extra to load. */}
+  <section class="events-menu" id="events-menu-panel" data-events-menu-panel hidden>
+    <div class="wrap events-menu__inner">
+      <div class="events-menu__bar">
+        <p class="eyebrow" data-content-key="events.menuEyebrow">{t.eventsMenuEyebrow}</p>
+        <a class="btn btn--ghost events-menu__out" href={menuUrl} target="_blank"
+           rel="noopener" data-track="events_menu_newtab"
+           data-content-key="events.menuNewTab">{t.eventsMenuNewTab}</a>
+      </div>
+      <div class="events-menu__frame" data-events-menu-frame>
+        {/* Shown instead of the document on browsers that can't render a PDF
+            in a frame. Written here, not in script, so its words stay
+            admin-editable like everything else on the page. */}
+        <div class="events-menu__fallback" data-events-menu-fallback hidden>
+          <p class="events-menu__fallback-note"
+             data-content-key="events.menuFallback">{t.eventsMenuFallback}</p>
+          <a class="btn" href={menuUrl} target="_blank" rel="noopener"
+             data-track="events_menu_newtab"
+             data-content-key="events.menuNewTab">{t.eventsMenuNewTab}</a>
+        </div>
+      </div>
+      <p class="events-menu__note" data-content-key="events.menuNote">{t.eventsMenuNote}</p>
+    </div>
+  </section>
+
+  {/* Show the button only when a PDF is actually uploaded (HEAD probe) — the
+      same "don't render dead UI" approach the kosher certificate uses — then
+      open/close the panel below it. */}
+  <script is:inline define:vars={{ menuUrl, menuEmbedUrl, frameTitle: t.eventsMenuEyebrow }}>
     (function () {
-      var btn = document.querySelector('[data-events-menu]');
-      if (!btn) return;
+      var btn   = document.querySelector('[data-events-menu-toggle]');
+      var panel = document.querySelector('[data-events-menu-panel]');
+      var frame = document.querySelector('[data-events-menu-frame]');
+      if (!btn || !panel || !frame) return;
+
       fetch(menuUrl, { method: 'HEAD' })
         .then(function (r) { if (r && r.ok) btn.hidden = false; })
         .catch(function () { /* offline / error — leave the button hidden */ });
+
+      // Phones and tablets are the problem case: Android Chrome refuses to
+      // render a PDF in a frame at all (navigator.pdfViewerEnabled === false),
+      // and iOS shows only the first page. Where the browser says it can't,
+      // the frame is replaced by a card that opens the menu full-screen —
+      // an honest offer rather than an empty grey box.
+      var canEmbed = navigator.pdfViewerEnabled !== false;
+
+      var built = false;
+      function build() {
+        if (built) return;
+        built = true;
+        if (canEmbed) {
+          var f = document.createElement('iframe');
+          f.src = menuEmbedUrl;
+          f.title = frameTitle;
+          f.loading = 'lazy';
+          frame.appendChild(f);
+          return;
+        }
+        // No embedded viewer: the card carries the single offer, so the bar's
+        // duplicate of it — and the note describing an on-page document —
+        // step aside.
+        frame.classList.add('is-fallback');
+        var card = frame.querySelector('[data-events-menu-fallback]');
+        if (card) card.hidden = false;
+        var out = panel.querySelector('.events-menu__out');
+        if (out) out.hidden = true;
+        var note = panel.querySelector('.events-menu__note');
+        if (note) note.hidden = true;
+      }
+
+      btn.addEventListener('click', function () {
+        var open = btn.getAttribute('aria-expanded') === 'true';
+        if (open) {
+          btn.setAttribute('aria-expanded', 'false');
+          panel.classList.remove('is-open');
+          panel.hidden = true;
+          return;
+        }
+        build();
+        btn.setAttribute('aria-expanded', 'true');
+        panel.hidden = false;
+        // Next frame, so the browser has a laid-out element to fade in from.
+        requestAnimationFrame(function () {
+          panel.classList.add('is-open');
+          var rect = panel.getBoundingClientRect();
+          if (rect.top < 0 || rect.top > window.innerHeight * 0.6) {
+            var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+          }
+        });
+      });
     })();
   </script>
 
@@ -130,6 +229,93 @@ const menuLabel = lang === 'he' ? 'לצפייה בתפריט האירועים �
       color: var(--events-band-num);
       border-color: var(--events-band-num);
       background: color-mix(in srgb, var(--events-band-text) 8%, transparent);
+    }
+    /* One button, two labels — the open one, and the one shown while the menu
+       is on screen. Both are admin-editable, so neither is written in script. */
+    .events-intro__menu-label--close,
+    .events-intro__menu[aria-expanded='true'] .events-intro__menu-label { display: none; }
+    .events-intro__menu[aria-expanded='true'] .events-intro__menu-label--close { display: inline; }
+
+    /* ── The menu panel ─────────────────────────────────────────────────────
+       A quiet paper band under the opening one: eyebrow + "open in a separate
+       page" on one line, the document below it in a hairline frame. No card
+       shadow, no rounded corners beyond the site's 2px — it reads as a page in
+       the magazine, not a widget. */
+    .events-menu {
+      background: var(--paper);
+      border-block-end: 1px solid var(--rule-soft);
+      padding-block: clamp(2.25rem, 5vw, 3.5rem);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+    }
+    .events-menu[hidden] { display: none; }
+    .events-menu.is-open { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      .events-menu { transition: none; transform: none; }
+    }
+
+    .events-menu__inner { display: grid; gap: var(--space-s); }
+    .events-menu__bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2xs) var(--space-s);
+    }
+    .events-menu__bar .eyebrow { margin: 0; }
+    /* Higher specificity than .btn's inline-flex, so hiding this in the
+       fallback case actually hides it (same trap as the toggle above). */
+    .events-menu__out[hidden] { display: none; }
+    /* The frame. A portrait A4 menu is taller than it is wide, so the height
+       leads and the viewer fits the page to the frame's width (#view=FitH). */
+    .events-menu__frame {
+      block-size: clamp(420px, 74vh, 900px);
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      background: var(--paper-card);
+      overflow: hidden;
+    }
+    /* :global — the frame is built in script on first open, so it never
+       carries Astro's scoping attribute. */
+    .events-menu__frame :global(iframe) {
+      inline-size: 100%;
+      block-size: 100%;
+      border: 0;
+      display: block;
+    }
+    /* Browsers that can't render a PDF in a frame (Android Chrome) get the
+       offer instead of an empty box. */
+    .events-menu__frame.is-fallback { block-size: auto; }
+    .events-menu__fallback {
+      display: grid;
+      justify-items: center;
+      gap: var(--space-s);
+      padding: clamp(2rem, 7vw, 3rem) var(--space-s);
+      text-align: center;
+    }
+    .events-menu__fallback[hidden] { display: none; }
+    .events-menu__fallback-note {
+      margin: 0;
+      max-inline-size: 44ch;
+      font-size: var(--step--1);
+      line-height: 1.6;
+      color: var(--ink-soft);
+    }
+    .events-menu__note {
+      margin: 0;
+      font-size: var(--step--1);
+      line-height: 1.6;
+      color: var(--ink-muted);
+      max-inline-size: 60ch;
+    }
+
+    @media (max-width: 640px) {
+      /* Shorter on a phone so the note and the form below stay reachable
+         without a long scroll past the document. */
+      .events-menu__frame { block-size: clamp(360px, 62vh, 560px); }
+      .events-menu__bar   { justify-content: flex-start; }
+      .events-menu__out   { inline-size: 100%; justify-content: center; }
     }
   </style>
 

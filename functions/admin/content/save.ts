@@ -1,5 +1,5 @@
 // POST /admin/content/save — Basic-auth gated.
-// Body: JSON { map: { [key]: { he?, en? } }, popup?: { enabled, days } }
+// Body: JSON { map: { [key]: { he?, en? } }, popup?: { enabled, until, mode } }
 // (full or partial).
 //
 // Merges the posted map into the single KV content record. A posted lang
@@ -14,7 +14,7 @@ import type { PagesFunction } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import {
   readContentForEditor, writeContentSplit, mergeContent,
-  readPopupConfigOwn, writePopupConfig, popupActive,
+  readPopupConfigOwn, writePopupConfig,
   type ContentEnv, type PopupMode,
 } from '../../data/content';
 import { adminSite } from '../../data/site';
@@ -65,20 +65,18 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (postedPopup && typeof postedPopup === 'object') {
     const p       = postedPopup as Record<string, unknown>;
     const enabled = !!p.enabled;
-    const days    = typeof p.days === 'number' && isFinite(p.days)
-      ? Math.min(365, Math.max(0, Math.round(p.days)))
-      : 0;
     const prior = await readPopupConfigOwn(env, site);
     const mode  = POPUP_MODES.has(p.mode as PopupMode) ? (p.mode as PopupMode) : prior.mode;
-    // A fresh auto-hide window starts when the popup is (re)turned on or the
-    // day count changes. An unrelated content save re-posts the same
-    // settings and must NOT extend a window that's already running.
-    const startNew = !popupActive(prior) || days !== prior.days || !prior.until;
-    const until = enabled && days > 0
-      ? (startNew ? Date.now() + days * 86_400_000 : prior.until)
-      : 0;
+    // The editor posts the moment the popup should hide itself, chosen on a
+    // date + time picker (Israel time, converted in the browser). 0 / missing
+    // = no end time. Anything past MAX_AHEAD is treated as a mis-typed year
+    // rather than a real intention.
+    const posted = typeof p.until === 'number' && isFinite(p.until) ? Math.round(p.until) : 0;
+    const MAX_AHEAD = 5 * 365 * 86_400_000;
+    const until = enabled && posted > 0 ? Math.min(posted, Date.now() + MAX_AHEAD) : 0;
     // hasImage is owned by the popup-image endpoints — preserve it here.
-    await writePopupConfig(env, site, { enabled, days, until, mode, hasImage: prior.hasImage });
+    // `days` is the retired setting this replaced; a save from here clears it.
+    await writePopupConfig(env, site, { enabled, days: 0, until, mode, hasImage: prior.hasImage });
   }
 
   return json({ ok: true, count: Object.keys(merged).length });

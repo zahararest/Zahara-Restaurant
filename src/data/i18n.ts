@@ -598,6 +598,23 @@ export const contact = {
     en: 'The restaurant is available for private and corporate events — an intimate room for small groups, an extended space for company gatherings, or the entire room. Leave your details and we’ll get back to you within one business day.',
   },
 
+  // ── Events menu PDF (the panel that opens under the lede) ───────────────────
+  // Mirrored by the `events.menu*` fields in functions/data/content.ts — keep
+  // the two in sync so the admin editor prefills the copy the page ships with.
+  eventsMenuCta:     { he: 'לצפייה בתפריט האירועים', en: 'View the events menu' },
+  eventsMenuHide:    { he: 'סגירת התפריט',           en: 'Hide the menu'        },
+  eventsMenuEyebrow: { he: 'תפריט אירועים',          en: 'Events menu'          },
+  eventsMenuNewTab:  { he: 'פתיחה בעמוד נפרד ↗',     en: 'Open in a separate page ↗' },
+  eventsMenuNote: {
+    he: 'התפריט נפתח כאן בעמוד. לקריאה נוחה, במסך מלא או להורדה — פתחו אותו בעמוד נפרד.',
+    en: 'The menu opens here on the page. For full-screen reading or a copy to keep, open it in a separate page.',
+  },
+  // Shown in place of the document on browsers that don't display PDFs inline.
+  eventsMenuFallback: {
+    he: 'הדפדפן שלכם פותח קובצי PDF בחלון נפרד. הקישו כדי לפתוח את תפריט האירועים.',
+    en: 'Your browser opens PDFs in a window of its own. Tap to open the events menu.',
+  },
+
   // ── Mode toggle ─────────────────────────────────────────────────────────────
   modeGeneral:        { he: 'פנייה רגילה',  en: 'General inquiry'  },
   modeEvent:          { he: 'פנייה לאירוע',  en: 'Event inquiry'    },

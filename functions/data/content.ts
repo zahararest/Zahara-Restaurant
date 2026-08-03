@@ -360,6 +360,42 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     { key: 'events.lede', label: 'Lede', role: 'lede', align: 'center', multiline: true,
       he: 'המסעדה ניתנת לסגירה לאירועים פרטיים ועסקיים — חדר אינטימי לקבוצות קטנות, החלל המורחב לאירועי חברה, או המסעדה כולה. השאירו פרטים ונחזור אליכם תוך יום עסקים.',
       en: 'The restaurant is available for private and corporate events — an intimate room for small groups, an extended space for company gatherings, or the entire room. Leave your details and we’ll get back to you within one business day.' },
+  ] },
+  // The menu-PDF panel that opens under the lede. Every word on it is here;
+  // the file itself is managed by the card above these fields (and can be
+  // pulled from OneDrive in the Menu editor → Events menu (PDF)).
+  // Defaults mirror `eventsMenu*` in src/data/i18n.ts — keep the two in sync.
+  { title: 'Events page · The menu panel', page: 'events',
+    note: 'The button under the intro paragraph and the panel it opens. Shown only while a PDF is uploaded.',
+    fields: [
+    { key: 'events.menuCta', label: 'Button — opens the menu', role: 'button', align: 'center',
+      hint: 'The button under the intro paragraph.',
+      he: 'לצפייה בתפריט האירועים', en: 'View the events menu' },
+    { key: 'events.menuHide', label: 'Button — closes the menu', role: 'button', align: 'center',
+      hint: 'What the same button says while the menu is open.',
+      he: 'סגירת התפריט', en: 'Hide the menu' },
+    { key: 'events.menuEyebrow', label: 'Panel — eyebrow', role: 'eyebrow',
+      hint: 'The small line above the menu itself.',
+      he: 'תפריט אירועים', en: 'Events menu' },
+    // No `align` — this one sits at the end of the panel's top line, not centred
+    // like the two buttons above.
+    { key: 'events.menuNewTab', label: 'Panel — “open in a separate page” button', role: 'button',
+      hint: 'Opens the PDF on its own, full screen.',
+      he: 'פתיחה בעמוד נפרד ↗', en: 'Open in a separate page ↗' },
+    { key: 'events.menuNote', label: 'Panel — note under the menu', role: 'note', multiline: true,
+      hint: 'Small print beneath the document.',
+      he: 'התפריט נפתח כאן בעמוד. לקריאה נוחה, במסך מלא או להורדה — פתחו אותו בעמוד נפרד.',
+      en: 'The menu opens here on the page. For full-screen reading or a copy to keep, open it in a separate page.' },
+    { key: 'events.menuFallback', label: 'Panel — line for phones that can’t show the menu', role: 'note',
+      align: 'center', multiline: true,
+      hint: 'Some phone browsers (Android’s Chrome) can’t show a PDF inside a page. They get this line and the button instead.',
+      he: 'הדפדפן שלכם פותח קובצי PDF בחלון נפרד. הקישו כדי לפתוח את תפריט האירועים.',
+      en: 'Your browser opens PDFs in a window of its own. Tap to open the events menu.' },
+  ] },
+  // All retired — the four benefit boxes the opening band replaced. The editor
+  // folds a fully-retired group into its "not on the site right now" details,
+  // so the title reads on its own.
+  { title: 'Events page', page: 'events', fields: [
     { key: 'events.benefit1', label: 'Benefit 1', role: 'body', align: 'center', retired: true,
       he: 'חדר פרטי לקבוצות אינטימיות', en: 'Private room for intimate groups' },
     { key: 'events.benefit2', label: 'Benefit 2', role: 'body', align: 'center', retired: true,
@@ -749,13 +785,16 @@ export function contentToJson(map: ContentMap): string {
 // One small KV record (`__popup__`) deciding whether the site-wide entry
 // popup is shown. The popup's TEXT lives in the normal content map above
 // (popup.title / popup.body); this record is only the on/off switch and the
-// optional auto-hide window:
+// optional auto-hide time:
 //   enabled — the owner's switch.
-//   days    — 0 = no time limit; N = hide automatically N days after the
-//             save that turned the popup on (or changed N).
-//   until   — the absolute hide timestamp (ms), computed at save time so
-//             every request can check it with plain comparison.
-// No record yet (fresh deploy) defaults to ENABLED with no time limit — the
+//   until   — the absolute moment the popup hides itself (ms), picked as a
+//             date + time in /admin/content. 0 = no end time.
+//   days    — LEGACY. The editor used to ask for "hide after N days" and
+//             derived `until` from it at save time. Records written then still
+//             carry it; nothing reads it any more (the derived `until` they
+//             also carry is what decides), and a save from the current editor
+//             writes 0. Kept only so an old record round-trips unchanged.
+// No record yet (fresh deploy) defaults to ENABLED with no end time — the
 // popup ships live; turning it off in /admin/content writes an explicit off.
 
 const POPUP_KEY = '__popup__';
@@ -777,7 +816,9 @@ const POPUP_MODES = new Set<PopupMode>(['text', 'photo', 'both']);
 
 export interface PopupConfig {
   enabled: boolean;
+  /** Legacy "hide after N days" (see the note above). Not read any more. */
   days: number;
+  /** When the popup hides itself, epoch ms. 0 = no end time. */
   until: number;
   /** Presentation style (see PopupMode). */
   mode: PopupMode;
@@ -808,9 +849,10 @@ export function popupShowsImage(cfg: PopupConfig): boolean {
   return cfg.hasImage && (cfg.mode === 'photo' || cfg.mode === 'both');
 }
 
-/** Is the popup currently shown to visitors? */
+/** Is the popup currently shown to visitors? On until the end time passes;
+ *  no end time (until = 0) means it stays until the owner switches it off. */
 export function popupActive(cfg: PopupConfig, now = Date.now()): boolean {
-  return cfg.enabled && (cfg.days <= 0 || (cfg.until > 0 && now < cfg.until));
+  return cfg.enabled && (cfg.until <= 0 || now < cfg.until);
 }
 
 /** Read a popup record from one namespace; null when the key is absent. */
