@@ -17,8 +17,8 @@
         • Accent    — ONE accent (--accent + --accent-deep/-soft). Used only
                       for editorial markers: eyebrow rule, prices, hover
                       underlines, the sliding tab indicator. Nothing else.
-      Supporting: --rule/-soft (dividers), --gold (secondary highlight), the
-      four category accents (--c-*), and --ok/--err (status only).
+      Supporting: --rule/-soft (dividers), --gold (secondary highlight),
+      --ok/--err (status only), and the --bg-* page-background atmosphere.
 
    3. CONTRAST PAIRINGS (keep AA):
         --ink / --ink-soft / --ink-muted   on --paper, --paper-deep, --paper-card
@@ -62,13 +62,22 @@
   --accent-deep:    #7A6231;
   --accent-soft:    #EAE0BD;
   --gold:           #B69A52;
-  --c-green:        #5A786A;
-  --c-teal:         #3E6D77;
-  --c-slate:        #3E5359;
-  --c-mauve:        #9D8499;
   --ok:             #4F6B47;
   --err:            #A53623;
   --shadow:         #0A0806;
+
+  /* ── Page background atmosphere (see body::before / ::after in base.css).
+        The wash + glow keep the paper from reading as one flat slab, and the
+        grain gives it printed-stock texture. All six are owner-editable in
+        /admin/colors → "Page background"; the two *-strength values and the
+        angle are plain NUMBERS, so the CSS supplies the unit. Set either
+        strength to 0 to switch that layer off entirely. */
+  --bg-wash-from:      #F0E8D2;
+  --bg-wash-to:        #E5DCC4;
+  --bg-wash-angle:     176;
+  --bg-glow:           #A88947;
+  --bg-glow-strength:  10;
+  --bg-grain-strength: 4;
 
   /* ── Events "benefits" band (the four-up strip on the Events page).
         Fully self-contained tokens so the band can be tuned independently of
@@ -86,9 +95,7 @@
         stay light regardless of light/dark mode — and they're independent of
         body text so the chef can retune the tiles on their own. */
   --tile-label: #F4ECCF;  /* the section name (Food / Wine / …) */
-  --tile-num:   #C7BCA0;  /* the 01–04 numerals + "Chef's picks" eyebrow */
-  --tile-fave:  #F4ECCF;  /* the starred favourite dish names */
-  --tile-link:  #F4ECCF;  /* the "see full menu" link text */
+  --tile-num:   #C7BCA0;  /* the 01–04 numerals */
 
   /* ── Typography — font families live in font-config.css; only scale here. */
   --step--2: clamp(0.70rem, 0.66rem + 0.18vw, 0.78rem);
@@ -200,10 +207,6 @@ html[data-theme="dark"] {
   --accent-deep:    #A8853A;
   --accent-soft:    #2A2018;
   --gold:           #D0B468;
-  --c-green:        #6A8878;
-  --c-teal:         #4E7D87;
-  --c-slate:        #4E6369;
-  --c-mauve:        #AD9499;
   --ok:             #5BA670;
   --err:            #E07060;
 
@@ -211,11 +214,18 @@ html[data-theme="dark"] {
      light values as light mode. */
   --tile-label: #F4ECCF;
   --tile-num:   #C7BCA0;
-  --tile-fave:  #F4ECCF;
-  --tile-link:  #F4ECCF;
 
   /* Shadow goes pure-black in dark mode (matches the editor's dark default). */
   --shadow:         #000000;
+
+  /* Page background — wash follows the dark surfaces; the glow lifts slightly
+     so the warmth still reads against near-black. */
+  --bg-wash-from:      #0F0B07;
+  --bg-wash-to:        #181410;
+  --bg-wash-angle:     176;
+  --bg-glow:           #C8A050;
+  --bg-glow-strength:  12;
+  --bg-grain-strength: 5;
 
   /* Events band — keep the warm near-black atmosphere in dark mode. */
   --events-band-from:    #3A2D23;

@@ -1296,6 +1296,13 @@ html.a11y-contrast {
   --accent:         #003ea1 !important;
   --accent-deep:    #001a4d !important;
   --accent-soft:    #d6e3ff !important;
+  /* The page-background atmosphere has to flatten to plain white too —
+     otherwise the fixed wash behind the content would keep painting cream
+     over the max-contrast palette. */
+  --bg-wash-from:      #FFFFFF !important;
+  --bg-wash-to:        #FFFFFF !important;
+  --bg-glow-strength:  0 !important;
+  --bg-grain-strength: 0 !important;
 }
 html.a11y-contrast img,
 html.a11y-contrast video { filter: contrast(1.1); }

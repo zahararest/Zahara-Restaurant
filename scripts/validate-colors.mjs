@@ -39,18 +39,66 @@ function colourDecls(css, startRe) {
 const cssLight = colourDecls(tokensCss, /:root\s*\{/);
 const cssDark  = colourDecls(tokensCss, /html\[data-theme="dark"\]\s*\{/);
 
-// ── Editor defaults (light) from the groups' token/def pairs ────────────────
-const editorLight = {};
-{ const re = new RegExp(`token:\\s*'(--[\\w-]+)'[\\s\\S]*?def:\\s*'(${hex})'`, 'g');
-  let m; while ((m = re.exec(adminTs))) editorLight[m[1]] = m[2].toUpperCase(); }
+// ── Editor defaults, parsed one token entry at a time ───────────────────────
+// Slicing between consecutive `token:` keys keeps each entry's `def:`/`kind:`
+// inside its own block — a single regex with `[\s\S]*?` would happily match a
+// token against the NEXT entry's fields once any token has a non-hex default.
+const editorLight = {};   // colour tokens → '#RRGGBB'
+const scalarLight = {};   // scalar tokens → '123'
+{
+  const groupsSrc = adminTs.slice(0, adminTs.indexOf('const allTokens'));
+  const starts = [];
+  const re = /token:\s*'(--[\w-]+)'/g;
+  let m; while ((m = re.exec(groupsSrc))) starts.push({ name: m[1], idx: m.index });
+  starts.forEach((t, i) => {
+    const body   = groupsSrc.slice(t.idx, starts[i + 1]?.idx ?? groupsSrc.length);
+    const def    = body.match(/def:\s*'([^']+)'/);
+    const scalar = /kind:\s*'scalar'/.test(body);
+    if (!def) { errors.push(`${t.name} has no def: in src/data/admin-colors.ts`); return; }
+    if (scalar) scalarLight[t.name] = def[1];
+    else        editorLight[t.name] = def[1].toUpperCase();
+  });
+}
 
 // ── Editor dark defaults from the darkDefaults map ──────────────────────────
-const editorDark = {};
-{ const block = adminTs.slice(adminTs.indexOf('darkDefaults'));
-  const re = new RegExp(`'(--[\\w-]+)':\\s*'(${hex})'`, 'g');
-  let m; while ((m = re.exec(block))) editorDark[m[1]] = m[2].toUpperCase(); }
+const editorDark = {}, scalarDark = {};
+{
+  const block = adminTs.slice(adminTs.indexOf('darkDefaults'));
+  const re = new RegExp(`'(--[\\w-]+)':\\s*'(${hex}|\\d+)'`, 'g');
+  let m; while ((m = re.exec(block))) {
+    if (m[2].startsWith('#')) editorDark[m[1]] = m[2].toUpperCase();
+    else                      scalarDark[m[1]] = m[2];
+  }
+}
 
 const editorTokens = Object.keys(editorLight);
+const scalarTokens = Object.keys(scalarLight);
+
+/** Parse `--token: 123;` numeric decls out of a selector block. */
+function numberDecls(css, startRe) {
+  const m = css.match(startRe);
+  if (!m) return {};
+  let i = css.indexOf('{', m.index) + 1, depth = 1, end = i;
+  for (; end < css.length && depth; end++) {
+    if (css[end] === '{') depth++;
+    else if (css[end] === '}') depth--;
+    if (!depth) break;
+  }
+  const out = {};
+  const re = /(--[\w-]+)\s*:\s*(\d+)\s*;/g;
+  let d; while ((d = re.exec(css.slice(i, end)))) out[d[1]] = d[2];
+  return out;
+}
+const cssNumLight = numberDecls(tokensCss, /:root\s*\{/);
+const cssNumDark  = numberDecls(tokensCss, /html\[data-theme="dark"\]\s*\{/);
+
+for (const t of scalarTokens) {
+  if (!(t in cssNumLight)) { errors.push(`SCALAR: ${t} is in the editor but NOT declared in tokens.css :root`); continue; }
+  if (cssNumLight[t] !== scalarLight[t]) errors.push(`SCALAR drift (light): ${t} editor=${scalarLight[t]} but tokens.css=${cssNumLight[t]}`);
+  const renderedDark = cssNumDark[t] ?? cssNumLight[t];
+  if (!(t in scalarDark)) { errors.push(`SCALAR: ${t} missing from darkDefaults map`); continue; }
+  if (scalarDark[t] !== renderedDark) errors.push(`SCALAR drift (dark): ${t} darkDefaults=${scalarDark[t]} but site renders=${renderedDark}`);
+}
 
 // ── Check 1: every editor token exists in tokens.css :root, values match ────
 for (const t of editorTokens) {
@@ -85,13 +133,17 @@ presetSpans.forEach((p, i) => {
     if (!editorLight[k[1]]) errors.push(`PRESET "${p.name}": unknown token key ${k[1]} (typo? removed token?)`);
   }
   // Tokens presets intentionally DON'T set:
-  //  • events-band-* — derived from each preset's surfaces/ink/accent at apply.
+  //  • events-band-* / bg-* — derived from each preset's surfaces/ink/accent
+  //                    when it is applied, so the band and the page background
+  //                    always harmonise with the theme being loaded.
   //  • tile-*        — the home menu tiles sit over a dark photo in every
   //                    theme, so they stay at their cream default regardless of
   //                    the palette (a preset overriding them would be wrong).
   const EXEMPT = new Set([
     '--events-band-from', '--events-band-to', '--events-band-text', '--events-band-num', '--events-band-divider',
-    '--tile-label', '--tile-num', '--tile-fave', '--tile-link',
+    '--tile-label', '--tile-num',
+    '--bg-wash-from', '--bg-wash-to', '--bg-glow',
+    ...scalarTokens,
   ]);
   const missing = editorTokens.filter((t) => !keys.has(t) && !EXEMPT.has(t));
   if (missing.length) warns.push(`PRESET "${p.name}" omits ${missing.length} non-derived token(s): ${missing.join(', ')}`);
@@ -107,6 +159,15 @@ presetSpans.forEach((p, i) => {
   while ((m = re.exec(block))) allow.add(m[1]);
   for (const t of editorTokens) if (!allow.has(t)) errors.push(`palette.ts ALLOWED_TOKENS is MISSING ${t} → its editor control would not save`);
   for (const t of allow) if (!editorLight[t]) errors.push(`palette.ts ALLOWED_TOKENS has stale ${t} (not an editor token)`);
+
+  // Scalars ride the same KV record but are range-checked, not hex-checked,
+  // so they live in their own map on the worker side.
+  const sBlock = paletteTs.slice(paletteTs.indexOf('SCALAR_TOKENS'), paletteTs.indexOf('};', paletteTs.indexOf('SCALAR_TOKENS')));
+  const scalarAllow = new Set();
+  const sre = /'(--[\w-]+)'\s*:/g; let s;
+  while ((s = sre.exec(sBlock))) scalarAllow.add(s[1]);
+  for (const t of scalarTokens) if (!scalarAllow.has(t)) errors.push(`palette.ts SCALAR_TOKENS is MISSING ${t} → its editor slider would not save`);
+  for (const t of scalarAllow) if (!scalarLight[t]) errors.push(`palette.ts SCALAR_TOKENS has stale ${t} (not an editor scalar)`);
 }
 
 // ── Check 5: no leftover --grad-warm references anywhere ─────────────────────
@@ -115,7 +176,7 @@ for (const [f, s] of [['tokens.css', tokensCss], ['admin-colors.ts', adminTs], [
   if (gradRef.test(s)) errors.push(`Leftover --grad-warm reference in ${f}`);
 
 // ── Report ──────────────────────────────────────────────────────────────────
-console.log(`Editor tokens: ${editorTokens.length} | tokens.css light: ${Object.keys(cssLight).length} | presets: ${presetSpans.length}`);
+console.log(`Editor tokens: ${editorTokens.length} colour + ${scalarTokens.length} scalar | tokens.css light: ${Object.keys(cssLight).length} | presets: ${presetSpans.length}`);
 if (warns.length) { console.log(`\n⚠️  ${warns.length} warning(s):`); warns.forEach((w) => console.log('  - ' + w)); }
 if (errors.length) { console.log(`\n❌ ${errors.length} ERROR(s):`); errors.forEach((e) => console.log('  - ' + e)); process.exit(1); }
 console.log('\n✅ Colour system consistent: editor ↔ tokens.css ↔ presets all agree.');

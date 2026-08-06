@@ -303,21 +303,42 @@
       border: 1px solid currentColor; border-radius: 2px; color: var(--e-mut);
       line-height: 1.5;
     }
-    .row__contrast--aaa { color: #3f7b3f; }
-    .row__contrast--aa  { color: #5e5c2e; }
-    .row__contrast--lo  { color: #a53623; }
+    /* Tokens that aren't part of any text-on-background pairing get no badge
+       at all, rather than an empty bordered box. */
+    .row__contrast:empty { display: none; }
+    .row__contrast--aaa  { color: #3f7b3f; }
+    .row__contrast--aa   { color: #5e5c2e; }
+    .row__contrast--warn { color: #8a5a12; }
+    /* Only "the text has effectively vanished" gets the solid red chip. */
+    .row__contrast--lo   { color: #fff; background: #a53623; border-color: #a53623; }
 
-    /* Controls column */
+    /* Scalar (slider) rows — a number, not a colour. */
+    .row__scalar-glyph {
+      width: 40px; height: 32px; display: grid; place-items: center;
+      border: 1px solid var(--e-rule); color: var(--e-mut); font-size: 1rem;
+    }
+    .row__range {
+      width: 100%; margin-top: 0.4rem; accent-color: var(--e-acc);
+      min-height: 0; height: 18px;
+    }
+    .row__unit {
+      font-size: 0.72rem; color: var(--e-mut); font-weight: 600;
+      justify-self: center; width: 30px; text-align: center;
+    }
+    .row--scalar .row__hex { width: 62px; text-align: center; }
+
+    /* Controls column — a single flex line so a row keeps its controls on one
+       line whichever leading control it has (▣ for colours, the unit for
+       sliders). */
     .row__controls {
-      display: grid;
-      grid-template-columns: auto auto auto auto auto;
-      gap: 0.28rem; align-items: center;
+      display: flex;
+      gap: 0.28rem; align-items: center; flex-wrap: nowrap;
     }
     .row__hex {
       width: 88px; font-family: ui-monospace, monospace; font-size: 0.83rem;
       font-weight: 600; letter-spacing: 0.04em; padding: 0.36rem 0.5rem;
       background: #fff; color: var(--e-fg); border: 1px solid var(--e-rule);
-      text-transform: uppercase; grid-column: 1;
+      text-transform: uppercase; flex-shrink: 0;
     }
     .row__hex:focus { outline: 2px solid var(--e-acc); outline-offset: -2px; }
     .row__hex.is-invalid { border-color: #a53623; color: #a53623; }
@@ -526,17 +547,14 @@
       padding: 0.65rem 0.85rem; border-bottom: 2px solid var(--rule-soft, #E2D8BB);
       background: var(--paper, #F0E8D2); position: relative;
     }
+    /* Text-only tabs — mirrors .menu-blend__tab: no pill, just ink vs
+       ink-muted with the accent indicator sliding underneath. */
     .sim__tab {
       font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.2em;
       text-transform: uppercase; font-weight: 500; padding: 0.35rem 0.8rem;
-      border: 1px solid transparent; border-radius: 999px;
       color: var(--ink-muted, #6F5E48);
     }
-    .sim__tab.is-active {
-      background: var(--ink, #1A1410); color: var(--paper-on-photo, #F4ECCF);
-      border-color: var(--ink, #1A1410);
-    }
-    .sim__tab:not(.is-active):hover { border-color: var(--rule, #CFC3A4); color: var(--ink, #1A1410); }
+    .sim__tab.is-active { color: var(--ink, #1A1410); }
     .sim__tabs-indicator {
       position: absolute; inset-block-end: -2px; inset-inline-start: 0;
       height: 2px; width: 30%;
@@ -585,28 +603,31 @@
     .sim__menucard-desc { color: var(--ink-soft, #3D362E); font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 300; line-height: 1.4; }
     .sim__menucard-row > span:last-child { color: var(--accent, #A88947); font-weight: 600; font-family: 'Inter', sans-serif; font-size: 0.82rem; }
 
-    /* PULL QUOTE */
+    /* PULL QUOTE — sits on the plain page background on the real site (no
+       tint of its own); the emphasised word takes --accent. */
     .sim__quote {
-      background: var(--accent-soft, #EAE0BD); padding: 0.8rem 0.9rem;
-      margin-inline: 0.9rem; color: var(--ink, #1A1410);
+      padding: 0.8rem 0.9rem; margin-inline: 0.9rem; color: var(--ink, #1A1410);
       font-family: Georgia, serif; font-size: 0.92rem; line-height: 1.5;
+      display: grid; gap: 0.4rem;
     }
-    .sim__quote em { color: var(--gold, #B69A52); font-style: italic; }
+    .sim__quote em { color: var(--accent, #A88947); font-style: italic; }
+    .sim__quote-attr {
+      font-family: 'Inter', sans-serif; font-size: 0.58rem; letter-spacing: 0.22em;
+      text-transform: uppercase; color: var(--ink-muted, #6F5E48);
+    }
 
-    /* MENU TILES — mirrors the real home-page food/wine/cocktails tiles; each
-       text fragment binds to its own --tile-* token. The tiles sit over a dark
-       photo on the site, so the preview uses a dark ground. */
+    /* MENU TILES — the home-page menu tiles. They sit over a dark photo on the
+       site, so the preview uses a dark ground and the tokens stay light. */
     .sim__tiles {
-      display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 0.5rem;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
       padding: 0.9rem;
       background: linear-gradient(135deg, #2a2018, #14100b);
     }
     .sim__tile {
       position: relative; display: flex; flex-direction: column;
-      justify-content: flex-end; gap: 0.3rem; min-height: 5.5rem; padding: 0.6rem;
+      justify-content: flex-end; gap: 0.3rem; min-height: 5rem; padding: 0.6rem;
       border: 1px solid rgba(244,236,207,.16); background: rgba(10,8,6,.35);
     }
-    .sim__tile--open { justify-content: center; gap: 0.25rem; background: rgba(10,8,6,.62); }
     .sim__tile-num {
       font-family: 'Inter', sans-serif; font-size: 0.6rem; letter-spacing: 0.14em;
       color: var(--tile-num, #C7BCA0);
@@ -615,19 +636,35 @@
       font-family: Georgia, serif; font-size: 1.1rem; line-height: 1;
       color: var(--tile-label, #F4ECCF);
     }
-    .sim__tile-eyebrow {
-      font-family: 'Inter', sans-serif; font-size: 0.52rem; letter-spacing: 0.22em;
-      text-transform: uppercase; color: var(--tile-num, #C7BCA0);
+
+    /* EVENTS BENEFITS BAND — /events/, driven by its own five tokens. */
+    .sim__band {
+      margin: 0.6rem 0.9rem; padding: 0.8rem 0.9rem;
+      background: linear-gradient(160deg, var(--events-band-from, #E8DFC8), var(--events-band-to, #F2EAD5));
+      display: grid; gap: 0.6rem;
     }
-    .sim__tile-fave {
-      font-family: Georgia, serif; font-size: 0.82rem; line-height: 1.15;
-      color: var(--tile-fave, #F4ECCF);
+    .sim__band-eyebrow {
+      margin: 0; font-family: 'Inter', sans-serif; font-size: 0.56rem;
+      letter-spacing: 0.28em; text-transform: uppercase; font-weight: 600;
+      color: color-mix(in srgb, var(--events-band-text, #3D362E) 74%, transparent);
+      display: inline-flex; align-items: center; gap: 0.5rem;
     }
-    .sim__tile-link {
-      margin-top: 0.3rem; align-self: flex-start; padding-bottom: 1px;
-      font-family: 'Inter', sans-serif; font-size: 0.56rem; letter-spacing: 0.08em;
-      color: var(--tile-link, #F4ECCF);
-      border-bottom: 1px solid color-mix(in srgb, var(--accent, #A88947) 80%, transparent);
+    .sim__band-eyebrow::before {
+      content: ''; width: 1.2rem; height: 1px; background: var(--events-band-num, #A88947);
+    }
+    .sim__band-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem;
+    }
+    .sim__band-cell {
+      display: grid; gap: 0.2rem; padding-inline-start: 0.7rem;
+      border-inline-start: 1px solid var(--events-band-divider, #CFC3A4);
+    }
+    .sim__band-num {
+      font-family: Georgia, serif; font-size: 0.7rem; color: var(--events-band-num, #A88947);
+    }
+    .sim__band-text {
+      font-family: 'Inter', sans-serif; font-size: 0.7rem; line-height: 1.4;
+      color: var(--events-band-text, #3D362E);
     }
 
     /* TOC */
@@ -644,19 +681,6 @@
       border-bottom: 2px dotted var(--ink-faint, #B6A98C); align-self: end;
       transform: translateY(-0.3rem); min-width: 1rem;
     }
-
-    /* CATEGORY CHIPS */
-    .sim__chips { display: flex; gap: 0.35rem; flex-wrap: wrap; padding: 0 0.9rem; }
-    .sim__chip {
-      font-family: 'Inter', sans-serif; font-size: 0.58rem; letter-spacing: 0.16em;
-      text-transform: uppercase; font-weight: 700; padding: 0.28rem 0.55rem;
-      border: 1px solid currentColor;
-    }
-    .sim__chip--green { color: var(--c-green, #5A786A); }
-    .sim__chip--teal  { color: var(--c-teal,  #3E6D77); }
-    .sim__chip--slate { color: var(--c-slate, #3E5359); }
-    .sim__chip--mauve { color: var(--c-mauve, #9D8499); }
-    .sim__chip--gold  { color: var(--gold,    #B69A52); }
 
     /* CONTACT TOGGLE */
     .sim__toggle {
@@ -793,14 +817,16 @@
     .sim__rail-label { display: inline-block; }
     .sim__corner-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 0.7rem;
     }
     .sim__corner-cell {
       display: grid;
       gap: 0.3rem;
       justify-items: center;
+      align-content: start;
     }
+    /* Scroll-to-top: the solid primary-button contract (--ink fill, --paper glyph). */
     .sim__corner-btn {
       width: 2.1rem;
       height: 2.1rem;
@@ -812,6 +838,24 @@
       border-radius: 50%;
       font-size: 0.95rem;
       line-height: 1;
+    }
+    /* Accessibility toggle: a soft paper disc with an ink glyph — NOT the
+       solid button treatment. Matches .a11y-toggle in components.css. */
+    .sim__corner-btn--soft {
+      background: var(--paper-card, #F7F0DB);
+      color: var(--ink, #1A1410);
+      border-color: var(--rule, #CFC3A4);
+    }
+    /* Floating Reserve pill — accent fill with a paper-on-photo label. */
+    .sim__reserve-pill {
+      padding: 0.34rem 0.8rem;
+      background: var(--accent, #A88947);
+      color: var(--paper-on-photo, #F4ECCF);
+      border: 1px solid var(--accent, #A88947);
+      border-radius: 999px;
+      font-family: 'Inter', sans-serif; font-size: 0.55rem;
+      letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
+      white-space: nowrap;
     }
     .sim__corner-caption {
       font-family: 'Inter', sans-serif;
@@ -855,6 +899,96 @@
       border-top: 1px solid var(--rule-soft, #E2D8BB);
       font-family: 'Inter', sans-serif; font-size: 0.6rem;
       letter-spacing: 0.1em; color: var(--ink-muted, #6F5E48);
+    }
+
+    /* ENTRY POPUP + COOKIE BANNER — the two overlays a first-time visitor
+       meets. Both follow the palette; shown inline here, not floating. */
+    .sim__overlays { display: grid; gap: 0.5rem; padding: 0.6rem 0.9rem 0; }
+    .sim__popup {
+      position: relative;
+      background: var(--paper-card, #F7F0DB);
+      border: 1px solid var(--rule, #CFC3A4);
+      padding: 0.85rem 0.9rem;
+      display: grid; gap: 0.3rem; justify-items: center; text-align: center;
+      box-shadow: 0 12px 30px -18px color-mix(in srgb, var(--shadow, #0A0806) 60%, transparent);
+    }
+    .sim__popup-kicker {
+      margin: 0; font-family: 'Inter', sans-serif; font-size: 0.52rem;
+      letter-spacing: 0.34em; text-indent: 0.34em; text-transform: uppercase;
+      color: var(--ink-muted, #6F5E48);
+    }
+    .sim__popup-title {
+      margin: 0; font-family: Georgia, serif; font-size: 1.05rem;
+      color: var(--ink, #1A1410);
+    }
+    .sim__popup-body {
+      margin: 0; font-family: 'Inter', sans-serif; font-size: 0.7rem;
+      color: var(--ink-soft, #3D362E); line-height: 1.45;
+    }
+    .sim__popup-btn {
+      margin-top: 0.25rem; padding: 0.35rem 0.85rem;
+      background: var(--ink, #1A1410); color: var(--paper, #F0E8D2);
+      font-family: 'Inter', sans-serif; font-size: 0.55rem;
+      letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
+    }
+    .sim__popup-close {
+      position: absolute; inset-block-start: 0.3rem; inset-inline-end: 0.45rem;
+      color: var(--ink-muted, #6F5E48); font-size: 0.85rem; line-height: 1;
+    }
+    .sim__consent {
+      background: var(--paper, #F0E8D2);
+      border: 1px solid var(--rule-soft, #E2D8BB);
+      padding: 0.55rem 0.7rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.6rem; flex-wrap: wrap;
+    }
+    .sim__consent-text {
+      font-family: 'Inter', sans-serif; font-size: 0.66rem;
+      color: var(--ink-soft, #3D362E);
+    }
+    .sim__consent-btns { display: flex; gap: 0.3rem; }
+    .sim__consent-btn {
+      padding: 0.26rem 0.6rem;
+      background: var(--ink, #1A1410); color: var(--paper, #F0E8D2);
+      border: 1px solid var(--ink, #1A1410);
+      font-family: 'Inter', sans-serif; font-size: 0.52rem;
+      letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600;
+    }
+    .sim__consent-btn.ghost {
+      background: transparent; color: var(--ink, #1A1410);
+    }
+
+    /* PAGE GROUND — the fixed wash + glow + grain behind every page. Rebuilt
+       here from the same tokens so the owner can see the gradient direction
+       and the grain they're dialling in. */
+    .sim__ground {
+      position: relative;
+      isolation: isolate;
+      margin: 0.6rem 0.9rem 0;
+      min-height: 6rem;
+      display: grid;
+      place-items: end start;
+      padding: 0.6rem;
+      border: 1px solid var(--rule-soft, #E2D8BB);
+      background:
+        radial-gradient(90% 55% at 50% -8%,
+          color-mix(in srgb, var(--bg-glow, #A88947) calc(var(--bg-glow-strength, 10) * 1%), transparent), transparent 62%),
+        radial-gradient(78% 58% at 108% 104%,
+          color-mix(in srgb, var(--bg-glow, #A88947) calc(var(--bg-glow-strength, 10) * 0.9%), transparent), transparent 58%),
+        linear-gradient(calc(var(--bg-wash-angle, 176) * 1deg),
+          var(--bg-wash-from, #F0E8D2) 0%, var(--bg-wash-to, #E5DCC4) 100%);
+    }
+    .sim__ground::after {
+      content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+      opacity: calc(var(--bg-grain-strength, 4) / 100);
+      mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 160px 160px;
+    }
+    .sim__ground-label {
+      font-family: 'Inter', sans-serif; font-size: 0.52rem;
+      letter-spacing: 0.2em; text-transform: uppercase; font-weight: 600;
+      color: var(--ink-muted, #6F5E48);
     }
 
     /* ── Palette popup ───────────────────────────────────────── */
@@ -923,4 +1057,135 @@
       font-family: ui-monospace, monospace; font-size: 0.68rem;
       background: #eee5cf; border: 1px solid #d3c89e; border-radius: 3px;
       margin-inline-start: 0.35rem; color: var(--e-mut);
+    }
+
+    /* ══ Preset picker ═══════════════════════════════════════════════════
+       Replaces the old <select>: every preset shows its own colours, so the
+       owner picks by eye instead of by name. Mix mode turns each card into a
+       set of parts that can be combined across presets. */
+    .preset-modal, .legibility-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.52);
+      display: grid; place-items: center; padding: 1.5rem; z-index: 56;
+    }
+    .preset-modal[hidden], .legibility-modal[hidden] { display: none; }
+    .preset-modal__inner, .legibility-modal__inner {
+      background: var(--e-bg); border: 1px solid var(--e-rule);
+      padding: 1.2rem; width: min(900px, 100%);
+      max-height: min(85vh, 900px); display: grid; gap: 0.85rem;
+      grid-template-rows: auto auto 1fr auto;
+    }
+    .legibility-modal__inner { grid-template-rows: auto 1fr; }
+    .preset-modal__head, .legibility-modal__head {
+      display: flex; align-items: flex-start; gap: 0.85rem; flex-wrap: wrap;
+    }
+    .preset-modal__head > div:first-child,
+    .legibility-modal__head > div:first-child { flex: 1; min-width: 12rem; }
+    .preset-modal h2, .legibility-modal h2 {
+      margin: 0; font-size: 0.9rem; letter-spacing: 0.2em; text-transform: uppercase;
+    }
+    .preset-modal__sub, .legibility-modal__sub {
+      margin: 0.25rem 0 0; font-size: 0.78rem; color: var(--e-mut); max-width: 52ch;
+    }
+    .preset-modal__bar {
+      display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+      border-block: 1px solid var(--e-rule); padding-block: 0.5rem;
+    }
+    .preset-modal__hint { font-size: 0.76rem; color: var(--e-mut); }
+
+    .preset-grid {
+      display: grid; gap: 0.6rem; overflow: auto; padding-inline-end: 0.2rem;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      align-content: start;
+    }
+    .preset-card { border: 1px solid var(--e-rule); background: #fff; }
+    .preset-card.is-mixing { display: grid; }
+    .preset-card__main {
+      width: 100%; font: inherit; text-align: start; cursor: pointer;
+      background: transparent; border: 0; padding: 0.6rem 0.7rem;
+      display: grid; gap: 0.3rem;
+      transition: background var(--ui-transition);
+    }
+    .preset-card__main:hover { background: var(--venue-soft); }
+    .preset-card__main:focus-visible { outline: 2px solid var(--e-acc); outline-offset: -2px; }
+    /* The swatch circles sit behind the name, so a preset is recognised by
+       its palette before its label is read. */
+    .preset-card__dots { display: flex; gap: 0.22rem; }
+    .preset-card__dot {
+      width: 15px; height: 15px; border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.14);
+    }
+    .preset-card__name {
+      font-weight: 700; font-size: 0.86rem; color: var(--e-fg);
+    }
+    .preset-card__note { font-size: 0.72rem; color: var(--e-mut); }
+    .preset-card__parts {
+      display: flex; flex-wrap: wrap; gap: 0.22rem;
+      padding: 0 0.6rem 0.6rem;
+    }
+    .preset-part {
+      font: inherit; font-size: 0.62rem; letter-spacing: 0.06em;
+      padding: 0.16rem 0.4rem; cursor: pointer;
+      background: transparent; color: var(--e-mut);
+      border: 1px solid var(--e-rule);
+      transition: color var(--ui-transition), background var(--ui-transition), border-color var(--ui-transition);
+    }
+    .preset-part:hover { color: var(--e-fg); border-color: var(--e-fg); }
+    .preset-part.is-on {
+      background: var(--e-acc); border-color: var(--e-acc); color: #fff; font-weight: 700;
+    }
+
+    .preset-modal__foot {
+      display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap;
+      border-top: 1px solid var(--e-rule); padding-top: 0.7rem;
+    }
+    .preset-modal__foot[hidden] { display: none; }
+    .preset-recipe { display: flex; flex-wrap: wrap; gap: 0.3rem; flex: 1; }
+    .preset-recipe__chip {
+      font-size: 0.7rem; padding: 0.18rem 0.45rem;
+      background: #fff; border: 1px solid var(--e-rule); color: var(--e-mut);
+    }
+    .preset-recipe__chip strong { color: var(--e-fg); }
+    .preset-modal__foot-btns { display: flex; gap: 0.4rem; }
+
+    /* ══ Legibility report ═══════════════════════════════════════════════ */
+    /* Quiet by default (a couple of below-AA pairings are inherent to the
+       house gold), loud only when text has actually gone invisible. */
+    .legibility-badge {
+      font: inherit; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; white-space: nowrap; cursor: pointer;
+      padding: 0.35rem 0.6rem; color: #8a5a12;
+      background: rgba(217,119,6,0.08); border: 1px solid rgba(217,119,6,0.3);
+    }
+    .legibility-badge::before { content: '⚠ '; }
+    .legibility-badge[hidden] { display: none; }
+    .legibility-badge:hover { border-color: #8a5a12; }
+    .legibility-badge.is-severe {
+      color: #fff; background: var(--e-disc); border-color: var(--e-disc);
+    }
+    .legibility-badge.is-severe:hover { background: #a02525; border-color: #a02525; }
+
+    .legibility-list { display: grid; gap: 0.4rem; overflow: auto; align-content: start; }
+    .legibility-ok { margin: 0; font-size: 0.85rem; color: var(--e-mut); }
+    .legibility-row {
+      display: grid; grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 0.7rem;
+      padding: 0.5rem 0.6rem; background: #fff; border: 1px solid var(--e-rule);
+    }
+    .legibility-row__sample {
+      width: 2.6rem; height: 2.2rem; display: grid; place-items: center;
+      font-family: Georgia, serif; font-size: 1rem; font-weight: 600;
+      border: 1px solid rgba(0,0,0,0.14);
+    }
+    .legibility-row__meta { display: grid; gap: 0.12rem; min-width: 0; }
+    .legibility-row__where { font-size: 0.82rem; font-weight: 600; color: var(--e-fg); }
+    .legibility-row.is-severe { border-color: var(--e-disc); border-inline-start-width: 3px; }
+    .legibility-row__pair { font-size: 0.72rem; color: var(--e-mut); }
+    .legibility-row__flag {
+      color: #fff; background: var(--e-disc); padding: 0 0.28rem;
+      font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .legibility-row__pair code { background: #f2ece0; padding: 0 0.25rem; }
+    .legibility-row__fix { display: flex; align-items: center; gap: 0.4rem; }
+    .legibility-row__swatch {
+      width: 18px; height: 18px; border: 1px solid rgba(0,0,0,0.18); flex-shrink: 0;
     }

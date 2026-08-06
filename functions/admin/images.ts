@@ -176,6 +176,58 @@ const STYLE = `
     margin: 0 auto;
     padding: 1.5rem 1.25rem 5rem;
   }
+  /* ── Progress strip + filters ─────────────────────────────────────── */
+  .status-strip {
+    display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+    margin-block-end: 0.85rem;
+  }
+  .status-strip__count {
+    margin: 0; font-size: 0.82rem; color: #6f6457; font-weight: 600;
+  }
+  .status-strip__count b { color: #1a1410; }
+  .status-strip__count .is-warn { color: #a53623; }
+  .status-strip__filters { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+  .filter-chip {
+    font: inherit; font-size: 0.74rem; letter-spacing: 0.08em;
+    font-weight: 600; padding: 0.36rem 0.7rem; cursor: pointer;
+    background: #fff; color: #6f6457; border: 1px solid #D5CBB1;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+  }
+  .filter-chip:hover { color: #1a1410; border-color: #9C4621; }
+  .filter-chip.is-active { background: #9C4621; border-color: #9C4621; color: #fff; }
+  .filter-chip:focus-visible { outline: 2px solid #9C4621; outline-offset: 2px; }
+
+  /* Busy overlay — while a card is uploading or removing, it locks and says
+     so, so a slow connection never looks like "nothing happened". */
+  .card { position: relative; }
+  .card.is-busy { pointer-events: none; }
+  .card.is-busy::after {
+    content: attr(data-busy);
+    position: absolute; inset: 0; z-index: 5;
+    display: grid; place-items: center;
+    background: rgba(244, 237, 223, 0.86);
+    font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: #1a1410;
+  }
+
+  /* The thumbnail is the biggest, most obvious target on the card — make it
+     open the editor, and say so on hover. */
+  .card__thumb { cursor: pointer; }
+  /* Centred so it never collides with the badge (top-start) or the aspect
+     chip (bottom-end). */
+  .card__thumb::after {
+    content: 'Click, or drop a photo here';
+    position: absolute; inset-block-start: 50%; inset-inline-start: 50%;
+    transform: translate(-50%, -50%);
+    padding: 0.4rem 0.75rem; white-space: nowrap;
+    background: rgba(26, 20, 16, 0.78); color: #F4EDDF;
+    font-size: 0.7rem; letter-spacing: 0.06em; font-weight: 600;
+    opacity: 0; transition: opacity 0.18s;
+    pointer-events: none;
+  }
+  .card__thumb:hover::after,
+  .card__thumb.is-dragging::after { opacity: 1; }
+
   .lead {
     color: #6f6457;
     max-width: 70ch;
@@ -578,7 +630,11 @@ const STYLE = `
   }
   .chip.is-on { background: #1a1410; color: #F4EDDF; border-color: #1a1410; }
   .editor__divider { height: 1px; background: #e6dcc4; margin: 0.2rem 0; }
-  .editor__meta { font-size: 0.72rem; color: #6f6457; font-family: 'Inter', monospace; }
+  .editor__meta { font-size: 0.72rem; color: #6f6457; font-family: 'Inter', monospace; line-height: 1.5; }
+  .editor__meta--warn {
+    color: #8a4b12; background: #fdf1e3;
+    border-inline-start: 3px solid #d97706; padding: 0.45rem 0.6rem;
+  }
   .editor__foot { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
   .editor__status { margin: 0; min-height: 1.2em; font-size: 0.74rem; color: #4f6b47; }
   .editor__status--err { color: #a53623; }
@@ -667,7 +723,21 @@ const SCRIPT = `
       });
     }
 
-    // ── Live search filter ────────────────────────────────────────────
+    // ── Live search + status filter ───────────────────────────────────
+    // A card's state lives on its badge, so the filter reads the badge class
+    // rather than a separate flag — that way it stays correct after an upload
+    // or a removal without any extra bookkeeping.
+    let activeFilter = 'all';
+
+    function cardState(card) {
+      const badge = card.querySelector('[data-badge]');
+      const cls = badge ? badge.className : '';
+      if (cls.indexOf('card__badge--missing') !== -1) return 'attention';
+      if (cls.indexOf('card__badge--override') !== -1 ||
+          cls.indexOf('card__badge--set') !== -1)     return 'mine';
+      return 'other';
+    }
+
     function applySearch() {
       const q = (searchInput && searchInput.value || '').trim().toLowerCase();
       const v = activeView();
@@ -676,15 +746,43 @@ const SCRIPT = `
         let shown = 0;
         group.querySelectorAll('[data-photo-card]').forEach((card) => {
           const hay = card.dataset.search || '';
-          const match = !q || hay.indexOf(q) !== -1;
-          card.classList.toggle('is-hidden', !match);
-          if (match) shown++;
+          const matchQ = !q || hay.indexOf(q) !== -1;
+          const matchF = activeFilter === 'all' || cardState(card) === activeFilter;
+          card.classList.toggle('is-hidden', !(matchQ && matchF));
+          if (matchQ && matchF) shown++;
         });
         group.classList.toggle('is-empty', shown === 0);
       });
       buildJumpnav();
+      updateCount();
     }
     if (searchInput) searchInput.addEventListener('input', applySearch);
+
+    document.querySelectorAll('[data-filter]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        activeFilter = chip.dataset.filter;
+        document.querySelectorAll('[data-filter]').forEach((c) =>
+          c.classList.toggle('is-active', c === chip));
+        applySearch();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+    // "X of Y photos set · N still need one" — counted from the DESKTOP view,
+    // which is the complete list (the mobile view is a subset).
+    const countEl = document.getElementById('status-count');
+    function updateCount() {
+      if (!countEl) return;
+      const desktop = document.querySelector('[data-view="desktop"]');
+      if (!desktop) return;
+      const all = Array.prototype.slice.call(desktop.querySelectorAll('[data-photo-card]'));
+      const missing = all.filter((c) => cardState(c) === 'attention').length;
+      const mine    = all.filter((c) => cardState(c) === 'mine').length;
+      countEl.innerHTML = '<b>' + mine + '</b> of ' + all.length + ' photos replaced by you' +
+        (missing
+          ? ' · <span class="is-warn"><b>' + missing + '</b> still need' + (missing === 1 ? 's' : '') + ' a photo</span>'
+          : ' · nothing missing');
+    }
 
     // ── Gallery caption autosave (delegated) ──────────────────────────
     document.addEventListener('change', async (e) => {
@@ -852,6 +950,43 @@ const SCRIPT = `
         status.textContent = msg || '';
         status.classList.toggle('card__status--err', !!err);
       }
+      /** Lock the card and say what's happening — a slow upload should never
+       *  look like nothing happened, or invite a second click. */
+      function setBusy(label) {
+        if (label) { card.dataset.busy = label; card.classList.add('is-busy'); }
+        else       { card.classList.remove('is-busy'); delete card.dataset.busy; }
+      }
+
+      // One place decides whether a dropped/picked file is usable, so the
+      // message is the same however the file arrived. iPhones shoot HEIC by
+      // default and browsers can't decode it, so it gets its own instruction
+      // rather than a bare "wrong format".
+      const MAX_BYTES = 10 * 1024 * 1024;
+      function rejectReason(f) {
+        const name = (f.name || '').toLowerCase();
+        if (/\\.(heic|heif)$/.test(name) || /^image\\/hei[cf]/.test(f.type)) {
+          return 'iPhone photos (HEIC) can\\'t be read here. On the iPhone: ' +
+                 'Settings → Camera → Formats → "Most Compatible", then retake or ' +
+                 're-send the photo — or email it to yourself and save the JPG.';
+        }
+        if (!/^image\\/(jpeg|png|webp)$/.test(f.type)) {
+          return 'That file isn\\'t a photo we can use. Please pick a JPG, PNG or WebP.';
+        }
+        if (f.size > MAX_BYTES) {
+          return 'That photo is ' + Math.round(f.size / 1024 / 1024) + ' MB — the limit is 10 MB. ' +
+                 'Try exporting it a bit smaller.';
+        }
+        return null;
+      }
+      /** Accept a file from any source (picker or drop). */
+      function takeFile(f) {
+        if (!f) return;
+        const bad = rejectReason(f);
+        if (bad) { setStatus(bad, true); return; }
+        if (fname) fname.textContent = f.name + ' · ' + fmtKB(f.size);
+        setStatus('', false);
+        openEditor(f);
+      }
       function refreshThumb() {
         if (thumb) { thumb.style.opacity = 1; thumb.src = thumb.dataset.src + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''); }
       }
@@ -865,6 +1000,7 @@ const SCRIPT = `
         }
         if (missingNote)  missingNote.hidden = true;
         if (optionalNote) optionalNote.hidden = true;
+        updateCount();   // the badge just changed — keep the progress line honest
         try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'set' }); } catch (_) {}
       }
 
@@ -888,37 +1024,51 @@ const SCRIPT = `
       if (file) {
         file.addEventListener('change', () => {
           if (!file.files || !file.files.length) { if (fname) fname.textContent = ''; return; }
-          const f = file.files[0];
-          if (fname) fname.textContent = f.name + ' · ' + fmtKB(f.size);
-          openEditor(f);
+          takeFile(file.files[0]);
+          file.value = '';   // so re-picking the SAME file still fires change
         });
       }
       if (replace) replace.addEventListener('click', () => { if (file) file.click(); });
 
+      function editCurrent() {
+        if (!thumb) return;
+        openEditor(thumb.dataset.src + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''));
+      }
       // Edit the photo currently shown (no new file needed).
-      if (editB) {
-        editB.addEventListener('click', () => {
-          if (!thumb) return;
-          openEditor(thumb.dataset.src + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''));
+      if (editB) editB.addEventListener('click', editCurrent);
+
+      // The thumbnail is the obvious thing to click, so make it work: it opens
+      // the editor on what's there, or the file picker when the slot is empty.
+      if (thumbZone) {
+        thumbZone.addEventListener('click', () => {
+          const badge = card.querySelector('[data-badge]');
+          const empty = badge && /card__badge--(missing|optional)/.test(badge.className);
+          if (empty) { if (file) file.click(); }
+          else editCurrent();
         });
       }
 
-      // Drag a file onto the thumbnail → opens the editor on it.
-      if (thumbZone) {
-        ['dragenter', 'dragover'].forEach((ev) => {
-          thumbZone.addEventListener(ev, (e) => { e.preventDefault(); thumbZone.classList.add('is-dragging'); });
+      // Drop a file ANYWHERE on the card — aiming at the small thumbnail is
+      // a needless precision task. The thumbnail still shows the drop cue.
+      ['dragenter', 'dragover'].forEach((ev) => {
+        card.addEventListener(ev, (e) => {
+          if (!e.dataTransfer || e.dataTransfer.types.indexOf('Files') === -1) return;
+          e.preventDefault();
+          if (thumbZone) thumbZone.classList.add('is-dragging');
         });
-        ['dragleave', 'drop'].forEach((ev) => {
-          thumbZone.addEventListener(ev, (e) => { e.preventDefault(); thumbZone.classList.remove('is-dragging'); });
+      });
+      ['dragleave', 'drop'].forEach((ev) => {
+        card.addEventListener(ev, (e) => {
+          e.preventDefault();
+          // dragleave fires when moving between the card's own children too;
+          // only clear when the pointer has actually left the card.
+          if (ev === 'dragleave' && card.contains(e.relatedTarget)) return;
+          if (thumbZone) thumbZone.classList.remove('is-dragging');
         });
-        thumbZone.addEventListener('drop', (e) => {
-          const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-          if (!f) return;
-          if (!/^image\\/(jpeg|png|webp)$/.test(f.type)) { setStatus('Only JPG / PNG / WebP', true); return; }
-          if (fname) fname.textContent = f.name + ' · ' + fmtKB(f.size);
-          openEditor(f);
-        });
-      }
+      });
+      card.addEventListener('drop', (e) => {
+        takeFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+      });
 
       if (choose) {
         choose.addEventListener('click', () => {
@@ -948,6 +1098,7 @@ const SCRIPT = `
           if (replace) replace.disabled = true;
           del.disabled = true;
           if (editB) editB.disabled = true;
+          setBusy('Removing…');
           setStatus('Removing…', false);
           try {
             const fd = new FormData();
@@ -978,10 +1129,12 @@ const SCRIPT = `
                 if (missingNote) missingNote.hidden = false;
               }
             }
+            updateCount();
             try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'delete' }); } catch (_) {}
           } catch (err) {
             setStatus(String(err.message || err), true);
           } finally {
+            setBusy('');
             if (replace) replace.disabled = false;
             del.disabled = false;
             if (editB) editB.disabled = false;
@@ -1275,7 +1428,18 @@ const SCRIPT = `
           if (!cropToAR) targetAR = im.naturalWidth / im.naturalHeight;
           rotation = 0;
           buildWork();
+          // Say the size plainly, and warn when the source is too small for the
+          // slot — a screenshot or a WhatsApp copy will look soft stretched
+          // across a full-bleed band, and there's no way to tell from the
+          // thumbnail alone.
+          const minW = opts.variant === 'mobile' ? 800 : 1400;
           metaEl.textContent = im.naturalWidth + ' × ' + im.naturalHeight + ' px source';
+          metaEl.classList.toggle('editor__meta--warn', im.naturalWidth < minW);
+          if (im.naturalWidth < minW) {
+            metaEl.textContent += ' — small for this slot (' + minW + ' px+ recommended). ' +
+              'It will still upload, but may look soft. A photo straight from a ' +
+              'phone camera is usually large enough; a screenshot or a WhatsApp copy often is not.';
+          }
           applyB.disabled = false;
           setStatus('', false);
           drawPreview();
@@ -1424,6 +1588,7 @@ const SCRIPT = `
     // Default view + initial chrome.
     buildJumpnav();
     applySearch();
+    updateCount();
   })();
 `;
 
@@ -1547,8 +1712,11 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
         </p>
       </header>
       <div class="card__actions">
+        <!-- HEIC is listed so an iPhone photo can at least be SELECTED: iOS
+             usually converts it on the way out, and when it doesn't we show a
+             real explanation instead of the file simply not being selectable. -->
         <input class="card__file" type="file" data-input-file
-               accept="image/jpeg,image/png,image/webp" />
+               accept="image/jpeg,image/png,image/webp,image/heic,image/heif" />
         <div class="card__row">
           <button class="btn" type="button" data-btn-replace>Replace photo…</button>
           <button class="btn btn--ghost" type="button" data-btn-edit>Edit current</button>
@@ -1666,9 +1834,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       </section>`;
   }).join('');
 
+  // The count + a jump-to filter now live in the status strip above the list,
+  // so this banner only carries the consequence — no "go hunt for the badge".
   const missingBanner = missingCount > 0
     ? `<p class="lead" style="background:#fbeae6;border-inline-start:3px solid #a53623;padding:0.6rem 0.85rem;color:#6b1a0e;">
-         <strong>${missingCount}</strong> photo${missingCount === 1 ? ' has' : 's have'} no image stored — visitors see a broken image there. Look for the red <em>Missing</em> badge.
+         <strong>${missingCount}</strong> photo${missingCount === 1 ? ' has' : 's have'} no image yet — visitors see a broken picture there.
+         Press <strong>Needs a photo</strong> above to see just those.
        </p>`
     : '';
 
@@ -1690,13 +1861,26 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     </div>`,
   })}
   <main>
+    <!-- Progress + one-click filters. The page previously only told the owner
+         to "look for the red badge", which on a 30-photo list means scrolling
+         the lot. These chips jump straight to what is unfinished. -->
+    <div class="status-strip">
+      <p class="status-strip__count" id="status-count"></p>
+      <div class="status-strip__filters" role="group" aria-label="Filter photos">
+        <button type="button" class="filter-chip is-active" data-filter="all">All photos</button>
+        <button type="button" class="filter-chip" data-filter="attention">Needs a photo</button>
+        <button type="button" class="filter-chip" data-filter="mine">Replaced by you</button>
+      </div>
+    </div>
+
     <p class="lead">
-      Pick a file (or drop one on a thumbnail) and it opens straight in the
-      editor, where you frame it to the exact shape it appears on the site,
-      then <strong>Apply &amp; upload</strong>. <strong>Edit current</strong>
-      re-frames what's there, <strong>Choose existing</strong> reuses another
-      photo, and <strong>Remove</strong> reverts to the default. JPG / PNG / WebP,
-      up to 10&nbsp;MB.
+      <strong>To change a photo:</strong> drag a picture onto the one you want
+      to replace — or click it. It opens in the editor where you frame it, then
+      press <strong>Apply&nbsp;&amp;&nbsp;upload</strong>.
+      <br />
+      <strong>Choose existing</strong> reuses a photo already on the site.
+      <strong>Remove</strong> puts the original back.
+      Photos from a phone or camera work — JPG, PNG or WebP, up to 10&nbsp;MB.
     </p>
 
     <div class="view is-active" data-view="desktop">

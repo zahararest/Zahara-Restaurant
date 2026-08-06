@@ -57,13 +57,21 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* ── Ambient warmth ───────────────────────────────────────────────────
-   A fixed, soft warm wash behind ALL content so the plain background
-   sections (PhotoBlock bands, Instagram, intros, any transparent .section)
-   never read as a single flat slab — especially in dark mode. Two diagonal
-   accent glows plus a gentle vertical deepening. It's fixed (not
-   background-attachment) so it composites on its own layer and never
-   repaints during scroll — mobile-safe. Photo sections paint over it. */
+/* ── Page ground ──────────────────────────────────────────────────────
+   Two fixed pseudo-elements behind every page, so the plain sections
+   (PhotoBlock bands, Instagram, intros, any transparent .section) never
+   read as one flat slab. Both are `position: fixed` rather than
+   `background-attachment: fixed` — iOS mishandles the latter — which also
+   puts them on their own compositor layer, so they never repaint on scroll.
+   Photo sections and cards paint over them normally.
+
+     ::before — the gradient wash + two ambient corner glows
+     ::after  — a fine paper grain
+
+   Every value is a token the owner tunes in /admin/colors → "Page
+   background". The two strengths and the angle are unitless NUMBERS, so the
+   unit is applied here; setting a strength to 0 removes that layer's ink
+   entirely. See src/styles/tokens.css for the defaults. */
 body::before {
   content: '';
   position: fixed;
@@ -71,38 +79,37 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    /* gold glow, top inline-start */
-    radial-gradient(80% 60% at 15% 4%,
-      color-mix(in srgb, var(--accent) 13%, transparent), transparent 58%),
-    /* gold glow, bottom inline-end */
-    radial-gradient(75% 60% at 95% 96%,
-      color-mix(in srgb, var(--accent) 11%, transparent), transparent 60%),
-    /* full-viewport diagonal wash: warm at top, deepening to the bottom so
-       even the middle of a plain section carries tone, not a flat slab */
-    linear-gradient(160deg,
-      color-mix(in srgb, var(--accent) 5%, transparent) 0%,
-      transparent 38%,
-      color-mix(in srgb, var(--shadow) 12%, transparent) 100%);
+    radial-gradient(90% 55% at 50% -8%,
+      color-mix(in srgb, var(--bg-glow) calc(var(--bg-glow-strength) * 1%), transparent), transparent 62%),
+    radial-gradient(78% 58% at 108% 104%,
+      color-mix(in srgb, var(--bg-glow) calc(var(--bg-glow-strength) * 0.9%), transparent), transparent 58%),
+    radial-gradient(72% 52% at -8% 32%,
+      color-mix(in srgb, var(--bg-glow) calc(var(--bg-glow-strength) * 0.6%), transparent), transparent 55%),
+    linear-gradient(calc(var(--bg-wash-angle) * 1deg), var(--bg-wash-from) 0%, var(--bg-wash-to) 100%);
 }
 
-/* Warm ambient gradient behind everything — soft gold glows + a paper →
-   paper-deep wash give the background depth instead of flat cream, without
-   fighting the editorial look. A fixed pseudo-element (not background-
-   attachment:fixed, which iOS mishandles) keeps it ambient on scroll. Sits
-   behind all content; transparent sections let it show through. Token-based,
-   so it warms dark mode too. */
-body::before {
+/* Paper grain. A tiled fractal-noise tile (no network request — it's an
+   inline SVG data URI) held at a low opacity so it reads as printed stock
+   rather than screen noise. `mix-blend-mode: multiply` keeps it as tooth in
+   the paper on light themes; dark themes overlay instead, so the grain
+   lifts rather than muddies. */
+body::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(90% 55% at 50% -8%,   color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%),
-    radial-gradient(78% 58% at 108% 104%, color-mix(in srgb, var(--gold) 9%, transparent),   transparent 58%),
-    radial-gradient(72% 52% at -8% 32%,   color-mix(in srgb, var(--accent) 6%, transparent),  transparent 55%),
-    linear-gradient(176deg, var(--paper) 0%, var(--paper-deep) 100%);
+  opacity: calc(var(--bg-grain-strength) / 100);
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
 }
+html[data-theme="dark"] body::after { mix-blend-mode: overlay; }
+
+/* The grain is texture, not information — drop it when the visitor has asked
+   for maximum contrast, so nothing sits on top of the legal high-contrast
+   palette. */
+html.a11y-contrast body::after { display: none; }
 
 img, svg, video { display: block; max-width: 100%; height: auto; }
 a { color: inherit; text-decoration: none; touch-action: manipulation; }

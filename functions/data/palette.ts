@@ -41,24 +41,45 @@ export const ALLOWED_TOKENS: ReadonlySet<string> = new Set([
   '--ink',   '--ink-soft',   '--ink-muted',  '--ink-faint',
   '--rule',  '--rule-soft',
   '--accent','--accent-deep','--accent-soft',
-  '--gold',  '--c-green',    '--c-teal',     '--c-slate', '--c-mauve',
+  '--gold',
   '--ok',    '--err',
   '--shadow',
   '--events-band-from', '--events-band-to', '--events-band-text',
   '--events-band-num',  '--events-band-divider',
-  '--tile-label', '--tile-num', '--tile-fave', '--tile-link',
+  '--tile-label', '--tile-num',
+  '--bg-wash-from', '--bg-wash-to', '--bg-glow',
 ]);
+
+/** Tokens stored as a bare NUMBER rather than a hex — the CSS that reads them
+ *  supplies the unit (`calc(var(--bg-wash-angle) * 1deg)`). Kept separate so
+ *  each one can be range-checked on write; out-of-range values are clamped
+ *  rather than dropped, so a stale client can't wedge the page. Mirrors the
+ *  `kind: 'scalar'` tokens in src/data/admin-colors.ts. */
+export const SCALAR_TOKENS: Readonly<Record<string, { min: number; max: number }>> = {
+  '--bg-wash-angle':     { min: 0, max: 360 },
+  '--bg-glow-strength':  { min: 0, max: 40  },
+  '--bg-grain-strength': { min: 0, max: 20  },
+};
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
-/** Reduce arbitrary input to a clean `{ "--token": "#RRGGBB" }` record. */
+/** Reduce arbitrary input to a clean record of `#RRGGBB` colours and
+ *  in-range numeric scalars. Anything else is dropped. */
 export function sanitiseThemeMap(input: unknown): ThemeMap {
   const out: ThemeMap = {};
   if (!input || typeof input !== 'object') return out;
   for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
-    if (!ALLOWED_TOKENS.has(k))       continue;
-    if (typeof v !== 'string')        continue;
-    if (!HEX.test(v))                 continue;
+    if (typeof v !== 'string' && typeof v !== 'number') continue;
+    const range = SCALAR_TOKENS[k];
+    if (range) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) continue;
+      out[k] = String(Math.round(Math.min(range.max, Math.max(range.min, n))));
+      continue;
+    }
+    if (!ALLOWED_TOKENS.has(k))      continue;
+    if (typeof v !== 'string')       continue;
+    if (!HEX.test(v))                continue;
     out[k] = v.toUpperCase();
   }
   return out;

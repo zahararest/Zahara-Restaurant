@@ -1,24 +1,10 @@
 ---
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// Architecture notes
-// ──────────────────
-// • Token groups + Token definitions live here (server-side) because Astro
-//   uses them to render the HTML row elements. This is the correct Astro
-//   pattern for static server-rendered data.
-//
-// • PRESETS are defined inside the <script> tag below — they are purely
-//   client-side data. Keeping them here in the frontmatter and passing them
-//   via define:vars was unnecessary. Only `defaults` (the token→hex map) is
-//   passed via define:vars because it is derived from the array above.
-//
-// • STAGING MODEL: applyToken() applies to :root immediately so the preview
-//   updates live, but does NOT write to localStorage or broadcast to other
-//   tabs. Only clicking "Save" (or ⌘S / Ctrl+S) persists changes. "Discard"
-//   reverts all unsaved changes.
+// STAGING MODEL: editing a token paints :root immediately so the preview
+// updates live, but nothing is persisted until Save (⌘S). Discard reverts.
+// Presets live in the <script> below — they're static client-side data.
 
 import '../../styles/admin-colors.css';
-import { groups, defaults, darkDefaults } from '../../data/admin-colors';
+import { groups, defaults, darkDefaults, scalarTokens } from '../../data/admin-colors';
 // The admin's section list, shared with the header every other /admin/* page
 // renders (functions/admin/chrome.ts). Only the DATA is shared: this page
 // can't use that header's CSS, because the palette it edits lives on :root —
@@ -34,7 +20,7 @@ if (import.meta.env.BASE_URL.startsWith('/rooftop')) {
 }
 
 const TITLE = 'Color editor · Zahara';
-// Presets live in the <script> below — no define:vars needed for them.
+const scalars = [...scalarTokens];
 ---
 
 <!doctype html>
@@ -102,51 +88,7 @@ const TITLE = 'Color editor · Zahara';
     <input type="search" class="top-search" data-search
            placeholder="Search tokens…" aria-label="Search colour tokens" />
 
-    <select class="top-select" data-preset aria-label="Load a preset theme">
-      <option value="">Load preset…</option>
-      <optgroup label="Light themes">
-        <option value="default">Default (warm cream)</option>
-        <option value="monochrome">Monochrome</option>
-        <option value="terracotta">Terracotta</option>
-        <option value="forest">Forest</option>
-        <option value="navy-light">Navy (light)</option>
-        <option value="linen">Linen (crisp pale + navy)</option>
-        <option value="rose-paper">Rose paper (wine accent)</option>
-        <option value="sage">Sage (pale green + moss)</option>
-        <option value="olive-gold">Olive &amp; Gold (green + gold)</option>
-        <option value="sea-glass">Sea Glass (aqua-green + teal)</option>
-        <option value="fern-copper">Fern &amp; Copper (green + copper)</option>
-        <option value="honey-sage">Honey &amp; Sage (green + honey gold)</option>
-        <option value="lavender-haze">Lavender Haze (light purple)</option>
-        <option value="lilac-sage">Lilac &amp; Sage (purple + green)</option>
-        <option value="wisteria">Wisteria (lilac + blue-violet)</option>
-        <option value="amethyst-cream">Amethyst &amp; Cream (purple + gold)</option>
-        <option value="blush">Blush (soft rose)</option>
-        <option value="harbor">Harbor (blue-gray + slate-teal)</option>
-      </optgroup>
-      <optgroup label="Dark themes">
-        <option value="midnight">Midnight (dark navy)</option>
-        <option value="obsidian">Obsidian (near-black + gold)</option>
-        <option value="espresso">Espresso (dark brown)</option>
-        <option value="plum">Plum (dark purple)</option>
-        <option value="dusk-navy">Dusk Navy (cool slate)</option>
-        <option value="charcoal">Charcoal (warm gray + rust)</option>
-        <option value="moss">Moss (dark green + gold)</option>
-        <option value="wine">Wine (deep aubergine)</option>
-        <option value="cobalt-noir">Cobalt Noir (ink + electric blue)</option>
-        <option value="emerald-noir">Emerald Noir (green + gold)</option>
-        <option value="pine-gold">Pine &amp; Gold (green + gold)</option>
-        <option value="deep-jade">Deep Jade (teal-green)</option>
-        <option value="teal-abyss">Teal Abyss (electric teal)</option>
-        <option value="violet-dusk">Violet Dusk (purple + violet)</option>
-        <option value="orchid-noir">Orchid Noir (plum + orchid)</option>
-        <option value="amethyst-dark">Amethyst Dark (purple + gold)</option>
-        <option value="indigo-night">Indigo Night (indigo + periwinkle)</option>
-        <option value="rosewood">Rosewood (rose-brown + pink)</option>
-        <option value="dark-frantzen">Dark · Frantzen (blue)</option>
-        <option value="dark-white">Dark + white (stark)</option>
-      </optgroup>
-    </select>
+    <button class="btn btn-top btn-top--ghost" type="button" data-preset-open>Presets…</button>
 
     <div class="mode-toggle" role="group" aria-label="Edit light or dark palette">
       <button type="button" class="mode-toggle__btn is-active" data-mode-btn="light" aria-pressed="true">☀ Light</button>
@@ -160,11 +102,13 @@ const TITLE = 'Color editor · Zahara';
 
     <span class="editor-top__spacer"></span>
 
+    <button class="legibility-badge" type="button" data-legibility-badge hidden
+            title="Show the pairings where text would be hard to read"></button>
     <span class="pending-badge" data-pending-badge hidden>0 unsaved</span>
     <button class="btn btn-top btn-top--ghost btn-top--discard" type="button"
             data-discard disabled title="Discard all unsaved changes">Discard</button>
     <button class="btn btn-top btn-top--save" type="button"
-            data-save disabled title="Save changes to localStorage &amp; broadcast (⌘S)">
+            data-save disabled title="Publish these colours to the live site (⌘S)">
       Save<span class="kbd">⌘S</span>
     </button>
     <button class="btn btn-top btn-top--ghost" type="button" data-undo
@@ -179,10 +123,8 @@ const TITLE = 'Color editor · Zahara';
   <section class="side" aria-label="Colour token editors">
     <h2>Tokens</h2>
     <p class="side__intro">
-      Edits preview live but aren't saved until you click <strong>Save</strong>
-      (<span class="kbd">⌘S</span> / <span class="kbd">Ctrl+S</span>).
-      <span class="kbd">▣</span> picks a colour · <span class="kbd">👁</span>
-      highlights where it's used.
+      Changes preview live; nothing is saved until you press <strong>Save</strong>.
+      <span class="kbd">👁</span> flashes where a colour is used in the preview.
     </p>
 
     {groups.map((g) => (
@@ -196,37 +138,48 @@ const TITLE = 'Color editor · Zahara';
         </div>
         <div class="group__body">
           {g.tokens.map((t) => (
-            <div class="row"
+            <div class={`row${t.kind === 'scalar' ? ' row--scalar' : ''}`}
                  data-row
                  data-token={t.token}
                  data-short={t.shortName}
+                 data-kind={t.kind || 'color'}
                  data-default={t.def}
                  data-default-dark={darkDefaults[t.token] || t.def}
                  data-search-key={(t.label + ' ' + t.token + ' ' + (t.hint || '')).toLowerCase()}>
               <div class="row__swatch-area">
                 <span class="row__dot" data-modified-dot title="Modified from default"></span>
-                <input type="color" value={t.def} data-picker aria-label={`${t.label} colour picker`} />
+                {t.kind === 'scalar'
+                  ? <span class="row__scalar-glyph" aria-hidden="true">◑</span>
+                  : <input type="color" value={t.def} data-picker aria-label={`${t.label} colour picker`} />}
               </div>
 
               <div class="row__meta">
                 <div class="row__name">
                   {t.label}
-                  <span class="row__contrast" data-contrast aria-label="Contrast ratio"></span>
+                  <span class="row__contrast" data-contrast></span>
                 </div>
                 {t.hint && <div class="row__hint">{t.hint}</div>}
                 <div class="row__token-name"><code>{t.token}</code></div>
+                {t.kind === 'scalar' && (
+                  <input type="range" class="row__range" data-range
+                         min={t.min} max={t.max} step={t.step} value={t.def}
+                         aria-label={t.label} />
+                )}
               </div>
 
               <div class="row__controls">
+                {t.kind === 'scalar'
+                  ? <span class="row__unit" data-unit>{t.unit}</span>
+                  : <button class="row__btn" type="button" data-palette-btn
+                            title="Pick from current palette" aria-label="Pick from palette">▣</button>}
                 <input type="text" class="row__hex" data-hex value={t.def}
-                       maxlength="7" inputmode="text" autocomplete="off"
-                       spellcheck="false" aria-label={`${t.label} hex value`} />
+                       maxlength={t.kind === 'scalar' ? '3' : '7'} inputmode={t.kind === 'scalar' ? 'numeric' : 'text'}
+                       autocomplete="off" spellcheck="false"
+                       aria-label={`${t.label} value`} />
                 <button class="row__btn row__btn--show" type="button" data-show
-                        title="Highlight affected preview elements (no value change)"
+                        title="Flash the preview elements this affects"
                         aria-label="Highlight preview">👁</button>
-                <button class="row__btn" type="button" data-palette-btn
-                        title="Pick from current palette" aria-label="Pick from palette">▣</button>
-                <button class="row__btn" type="button" data-copy title="Copy hex">⧉</button>
+                <button class="row__btn" type="button" data-copy title="Copy value">⧉</button>
                 <button class="row__btn" type="button" data-reset-one title="Reset to default">↺</button>
               </div>
             </div>
@@ -240,8 +193,8 @@ const TITLE = 'Color editor · Zahara';
   <aside class="preview-pane" aria-label="Live site preview">
     <h2>Preview — EN site</h2>
     <p class="preview-pane__intro">
-      Every block mirrors a real moment on the public English site.
-      Editing a token pulses the fragments that use it.
+      Each block is a real part of the public site. Editing a colour flashes
+      the parts that use it.
     </p>
 
     <div class="sim" role="img" aria-label="Site colour preview">
@@ -319,9 +272,11 @@ const TITLE = 'Color editor · Zahara';
           </div>
         </div>
 
-        <!-- MENU TABS (shows --ink as active-tab background) -->
+        {/* MENU CATEGORY TABS — .menu-blend__tab. Text-only: the active tab is
+            --ink, the rest --ink-muted, with the sliding --accent indicator
+            underneath. There is no filled pill on the real site. */}
         <div class="sim__tabs preview-fragment" data-uses="paper,rule-soft">
-          <span class="sim__tab is-active preview-fragment" data-uses="ink,paper-on-photo">Food</span>
+          <span class="sim__tab is-active preview-fragment" data-uses="ink">Food</span>
           <span class="sim__tab preview-fragment" data-uses="ink-muted">Cocktails</span>
           <span class="sim__tab preview-fragment" data-uses="ink-muted">Wine</span>
           <span class="sim__tab preview-fragment" data-uses="ink-muted">Desserts</span>
@@ -362,31 +317,30 @@ const TITLE = 'Color editor · Zahara';
         <!-- SOFT RULE -->
         <div class="sim__rule sim__rule--soft preview-fragment" data-uses="rule-soft"></div>
 
-        <!-- PULL QUOTE (accent-soft bg, gold italic) -->
-        <blockquote class="sim__quote preview-fragment" data-uses="accent-soft">
+        {/* PULL QUOTE — .pull-quote sits on the plain page background (no tint
+            of its own); the emphasised word is --accent. */}
+        <blockquote class="sim__quote preview-fragment" data-uses="ink">
           <span class="preview-fragment" data-uses="ink">"We don't cook plates. We cook the </span>
-          <em class="preview-fragment" data-uses="gold">evening</em>
+          <em class="preview-fragment" data-uses="accent">evening</em>
           <span class="preview-fragment" data-uses="ink"> for people."</span>
+          <span class="sim__quote-attr preview-fragment" data-uses="ink-muted">Roi Achdut</span>
         </blockquote>
 
-        {/* HOME MENU TILES — the food / wine / cocktails tiles in the home
-            "menu" section. Each text piece binds to its own --tile-* token.
-            The tiles sit over a dark photo in both themes, so the text stays
-            light independent of the rest of the page palette. */}
+        {/* HOME MENU TILES — the menu tiles in the home "menu" section. They
+            sit over a dark photo in both themes, so both tokens stay light
+            regardless of the rest of the palette. */}
         <div class="sim__tiles">
           <div class="sim__tile">
             <span class="sim__tile-num preview-fragment" data-uses="tile-num">01</span>
             <span class="sim__tile-label preview-fragment" data-uses="tile-label">Food</span>
           </div>
-          <div class="sim__tile sim__tile--open">
-            <span class="sim__tile-eyebrow preview-fragment" data-uses="tile-num">Chef’s picks</span>
-            <span class="sim__tile-fave preview-fragment" data-uses="tile-fave">Beef tartare</span>
-            <span class="sim__tile-fave preview-fragment" data-uses="tile-fave">Sea-bass sashimi</span>
-            <span class="sim__tile-link preview-fragment" data-uses="tile-link">See full menu ↗</span>
-          </div>
           <div class="sim__tile">
             <span class="sim__tile-num preview-fragment" data-uses="tile-num">02</span>
             <span class="sim__tile-label preview-fragment" data-uses="tile-label">Wine</span>
+          </div>
+          <div class="sim__tile">
+            <span class="sim__tile-num preview-fragment" data-uses="tile-num">03</span>
+            <span class="sim__tile-label preview-fragment" data-uses="tile-label">Cocktails</span>
           </div>
         </div>
 
@@ -407,15 +361,19 @@ const TITLE = 'Color editor · Zahara';
           </div>
         </div>
 
-        <!-- CATEGORY CHIPS -->
-        <div style="padding:0.35rem 0">
-          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent" style="padding:0 0.9rem;margin-bottom:0.5rem">SECTION ACCENTS</p>
-          <div class="sim__chips preview-fragment" data-uses="paper">
-            <span class="sim__chip sim__chip--green preview-fragment" data-uses="c-green">Food</span>
-            <span class="sim__chip sim__chip--teal  preview-fragment" data-uses="c-teal">Cocktails</span>
-            <span class="sim__chip sim__chip--slate preview-fragment" data-uses="c-slate">Wine</span>
-            <span class="sim__chip sim__chip--mauve preview-fragment" data-uses="c-mauve">Desserts</span>
-            <span class="sim__chip sim__chip--gold  preview-fragment" data-uses="gold">Highlight</span>
+        {/* EVENTS BENEFITS BAND — the four-up strip on /events/. Its own five
+            tokens, independent of the rest of the palette. */}
+        <div class="sim__band preview-fragment" data-uses="events-band-from,events-band-to">
+          <p class="sim__band-eyebrow preview-fragment" data-uses="events-band-text,events-band-num">WHY BOOK WITH US</p>
+          <div class="sim__band-grid preview-fragment" data-uses="events-band-divider">
+            <div class="sim__band-cell">
+              <span class="sim__band-num preview-fragment" data-uses="events-band-num">01</span>
+              <span class="sim__band-text preview-fragment" data-uses="events-band-text">Private room for intimate groups</span>
+            </div>
+            <div class="sim__band-cell">
+              <span class="sim__band-num preview-fragment" data-uses="events-band-num">02</span>
+              <span class="sim__band-text preview-fragment" data-uses="events-band-text">A menu built around your evening</span>
+            </div>
           </div>
         </div>
 
@@ -494,17 +452,23 @@ const TITLE = 'Color editor · Zahara';
             </span>
           </div>
 
-          {/* Bottom-corner buttons — accessibility (inline-start) and
-              scroll-to-top (inline-end). Both share the same
-              ink-on-paper-on-photo treatment. */}
+          {/* Bottom-corner widgets. The three do NOT share a treatment on the
+              live site, so each is drawn as it really is:
+                • a11y toggle    — paper-card disc, ink glyph, rule border
+                • scroll-to-top  — the solid button contract (ink / paper)
+                • reserve pill   — accent fill, paper-on-photo label */}
           <div class="sim__corner-row">
             <div class="sim__corner-cell">
-              <span class="sim__corner-btn preview-fragment" data-uses="ink,paper">♿</span>
+              <span class="sim__corner-btn sim__corner-btn--soft preview-fragment" data-uses="paper-card,ink,rule">♿</span>
               <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">A11Y TOGGLE</span>
             </div>
             <div class="sim__corner-cell">
               <span class="sim__corner-btn preview-fragment" data-uses="ink,paper">↑</span>
               <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">SCROLL-TO-TOP</span>
+            </div>
+            <div class="sim__corner-cell">
+              <span class="sim__reserve-pill preview-fragment" data-uses="accent,paper-on-photo">Reserve</span>
+              <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">FLOATING RESERVE</span>
             </div>
           </div>
         </div>
@@ -517,6 +481,33 @@ const TITLE = 'Color editor · Zahara';
           <div class="sim__status sim__status--err preview-fragment" data-uses="err">
             ✗ Network error. Please try again.
           </div>
+        </div>
+
+        {/* ENTRY POPUP + COOKIE BANNER — the two overlays a first-time visitor
+            meets before anything else. Both are token-driven, so they follow
+            the palette; shown here inline rather than floating. */}
+        <div class="sim__overlays">
+          <div class="sim__popup preview-fragment" data-uses="paper-card,rule,shadow">
+            <p class="sim__popup-kicker preview-fragment" data-uses="ink-muted">ZAHARA</p>
+            <p class="sim__popup-title preview-fragment" data-uses="ink">Open for Sukkot</p>
+            <p class="sim__popup-body preview-fragment" data-uses="ink-soft">Seatings from 18:00, every evening of the holiday.</p>
+            <span class="sim__popup-btn preview-fragment" data-uses="ink,paper">Book a table</span>
+            <span class="sim__popup-close preview-fragment" data-uses="ink-muted">×</span>
+          </div>
+          <div class="sim__consent preview-fragment" data-uses="paper,rule-soft">
+            <span class="sim__consent-text preview-fragment" data-uses="ink-soft">We use cookies to measure how the site is used.</span>
+            <span class="sim__consent-btns">
+              <span class="sim__consent-btn preview-fragment" data-uses="ink,paper">Accept</span>
+              <span class="sim__consent-btn ghost preview-fragment" data-uses="ink">Decline</span>
+            </span>
+          </div>
+        </div>
+
+        {/* PAGE GROUND — the fixed wash + grain behind every page. Rendered
+            large so the gradient direction and grain are actually visible;
+            on the real site this sits behind all content. */}
+        <div class="sim__ground preview-fragment" data-uses="bg-wash-from,bg-wash-to,bg-wash-angle,bg-glow,bg-glow-strength,bg-grain-strength">
+          <span class="sim__ground-label preview-fragment" data-uses="ink-muted">PAGE BACKGROUND · wash · glow · grain</span>
         </div>
 
         <!-- FOOTER -->
@@ -559,11 +550,66 @@ const TITLE = 'Color editor · Zahara';
   <div class="palette-popup__grid" data-palette-grid></div>
 </div>
 
+<!-- Preset picker -->
+<div class="preset-modal" hidden data-preset-modal>
+  <div class="preset-modal__inner" role="dialog" aria-label="Load a preset theme" aria-modal="true">
+    <header class="preset-modal__head">
+      <div>
+        <h2>Presets</h2>
+        <p class="preset-modal__sub" data-preset-sub></p>
+      </div>
+      <div class="mode-toggle" role="group" aria-label="Show light or dark presets">
+        <button type="button" class="mode-toggle__btn is-active" data-preset-tab="light" aria-pressed="true">☀ Light</button>
+        <button type="button" class="mode-toggle__btn" data-preset-tab="dark" aria-pressed="false">☾ Dark</button>
+      </div>
+      <button class="btn btn-top btn-top--ghost" type="button" data-preset-close>Close</button>
+    </header>
+
+    {/* Mix mode turns each card's swatches into per-part checkboxes, so parts
+        of several presets can be combined into one palette before applying. */}
+    <div class="preset-modal__bar">
+      <label class="top-toggle-label">
+        <input type="checkbox" data-preset-mix />
+        Mix parts from several presets
+      </label>
+      <span class="preset-modal__hint" data-preset-hint>Click a preset to load it into the palette you're editing.</span>
+    </div>
+
+    <div class="preset-grid" data-preset-grid></div>
+
+    <footer class="preset-modal__foot" hidden data-preset-foot>
+      <div class="preset-recipe" data-preset-recipe></div>
+      <div class="preset-modal__foot-btns">
+        <button class="btn btn-top btn-top--ghost" type="button" data-preset-clear>Clear</button>
+        <button class="btn btn-top" type="button" data-preset-apply>Apply mix</button>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- Legibility report -->
+<div class="legibility-modal" hidden data-legibility-modal>
+  <div class="legibility-modal__inner" role="dialog" aria-label="Legibility check" aria-modal="true">
+    <header class="legibility-modal__head">
+      <div>
+        <h2>Legibility check</h2>
+        <p class="legibility-modal__sub">
+          Every place the site puts one of these colours on top of another. Anything below
+          4.5:1 is hard to read; below 3:1 it can vanish completely.
+        </p>
+      </div>
+      <button class="btn btn-top btn-top--ghost" type="button" data-legibility-close>Close</button>
+    </header>
+    <div class="legibility-list" data-legibility-list></div>
+  </div>
+</div>
+
 <!-- Export modal -->
 <div class="export-modal" hidden data-export-modal>
   <div class="export-modal__inner">
     <h2>Export CSS</h2>
-    <p>Paste this <code>:root</code> block into <code>src/styles/global.css</code> to make the palette permanent.</p>
+    <p>Only needed to bake the palette into the code. Paste this block into
+       <code>src/styles/tokens.css</code>; saving already applies it to the live site.</p>
     <div class="export-modal__tabs">
       <button class="export-tab is-active" type="button" data-export-tab="full">Full palette</button>
       <button class="export-tab" type="button" data-export-tab="changed">Changed only</button>
@@ -576,13 +622,68 @@ const TITLE = 'Color editor · Zahara';
   </div>
 </div>
 
-<script is:inline define:vars={{ defaults, darkDefaults }}>
+<script is:inline define:vars={{ defaults, darkDefaults, scalars }}>
 (function () {
   'use strict';
 
+  // Tokens stored as a bare number (slider rows), not a hex.
+  const SCALARS = new Set(scalars);
+  const isScalar = (t) => SCALARS.has(t);
+
+  // Below this ratio the two colours are so close the text effectively
+  // disappears (black-on-black is 1.0) — the one case worth interrupting for.
+  // Between here and the AA target is a quality warning, listed but not
+  // shouted about, so the owner is never trained to ignore a red badge.
+  const SEVERE_BELOW = 2;
+
+  // ── The pairings the SITE actually renders ────────────────────────────────
+  // Each entry is "this ink sits on that ground, here". A row's badge reports
+  // its WORST pairing and the legibility report lists every failure — so
+  // setting a button fill to black can't silently swallow its own label.
+  // Declared up here because the first renderMode() runs before the contrast
+  // section below is evaluated.
+  //   big:true → large/display text, where 3:1 is the AA threshold.
+  const PAIRINGS = [
+    { fg: '--ink',            bg: '--paper',            where: 'Headlines and body copy on the page' },
+    { fg: '--ink-soft',       bg: '--paper',            where: 'Paragraph text on the page' },
+    { fg: '--ink-muted',      bg: '--paper',            where: 'Eyebrows, labels and metadata' },
+    { fg: '--ink',            bg: '--paper-card',       where: 'Text inside cards, forms and the popup' },
+    { fg: '--ink-soft',       bg: '--paper-card',       where: 'Descriptions inside cards' },
+    { fg: '--ink-muted',      bg: '--paper-deep',       where: 'Footer and info-strip labels' },
+    { fg: '--ink',            bg: '--paper-deep',       where: 'Footer values and info-strip figures' },
+    // Prices are large semibold and the accent rules are graphical marks, so
+    // 3:1 is their real target — the same carve-out WCAG gives large text and
+    // UI components. (The house accent is a ~2.7:1 gold on cream by design.)
+    { fg: '--accent',         bg: '--paper',            where: 'Menu prices and accent marks', big: true },
+    { fg: '--accent',         bg: '--paper-card',       where: 'Prices inside menu cards', big: true },
+    { fg: '--accent-deep',    bg: '--paper',            where: 'Accent links on hover' },
+    { fg: '--ok',             bg: '--paper',            where: 'Form success message' },
+    { fg: '--err',            bg: '--paper',            where: 'Form error message' },
+    { fg: '--ink',            bg: '--accent-soft',      where: 'Selected (highlighted) text' },
+    // Solid buttons: the label is --paper on an --ink fill, and flips to
+    // --paper-on-photo on the --accent hover fill.
+    { fg: '--paper',          bg: '--ink',              where: 'Label inside solid dark buttons + scroll-to-top' },
+    { fg: '--paper-on-photo', bg: '--accent',           where: 'Button label on hover, and the floating Reserve pill' },
+    { fg: '--ink',            bg: '--paper-card',       where: 'Accessibility button glyph' },
+    // Over photography both stay fixed-light/fixed-dark by design, but the
+    // owner can still break the pair.
+    { fg: '--paper-on-photo', bg: '--shadow',           where: 'Hero text over the photo wash', big: true },
+    { fg: '--tile-label',     bg: '--shadow',           where: 'Home menu tile labels over their photo', big: true },
+    { fg: '--tile-num',       bg: '--shadow',           where: 'Home menu tile numerals over their photo' },
+    // The events band carries its own surfaces.
+    { fg: '--events-band-text', bg: '--events-band-from', where: 'Events benefit text (top of the band)' },
+    { fg: '--events-band-text', bg: '--events-band-to',   where: 'Events benefit text (bottom of the band)' },
+    { fg: '--events-band-num',  bg: '--events-band-from', where: 'Events benefit numerals', big: true },
+    // Body copy sits on the background wash wherever a section is transparent.
+    { fg: '--ink-soft',       bg: '--bg-wash-to',       where: 'Body copy over the background wash' },
+  ];
+
+
   // ────────────────────────────────────────────────────────────────────────────
-  // PRESETS — defined here in the client script, not in the Astro frontmatter.
-  // They are purely static client-side data; no server processing is needed.
+  // PRESETS — static client-side data. Each entry is a partial palette; tokens
+  // a preset omits (the events band, the page background) are DERIVED from its
+  // own surfaces/ink/accent when it's applied, so every preset lands on a
+  // complete, self-consistent palette.
   // ────────────────────────────────────────────────────────────────────────────
   const PRESETS = {
 
@@ -597,7 +698,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C8BFAA', '--rule-soft': '#DCD3BD',
       '--accent': '#2F2A22', '--accent-deep': '#15110D', '--accent-soft': '#D8D2C0',
       '--gold': '#8A7E68',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0C0A',
     },
 
@@ -608,7 +708,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#D5CBB1', '--rule-soft': '#E5DCC4',
       '--accent': '#9C4621', '--accent-deep': '#6F2F12', '--accent-soft': '#F2DFCF',
       '--gold': '#B68A3F',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0805',
     },
 
@@ -619,7 +718,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#BFC6B7', '--rule-soft': '#D6DAC8',
       '--accent': '#3F6B4B', '--accent-deep': '#214731', '--accent-soft': '#CFDFCB',
       '--gold': '#9D936A',
-      '--c-green': '#3F6B4B', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A07',
     },
 
@@ -630,7 +728,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C2C7CF', '--rule-soft': '#DCDFE3',
       '--accent': '#2A4A7A', '--accent-deep': '#152846', '--accent-soft': '#D0DCEC',
       '--gold': '#7E8AA0',
-      '--c-green': '#5A786A', '--c-teal': '#2D5C66', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#060810',
     },
 
@@ -644,7 +741,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#CFCABC', '--rule-soft': '#E3DFD2',
       '--accent': '#1F3A66', '--accent-deep': '#0F1F40', '--accent-soft': '#D8DFEC',
       '--gold': '#A4944F',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#06080F',
     },
 
@@ -656,7 +752,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#D5BFB3', '--rule-soft': '#E8D6CC',
       '--accent': '#8A2A3F', '--accent-deep': '#5A1224', '--accent-soft': '#EFD4D6',
       '--gold': '#B68F58',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0606',
     },
 
@@ -668,7 +763,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#BEC4B0', '--rule-soft': '#D4D8C4',
       '--accent': '#34563A', '--accent-deep': '#1B341F', '--accent-soft': '#CFD9C6',
       '--gold': '#9E9656',
-      '--c-green': '#34563A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A06',
     },
 
@@ -682,7 +776,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C6C4A6', '--rule-soft': '#DDDAC0',
       '--accent': '#6B7A33', '--accent-deep': '#48521E', '--accent-soft': '#E1E3C4',
       '--gold': '#B6923F',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0A0B05',
     },
 
@@ -694,7 +787,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#BCCBC1', '--rule-soft': '#D2DED6',
       '--accent': '#2E7D6E', '--accent-deep': '#155448', '--accent-soft': '#CBE4DC',
       '--gold': '#9FA36A',
-      '--c-green': '#3E8A72', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#05100C',
     },
 
@@ -706,7 +798,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C1C4A8', '--rule-soft': '#D8DAC2',
       '--accent': '#4E7B45', '--accent-deep': '#2E5228', '--accent-soft': '#D6E2C9',
       '--gold': '#B57A45',
-      '--c-green': '#4E7B45', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#080A05',
     },
 
@@ -718,7 +809,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C7C5A8', '--rule-soft': '#DEDBC2',
       '--accent': '#5E7A50', '--accent-deep': '#3C5230', '--accent-soft': '#DCE4CC',
       '--gold': '#C29A44',
-      '--c-green': '#5E7A50', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0A0B04',
     },
 
@@ -730,7 +820,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#CBC2DC', '--rule-soft': '#DED7EA',
       '--accent': '#6E4CB0', '--accent-deep': '#472E80', '--accent-soft': '#E0D6F2',
       '--gold': '#9E8A86',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#8A6EA8',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0A0710',
     },
 
@@ -742,7 +831,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C6C6BE', '--rule-soft': '#DAD9D0',
       '--accent': '#7A5C9E', '--accent-deep': '#513A70', '--accent-soft': '#E1D9EC',
       '--gold': '#9C9A66',
-      '--c-green': '#5F7E60', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#8E72AA',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#09080E',
     },
 
@@ -754,7 +842,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#C4C8DC', '--rule-soft': '#D8DBEA',
       '--accent': '#5A5EC0', '--accent-deep': '#383C90', '--accent-soft': '#D6D9F2',
       '--gold': '#8E92B4',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#8072B4',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#07080F',
     },
 
@@ -766,7 +853,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#D2C6CC', '--rule-soft': '#E4DADE',
       '--accent': '#8A3F86', '--accent-deep': '#5C2258', '--accent-soft': '#EEDAEA',
       '--gold': '#B6923F',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9A5E96',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0C060B',
     },
 
@@ -778,7 +864,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#D6BFB8', '--rule-soft': '#E8D6D0',
       '--accent': '#B0596A', '--accent-deep': '#7E3040', '--accent-soft': '#F1DBDD',
       '--gold': '#BA9058',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#A5788C',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#0E0706',
     },
 
@@ -790,7 +875,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#BECACB', '--rule-soft': '#D4DEDE',
       '--accent': '#2E6C82', '--accent-deep': '#164657', '--accent-soft': '#CDE0E7',
       '--gold': '#9AA49E',
-      '--c-green': '#5A786A', '--c-teal': '#38788E', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4F6B47', '--err': '#A53623', '--shadow': '#050C0F',
     },
 
@@ -806,7 +890,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#1C2A3C', '--rule-soft': '#131E2C',
       '--accent': '#5880C8', '--accent-deep': '#3460B0', '--accent-soft': '#18264A',
       '--gold': '#90A8CC',
-      '--c-green': '#487870', '--c-teal': '#3878A0', '--c-slate': '#3A5068', '--c-mauve': '#8070A0',
       '--ok': '#48B07A', '--err': '#D85050', '--shadow': '#02040A',
     },
 
@@ -818,7 +901,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#2E2418', '--rule-soft': '#201810',
       '--accent': '#C89840', '--accent-deep': '#8C6820', '--accent-soft': '#281E08',
       '--gold': '#E0B858',
-      '--c-green': '#5C6E58', '--c-teal': '#486868', '--c-slate': '#3E5060', '--c-mauve': '#7E6070',
       '--ok': '#48A060', '--err': '#C84038', '--shadow': '#06040A',
     },
 
@@ -830,7 +912,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#301E14', '--rule-soft': '#20140C',
       '--accent': '#D09840', '--accent-deep': '#906818', '--accent-soft': '#281808',
       '--gold': '#E8B850',
-      '--c-green': '#4E6040', '--c-teal': '#3A6050', '--c-slate': '#3A5048', '--c-mauve': '#7A4862',
       '--ok': '#48A050', '--err': '#C84030', '--shadow': '#0A0604',
     },
 
@@ -842,7 +923,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#261640', '--rule-soft': '#180E2C',
       '--accent': '#9E68E0', '--accent-deep': '#6A38B8', '--accent-soft': '#1E1040',
       '--gold': '#D09858',
-      '--c-green': '#4A6C5E', '--c-teal': '#3E6082', '--c-slate': '#384858', '--c-mauve': '#9E72B2',
       '--ok': '#48B870', '--err': '#E04860', '--shadow': '#06020E',
     },
 
@@ -854,7 +934,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#1C2830', '--rule-soft': '#141E28',
       '--accent': '#38A090', '--accent-deep': '#207878', '--accent-soft': '#0C2028',
       '--gold': '#78B8A0',
-      '--c-green': '#488068', '--c-teal': '#388898', '--c-slate': '#3C5870', '--c-mauve': '#7C70A0',
       '--ok': '#48B880', '--err': '#D05048', '--shadow': '#04080E',
     },
 
@@ -866,7 +945,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#28201A', '--rule-soft': '#1C1810',
       '--accent': '#B06040', '--accent-deep': '#7A3818', '--accent-soft': '#281008',
       '--gold': '#D09060',
-      '--c-green': '#587050', '--c-teal': '#406860', '--c-slate': '#485062', '--c-mauve': '#907082',
       '--ok': '#50A850', '--err': '#C84838', '--shadow': '#0A0808',
     },
 
@@ -880,7 +958,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#1E2C18', '--rule-soft': '#162010',
       '--accent': '#C8A050', '--accent-deep': '#8C6820', '--accent-soft': '#1A2410',
       '--gold': '#E0C070',
-      '--c-green': '#6A8870', '--c-teal': '#487868', '--c-slate': '#4A5C58', '--c-mauve': '#90856E',
       '--ok': '#5BA670', '--err': '#D85048', '--shadow': '#040A02',
     },
 
@@ -892,7 +969,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#34182A', '--rule-soft': '#22101A',
       '--accent': '#D49770', '--accent-deep': '#A06A45', '--accent-soft': '#28121C',
       '--gold': '#E4B080',
-      '--c-green': '#5E7A6A', '--c-teal': '#4A6E80', '--c-slate': '#48505E', '--c-mauve': '#A07088',
       '--ok': '#5BA670', '--err': '#E07060', '--shadow': '#0C0408',
     },
 
@@ -904,7 +980,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#16203A', '--rule-soft': '#0E1626',
       '--accent': '#4080F0', '--accent-deep': '#2058C0', '--accent-soft': '#0C1A38',
       '--gold': '#88A4D8',
-      '--c-green': '#4A7868', '--c-teal': '#3878A0', '--c-slate': '#3A4E68', '--c-mauve': '#7868A0',
       '--ok': '#5BA670', '--err': '#E07060', '--shadow': '#02040A',
     },
 
@@ -918,7 +993,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#183020', '--rule-soft': '#102416',
       '--accent': '#2FA672', '--accent-deep': '#1C7450', '--accent-soft': '#0E2418',
       '--gold': '#C8A860',
-      '--c-green': '#4FA07A', '--c-teal': '#3E8890', '--c-slate': '#3A5C58', '--c-mauve': '#8A80A0',
       '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#020A05',
     },
 
@@ -930,7 +1004,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#1D3028', '--rule-soft': '#14231C',
       '--accent': '#C8A050', '--accent-deep': '#8E6C22', '--accent-soft': '#18241A',
       '--gold': '#E4C674',
-      '--c-green': '#5A9078', '--c-teal': '#448082', '--c-slate': '#3E5C56', '--c-mauve': '#8C8272',
       '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#030A06',
     },
 
@@ -942,7 +1015,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#163029', '--rule-soft': '#0E241E',
       '--accent': '#26A896', '--accent-deep': '#147468', '--accent-soft': '#0A241E',
       '--gold': '#84BCA8',
-      '--c-green': '#409886', '--c-teal': '#2E9498', '--c-slate': '#3A5E5C', '--c-mauve': '#7E86A0',
       '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#020A08',
     },
 
@@ -954,7 +1026,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#143030', '--rule-soft': '#0C2422',
       '--accent': '#28B0B0', '--accent-deep': '#147C7C', '--accent-soft': '#0A2424',
       '--gold': '#7CC0BE',
-      '--c-green': '#409888', '--c-teal': '#2CA0A8', '--c-slate': '#385E60', '--c-mauve': '#7C86A0',
       '--ok': '#4DB378', '--err': '#E05858', '--shadow': '#020A08',
     },
 
@@ -966,7 +1037,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#241A40', '--rule-soft': '#170F2A',
       '--accent': '#9C74E0', '--accent-deep': '#6A44B4', '--accent-soft': '#1C1038',
       '--gold': '#C6A0D2',
-      '--c-green': '#5A7E70', '--c-teal': '#4A6C90', '--c-slate': '#3E4A60', '--c-mauve': '#9E78BC',
       '--ok': '#4DB378', '--err': '#E05868', '--shadow': '#05020E',
     },
 
@@ -978,7 +1048,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#301C3A', '--rule-soft': '#1F1226',
       '--accent': '#C06AC8', '--accent-deep': '#8A3E92', '--accent-soft': '#24122A',
       '--gold': '#CDA0A8',
-      '--c-green': '#5A7A6A', '--c-teal': '#4A6A88', '--c-slate': '#484A62', '--c-mauve': '#B074B4',
       '--ok': '#4DB378', '--err': '#E05868', '--shadow': '#08040A',
     },
 
@@ -990,7 +1059,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#282034', '--rule-soft': '#1A1526',
       '--accent': '#A070D8', '--accent-deep': '#6E44A8', '--accent-soft': '#1C1430',
       '--gold': '#D6B46A',
-      '--c-green': '#5A7868', '--c-teal': '#48688C', '--c-slate': '#3E485C', '--c-mauve': '#9A78B8',
       '--ok': '#4DB378', '--err': '#E05860', '--shadow': '#050309',
     },
 
@@ -1002,7 +1070,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#1A2038', '--rule-soft': '#111628',
       '--accent': '#7A88E8', '--accent-deep': '#4E5CC0', '--accent-soft': '#141838',
       '--gold': '#A0A8D8',
-      '--c-green': '#4E7C74', '--c-teal': '#4074A0', '--c-slate': '#3C4A6A', '--c-mauve': '#8478B0',
       '--ok': '#4DB378', '--err': '#E05868', '--shadow': '#02030C',
     },
 
@@ -1014,7 +1081,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#341E24', '--rule-soft': '#221318',
       '--accent': '#C87888', '--accent-deep': '#94485A', '--accent-soft': '#28141A',
       '--gold': '#D0A084',
-      '--c-green': '#5E7A6A', '--c-teal': '#4A6E80', '--c-slate': '#4A505E', '--c-mauve': '#A87890',
       '--ok': '#4DB378', '--err': '#E06860', '--shadow': '#0A0406',
     },
 
@@ -1027,7 +1093,6 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#2A2E36', '--rule-soft': '#1E2128',
       '--accent': '#5878E8', '--accent-deep': '#3854D0', '--accent-soft': '#1A2440',
       '--gold': '#8AA4FF',
-      '--c-green': '#5A786A', '--c-teal': '#3E6D77', '--c-slate': '#3E5359', '--c-mauve': '#9D8499',
       '--ok': '#4DB378', '--err': '#E54F4F', '--shadow': '#04060A',
     },
 
@@ -1038,10 +1103,64 @@ const TITLE = 'Color editor · Zahara';
       '--rule': '#2A2A2D', '--rule-soft': '#1A1A1D',
       '--accent': '#FFFFFF', '--accent-deep': '#C8C8C8', '--accent-soft': '#2A2A2D',
       '--gold': '#BCBCBC',
-      '--c-green': '#7B9685', '--c-teal': '#558693', '--c-slate': '#5B6B71', '--c-mauve': '#A697A1',
       '--ok': '#5BC287', '--err': '#EF5A5A', '--shadow': '#000000',
     },
   };
+
+  // Which palette each preset was designed for, and its display name. Drives
+  // the light/dark tabs in the preset picker.
+  const PRESET_META = [
+    { id: 'default',        mode: 'light', name: 'Default',            note: 'warm cream' },
+    { id: 'monochrome',     mode: 'light', name: 'Monochrome',         note: 'no accent hue' },
+    { id: 'terracotta',     mode: 'light', name: 'Terracotta',         note: 'the house accent' },
+    { id: 'forest',         mode: 'light', name: 'Forest',             note: 'deep green' },
+    { id: 'navy-light',     mode: 'light', name: 'Navy',               note: 'cream + navy' },
+    { id: 'linen',          mode: 'light', name: 'Linen',              note: 'crisp pale + navy' },
+    { id: 'rose-paper',     mode: 'light', name: 'Rose paper',         note: 'wine accent' },
+    { id: 'sage',           mode: 'light', name: 'Sage',               note: 'pale green + moss' },
+    { id: 'olive-gold',     mode: 'light', name: 'Olive & Gold',       note: 'green + gold' },
+    { id: 'sea-glass',      mode: 'light', name: 'Sea Glass',          note: 'aqua-green + teal' },
+    { id: 'fern-copper',    mode: 'light', name: 'Fern & Copper',      note: 'green + copper' },
+    { id: 'honey-sage',     mode: 'light', name: 'Honey & Sage',       note: 'green + honey gold' },
+    { id: 'lavender-haze',  mode: 'light', name: 'Lavender Haze',      note: 'light purple' },
+    { id: 'lilac-sage',     mode: 'light', name: 'Lilac & Sage',       note: 'purple + green' },
+    { id: 'wisteria',       mode: 'light', name: 'Wisteria',           note: 'lilac + blue-violet' },
+    { id: 'amethyst-cream', mode: 'light', name: 'Amethyst & Cream',   note: 'purple + gold' },
+    { id: 'blush',          mode: 'light', name: 'Blush',              note: 'soft rose' },
+    { id: 'harbor',         mode: 'light', name: 'Harbor',             note: 'blue-gray + slate-teal' },
+
+    { id: 'midnight',       mode: 'dark',  name: 'Midnight',           note: 'dark navy' },
+    { id: 'obsidian',       mode: 'dark',  name: 'Obsidian',           note: 'near-black + gold' },
+    { id: 'espresso',       mode: 'dark',  name: 'Espresso',           note: 'dark brown' },
+    { id: 'plum',           mode: 'dark',  name: 'Plum',               note: 'dark purple' },
+    { id: 'dusk-navy',      mode: 'dark',  name: 'Dusk Navy',          note: 'cool slate' },
+    { id: 'charcoal',       mode: 'dark',  name: 'Charcoal',           note: 'warm gray + rust' },
+    { id: 'moss',           mode: 'dark',  name: 'Moss',               note: 'dark green + gold' },
+    { id: 'wine',           mode: 'dark',  name: 'Wine',               note: 'deep aubergine' },
+    { id: 'cobalt-noir',    mode: 'dark',  name: 'Cobalt Noir',        note: 'ink + electric blue' },
+    { id: 'emerald-noir',   mode: 'dark',  name: 'Emerald Noir',       note: 'green + gold' },
+    { id: 'pine-gold',      mode: 'dark',  name: 'Pine & Gold',        note: 'green + gold' },
+    { id: 'deep-jade',      mode: 'dark',  name: 'Deep Jade',          note: 'teal-green' },
+    { id: 'teal-abyss',     mode: 'dark',  name: 'Teal Abyss',         note: 'electric teal' },
+    { id: 'violet-dusk',    mode: 'dark',  name: 'Violet Dusk',        note: 'purple + violet' },
+    { id: 'orchid-noir',    mode: 'dark',  name: 'Orchid Noir',        note: 'plum + orchid' },
+    { id: 'amethyst-dark',  mode: 'dark',  name: 'Amethyst Dark',      note: 'purple + gold' },
+    { id: 'indigo-night',   mode: 'dark',  name: 'Indigo Night',       note: 'indigo + periwinkle' },
+    { id: 'rosewood',       mode: 'dark',  name: 'Rosewood',           note: 'rose-brown + pink' },
+    { id: 'dark-frantzen',  mode: 'dark',  name: 'Frantzen',           note: 'blue' },
+    { id: 'dark-white',     mode: 'dark',  name: 'Stark',              note: 'black + white' },
+  ];
+
+  // The parts a preset can contribute when mixing. Order = display order.
+  const PRESET_PARTS = [
+    { id: 'surfaces',  label: 'Surfaces',  tokens: ['--paper', '--paper-deep', '--paper-edge', '--paper-card', '--paper-on-photo'] },
+    { id: 'ink',       label: 'Text',      tokens: ['--ink', '--ink-soft', '--ink-muted', '--ink-faint'] },
+    { id: 'rules',     label: 'Lines',     tokens: ['--rule', '--rule-soft'] },
+    { id: 'accent',    label: 'Accent',    tokens: ['--accent', '--accent-deep', '--accent-soft'] },
+    { id: 'highlight', label: 'Highlight', tokens: ['--gold'] },
+    { id: 'status',    label: 'Status',    tokens: ['--ok', '--err'] },
+    { id: 'shadow',    label: 'Shadow',    tokens: ['--shadow'] },
+  ];
 
   // ────────────────────────────────────────────────────────────────────────────
   // STATE & STORAGE
@@ -1086,22 +1205,33 @@ const TITLE = 'Color editor · Zahara';
       const m = src[mode];
       if (m && typeof m === 'object') {
         for (const t in m) {
-          if (t.indexOf('--') === 0 && typeof m[t] === 'string') pair[mode][t] = String(m[t]).toUpperCase();
+          if (t.indexOf('--') !== 0) continue;
+          const v = m[t];
+          if (typeof v !== 'string' && typeof v !== 'number') continue;
+          pair[mode][t] = _norm(t, v);
         }
       }
     });
     return pair;
   }
 
+  // Uppercase for hexes, plain integer string for scalars. Everything
+  // downstream compares values with ===, so normalising in one place keeps
+  // "modified?" and "pending?" honest.
+  function _norm(token, v) {
+    return isScalar(token) ? String(v).trim() : String(v).toUpperCase();
+  }
+
   function defaultFor(mode, token) {
-    return ((mode === 'dark' ? darkDefaults[token] : defaults[token]) || defaults[token] || '').toUpperCase();
+    const v = (mode === 'dark' ? darkDefaults[token] : defaults[token]) || defaults[token] || '';
+    return _norm(token, v);
   }
   function rowDefault(row) {
-    return (activeMode === 'dark' ? row.dataset.defaultDark : row.dataset.default).toUpperCase();
+    return _norm(row.dataset.token, activeMode === 'dark' ? row.dataset.defaultDark : row.dataset.default);
   }
   function curMap() { return currentState[activeMode]; }
   function resolved(mode, token) {
-    return (currentState[mode][token] || defaultFor(mode, token)).toUpperCase();
+    return _norm(token, currentState[mode][token] || defaultFor(mode, token));
   }
 
   function loadCache() {
@@ -1126,6 +1256,12 @@ const TITLE = 'Color editor · Zahara';
   const saveBtn      = document.querySelector('[data-save]');
   const discardBtn   = document.querySelector('[data-discard]');
   const pendingBadge = document.querySelector('[data-pending-badge]');
+  // Looked up here rather than beside the legibility code below: the first
+  // renderMode() runs before that block is evaluated, and would otherwise hit
+  // these consts in their temporal dead zone.
+  const legBadge     = document.querySelector('[data-legibility-badge]');
+  const legModal     = document.querySelector('[data-legibility-modal]');
+  const legList      = document.querySelector('[data-legibility-list]');
 
   // ── Render the active mode onto :root + the rows ──────────────────────────────
   // We ALWAYS set an explicit value for every token (never removeProperty):
@@ -1202,8 +1338,8 @@ const TITLE = 'Color editor · Zahara';
   // PENDING TRACKING
   // ────────────────────────────────────────────────────────────────────────────
   function isPendingIn(mode, token) {
-    const cur = (currentState[mode][token] || defaultFor(mode, token)).toUpperCase();
-    const sav = (savedState[mode][token]   || defaultFor(mode, token)).toUpperCase();
+    const cur = _norm(token, currentState[mode][token] || defaultFor(mode, token));
+    const sav = _norm(token, savedState[mode][token]   || defaultFor(mode, token));
     return cur !== sav;
   }
   function _isPending(token) { return isPendingIn(activeMode, token); }
@@ -1297,11 +1433,11 @@ const TITLE = 'Color editor · Zahara';
     opts = opts || {};
     const row = rows.find((r) => r.dataset.token === token);
     if (!row) return;
-    const normalised = _normaliseHex(value);
-    if (!normalised) return;
+    const normalised = isScalar(token) ? _normaliseScalar(row, value) : _normaliseHex(value);
+    if (normalised == null) return;
 
     const modeDefault = rowDefault(row);
-    const prev = (curMap()[token] || modeDefault).toUpperCase();
+    const prev = _norm(token, curMap()[token] || modeDefault);
     if (!opts.silent && prev !== normalised) {
       _pushHistory(token, prev, normalised);
     }
@@ -1324,11 +1460,13 @@ const TITLE = 'Color editor · Zahara';
   // ────────────────────────────────────────────────────────────────────────────
   function _syncRowUI(row, value, opts) {
     opts = opts || {};
-    const picker = row.querySelector('[data-picker]');
+    const picker = row.querySelector('[data-picker]');   // colour rows only
+    const range  = row.querySelector('[data-range]');    // scalar rows only
     const hexEl  = row.querySelector('[data-hex]');
     const dot    = row.querySelector('[data-modified-dot]');
 
-    if (picker.value.toUpperCase() !== value) picker.value = value;
+    if (picker && picker.value.toUpperCase() !== value) picker.value = value;
+    if (range && range.value !== value && document.activeElement !== range) range.value = value;
     if (!opts.skipHexSync && document.activeElement !== hexEl) {
       hexEl.value = value;
     }
@@ -1355,27 +1493,32 @@ const TITLE = 'Color editor · Zahara';
   rows.forEach((row) => {
     const token    = row.dataset.token;
     const picker   = row.querySelector('[data-picker]');
+    const range    = row.querySelector('[data-range]');
     const hexEl    = row.querySelector('[data-hex]');
     const showBtn  = row.querySelector('[data-show]');
     const copyBtn  = row.querySelector('[data-copy]');
     const resetBtn = row.querySelector('[data-reset-one]');
+    const parse    = (v) => (isScalar(token) ? _normaliseScalar(row, v) : _normaliseHex(v));
 
-    picker.addEventListener('input', () => {
-      applyToken(token, picker.value);
-    });
+    if (picker) picker.addEventListener('input', () => applyToken(token, picker.value));
+    // Dragging a slider fires a stream of inputs; collapse them into one
+    // history entry so a single drag is one undo, not fifty.
+    if (range) {
+      range.addEventListener('input', () => applyToken(token, range.value, { silent: true }));
+      range.addEventListener('change', () => applyToken(token, range.value));
+    }
 
     let hexTimer = null;
     hexEl.addEventListener('input', () => {
-      const v = _normaliseHex(hexEl.value);
-      if (!v) { hexEl.classList.add('is-invalid'); return; }
+      const v = parse(hexEl.value);
+      if (v == null) { hexEl.classList.add('is-invalid'); return; }
       hexEl.classList.remove('is-invalid');
       clearTimeout(hexTimer);
       hexTimer = setTimeout(() => applyToken(token, v), 160);
     });
     hexEl.addEventListener('blur', () => {
-      const v = _normaliseHex(hexEl.value);
-      if (v) hexEl.value = v;
-      else   hexEl.value = resolved(activeMode, token);
+      const v = parse(hexEl.value);
+      hexEl.value = v == null ? resolved(activeMode, token) : v;
       hexEl.classList.remove('is-invalid');
     });
     hexEl.addEventListener('focus', () => hexEl.select());
@@ -1429,36 +1572,199 @@ const TITLE = 'Color editor · Zahara';
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // PRESET
+  // PRESETS
+  //
+  // Applying a preset always produces a COMPLETE palette. Tokens the preset
+  // doesn't carry are derived from the ones it does, so the events band and
+  // the page background harmonise with the theme being loaded instead of
+  // lingering from whatever was applied before.
   // ────────────────────────────────────────────────────────────────────────────
-  document.querySelector('[data-preset]').addEventListener('change', function () {
-    const name = this.value;
-    if (!name || !PRESETS[name]) return;
-    const palette = PRESETS[name];
-    // The events band has no per-preset values; derive it from the preset's
-    // own surfaces/ink/accent so it harmonises with whatever theme is loaded
-    // (cream band on light themes, dark band on dark themes) instead of
-    // lingering from a previously-loaded preset.
+  function derivedFrom(palette) {
     const pick = (tk) => (palette[tk] != null ? palette[tk] : defaultFor(activeMode, tk));
-    const derived = {
+    return {
       '--events-band-from':    pick('--paper-deep'),
       '--events-band-to':      pick('--paper'),
       '--events-band-text':    pick('--ink-soft'),
       '--events-band-num':     pick('--accent'),
       '--events-band-divider': pick('--rule'),
+      '--bg-wash-from':        pick('--paper'),
+      '--bg-wash-to':          pick('--paper-deep'),
+      '--bg-glow':             pick('--accent'),
     };
-    // Apply to EVERY editable token: the preset's value where it provides one,
-    // else a derived band value, else the active mode's base default — so a
-    // preset always lands on a clean, complete palette.
-    rows.forEach(function (row) {
-      const tk  = row.dataset.token;
+  }
+
+  /** Apply a full token map (preset or mix) across every editable row. */
+  function applyPalette(palette, label) {
+    const derived = derivedFrom(palette);
+    rows.forEach((row) => {
+      const tk = row.dataset.token;
+      // Sliders carry no colour identity — a preset must not reset the
+      // owner's grain/glow strengths behind their back.
+      if (isScalar(tk)) return;
       const val = (palette[tk] != null) ? palette[tk]
                 : (derived[tk] != null) ? derived[tk]
                 : defaultFor(activeMode, tk);
       applyToken(tk, val);
     });
-    showToast('Preview: ' + name + ' → ' + activeMode + ' (not saved)');
-    this.value = '';
+    showToast(label + ' → ' + activeMode + ' (not saved)');
+  }
+
+  // ── Preset picker modal ─────────────────────────────────────────────────────
+  const presetModal  = document.querySelector('[data-preset-modal]');
+  const presetGrid   = document.querySelector('[data-preset-grid]');
+  const presetSub    = document.querySelector('[data-preset-sub]');
+  const presetHint   = document.querySelector('[data-preset-hint]');
+  const presetMixChk = document.querySelector('[data-preset-mix]');
+  const presetFoot   = document.querySelector('[data-preset-foot]');
+  const presetRecipe = document.querySelector('[data-preset-recipe]');
+
+  let presetTab = 'light';
+  // The mix under construction: { partId: presetId }.
+  let mixRecipe = {};
+
+  // Swatches shown on each card, in reading order: the two surfaces, the
+  // three inks, then accent and highlight — enough to recognise a theme.
+  const CARD_SWATCHES = ['--paper', '--paper-deep', '--ink', '--ink-soft', '--ink-muted', '--accent', '--gold'];
+
+  function presetValue(id, token) {
+    const p = PRESETS[id];
+    if (!p) return '#000000';
+    if (p[token] != null) return p[token];
+    // `default: defaults` covers everything, so this only fires for a preset
+    // that genuinely omits the token — fall back to its mode's default.
+    return defaultFor(PRESET_META.find((m) => m.id === id).mode, token) || '#000000';
+  }
+
+  function renderPresetGrid() {
+    const list = PRESET_META.filter((m) => m.mode === presetTab);
+    const mixing = presetMixChk.checked;
+    presetGrid.innerHTML = list.map((m) => {
+      const dots = CARD_SWATCHES
+        .map((tk) => '<span class="preset-card__dot" style="background:' + presetValue(m.id, tk) + '"></span>')
+        .join('');
+      const parts = mixing ? PRESET_PARTS.map((part) =>
+        '<button type="button" class="preset-part' + (mixRecipe[part.id] === m.id ? ' is-on' : '') + '"' +
+        ' data-mix-preset="' + m.id + '" data-mix-part="' + part.id + '">' + part.label + '</button>'
+      ).join('') : '';
+      return '' +
+        '<div class="preset-card' + (mixing ? ' is-mixing' : '') + '">' +
+          '<button type="button" class="preset-card__main" data-preset-pick="' + m.id + '">' +
+            '<span class="preset-card__dots">' + dots + '</span>' +
+            '<span class="preset-card__name">' + m.name + '</span>' +
+            '<span class="preset-card__note">' + m.note + '</span>' +
+          '</button>' +
+          (mixing ? '<div class="preset-card__parts">' + parts + '</div>' : '') +
+        '</div>';
+    }).join('');
+  }
+
+  function renderRecipe() {
+    const entries = Object.entries(mixRecipe);
+    presetFoot.hidden = !presetMixChk.checked || entries.length === 0;
+    if (presetFoot.hidden) return;
+    presetRecipe.innerHTML = entries.map(([partId, presetId]) => {
+      const part = PRESET_PARTS.find((p) => p.id === partId);
+      const meta = PRESET_META.find((m) => m.id === presetId);
+      return '<span class="preset-recipe__chip"><strong>' + part.label + '</strong> ← ' + meta.name + '</span>';
+    }).join('');
+  }
+
+  function syncPresetChrome() {
+    presetSub.textContent = 'Loads into your ' + activeMode + ' palette. Nothing is saved until you press Save.';
+    presetHint.textContent = presetMixChk.checked
+      ? 'Pick which part each preset contributes, then Apply mix. Parts you leave unset stay as they are.'
+      : "Click a preset to load it into the palette you're editing.";
+    document.querySelectorAll('[data-preset-tab]').forEach((b) => {
+      const on = b.dataset.presetTab === presetTab;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function openPresetModal() {
+    // Default the tab to the palette being edited — loading a dark preset
+    // into the light palette is almost always a mistake.
+    presetTab = activeMode;
+    syncPresetChrome();
+    renderPresetGrid();
+    renderRecipe();
+    presetModal.hidden = false;
+  }
+  function closePresetModal() { presetModal.hidden = true; }
+
+  document.querySelector('[data-preset-open]').addEventListener('click', openPresetModal);
+  document.querySelector('[data-preset-close]').addEventListener('click', closePresetModal);
+  presetModal.addEventListener('click', (e) => { if (e.target === presetModal) closePresetModal(); });
+
+  document.querySelectorAll('[data-preset-tab]').forEach((b) => {
+    b.addEventListener('click', () => {
+      presetTab = b.dataset.presetTab;
+      syncPresetChrome();
+      renderPresetGrid();
+    });
+  });
+
+  presetMixChk.addEventListener('change', () => {
+    if (!presetMixChk.checked) mixRecipe = {};
+    syncPresetChrome();
+    renderPresetGrid();
+    renderRecipe();
+  });
+
+  presetGrid.addEventListener('click', (e) => {
+    const part = e.target.closest('[data-mix-part]');
+    if (part) {
+      const { mixPart, mixPreset } = part.dataset;
+      // Clicking the part already assigned to this preset unassigns it.
+      if (mixRecipe[mixPart] === mixPreset) delete mixRecipe[mixPart];
+      else mixRecipe[mixPart] = mixPreset;
+      renderPresetGrid();
+      renderRecipe();
+      return;
+    }
+    const pick = e.target.closest('[data-preset-pick]');
+    if (!pick) return;
+    const id = pick.dataset.presetPick;
+    if (presetMixChk.checked) {
+      // In mix mode the card body assigns EVERY part to this preset — a fast
+      // "start from this one, then swap a part or two".
+      PRESET_PARTS.forEach((p) => { mixRecipe[p.id] = id; });
+      renderPresetGrid();
+      renderRecipe();
+      return;
+    }
+    applyPalette(PRESETS[id], PRESET_META.find((m) => m.id === id).name);
+    closePresetModal();
+  });
+
+  document.querySelector('[data-preset-clear]').addEventListener('click', () => {
+    mixRecipe = {};
+    renderPresetGrid();
+    renderRecipe();
+  });
+
+  document.querySelector('[data-preset-apply]').addEventListener('click', () => {
+    const merged = {};
+    Object.entries(mixRecipe).forEach(([partId, presetId]) => {
+      PRESET_PARTS.find((p) => p.id === partId).tokens.forEach((tk) => {
+        merged[tk] = presetValue(presetId, tk);
+      });
+    });
+    // Tokens belonging to a part the owner DIDN'T choose keep their current
+    // value rather than snapping back to the default — a mix is additive, not
+    // a reset. Tokens outside every part (the events band, the page
+    // background) are deliberately left absent so applyPalette re-derives them
+    // from the merged surfaces; filling them in here would freeze them at the
+    // previous theme's values.
+    const partTokens = new Set(PRESET_PARTS.flatMap((p) => p.tokens));
+    partTokens.forEach((tk) => {
+      if (merged[tk] == null) merged[tk] = resolved(activeMode, tk);
+    });
+    applyPalette(merged, 'Mixed palette');
+    mixRecipe = {};
+    renderPresetGrid();
+    renderRecipe();
+    closePresetModal();
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -1504,10 +1810,12 @@ const TITLE = 'Color editor · Zahara';
   function _openPalettePopup(btn, targetRow) {
     activePaletteRow = targetRow;
 
-    // Populate swatches with all current token values
+    // Populate swatches with all current COLOUR token values (scalars have
+    // no swatch to offer).
     paletteGrid.innerHTML = '';
     rows.forEach((r) => {
       const tk  = r.dataset.token;
+      if (isScalar(tk)) return;
       const val = resolved(activeMode, tk);
       const label = r.querySelector('.row__name').firstChild.textContent.trim();
       const sw = document.createElement('button');
@@ -1529,7 +1837,9 @@ const TITLE = 'Color editor · Zahara';
   }
 
   rows.forEach((row) => {
-    row.querySelector('[data-palette-btn]').addEventListener('click', function (e) {
+    const btn = row.querySelector('[data-palette-btn]');   // scalar rows have none
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
       if (!palettePopup.hidden && activePaletteRow === row) {
         palettePopup.hidden = true; activePaletteRow = null; return;
       }
@@ -1568,7 +1878,9 @@ const TITLE = 'Color editor · Zahara';
     if (e.key === 'Escape') {
       palettePopup.hidden = true;
       activePaletteRow = null;
-      if (!exportModal.hidden) exportModal.hidden = true;
+      if (!exportModal.hidden)   exportModal.hidden = true;
+      if (!presetModal.hidden)   closePresetModal();
+      if (!legModal.hidden)      legModal.hidden = true;
     }
   });
 
@@ -1590,24 +1902,135 @@ const TITLE = 'Color editor · Zahara';
     return (hi + 0.05) / (lo + 0.05);
   }
 
-  function _refreshAllContrast() {
-    const paper = resolved(activeMode, '--paper');
-    rows.forEach((row) => {
-      const token = row.dataset.token;
-      const isText = /^--(ink|accent|gold|c-|ok|err)/.test(token);
-      const badge  = row.querySelector('[data-contrast]');
-      if (!isText) { badge.textContent = ''; badge.className = 'row__contrast'; return; }
-      const val = resolved(activeMode, token);
-      const c   = _contrastRatio(val, paper);
-      let band, label;
-      if      (c >= 7)   { band = 'aaa'; label = c.toFixed(1) + ':1 AAA'; }
-      else if (c >= 4.5) { band = 'aa';  label = c.toFixed(1) + ':1 AA';  }
-      else if (c >= 3)   { band = 'aa';  label = c.toFixed(1) + ':1 AA-L';}
-      else               { band = 'lo';  label = c.toFixed(1) + ':1 lo';  }
-      badge.textContent = label;
-      badge.className   = 'row__contrast row__contrast--' + band;
+  // (PAIRINGS is declared at the top of this IIFE — the first renderMode()
+  // reads it before this point in the file.)
+
+  /** Every failing pairing in a mode, worst first.
+   *  Token names and resolved hexes are kept under SEPARATE keys — the Fix
+   *  button needs the token to call applyToken, and the sample swatch needs
+   *  the hex. */
+  function _failures(mode) {
+    const out = [];
+    PAIRINGS.forEach((p) => {
+      const fgHex = resolved(mode, p.fg);
+      const bgHex = resolved(mode, p.bg);
+      if (!fgHex || !bgHex || fgHex[0] !== '#' || bgHex[0] !== '#') return;
+      const ratio = _contrastRatio(fgHex, bgHex);
+      const min = p.big ? 3 : 4.5;
+      if (ratio < min) {
+        out.push({
+          fgToken: p.fg, bgToken: p.bg, where: p.where,
+          fgHex, bgHex, ratio, min, severe: ratio < SEVERE_BELOW,
+        });
+      }
     });
+    return out.sort((a, b) => a.ratio - b.ratio);
   }
+
+  function _refreshAllContrast() {
+    // Per-row badge = the worst pairing that row's token takes part in.
+    const worst = {};
+    PAIRINGS.forEach((p) => {
+      const fg = resolved(activeMode, p.fg);
+      const bg = resolved(activeMode, p.bg);
+      if (!fg || !bg || fg[0] !== '#' || bg[0] !== '#') return;
+      const ratio = _contrastRatio(fg, bg);
+      [p.fg, p.bg].forEach((tk) => {
+        if (!worst[tk] || ratio < worst[tk].ratio) worst[tk] = { ratio, min: p.big ? 3 : 4.5, other: tk === p.fg ? p.bg : p.fg };
+      });
+    });
+
+    rows.forEach((row) => {
+      const badge = row.querySelector('[data-contrast]');
+      const w = worst[row.dataset.token];
+      if (!w) { badge.textContent = ''; badge.className = 'row__contrast'; badge.title = ''; return; }
+      let band;
+      if      (w.ratio < SEVERE_BELOW) band = 'lo';
+      else if (w.ratio < w.min)        band = 'warn';
+      else if (w.ratio >= 7)           band = 'aaa';
+      else                             band = 'aa';
+      badge.textContent = w.ratio.toFixed(1) + ':1';
+      badge.className   = 'row__contrast row__contrast--' + band;
+      badge.title = 'Worst pairing: against ' + w.other + ' (needs ' + w.min + ':1)';
+    });
+
+    _refreshLegibility();
+  }
+
+  // ── Legibility report (DOM refs live up in the UI REFS block) ───────────────
+  function _refreshLegibility() {
+    const fails  = _failures(activeMode);
+    const severe = fails.filter((f) => f.severe).length;
+    // Only an invisible-text pairing gets the loud badge; the softer warnings
+    // wait quietly inside the report.
+    legBadge.hidden = severe === 0 && fails.length === 0;
+    legBadge.classList.toggle('is-severe', severe > 0);
+    legBadge.textContent = severe > 0
+      ? severe + (severe === 1 ? ' text is invisible' : ' texts are invisible')
+      : fails.length + ' to check';
+    if (!legModal.hidden) _renderLegibility();
+  }
+
+  /** Darken or lighten `hex` until it clears `ratio` against `bg`. Walks
+   *  towards whichever end (black or white) the background isn't, so the
+   *  suggestion keeps the owner's hue instead of snapping to a preset. */
+  function _fixToward(hex, bg, ratio) {
+    const bgLum = _relLum(bg);
+    const toWhite = bgLum < 0.5;
+    const m = hex.replace('#', '').match(/.{2}/g).map((s) => parseInt(s, 16));
+    for (let step = 0; step <= 100; step++) {
+      const t = step / 100;
+      const rgb = m.map((c) => Math.round(toWhite ? c + (255 - c) * t : c * (1 - t)));
+      const cand = '#' + rgb.map((c) => c.toString(16).padStart(2, '0')).join('').toUpperCase();
+      if (_contrastRatio(cand, bg) >= ratio) return cand;
+    }
+    return toWhite ? '#FFFFFF' : '#000000';
+  }
+
+  function _renderLegibility() {
+    const fails = _failures(activeMode);
+    if (!fails.length) {
+      legList.innerHTML = '<p class="legibility-ok">Everything reads clearly in ' + activeMode + ' mode. ✓</p>';
+      return;
+    }
+    legList.innerHTML = fails.map((f, i) => {
+      const fix = _fixToward(f.fgHex, f.bgHex, f.min);
+      return '' +
+        '<div class="legibility-row' + (f.severe ? ' is-severe' : '') + '">' +
+          '<span class="legibility-row__sample" style="background:' + f.bgHex + ';color:' + f.fgHex + '">Aa</span>' +
+          '<span class="legibility-row__meta">' +
+            '<span class="legibility-row__where">' + f.where + '</span>' +
+            '<span class="legibility-row__pair">' +
+              (f.severe ? '<strong class="legibility-row__flag">Invisible</strong> ' : '') +
+              '<code>' + f.fgToken + '</code> on <code>' + f.bgToken + '</code> · ' +
+              f.ratio.toFixed(2) + ':1, needs ' + f.min + ':1</span>' +
+          '</span>' +
+          '<span class="legibility-row__fix">' +
+            '<span class="legibility-row__swatch" style="background:' + fix + '"></span>' +
+            // Name the token being changed: the fix always lightens/darkens
+            // the FOREGROUND, which isn't always the one the owner just
+            // edited, and silently moving a different colour is confusing.
+            '<button type="button" class="btn btn-top btn-top--ghost" data-leg-fix="' + i + '"' +
+              ' title="Sets ' + f.fgToken + ' to ' + fix + '"' +
+              ' data-leg-token="' + f.fgToken + '" data-leg-value="' + fix + '">Fix ' +
+              f.fgToken.replace(/^--/, '') + '</button>' +
+          '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  legBadge.addEventListener('click', () => {
+    _renderLegibility();
+    legModal.hidden = false;
+  });
+  document.querySelector('[data-legibility-close]').addEventListener('click', () => { legModal.hidden = true; });
+  legModal.addEventListener('click', (e) => { if (e.target === legModal) legModal.hidden = true; });
+  legList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-leg-fix]');
+    if (!btn) return;
+    applyToken(btn.dataset.legToken, btn.dataset.legValue);
+    _renderLegibility();
+  });
 
   // ────────────────────────────────────────────────────────────────────────────
   // HIGHLIGHT PREVIEW FRAGMENTS
@@ -1658,7 +2081,7 @@ const TITLE = 'Color editor · Zahara';
       const token = row.dataset.token;
       const value = resolved(activeMode, token);
       if (which === 'changed' && value === rowDefault(row)) return;
-      lines.push('  ' + token.padEnd(20) + ': ' + value + ';');
+      lines.push('  ' + token.padEnd(22) + ': ' + value + ';');
     });
     if (which === 'changed' && lines.length === 0) return '/* No changes from default */';
     return sel + ' {\n' + lines.join('\n') + '\n}';
@@ -1701,11 +2124,22 @@ const TITLE = 'Color editor · Zahara';
   // ────────────────────────────────────────────────────────────────────────────
   function _normaliseHex(v) {
     if (!v) return null;
-    v = v.trim();
+    v = String(v).trim();
     if (!v.startsWith('#')) v = '#' + v;
     if (v.length === 4) v = '#' + v[1]+v[1] + v[2]+v[2] + v[3]+v[3];
     if (!/^#[0-9a-fA-F]{6}$/.test(v)) return null;
     return v.toUpperCase();
+  }
+
+  /** Clamp a slider value to its row's declared min/max. Returns a plain
+   *  integer string — the same shape the server stores and the CSS reads. */
+  function _normaliseScalar(row, v) {
+    const n = Number(String(v).trim());
+    if (!Number.isFinite(n)) return null;
+    const range = row.querySelector('[data-range]');
+    const lo = range ? Number(range.min) : 0;
+    const hi = range ? Number(range.max) : 100;
+    return String(Math.round(Math.min(hi, Math.max(lo, n))));
   }
 
 })();

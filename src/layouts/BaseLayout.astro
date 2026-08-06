@@ -258,9 +258,12 @@ const schema = {
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <meta name="keywords"    content={keywords} />
-    {/* Match the system theme: cream chrome in light, dark in dark mode. */}
-    <meta name="theme-color" content="#F4EDDF" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1A1410" media="(prefers-color-scheme: dark)" />
+    {/* The phone's browser chrome, tinted to match the page. These are static
+        fallbacks (a <meta> can't read a CSS variable); the boot script below
+        rewrites them from the owner's saved --paper so the chrome doesn't stay
+        cream after the palette is changed in /admin/colors. */}
+    <meta name="theme-color" content="#F0E8D2" media="(prefers-color-scheme: light)" data-theme-color="light" />
+    <meta name="theme-color" content="#0F0B07" media="(prefers-color-scheme: dark)"  data-theme-color="dark" />
     <meta name="format-detection" content="telephone=yes" />
 
     <link rel="canonical"      href={Astro.url.href} />
@@ -429,12 +432,49 @@ const schema = {
             document.head.appendChild(styleEl);
           }
           styleEl.textContent = css;
+          syncThemeColor();
         }
-        function clearAll() { if (styleEl) styleEl.textContent = ''; }
+        function clearAll() { if (styleEl) styleEl.textContent = ''; syncThemeColor(); }
+
+        // ── 2b. Phone browser-chrome tint ─────────────────────────
+        // A <meta> can't read a CSS variable, so the two theme-color tags
+        // would keep the build-time cream forever once the owner recolours
+        // the site. Pull the light/dark --paper straight out of the palette
+        // <style> blocks (local override wins over the server one, same as
+        // the cascade) and write them onto the tags.
+        function paperFrom(css, selector) {
+          if (!css) return null;
+          var i = css.indexOf(selector + '{');
+          if (i === -1) return null;
+          var body = css.slice(i + selector.length + 1, css.indexOf('}', i));
+          // `--paper:` only — the colon rules out --paper-deep/-card/-on-photo.
+          var m = body.match(/--paper\s*:\s*(#[0-9a-fA-F]{6})/);
+          return m ? m[1] : null;
+        }
+        function syncThemeColor() {
+          var srv = document.getElementById('zahara-palette-server');
+          var loc = document.getElementById('zahara-palette-overrides');
+          [['light', ':root'], ['dark', 'html[data-theme="dark"]']].forEach(function (p) {
+            var v = paperFrom(loc && loc.textContent, p[1]) ||
+                    paperFrom(srv && srv.textContent, p[1]);
+            if (!v) return;   // not overridden — the static default still matches
+            var meta = document.querySelector('meta[data-theme-color="' + p[0] + '"]');
+            if (meta) meta.setAttribute('content', v);
+          });
+        }
+
         try {
           var paletteRaw = localStorage.getItem('zahara-color-overrides');
           if (paletteRaw) applyOverrides(JSON.parse(paletteRaw));
         } catch (_) { /* localStorage blocked or bad JSON — fine */ }
+        syncThemeColor();
+        // The middleware APPENDS its palette <style> to the end of <head>, so
+        // it hasn't been parsed yet while this script runs. Sync once more when
+        // the document is built; browsers honour a theme-color change at any
+        // point, so arriving a beat later costs nothing.
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', syncThemeColor, { once: true });
+        }
 
         // ── 3. Live cross-tab updates ─────────────────────────────
         try {

@@ -1,10 +1,23 @@
-// Shared admin color editor data and tokens.
+// Shared admin colour-editor data and tokens.
+//
+// Two kinds of token live here:
+//   • kind 'color'  (the default) — a `#RRGGBB` the owner picks with a swatch.
+//   • kind 'scalar' — a bare NUMBER the owner drags on a slider. The CSS that
+//     consumes it supplies the unit (`calc(var(--bg-wash-angle) * 1deg)`), so
+//     the stored value stays a plain number and the save pipeline can range-
+//     check it. Only the background-atmosphere controls use this.
 export interface Token {
   token:     string;
   label:     string;
   def:       string;
   hint?:     string;
   shortName: string;
+  kind?:     'color' | 'scalar';
+  /** scalar only — slider bounds, step, and the suffix shown next to the value. */
+  min?:      number;
+  max?:      number;
+  step?:     number;
+  unit?:     string;
 }
 export interface Group {
   group:  string;
@@ -136,43 +149,15 @@ export const groups: Group[] = [
     ],
   },
   {
-    group: 'Highlights & category accents',
-    intro: 'Gold highlight and the four menu-category colours.',
+    group: 'Secondary highlight',
+    intro: 'A warmer companion to the accent, used sparingly.',
     tokens: [
       {
         token:     '--gold',
         shortName: 'gold',
         label:     'Secondary highlight',
-        hint:      'Pull-quote emphasis and the scroll progress bar.',
+        hint:      'Scroll progress bar, menu-card corner glow, quote emphasis over photos.',
         def:       '#B69A52',
-      },
-      {
-        token:     '--c-green',
-        shortName: 'c-green',
-        label:     'Food (green)',
-        hint:      'Food section chip on the menu.',
-        def:       '#5A786A',
-      },
-      {
-        token:     '--c-teal',
-        shortName: 'c-teal',
-        label:     'Cocktails (teal)',
-        hint:      'Cocktails section chip on the menu.',
-        def:       '#3E6D77',
-      },
-      {
-        token:     '--c-slate',
-        shortName: 'c-slate',
-        label:     'Wine (slate)',
-        hint:      'Wine section chip on the menu.',
-        def:       '#3E5359',
-      },
-      {
-        token:     '--c-mauve',
-        shortName: 'c-mauve',
-        label:     'Desserts (mauve)',
-        hint:      'Desserts section chip on the menu.',
-        def:       '#9D8499',
       },
     ],
   },
@@ -198,7 +183,7 @@ export const groups: Group[] = [
   },
   {
     group: 'Home menu tiles',
-    intro: 'The food / wine / cocktails tiles in the home “menu” section. They sit over a dark photo, so the text stays light in both themes — and they’re independent from the rest of the site.',
+    intro: 'The menu tiles on the home page. They sit over a dark photo, so they stay light in both themes.',
     tokens: [
       {
         token:     '--tile-label',
@@ -210,23 +195,9 @@ export const groups: Group[] = [
       {
         token:     '--tile-num',
         shortName: 'tile-num',
-        label:     'Tile number + “picks” label',
-        hint:      'The 01–04 numerals on each tile and the small “Chef’s picks” eyebrow when a tile is opened.',
+        label:     'Tile number',
+        hint:      'The 01–04 numerals on each tile.',
         def:       '#C7BCA0',
-      },
-      {
-        token:     '--tile-fave',
-        shortName: 'tile-fave',
-        label:     'Favourite dish names',
-        hint:      'The starred dishes that appear when you tap a tile.',
-        def:       '#F4ECCF',
-      },
-      {
-        token:     '--tile-link',
-        shortName: 'tile-link',
-        label:     '“See full menu” link',
-        hint:      'The link inside an opened tile through to that menu section.',
-        def:       '#F4ECCF',
       },
     ],
   },
@@ -240,6 +211,69 @@ export const groups: Group[] = [
         label:     'Shadow & overlay tone',
         hint:      'Drop shadows and the dark wash over hero / menu photos.',
         def:       '#0A0806',
+      },
+    ],
+  },
+  {
+    group: 'Page background',
+    intro: 'The depth behind every page — a soft gradient wash, two ambient glows, and a paper grain. Set both strengths to 0 for a completely flat background.',
+    tokens: [
+      {
+        token:     '--bg-wash-from',
+        shortName: 'bg-wash-from',
+        label:     'Wash — start colour',
+        hint:      'Top of the background gradient. Keep it close to the page background.',
+        def:       '#F0E8D2',
+      },
+      {
+        token:     '--bg-wash-to',
+        shortName: 'bg-wash-to',
+        label:     'Wash — end colour',
+        hint:      'Bottom of the background gradient. A slightly deeper paper tone reads best.',
+        def:       '#E5DCC4',
+      },
+      {
+        token:     '--bg-wash-angle',
+        shortName: 'bg-wash-angle',
+        label:     'Wash — direction',
+        hint:      '0° runs bottom-to-top, 180° top-to-bottom. 176° is a near-vertical fall.',
+        def:       '176',
+        kind:      'scalar',
+        min:       0,
+        max:       360,
+        step:      1,
+        unit:      '°',
+      },
+      {
+        token:     '--bg-glow',
+        shortName: 'bg-glow',
+        label:     'Ambient glow colour',
+        hint:      'The soft pools of light in the top and bottom corners.',
+        def:       '#A88947',
+      },
+      {
+        token:     '--bg-glow-strength',
+        shortName: 'bg-glow-strength',
+        label:     'Ambient glow strength',
+        hint:      'How strongly the corner glows show. 0 turns them off.',
+        def:       '10',
+        kind:      'scalar',
+        min:       0,
+        max:       40,
+        step:      1,
+        unit:      '%',
+      },
+      {
+        token:     '--bg-grain-strength',
+        shortName: 'bg-grain-strength',
+        label:     'Paper grain',
+        hint:      'A fine printed-paper texture over the whole page. 0 turns it off; above ~8 it starts to look noisy.',
+        def:       '4',
+        kind:      'scalar',
+        min:       0,
+        max:       20,
+        step:      1,
+        unit:      '%',
       },
     ],
   },
@@ -289,6 +323,12 @@ export const groups: Group[] = [
 const allTokens = groups.flatMap((g) => g.tokens);
 export const defaults = Object.fromEntries(allTokens.map((t) => [t.token, t.def]));
 
+/** Tokens whose value is a bare number, not a hex. Presets never set these
+ *  (they carry no colour identity), and the editor renders them as sliders. */
+export const scalarTokens: ReadonlySet<string> = new Set(
+  allTokens.filter((t) => t.kind === 'scalar').map((t) => t.token),
+);
+
 // Dark-theme defaults. MUST stay in sync with the `html[data-theme="dark"]`
 // block in src/styles/tokens.css — that CSS block is the no-JS / no-saved-dark
 // fallback, while this map is what the colour editor shows as the dark mode
@@ -309,20 +349,23 @@ export const darkDefaults: Record<string, string> = {
   '--accent-deep':    '#A8853A',
   '--accent-soft':    '#2A2018',
   '--gold':           '#D0B468',
-  '--c-green':        '#6A8878',
-  '--c-teal':         '#4E7D87',
-  '--c-slate':        '#4E6369',
-  '--c-mauve':        '#AD9499',
   '--ok':             '#5BA670',
   '--err':            '#E07060',
 
   // Menu tiles sit over a dark photo in both themes → same light values.
   '--tile-label': '#F4ECCF',
   '--tile-num':   '#C7BCA0',
-  '--tile-fave':  '#F4ECCF',
-  '--tile-link':  '#F4ECCF',
 
   '--shadow':         '#000000',
+
+  // Page background — the wash tracks the dark surfaces; the glow lifts a
+  // little so the warmth still reads against near-black.
+  '--bg-wash-from':      '#0F0B07',
+  '--bg-wash-to':        '#181410',
+  '--bg-wash-angle':     '176',
+  '--bg-glow':           '#C8A050',
+  '--bg-glow-strength':  '12',
+  '--bg-grain-strength': '5',
 
   // Events band — warm near-black atmosphere in dark mode.
   '--events-band-from':    '#3A2D23',
