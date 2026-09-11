@@ -508,6 +508,7 @@ export const menu = {
   tabEvents:    { he: 'אירועים',       en: 'Events'    },
   priceBottle:  { he: 'בקבוק',         en: 'Bottle'    },
   priceGlass:   { he: 'כוס',           en: 'Glass'     },
+  wineTypes:    { he: 'סוגי יין',      en: 'Wine types' },
   updatedLabel: { he: 'עודכן',         en: 'Updated'   },
   noCocktails:  { he: 'אין קוקטיילים זמינים כעת', en: 'No cocktails available' },
   categoryNavigation: { he: 'ניווט קטגוריות', en: 'Category navigation' },

@@ -190,7 +190,10 @@ function readFormData(slug) {
       const desc  = (row.querySelector('.item-input.desc')?.value  ?? '').trim();
       const price = (row.querySelector('.item-input.price')?.value ?? '').trim();
       if (name) {
-        const item = { name, description: desc, price };
+        // Start from the item this row was built from, so fields the editor
+        // has no input for — the wine tasting note — survive a save here.
+        const item = Object.assign({}, row._item || {}, { name, description: desc, price });
+        delete item.featured;
         if (row.classList.contains('is-featured')) item.featured = true;
         items.push(item);
       }
@@ -470,6 +473,7 @@ function buildSectionBlock(slug, section, si) {
 
     const row = el('div', { class: 'item-row' }, starBtn, nameI, descI, priceI,
       el('span', { class: 'row-tools' }, upBtn, downBtn, delBtn));
+    row._item = item;   // see readFormData — carries fields with no input here
     if (item.featured) setStar(true);
     itemsList.appendChild(row);
     requestAnimationFrame(() => { autosize(nameI); autosize(descI); });
@@ -664,7 +668,10 @@ function xmlToPagedLines(xmlStr) {
       for (const node of Array.from(r.childNodes)) {
         const ln = node.localName;
         if (ln === 't')        text += node.textContent;
-        else if (ln === 'tab') text += ' ';
+        // A real tab: the wine list encodes its columns with tab runs, which
+        // parseWineLines reads. parseLines flattens them back to spaces, so
+        // every other menu parses exactly as before.
+        else if (ln === 'tab') text += '\t';
         else if (ln === 'br') {
           flush();
           if (node.getAttributeNS(W, 'type') === 'page' || node.getAttribute('w:type') === 'page') page++;
@@ -787,7 +794,10 @@ function cleanPrice(price) {
   return nums.map(n => n + unit).join(' / ');
 }
 
-function parseLines(lines, sep) {
+function parseLines(rawLines, sep) {
+  // Tabs are preserved upstream for the wine layout; every other menu treats
+  // them as plain spacing, exactly as before.
+  const lines = rawLines.map(l => l.replace(/\t/g, ' '));
   const sections = [];
   let current = null;
   const skip = /^(שף|Chef)[:\s]/;
@@ -859,6 +869,74 @@ function parseLines(lines, sep) {
   return sections.filter(s => s.items.length > 0 || s.title);
 }
 
+// Wine layout: the list is laid out in Word as tab columns rather than the
+// "name SEP price" rows every other menu uses —
+//   note ⇥ name | region ⇥⇥⇥ price      (price = bottle, or "bottle / glass")
+// with "......" rulers closing the by-the-glass block and bare headings for
+// the wine type and each tasting-note subsection. Twin of parseWineLines in
+// functions/data/docx-parse.ts — keep the two in lockstep.
+const WINE_RULER = /^[.…·_\-\s]{6,}$/;
+const HAS_LETTERS = /[A-Za-z֐-׿]/;
+
+function parseWineLines(lines) {
+  const sections = [];
+  let current = null;
+
+  for (const raw of lines) {
+    const line = String(raw || '').replace(/ /g, ' ').trim();
+    if (!line || WINE_RULER.test(line)) continue;
+
+    const fields = line.split('\t').map(f => f.trim()).filter(Boolean);
+    const flat   = fields.join(' ').replace(/\s+/g, ' ').trim();
+
+    // No digit anywhere ⇒ a heading (wine type, or a tasting-note subsection).
+    if (!/\d/.test(flat)) {
+      // "פריך,חד ומינרלי" — the docs aren't consistent about the space.
+      const title = flat.replace(/\s*,\s*/g, ', ').replace(/:$/, '').trim();
+      if (title) { current = { title, items: [] }; sections.push(current); }
+      continue;
+    }
+
+    let priceIdx = -1;
+    for (let k = fields.length - 1; k >= 0; k--) {
+      if (/\d/.test(fields[k]) && !HAS_LETTERS.test(fields[k])) { priceIdx = k; break; }
+    }
+
+    let price = '';
+    let rest;
+    if (priceIdx >= 0) {
+      price = cleanPrice(fields[priceIdx]);
+      rest  = fields.slice(0, priceIdx);
+    } else {
+      const tail = fields[fields.length - 1] || '';
+      const m    = tail.match(/^(.*?)[\s]*(\d[\d\s/\\.,₪]*)$/);
+      if (m) { price = cleanPrice(m[2]); rest = fields.slice(0, -1).concat(m[1].trim()).filter(Boolean); }
+      else   { rest = fields.slice(); }
+    }
+
+    let nameIdx = rest.findIndex(f => f.includes('|'));
+    if (nameIdx < 0) nameIdx = rest.length - 1;
+    const nameField = rest[nameIdx] || '';
+    const note      = rest.slice(0, nameIdx).join(' ').replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
+    const bar       = nameField.indexOf('|');
+    const name      = (bar < 0 ? nameField : nameField.slice(0, bar)).replace(/\s+/g, ' ').trim();
+    const region    = (bar < 0 ? ''        : nameField.slice(bar + 1)).replace(/\s+/g, ' ').trim();
+
+    if (!name) continue;
+    if (!current) { current = { title: '', items: [] }; sections.push(current); }
+    const item = { name, description: region, price };
+    if (note) item.note = note;
+    current.items.push(item);
+  }
+  return sections.filter(s => s.items.length > 0);
+}
+
+/** Pick the row grammar for a slug. Wine is the tab-column layout. */
+function parseFor(slug, lines) {
+  if (/^wine/.test(slug || '')) return parseWineLines(lines);
+  return parseLines(lines, detectSep(lines.map(l => l.replace(/\t/g, ' '))));
+}
+
 async function handleDocx(input, menu, infoEl) {
   const file = input.files?.[0];
   if (!file) return;
@@ -883,8 +961,7 @@ async function handleDocx(input, menu, infoEl) {
         for (const l of allLines) groups[l.page > 0 ? 1 : 0].push(l.text);
         menu.variants.forEach((v, idx) => {
           const lv     = groups[idx] || [];
-          const sep    = detectSep(lv);
-          const parsed = parseLines(lv, sep);
+          const parsed = parseFor(v.slug, lv);
           state.data[v.slug]      = { date, sections: parsed };
           state.collapsed[v.slug] = new Set();
         });
@@ -896,8 +973,7 @@ async function handleDocx(input, menu, infoEl) {
       } else {
         const v       = activeVariant(menu);
         const text    = allLines.map(l => l.text);
-        const sep     = detectSep(text);
-        const parsed  = parseLines(text, sep);
+        const parsed  = parseFor(v.slug, text);
         state.data[v.slug]      = { date, sections: parsed };
         state.collapsed[v.slug] = new Set();
         renderPanel();
@@ -909,8 +985,7 @@ async function handleDocx(input, menu, infoEl) {
     } else {
       const slug    = menu.slug;
       const text    = allLines.map(l => l.text);
-      const sep     = detectSep(text);
-      const parsed  = parseLines(text, sep);
+      const parsed  = parseFor(slug, text);
       state.data[slug]      = { date, sections: parsed };
       state.collapsed[slug] = new Set();
       renderPanel();

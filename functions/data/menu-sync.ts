@@ -10,7 +10,7 @@
 // the cron endpoint and the "Sync now" button both call into here.
 
 import { getAccessToken, downloadFile, resolveFileLink, getItemInfo, type GraphEnv } from './graph';
-import { parseDocx } from './docx-parse';
+import { parseDocx, type MenuLayout } from './docx-parse';
 import { VALID_SLUGS } from './menu-slugs';
 import type { MenuSection } from './menu-defaults';
 import { siteScope, type Site, type SiteBindings } from './site';
@@ -64,6 +64,11 @@ const SLUG_LANG: Record<string, 'he' | 'en' | null> = {
   cocktails: null,
   events: 'he', events_en: 'en',
 };
+
+// Row grammar per slug. The wine list is laid out in Word as tab columns
+// (tasting note ⇥ name | region ⇥⇥ price) rather than "name SEP price", so it
+// needs its own parser — see docx-parse.ts.
+const SLUG_LAYOUT: Record<string, MenuLayout> = { wine: 'wine', wine_en: 'wine' };
 
 /** True if the string is predominantly Hebrew script. */
 function isHebrew(s: string): boolean {
@@ -232,7 +237,7 @@ export async function syncSlug(env: SyncEnv, cfg: SyncConfig, slug: string, acce
 
   try {
     const { name, bytes } = await downloadFile(entry.fileId, accessToken);
-    const parsed = await parseDocx(bytes, name);
+    const parsed = await parseDocx(bytes, name, 0, SLUG_LAYOUT[slug] ?? 'list');
     if (!parsed.sections.length) throw new Error('No sections parsed from document');
 
     // Keep only this slug's language (splits the bilingual desserts doc).

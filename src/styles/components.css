@@ -2427,36 +2427,3 @@ html[dir="rtl"] .menu-tl__chapter:not(:first-child)::after {
   padding-block: 0.5rem;
 }
 
-/* Wine-list legend — small "bottle / glass" key on the wine panel.
-   Two pill items with dots, sits above the section. */
-.wine-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin: 0 0 var(--space-s);
-  padding: 0.4rem 0.85rem;
-  background: var(--paper-card);
-  border: 1px solid var(--rule-soft);
-  font-family: var(--font-body);
-  font-size: var(--step--2);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  font-weight: 600;
-}
-.wine-legend__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-.wine-legend__dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--accent);
-  display: inline-block;
-}
-.wine-legend__dot--glass {
-  background: transparent;
-  border: 1px solid var(--accent);
-}

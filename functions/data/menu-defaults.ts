@@ -5,8 +5,13 @@
 
 export interface MenuItem    {
   name: string;
+  /** Secondary line under the name. On the wine list this is the region. */
   description: string;
   price: string;
+  /** Wine only: the tasting note ("fruity, round and harmonious") that the
+   *  Word list prints before the name of a wine also poured by the glass.
+   *  Bottle-only wines get theirs from their section heading instead. */
+  note?: string;
   /** When true, this item is chosen to appear on the home page cinematic
    *  strip (up to 5 per category). When no items in a category are featured,
    *  the home page falls back to showing the first N as before. */

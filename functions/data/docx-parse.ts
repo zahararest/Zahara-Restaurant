@@ -17,9 +17,12 @@
 // findDate) in lockstep with script.ts so an OneDrive sync and a manual
 // upload of the same file yield identical data.
 
-import type { MenuSection } from './menu-defaults';
+import type { MenuItem, MenuSection } from './menu-defaults';
 
 export interface ParsedMenu { date: string | null; sections: MenuSection[]; }
+
+/** Row grammar of a menu document. See parseDocx. */
+export type MenuLayout = 'list' | 'wine';
 interface PagedLine { text: string; page: number; }
 
 // ── ZIP reading (central-directory walk + inflate) ───────────────────────
@@ -115,7 +118,11 @@ function xmlToPagedLines(xmlStr: string): PagedLine[] {
       if (m[1] !== undefined) {
         text += decodeXmlEntities(m[1]);
       } else if (/^<w:tab/.test(m[0])) {
-        text += ' ';
+        // Kept as a REAL tab: the wine list encodes its columns with tab runs
+        // (note ⇥ name | region ⇥⇥⇥ price), and parseWineLines reads them.
+        // parseLines flattens them back to spaces, so every other menu parses
+        // exactly as it did before.
+        text += '\t';
       } else {
         flush();
         if (/w:type="page"/.test(m[0])) page++;
@@ -267,7 +274,10 @@ function cleanPrice(price: string): string {
   return nums.map(n => n + unit).join(' / ');
 }
 
-function parseLines(lines: string[], sep: string): MenuSection[] {
+function parseLines(rawLines: string[], sep: string): MenuSection[] {
+  // Tabs are preserved upstream for the wine layout; every other menu treats
+  // them as plain spacing, exactly as before.
+  const lines = rawLines.map(l => l.replace(/\t/g, ' '));
   const sections: MenuSection[] = [];
   let current: MenuSection | null = null;
   const skip = /^(שף|Chef)[:\s]/;
@@ -336,8 +346,96 @@ function parseLines(lines: string[], sep: string): MenuSection[] {
   return sections.filter(s => s.items.length > 0 || s.title);
 }
 
+// ── Wine layout ───────────────────────────────────────────────────────────
+//
+// The wine list is laid out in Word as tab columns, not as the "name SEP price"
+// rows every other menu uses:
+//
+//   אדום                                        ← wine type (a heading)
+//   קליל, חלק ופרחוני ⇥ רקנאטי ביתוני, 2023 | הרי יהודה ⇥⇥⇥ 215 / 54
+//   ............................................ ← divider, dropped
+//   רענן, פירותי וקטיפתי                        ← tasting-note subsection
+//   כישור G.S.M, 2025 | גליל מערבי ⇥⇥⇥⇥ 210
+//
+// So one row can carry four things: a tasting note (only on the wines also
+// poured by the glass), the wine's name, its region after a "|", and the
+// price — bottle, or "bottle / glass". Word pads the columns with RUNS of
+// tabs, which is why empty fields are dropped rather than counted.
+//
+// The parser keeps headings in document order and doesn't try to tell a wine
+// TYPE from a tasting-note subsection: the site does that (see wine-types.ts),
+// which keeps this side language-agnostic.
+
+/** The "......" ruler Word uses to close the by-the-glass block. */
+const WINE_RULER = /^[.…·_\-\s]{6,}$/;
+/** Any letter, in either script — a price field has none. */
+const HAS_LETTERS = /[A-Za-z֐-׿]/;
+
+export function parseWineLines(lines: string[]): MenuSection[] {
+  const sections: MenuSection[] = [];
+  let current: MenuSection | null = null;
+
+  for (const raw of lines) {
+    const line = (raw || '').replace(/ /g, ' ').trim();
+    if (!line || WINE_RULER.test(line)) continue;
+
+    const fields = line.split('\t').map(f => f.trim()).filter(Boolean);
+    const flat   = fields.join(' ').replace(/\s+/g, ' ').trim();
+
+    // No digit anywhere ⇒ a heading. Every wine row carries a price, and no
+    // heading in these lists is numeric, so this one test separates them.
+    if (!/\d/.test(flat)) {
+      // "פריך,חד ומינרלי" — the docs aren't consistent about the space.
+      const title = flat.replace(/\s*,\s*/g, ', ').replace(/:$/, '').trim();
+      if (title) { current = { title, items: [] }; sections.push(current); }
+      continue;
+    }
+
+    // Price = the last all-numeric field. RTL editing sometimes strands the
+    // slash ("215 54 /"), so cleanPrice just harvests the numbers in order.
+    let priceIdx = -1;
+    for (let k = fields.length - 1; k >= 0; k--) {
+      if (/\d/.test(fields[k]) && !HAS_LETTERS.test(fields[k])) { priceIdx = k; break; }
+    }
+
+    let price = '';
+    let rest: string[];
+    if (priceIdx >= 0) {
+      price = cleanPrice(fields[priceIdx]);
+      rest  = fields.slice(0, priceIdx);
+    } else {
+      // No tab before the price ("… | צרפת  780") — peel it off the tail.
+      const tail = fields[fields.length - 1] || '';
+      const m    = tail.match(/^(.*?)[\s]*(\d[\d\s/\\.,₪]*)$/);
+      if (m) { price = cleanPrice(m[2]); rest = [...fields.slice(0, -1), m[1].trim()].filter(Boolean); }
+      else   { rest = fields.slice(); }
+    }
+
+    // The field holding "name | region"; anything before it is the note.
+    let nameIdx = rest.findIndex(f => f.includes('|'));
+    if (nameIdx < 0) nameIdx = rest.length - 1;
+    const nameField = rest[nameIdx] || '';
+    const note      = rest.slice(0, nameIdx).join(' ').replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
+    const bar       = nameField.indexOf('|');
+    const name      = (bar < 0 ? nameField : nameField.slice(0, bar)).replace(/\s+/g, ' ').trim();
+    const region    = (bar < 0 ? ''        : nameField.slice(bar + 1)).replace(/\s+/g, ' ').trim();
+
+    if (!name) continue;
+    if (!current) { current = { title: '', items: [] }; sections.push(current); }
+    const item: MenuItem = { name, description: region, price };
+    if (note) item.note = note;
+    current.items.push(item);
+  }
+
+  // A heading with nothing under it is noise, not a section.
+  return sections.filter(s => s.items.length > 0);
+}
+
 /**
  * Parse a .docx into { date, sections }.
+ *
+ * `layout` picks the row grammar: 'list' for the classic "name SEP price"
+ * menus, 'wine' for the tab-column wine list (see parseWineLines).
  *
  * One file = one language (OneDrive stores each language as its own file),
  * so this returns a single section list. If a file happens to contain a
@@ -348,6 +446,7 @@ export async function parseDocx(
   buffer: ArrayBuffer,
   filename = '',
   page = 0,
+  layout: MenuLayout = 'list',
 ): Promise<ParsedMenu> {
   const entries = await readZipEntries(buffer);
   const docXml  = entries['word/document.xml'];
@@ -361,8 +460,9 @@ export async function parseDocx(
   const date     = findDate(headerXmls, allLines, filename);
 
   const text     = allLines.filter(l => l.page === page).map(l => l.text);
-  const sep      = detectSep(text);
-  const sections = parseLines(text, sep);
+  const sections = layout === 'wine'
+    ? parseWineLines(text)
+    : parseLines(text, detectSep(text.map(l => l.replace(/\t/g, ' '))));
   return { date, sections };
 }
 
