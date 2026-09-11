@@ -1,7 +1,8 @@
 // GET  /admin/events-menu/sync — the events-PDF source + whether a PDF is live.
-// POST /admin/events-menu/sync — body { link?: string, run?: boolean }:
-//        link  — save the OneDrive source (saved before any run, like the
-//                menu-sync panel does),
+// POST /admin/events-menu/sync — body { link?, fileId?, fileName?, run? }:
+//        link / fileId — save the OneDrive source (saved before any run, like
+//                the menu-sync panel does). `fileId` comes from the file
+//                browser; `link` is a pasted OneDrive URL of any shape.
 //        run   — pull it now.
 //
 // Its own endpoint on purpose: /admin/sync/run drives the .docx menus from
@@ -12,7 +13,7 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
 import {
-  readEventsMenuConfig, setEventsMenuLink, syncEventsMenu, type EventsMenuSyncEnv,
+  readEventsMenuConfig, setEventsMenuSource, syncEventsMenu, type EventsMenuSyncEnv,
 } from '../../data/events-menu-sync';
 import { EVENTS_MENU_OBJECT } from '../../data/content';
 import { adminSite, siteScope, type Site } from '../../data/site';
@@ -51,14 +52,16 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
 
-  let body: { link?: string; run?: boolean } = {};
+  let body: { link?: string; fileId?: string; fileName?: string; run?: boolean } = {};
   try { body = await request.json() as typeof body; }
   catch { return json({ ok: false, error: 'Invalid JSON' }, 400); }
 
   const site = adminSite(request);
 
-  // Save the link first, so a "Sync now" always uses what's on screen.
-  if (typeof body.link === 'string') await setEventsMenuLink(env, body.link, site);
+  // Save the source first, so a "Sync now" always uses what's on screen.
+  if (typeof body.link === 'string' || typeof body.fileId === 'string') {
+    await setEventsMenuSource(env, body, site);
+  }
 
   if (!body.run) {
     const config = await readEventsMenuConfig(env, site);

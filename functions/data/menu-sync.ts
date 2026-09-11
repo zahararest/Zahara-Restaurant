@@ -9,7 +9,7 @@
 // the per-menu OneDrive source. The admin /admin/sync page reads/writes it;
 // the cron endpoint and the "Sync now" button both call into here.
 
-import { getAccessToken, downloadFile, fileIdFromLink, type GraphEnv } from './graph';
+import { getAccessToken, downloadFile, resolveFileLink, getItemInfo, type GraphEnv } from './graph';
 import { parseDocx } from './docx-parse';
 import { VALID_SLUGS } from './menu-slugs';
 import type { MenuSection } from './menu-defaults';
@@ -22,10 +22,14 @@ import { siteScope, type Site, type SiteBindings } from './site';
 export interface SyncEnv extends GraphEnv, SiteBindings {}
 
 export interface MenuSource {
-  /** Raw OneDrive link the owner pasted (shown back in the UI). */
+  /** Raw OneDrive link the owner pasted, if they pasted one rather than
+   *  picking the file from the browser. Shown back in the UI. */
   link?:       string;
-  /** Drive-item id derived from the link — what Graph downloads. */
+  /** Drive-item id — what Graph downloads. */
   fileId?:     string;
+  /** The file's name in OneDrive, so the panel can show "אוכל עברית.docx"
+   *  instead of a 40-character id the owner can't check at a glance. */
+  fileName?:   string;
   /** ISO timestamp of the last successful/failed sync attempt. */
   lastSync?:   string | null;
   /** 'ok' or an error message from the last attempt. */
@@ -112,31 +116,73 @@ function sanitizeHours(hours: unknown[]): number[] {
   return [...seen].sort((a, b) => a - b);
 }
 
+/** One access token per request, fetched only if something actually needs it
+ *  (saving the schedule alone must not depend on the Graph grant). */
+export function lazyToken(env: GraphEnv): () => Promise<string> {
+  let pending: Promise<string> | null = null;
+  return () => (pending ??= getAccessToken(env));
+}
+
+/** What the admin panel sends for one menu: either a file picked from the
+ *  OneDrive browser (id + name) or a link the owner pasted. */
+export interface MenuSourcePatch { link?: string; fileId?: string; fileName?: string; }
+
 /**
- * Apply an admin-submitted config patch, deriving fileId from any pasted
- * link and dropping unknown slugs. Preserves existing lastSync/status so the
- * UI doesn't lose history when the owner just edits a link or the schedule.
+ * Resolve one submitted source to { fileId, fileName }. A picked file is
+ * already an id and only needs its name filled in; a pasted link goes through
+ * the full resolver, which handles every OneDrive link shape (and asks Graph
+ * about share links). Graph failures degrade to "saved but unverified" rather
+ * than losing the owner's input.
+ */
+async function resolveSource(
+  entry: MenuSourcePatch, prev: MenuSource, getToken: () => Promise<string>,
+): Promise<Pick<MenuSource, 'link' | 'fileId' | 'fileName'>> {
+  const fileId = (entry.fileId ?? '').trim();
+  const link   = (entry.link   ?? '').trim();
+
+  // Picked from the browser: trust the id, keep/learn the name.
+  if (fileId) {
+    let name = (entry.fileName ?? '').trim() || (fileId === prev.fileId ? prev.fileName : '') || '';
+    if (!name) {
+      try { name = (await getItemInfo(fileId, await getToken()))?.name || ''; } catch { /* unverified */ }
+    }
+    return { link: undefined, fileId, fileName: name || undefined };
+  }
+
+  if (!link) return { link: undefined, fileId: undefined, fileName: undefined };
+
+  // An unchanged, already-named link doesn't need re-resolving on every save.
+  // (Missing name ⇒ a link saved before the picker existed — resolve it once
+  // so the panel can show the file's name instead of the raw URL.)
+  if (link === prev.link && prev.fileId && prev.fileName) {
+    return { link, fileId: prev.fileId, fileName: prev.fileName };
+  }
+
+  const resolved = await resolveFileLink(link, getToken).catch(() => null);
+  return { link, fileId: resolved?.id, fileName: resolved?.name };
+}
+
+/**
+ * Apply an admin-submitted config patch, resolving each menu's source and
+ * dropping unknown slugs. Preserves existing lastSync/status so the UI doesn't
+ * lose history when the owner just edits a link or the schedule.
  */
 export async function applyConfigPatch(
   env: SyncEnv,
-  patch: { enabled?: boolean; hours?: unknown[]; menus?: Record<string, { link?: string }> },
+  patch: { enabled?: boolean; hours?: unknown[]; menus?: Record<string, MenuSourcePatch> },
   site: Site = 'zahara',
 ): Promise<SyncConfig> {
-  const cfg = await readConfig(env, site);
+  const cfg      = await readConfig(env, site);
+  const getToken = lazyToken(env);
 
   if (typeof patch.enabled === 'boolean') cfg.enabled = patch.enabled;
   if (Array.isArray(patch.hours))         cfg.hours   = sanitizeHours(patch.hours);
 
   if (patch.menus && typeof patch.menus === 'object') {
     for (const [slug, entry] of Object.entries(patch.menus)) {
-      if (!VALID_SLUGS.has(slug)) continue;
+      if (!VALID_SLUGS.has(slug) || !entry) continue;
       const prev = cfg.menus[slug] || {};
-      const link = (entry?.link ?? '').trim();
-      cfg.menus[slug] = {
-        ...prev,
-        link:   link || undefined,
-        fileId: link ? (fileIdFromLink(link) ?? undefined) : undefined,
-      };
+      cfg.menus[slug] = { ...prev, ...(await resolveSource(entry, prev, getToken)) };
     }
   }
 

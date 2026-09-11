@@ -12,7 +12,7 @@
 // not a daily market menu, which is why it syncs on its own schedule: theirs.
 
 import type { R2Bucket } from '@cloudflare/workers-types';
-import { getAccessToken, downloadFile, fileIdFromLink, type GraphEnv } from './graph';
+import { getAccessToken, downloadFile, resolveFileLink, getItemInfo, type GraphEnv } from './graph';
 import { bumpAssetVersion, EVENTS_MENU_OBJECT } from './content';
 import { siteScope, type Site, type SiteBindings } from './site';
 
@@ -20,10 +20,13 @@ import { siteScope, type Site, type SiteBindings } from './site';
 export interface EventsMenuSyncEnv extends GraphEnv, SiteBindings {}
 
 export interface EventsMenuConfig {
-  /** Raw OneDrive link the owner pasted (shown back in the UI). */
+  /** Raw OneDrive link the owner pasted, if they pasted one rather than
+   *  picking the file from the browser. Shown back in the UI. */
   link?:       string;
-  /** Drive-item id derived from the link — what Graph downloads. */
+  /** Drive-item id — what Graph downloads. */
   fileId?:     string;
+  /** The linked file's name in OneDrive, so the panel can name the source. */
+  fileName?:   string;
   /** ISO timestamp of the last sync attempt. */
   lastSync?:   string | null;
   /** 'ok' or the error message from the last attempt. */
@@ -58,6 +61,7 @@ function sanitise(raw: unknown): EventsMenuConfig {
   return {
     link:       str(o.link),
     fileId:     str(o.fileId),
+    fileName:   str(o.fileName),
     lastSync:   str(o.lastSync)   ?? null,
     lastStatus: str(o.lastStatus) ?? null,
     lastSize:   typeof o.lastSize === 'number' && isFinite(o.lastSize) ? o.lastSize : null,
@@ -82,18 +86,38 @@ export async function writeEventsMenuConfig(
   await env.MENU_KV.put(configKeyFor(site), JSON.stringify(sanitise(cfg)));
 }
 
-/** Save a pasted link (deriving the drive-item id), keeping the sync history.
- *  An empty link clears the source without touching the stored PDF. */
-export async function setEventsMenuLink(
-  env: EventsMenuSyncEnv, link: string, site: Site = 'zahara',
+/**
+ * Save the PDF's source, keeping the sync history. Accepts either a file
+ * picked from the OneDrive browser (`fileId` + `fileName`) or a pasted link,
+ * which is resolved the same way the .docx menus' links are. Clearing both
+ * drops the source without touching the stored PDF.
+ */
+export async function setEventsMenuSource(
+  env: EventsMenuSyncEnv,
+  source: { link?: string; fileId?: string; fileName?: string },
+  site: Site = 'zahara',
 ): Promise<EventsMenuConfig> {
-  const cfg  = await readEventsMenuConfig(env, site);
-  const trim = (link || '').trim();
-  const next: EventsMenuConfig = {
-    ...cfg,
-    link:   trim || undefined,
-    fileId: trim ? (fileIdFromLink(trim) ?? undefined) : undefined,
-  };
+  const cfg    = await readEventsMenuConfig(env, site);
+  const fileId = (source.fileId ?? '').trim();
+  const link   = (source.link   ?? '').trim();
+
+  let next: EventsMenuConfig;
+  if (fileId) {
+    let name = (source.fileName ?? '').trim() || (fileId === cfg.fileId ? cfg.fileName : '') || '';
+    if (!name) {
+      try { name = (await getItemInfo(fileId, await getAccessToken(env)))?.name || ''; }
+      catch { /* saved unverified — the sync itself will report a bad id */ }
+    }
+    next = { ...cfg, link: undefined, fileId, fileName: name || undefined };
+  } else if (!link) {
+    next = { ...cfg, link: undefined, fileId: undefined, fileName: undefined };
+  } else if (link === cfg.link && cfg.fileId && cfg.fileName) {
+    next = cfg;                                   // unchanged and named — leave it
+  } else {
+    const resolved = await resolveFileLink(link, () => getAccessToken(env)).catch(() => null);
+    next = { ...cfg, link, fileId: resolved?.id, fileName: resolved?.name };
+  }
+
   await writeEventsMenuConfig(env, next, site);
   return next;
 }

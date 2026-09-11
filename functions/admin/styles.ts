@@ -503,4 +503,95 @@ textarea.item-input { resize: none; overflow: hidden; min-height: 2.4rem; }
 @media (max-width: 720px) {
   .sync-menu-row { grid-template-columns: 1fr; }
 }
+
+/* ── OneDrive source control (chosen file + the controls to change it) ── */
+.od-source { display: flex; flex-direction: column; gap: .45rem; }
+.od-file {
+  display: flex; align-items: center; gap: .5rem; min-width: 0;
+  padding: .45rem .6rem; background: var(--card); border: 1px solid var(--line-soft);
+}
+.od-file.is-empty { color: var(--muted); font-style: italic; border-style: dashed; }
+.od-file__icon { flex: none; font-size: .95rem; }
+.od-file__name {
+  flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .84rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.od-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.od-btn {
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  padding: .35rem .7rem; font: inherit; font-size: .78rem; cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.od-btn:hover { border-color: var(--accent); color: var(--accent); }
+.od-btn--primary { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.od-btn--primary:hover { background: var(--accent); color: #fff; }
+.od-btn--quiet { border-color: transparent; background: none; color: var(--muted); padding-inline: .35rem; }
+.od-btn--quiet:hover { color: var(--accent); }
+
+/* ── The file browser itself ── */
+.od-modal {
+  position: fixed; inset: 0; z-index: 90;
+  display: none; align-items: center; justify-content: center;
+  background: rgba(26,20,16,.5); padding: 1.2rem;
+}
+.od-modal.is-open { display: flex; }
+.od-modal__panel {
+  width: min(640px, 100%); max-height: min(78vh, 640px);
+  display: flex; flex-direction: column;
+  background: var(--paper); border: 1px solid var(--line);
+  box-shadow: 0 18px 48px rgba(0,0,0,.28);
+}
+.od-modal__head {
+  display: flex; align-items: flex-start; gap: 1rem;
+  padding: 1rem 1.1rem .8rem; border-bottom: 1px solid var(--line-soft);
+}
+.od-modal__title { margin: 0; font-size: 1rem; letter-spacing: .02em; }
+.od-modal__sub   { margin: .2rem 0 0; font-size: .78rem; color: var(--muted); }
+.od-modal__close {
+  margin-inline-start: auto; border: none; background: none; cursor: pointer;
+  font-size: 1rem; color: var(--muted); padding: .1rem .3rem;
+}
+.od-modal__close:hover { color: var(--accent); }
+.od-modal__bar {
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: .75rem 1.1rem; border-bottom: 1px solid var(--line-soft);
+}
+.od-search {
+  width: 100%; padding: .5rem .6rem; border: 1px solid var(--line);
+  background: #fff; color: var(--ink); font: inherit; font-size: .85rem; border-radius: 0;
+}
+.od-search:focus { outline: none; border-color: var(--accent); }
+.od-modal__row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: .5rem;
+}
+.od-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; font-size: .76rem; }
+.od-toggle {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .74rem; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.od-crumb {
+  border: none; background: none; cursor: pointer; padding: .1rem .15rem;
+  color: var(--accent); font: inherit; font-size: .76rem;
+}
+.od-crumb:disabled { color: var(--muted); cursor: default; }
+.od-crumb__sep { color: var(--muted); }
+.od-list { overflow-y: auto; padding: .35rem 0; flex: 1 1 auto; }
+.od-item {
+  display: flex; align-items: center; gap: .65rem; width: 100%;
+  padding: .55rem 1.1rem; border: none; background: none; cursor: pointer;
+  font: inherit; text-align: start; color: var(--ink);
+}
+.od-item:hover { background: var(--deep); }
+.od-item__icon { flex: none; }
+.od-item__name {
+  flex: 1 1 auto; min-width: 0; font-size: .85rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.od-item__meta { flex: none; font-size: .72rem; color: var(--muted); }
+.od-modal__status {
+  margin: 0; padding: .6rem 1.1rem .9rem; font-size: .78rem; color: var(--muted);
+  border-top: 1px solid var(--line-soft);
+}
+.od-modal__status.err { color: var(--err); }
 `;

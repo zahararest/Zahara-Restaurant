@@ -1037,6 +1037,7 @@ function renderEventsPdfPanel() {
   const cfg  = st.config || {};
   const main = document.getElementById('main-area');
   main.innerHTML = '';
+  odFields = [];   // the source control below re-registers as it's built
   const panel = el('div', { class: 'panel is-active' });
 
   panel.appendChild(el('div', { class: 'panel__head' },
@@ -1094,27 +1095,31 @@ function renderEventsPdfPanel() {
   );
 
   // ── Its own OneDrive source ──────────────────────────────────
-  const linkInput = el('input', {
-    class: 'sync-link', type: 'text', id: 'events-pdf-link',
-    value: cfg.link || '', placeholder: 'OneDrive link to the events menu PDF',
-  });
+  // Kept in its own mutable object: a sync REPLACES state.eventsPdf.config,
+  // which would orphan a control bound straight to it.
+  state.eventsSource = {
+    link: cfg.link || '', fileId: cfg.fileId || '', fileName: cfg.fileName || '',
+    unresolved: !!(cfg.link && !cfg.fileId),
+  };
   const syncStatusEl = el('div', {
     class: 'sync-row-status' + (cfg.lastStatus === 'ok' ? ' ok' : (cfg.lastStatus ? ' err' : '')),
   }, eventsPdfSyncText(cfg));
+  const sourceEl = sourceField(state.eventsSource, {
+    label:    'Events menu (PDF)',
+    exts:     '.pdf',
+    onChange: () => saveEventsPdfLink(null, syncStatusEl),
+  });
   const syncBtn = el('button', {
     class: 'btn-save', style: 'background:var(--accent);border-color:var(--accent)',
     onclick: () => syncEventsPdf(syncBtn, syncStatusEl),
   }, 'Sync now');
-  const saveLinkBtn = el('button', {
-    class: 'btn-save', onclick: () => saveEventsPdfLink(saveLinkBtn, syncStatusEl),
-  }, 'Save link');
 
   const syncTile = el('div', { class: 'tile' },
     el('p', { class: 'tile__label' }, 'OneDrive'),
     el('div', { class: 'tile__body', style: 'flex-direction:column;align-items:stretch;gap:.7rem' },
-      linkInput,
-      el('div', { class: 'tile__body' }, saveLinkBtn, syncBtn,
-        el('span', { class: 'upload-info' }, 'Sync now saves the link, then pulls the PDF.')),
+      sourceEl,
+      el('div', { class: 'tile__body' }, syncBtn,
+        el('span', { class: 'upload-info' }, 'Sync now saves the file you picked, then pulls the PDF.')),
       syncStatusEl,
     ),
   );
@@ -1185,22 +1190,34 @@ async function postEventsPdfSync(body) {
   return j;
 }
 
-function currentEventsPdfLink() {
-  const input = document.getElementById('events-pdf-link');
-  return input ? input.value.trim() : '';
+function currentEventsSource() {
+  const src = state.eventsSource || {};
+  return { link: src.link || '', fileId: src.fileId || '', fileName: src.fileName || '' };
+}
+
+/** Mirror the saved source back onto the live object the control is bound to. */
+function applyEventsSource(cfg) {
+  const src = state.eventsSource;
+  if (!src || !cfg) return;
+  src.link       = cfg.link     || '';
+  src.fileId     = cfg.fileId   || '';
+  src.fileName   = cfg.fileName || '';
+  src.unresolved = !!(cfg.link && !cfg.fileId);
+  repaintSources();
 }
 
 async function saveEventsPdfLink(btn, statusEl) {
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   try {
-    await postEventsPdfSync({ link: currentEventsPdfLink() });
-    statusEl.textContent = '✓ Link saved';
+    const j = await postEventsPdfSync(currentEventsSource());
+    applyEventsSource(j && j.config);
+    statusEl.textContent = '✓ Source saved';
     statusEl.className   = 'sync-row-status ok';
   } catch {
     statusEl.textContent = 'Network error';
     statusEl.className   = 'sync-row-status err';
   }
-  btn.disabled = false;
+  if (btn) btn.disabled = false;
 }
 
 async function syncEventsPdf(btn, statusEl) {
@@ -1208,7 +1225,8 @@ async function syncEventsPdf(btn, statusEl) {
   const old = btn.textContent;
   btn.textContent = 'Syncing…';
   try {
-    const j = await postEventsPdfSync({ link: currentEventsPdfLink(), run: true });
+    const j = await postEventsPdfSync({ ...currentEventsSource(), run: true });
+    applyEventsSource(j && j.config);
     statusEl.textContent = j.ok
       ? eventsPdfSyncText(state.eventsPdf.config) || '✓ Synced'
       : '✕ ' + (j.error || 'Sync failed');
@@ -1240,6 +1258,258 @@ async function switchVariant(menuId, variantKey) {
   renderPanel();
 }
 
+// ── OneDrive file picker ─────────────────────────────────────
+// Finding a file's OneDrive *link* is the hardest part of this panel: every
+// button in OneDrive hands out a different URL and only one shape carries the
+// id Graph needs. So the owner doesn't have to — this browses the real drive
+// (GET /admin/sync/browse) and saves the file's id straight from a click.
+const picker = { node: null, stack: [], exts: '', onPick: null, timer: null };
+
+// Repaint hooks for the source controls on the open panel, so a save that
+// comes back with a resolved filename shows it without a full re-render.
+let odFields = [];
+const repaintSources = () => { for (const paint of odFields) paint(); };
+
+function fileGlyph(name) {
+  const n = (name || '').toLowerCase();
+  if (n.endsWith('.pdf'))                        return '📕';
+  if (n.endsWith('.docx') || n.endsWith('.doc')) return '📘';
+  return '📄';
+}
+
+function shortDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString();
+}
+
+function setPickerStatus(msg, isErr) {
+  picker.statusEl.textContent = msg || '';
+  picker.statusEl.className   = 'od-modal__status' + (isErr ? ' err' : '');
+}
+
+function buildPicker() {
+  if (picker.node) return;
+  picker.subEl    = el('p',  { class: 'od-modal__sub' }, '');
+  picker.searchEl = el('input', { class: 'od-search', type: 'search',
+    placeholder: 'Search all of OneDrive by name…' });
+  picker.crumbsEl = el('nav', { class: 'od-crumbs' });
+  // Escape hatch: the row's file type is filtered out by default, so a folder
+  // of PDFs looks empty while picking a Word file. This shows everything.
+  picker.allEl = el('input', { type: 'checkbox' });
+  picker.allEl.addEventListener('change', () => {
+    const q = picker.searchEl.value.trim();
+    q.length >= 2 ? searchPicker(q) : loadPickerFolder();
+  });
+  picker.listEl   = el('div', { class: 'od-list' });
+  picker.statusEl = el('p',   { class: 'od-modal__status' }, '');
+
+  // Debounced: typing searches the whole drive, clearing the box drops back
+  // to the folder the owner was browsing.
+  picker.searchEl.addEventListener('input', () => {
+    clearTimeout(picker.timer);
+    const q = picker.searchEl.value.trim();
+    picker.timer = setTimeout(() => { q.length >= 2 ? searchPicker(q) : loadPickerFolder(); }, 300);
+  });
+
+  const panel = el('div', { class: 'od-modal__panel', onclick: e => e.stopPropagation() },
+    el('div', { class: 'od-modal__head' },
+      el('div', {}, el('h2', { class: 'od-modal__title' }, 'Choose a file from OneDrive'), picker.subEl),
+      el('button', { class: 'od-modal__close', title: 'Close', onclick: () => closePicker() }, '✕'),
+    ),
+    el('div', { class: 'od-modal__bar' }, picker.searchEl,
+      el('div', { class: 'od-modal__row' },
+        picker.crumbsEl,
+        el('label', { class: 'od-toggle' }, picker.allEl, el('span', {}, 'Show all file types')))),
+    picker.listEl,
+    picker.statusEl,
+  );
+  picker.node = el('div', { class: 'od-modal', onclick: () => closePicker() }, panel);
+  document.body.appendChild(picker.node);
+}
+
+function pickerKeys(e) { if (e.key === 'Escape') closePicker(); }
+
+/** opts: { subtitle, exts (comma-separated, e.g. '.docx'), onPick({id,name}) } */
+function openPicker(opts) {
+  buildPicker();
+  picker.exts   = opts.exts || '';
+  picker.onPick = opts.onPick;
+  picker.stack  = [{ id: '', name: 'OneDrive' }];
+  picker.subEl.textContent = opts.subtitle || '';
+  picker.searchEl.value = '';
+  picker.allEl.checked  = false;
+  picker.node.classList.add('is-open');
+  document.addEventListener('keydown', pickerKeys);
+  loadPickerFolder();
+  picker.searchEl.focus();
+}
+
+function closePicker() {
+  if (!picker.node) return;
+  picker.node.classList.remove('is-open');
+  picker.onPick = null;
+  clearTimeout(picker.timer);
+  document.removeEventListener('keydown', pickerKeys);
+}
+
+function renderCrumbs() {
+  picker.crumbsEl.innerHTML = '';
+  picker.stack.forEach((folder, i) => {
+    if (i) picker.crumbsEl.appendChild(el('span', { class: 'od-crumb__sep' }, '›'));
+    const last = i === picker.stack.length - 1;
+    picker.crumbsEl.appendChild(el('button', {
+      class: 'od-crumb', disabled: last || null,
+      onclick: () => { picker.stack = picker.stack.slice(0, i + 1); picker.searchEl.value = ''; loadPickerFolder(); },
+    }, folder.name));
+  });
+}
+
+function renderPickerItems(items, isSearch) {
+  picker.listEl.innerHTML = '';
+  if (!items.length) {
+    setPickerStatus(isSearch ? 'Nothing matched that name.' : 'Nothing here to choose.');
+    return;
+  }
+  for (const it of items) {
+    const meta = it.folder ? '›'
+      : (isSearch && it.path ? it.path : shortDate(it.modified));
+    picker.listEl.appendChild(el('button', {
+      class: 'od-item',
+      onclick: () => {
+        if (it.folder) {
+          picker.stack.push({ id: it.id, name: it.name });
+          picker.searchEl.value = '';
+          loadPickerFolder();
+        } else if (picker.onPick) {
+          const pick = picker.onPick;
+          closePicker();
+          pick({ id: it.id, name: it.name });
+        }
+      },
+    },
+      el('span', { class: 'od-item__icon' }, it.folder ? '📁' : fileGlyph(it.name)),
+      el('span', { class: 'od-item__name', title: it.name }, it.name),
+      el('span', { class: 'od-item__meta' }, meta),
+    ));
+  }
+  setPickerStatus(isSearch
+    ? items.length + (items.length === 1 ? ' match' : ' matches')
+    : 'Folders open on click · click a file to use it');
+}
+
+async function browseOneDrive(query) {
+  const params = new URLSearchParams({ ext: picker.allEl.checked ? '' : picker.exts });
+  if (query) params.set('q', query);
+  else       params.set('folder', (picker.stack[picker.stack.length - 1] || {}).id || '');
+  const res = await fetch('/admin/sync/browse?' + params.toString(), { cache: 'no-store' });
+  return await res.json();
+}
+
+async function loadPickerFolder() {
+  renderCrumbs();
+  picker.listEl.innerHTML = '';
+  setPickerStatus('Loading…');
+  try {
+    const j = await browseOneDrive('');
+    if (!picker.node.classList.contains('is-open')) return;
+    if (!j.ok) return setPickerStatus(j.error || 'Could not read OneDrive', true);
+    renderPickerItems(j.items || [], false);
+  } catch {
+    setPickerStatus('Network error — could not reach OneDrive', true);
+  }
+}
+
+async function searchPicker(query) {
+  picker.listEl.innerHTML = '';
+  setPickerStatus('Searching…');
+  try {
+    const j = await browseOneDrive(query);
+    if (!picker.node.classList.contains('is-open')) return;
+    if (!j.ok) return setPickerStatus(j.error || 'Search failed', true);
+    renderPickerItems(j.items || [], true);
+  } catch {
+    setPickerStatus('Network error — could not reach OneDrive', true);
+  }
+}
+
+// ── "Which OneDrive file" control ────────────────────────────
+// Shared by the menu rows and the events-PDF panel. It edits src in place —
+// the caller's own config object — so saving is just "send what's in state".
+// A pasted link still works (any shape; the server resolves it), it's just no
+// longer the only way in.
+function sourceField(src, opts) {
+  const wrap = el('div', { class: 'od-source' });
+  let showPaste = !src.fileId && !!src.link;
+
+  function paint() {
+    wrap.innerHTML = '';
+    const chosen = !!(src.fileId || src.link);
+    const label  = src.fileName || (src.fileId ? 'Linked file' : '') || src.link || '';
+
+    // The chip names the source. With the link box open and no file resolved
+    // yet, the box itself is the source — a chip would just repeat it.
+    if (src.fileId || (src.link && !showPaste)) {
+      wrap.appendChild(el('div', { class: 'od-file' },
+        el('span', { class: 'od-file__icon' }, fileGlyph(src.fileName)),
+        el('span', { class: 'od-file__name', title: label }, label)));
+    } else if (!src.link) {
+      wrap.appendChild(el('div', { class: 'od-file is-empty' },
+        el('span', { class: 'od-file__name' }, 'No file chosen')));
+    }
+
+    wrap.appendChild(el('div', { class: 'od-actions' },
+      el('button', {
+        class: 'od-btn od-btn--primary',
+        onclick: () => openPicker({
+          subtitle: opts.label,
+          exts:     opts.exts,
+          onPick:   f => {
+            src.fileId = f.id; src.fileName = f.name; src.link = ''; src.unresolved = false;
+            showPaste = false;
+            paint();
+            if (opts.onChange) opts.onChange();
+          },
+        }),
+      }, chosen ? 'Change file' : 'Choose from OneDrive'),
+      el('button', {
+        class: 'od-btn od-btn--quiet',
+        onclick: () => { showPaste = !showPaste; paint(); },
+      }, showPaste ? 'hide link box' : 'or paste a link'),
+      chosen && el('button', {
+        class: 'od-btn od-btn--quiet', title: 'Remove this source',
+        onclick: () => {
+          src.fileId = ''; src.fileName = ''; src.link = ''; src.unresolved = false;
+          showPaste = false;
+          paint();
+          if (opts.onChange) opts.onChange();
+        },
+      }, '✕ clear'),
+    ));
+
+    // Set by the save response: a link the server couldn't turn into a file.
+    if (src.unresolved) {
+      wrap.appendChild(el('p', { class: 'sync-row-status err' },
+        '⚠ That link doesn’t point at a file we can read — use “Choose from OneDrive”.'));
+    }
+
+    if (showPaste) {
+      const input = el('input', { class: 'sync-link', type: 'text',
+        value: src.link || '', placeholder: 'Paste any OneDrive link' });
+      // Typing a new link invalidates the id we had — the server re-resolves.
+      input.addEventListener('input',  () => { src.link = input.value.trim(); src.fileId = ''; src.fileName = ''; src.unresolved = false; });
+      input.addEventListener('change', () => { if (opts.onChange) opts.onChange(); });
+      wrap.appendChild(input);
+      wrap.appendChild(el('p', { class: 'upload-info', style: 'font-size:.72rem' },
+        'Any OneDrive link will do — Share, the address bar, or “Open in browser”.'));
+    }
+  }
+
+  paint();
+  odFields.push(paint);
+  return wrap;
+}
+
 // ── OneDrive sync panel ──────────────────────────────────────
 async function switchToSync() {
   state.view = 'sync';
@@ -1253,6 +1523,11 @@ async function switchToSync() {
       state.syncConfig = j.ok ? j.config : { enabled: true, hours: [12, 16, 18], menus: {} };
     } catch {
       state.syncConfig = { enabled: true, hours: [12, 16, 18], menus: {} };
+    }
+    // Flag any stored link that never resolved to a file, so the row says so
+    // before the owner presses Sync and waits for it to fail.
+    for (const m of Object.values(state.syncConfig.menus || {})) {
+      m.unresolved = !!(m.link && !m.fileId);
     }
   }
   renderSyncPanel();
@@ -1270,6 +1545,7 @@ function renderSyncPanel() {
   const cfg  = state.syncConfig || { enabled: true, hours: [12, 16, 18], menus: {} };
   const main = document.getElementById('main-area');
   main.innerHTML = '';
+  odFields = [];   // the source controls below re-register as they're built
   const panel = el('div', { class: 'panel is-active' });
 
   panel.appendChild(el('div', { class: 'panel__head' },
@@ -1319,19 +1595,26 @@ function renderSyncPanel() {
   panel.appendChild(el('div', { class: 'save-bar' }, saveBtn, allBtn, status));
 
   panel.appendChild(el('p', { class: 'featured-hint' },
-    'Paste each menu’s OneDrive link. A sync overwrites that menu, but keeps your ★ home-page picks.'));
+    'Pick each menu’s Word file straight out of OneDrive. A sync overwrites that menu, but keeps your ★ home-page picks.'));
 
   // Menu rows
   const list = el('div', { class: 'sections' });
   for (const def of syncMenus()) {
-    const m     = cfg.menus[def.slug] || {};
-    const input = el('input', { class: 'sync-link', type: 'text', value: m.link || '',
-      placeholder: 'OneDrive link', 'data-slug': def.slug });
+    // The live config object — sourceField edits it in place, so "save" is
+    // just sending what's in state.
+    const m = cfg.menus[def.slug] = cfg.menus[def.slug] || {};
     const statusEl = el('div', { class: 'sync-row-status' + (m.lastStatus === 'ok' ? ' ok' : (m.lastStatus ? ' err' : '')), 'data-status': def.slug }, syncStatusText(m));
+    const field = sourceField(m, {
+      label:    def.label,
+      exts:     '.docx,.doc',
+      // Choosing a file is a decision — persist it there and then, so it
+      // can't be lost by navigating away before "Save settings".
+      onChange: () => saveSyncConfig(document.getElementById('sync-status')),
+    });
     const btn = el('button', { class: 'subtab', style: 'border:1px solid var(--line)', onclick: () => syncOne(def.slug, btn) }, 'Sync now');
     list.appendChild(el('div', { class: 'sync-menu-row' },
       el('div', { class: 'sync-menu-label' }, def.label),
-      el('div', {}, input, statusEl),
+      el('div', {}, field, statusEl),
       btn,
     ));
   }
@@ -1353,11 +1636,33 @@ function renderSyncPanel() {
 }
 
 function collectSyncMenus() {
-  const out = {};
-  for (const inp of document.querySelectorAll('.sync-link[data-slug]')) {
-    out[inp.getAttribute('data-slug')] = { link: inp.value.trim() };
+  const out   = {};
+  const menus = (state.syncConfig || {}).menus || {};
+  for (const def of syncMenus()) {
+    const m = menus[def.slug] || {};
+    out[def.slug] = { link: m.link || '', fileId: m.fileId || '', fileName: m.fileName || '' };
   }
   return out;
+}
+
+/** Fold the saved config back in WITHOUT replacing the per-menu objects —
+ *  the source controls hold references to them. Absent keys mean "cleared",
+ *  so every field is written, not Object.assign'd. */
+function mergeSyncConfig(fresh) {
+  const cfg = state.syncConfig;
+  if (!cfg) { state.syncConfig = fresh; return; }
+  cfg.enabled = fresh.enabled !== false;
+  cfg.hours   = fresh.hours || [];
+  for (const [slug, src] of Object.entries(fresh.menus || {})) {
+    const dst = cfg.menus[slug] = cfg.menus[slug] || {};
+    dst.link       = src.link     || '';
+    dst.fileId     = src.fileId   || '';
+    dst.fileName   = src.fileName || '';
+    dst.lastSync   = src.lastSync   || null;
+    dst.lastStatus = src.lastStatus || null;
+    dst.lastItems  = src.lastItems;
+    dst.unresolved = !!(src.link && !src.fileId);
+  }
 }
 
 async function saveSyncConfig(statusEl) {
@@ -1368,7 +1673,8 @@ async function saveSyncConfig(statusEl) {
     const res = await fetch('/admin/sync/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j   = await res.json();
     if (j.ok) {
-      state.syncConfig = j.config;
+      mergeSyncConfig(j.config);
+      repaintSources();   // a pasted link may have resolved to a real filename
       if (statusEl) { statusEl.textContent = '✓ Saved'; statusEl.className = 'save-status ok'; }
       return true;
     }
