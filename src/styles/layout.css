@@ -606,6 +606,7 @@ body.nav-open { overflow: hidden; }
   inset-block-end: -1px;
   inset-inline-start: 0;
   height: 2px;
+  opacity: 0.95;
   width: 0;
   background: linear-gradient(90deg, transparent, var(--accent) 20%, var(--accent) 80%, transparent);
   pointer-events: none;
@@ -626,27 +627,37 @@ body.nav-open { overflow: hidden; }
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
+  background: none;
+  border: 0;
   cursor: pointer;
-  transition: color 0.25s ease, background 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+  transition: color 0.25s var(--ease-out);
   font-weight: 500;
   white-space: nowrap;
 }
-.menu-tab:hover {
-  color: var(--ink);
-  border-color: var(--rule);
-  transform: translateY(-1px);
-}
+.menu-tab:hover { color: var(--ink); }
+/* Active state is the sliding accent rule under the bar — NOT a filled pill.
+   A pill here has to invert per theme (cream slab on near-black in dark), which
+   made the loudest thing on the menu a button. The words carry the state. */
 .menu-tab.is-active {
-  /* Use --button-color/--button-background which correctly invert in dark mode:
-     light mode: dark bg + cream text ✓
-     dark mode:  cream bg + dark text ✓  */
-  color: var(--button-color);
-  background: var(--button-background);
-  border-color: var(--button-background);
-  transform: translateY(0);
+  color: var(--ink);
+  font-weight: 600;
+  background: transparent;
+  border-color: transparent;
+}
+/* Narrow screens wrap the bar onto two rows, where a rule pinned to the bar's
+   bottom edge no longer sits under the open tab. There the tab carries its
+   own underline and the slider stands down. */
+@media (max-width: 700px) {
+  .menu-tabs__indicator { display: none; }
+  .menu-tab { position: relative; }
+  .menu-tab.is-active::after {
+    content: '';
+    position: absolute;
+    inset-inline: 1.1rem;
+    inset-block-end: 0.25rem;
+    height: 1px;
+    background: var(--accent);
+  }
 }
 
 .menu-panel { display: none; }
@@ -663,6 +674,8 @@ body.nav-open { overflow: hidden; }
   font-weight: 500;
 }
 .menu-meta__date { color: var(--accent); font-weight: 600; }
+/* No date yet (wine, cocktails) — collapse instead of holding open a gap. */
+.menu-meta:empty { min-height: 0; margin-block-end: 0; }
 
 .menu-inline {
   position: relative;
@@ -858,34 +871,68 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
    tasting-note subsections. The chips below the tab bar switch between
    types so a 30-bottle red list never has to be scrolled past to reach
    the whites. */
+/* The type switcher is a typographic index — words separated by hairlines,
+   the open one underlined in accent. One step quieter than the tab bar above
+   it, so the two rows read as a hierarchy instead of competing. */
 .wine-nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.35rem;
-  margin-block-end: var(--space-l);
+  align-items: baseline;
+  gap: 0.2rem 1.5rem;
 }
 .wine-nav__chip {
-  padding: 0.45rem 1.15rem;
+  position: relative;
+  padding: 0.3rem 0.1rem 0.45rem;
   font-family: var(--font-body);
   font-size: var(--step--2);
-  letter-spacing: 0.2em;
+  letter-spacing: 0.26em;
   text-transform: uppercase;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-muted);
-  background: transparent;
-  border: 1px solid var(--rule-soft);
-  border-radius: 999px;
+  background: none;
+  border: 0;
   cursor: pointer;
-  transition: color 0.25s var(--ease-out), border-color 0.25s var(--ease-out),
-              background 0.25s var(--ease-out);
+  transition: color 0.25s var(--ease-out);
 }
-.wine-nav__chip:hover { color: var(--ink); border-color: var(--rule); }
-.wine-nav__chip.is-active {
-  color: var(--paper);
-  background: var(--ink);
-  border-color: var(--ink);
+/* Hairline in the gap before each word after the first. */
+.wine-nav__chip + .wine-nav__chip::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: -0.75rem;
+  inset-block: 0.45rem 0.6rem;
+  width: 1px;
+  background: var(--rule);
 }
+.wine-nav__chip::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 1px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform 0.5s var(--ease-out);
+}
+.wine-nav__chip:hover { color: var(--ink); }
+.wine-nav__chip.is-active { color: var(--ink); font-weight: 600; }
+.wine-nav__chip.is-active::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) {
+  .wine-nav__chip::after { transition: none; }
+}
+
+/* One paper card per wine type. [hidden] must win over the grid display. */
+.wine-group {
+  position: relative;
+  display: grid;
+  gap: var(--space-l);
+  padding: clamp(1.75rem, 4vw, 3rem) clamp(1.25rem, 5vw, 3rem);
+  background: linear-gradient(180deg, var(--paper-card) 0%, var(--paper) 100%);
+  border: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-2);
+  isolation: isolate;
+}
+.wine-group[hidden] { display: none; }
 
 /* Tasting-note heading ("crisp, sharp and mineral"). Deliberately quieter
    than a .menu-section-heading: the type is already named by the chip, so
@@ -915,6 +962,17 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
 .menu-section-group.reveal--off .wine-subhead::after { transform: scaleX(0); }
 .menu-section-group.is-in-view  .wine-subhead::after { transform: scaleX(1); }
 
+/* Inside a wine card the section blocks carry no chrome of their own — the
+   tasting-note heading is the only divider they need. */
+.menu-section-group.is-flat {
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.menu-section-group.is-flat::before { display: none; }
+
 /* Region (and, on the glass pours, the tasting note) under the wine's name. */
 .menu-item__meta {
   display: flex;
@@ -931,8 +989,9 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
 }
 .menu-item__region {
   color: var(--ink-muted);
-  font-weight: 300;
-  font-size: 0.94em;
+  font-weight: 400;
+  font-size: 0.84em;
+  letter-spacing: 0.07em;
 }
 /* Hairline between the two, only when both are there. */
 .menu-item__note + .menu-item__region::before {
@@ -973,9 +1032,12 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
 /* The "bottle · glass" caption, carried by a row of the list itself so it
    sits exactly over the columns it labels. */
 .wine-cols {
-  padding-block-end: 0.4rem;
+  padding-block-end: 0;
   border-block-end: 0;
   gap: 0;
+  /* Pull it down onto the first row — it's a caption for the columns, not a
+     list entry, and the list's own gap leaves it stranded. */
+  margin-block-end: calc(var(--space-m) * -0.6);
 }
 .wine-cols .wine-price__bottle,
 .wine-cols .wine-price__glass {

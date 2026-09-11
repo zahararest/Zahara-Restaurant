@@ -288,7 +288,9 @@ function parseLines(rawLines: string[], sep: string): MenuSection[] {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (!line || skip.test(line)) continue;
+    // WINE_RULER also fires here: a "......" divider row is layout, not content,
+    // whatever menu it turns up in.
+    if (!line || skip.test(line) || WINE_RULER.test(line)) continue;
     if (extractAnyDate(line) && line.length < 16) continue;
 
     if (line.startsWith('(') && line.endsWith(')') && current?.items.length) {

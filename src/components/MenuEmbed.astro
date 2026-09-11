@@ -182,6 +182,24 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
   // ── Helpers ─────────────────────────────────────────────────
   const hasHebrew = s => /[֐-׿]/.test(s || '');
 
+  // Word draws the dividers between menu blocks as a row of dots. The parser
+  // drops them now, but data synced before that still carries them — so strip
+  // them here too rather than wait for the next sync.
+  const RULER = /[.…·_-]{6,}/g;
+  const clean = v => String(v ?? '').replace(RULER, ' ').replace(/\s+/g, ' ').trim();
+
+  function sanitizeSections(sections) {
+    return (sections || [])
+      .map(s => ({
+        ...s,
+        title: clean(s.title),
+        items: (s.items || [])
+          .map(it => ({ ...it, name: clean(it.name), description: clean(it.description), note: clean(it.note) }))
+          .filter(it => it.name),
+      }))
+      .filter(s => s.items.length);
+  }
+
   /** Split a two-part wine price into { bottle, glass }; null if it's a single
    *  figure. The two languages' documents list the pair in opposite orders
    *  ("215 / 54" vs "54₪ / 215₪"), so the BIGGER number is the bottle — which
@@ -304,12 +322,14 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
          </li>`
       : '';
 
+    // One paper card per TYPE, with the tasting-note blocks running flat
+    // inside it — a wine list reads as one column, not as five stacked boxes.
     const body = group.sections.map((s, i) => {
       const heading = s.title
         ? `<h2 class="wine-subhead" data-word-reveal data-word-reveal-delay="0.05" data-word-reveal-step="0.05">${esc(s.title)}</h2>`
         : '';
       const items = (s.items || []).map(renderWineItem).join('');
-      return `<div class="menu-section-group">${heading}
+      return `<div class="menu-section-group is-flat">${heading}
         <ul class="menu-items-list menu-items-list--wine${twoCol ? ' is-two-col' : ''}">${i === 0 ? head : ''}${items}</ul>
       </div>`;
     }).join('');
@@ -439,7 +459,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
   }
 
   function applyPayload(slug, kind, payload) {
-    const sections = Array.isArray(payload) ? payload : (payload?.sections ?? []);
+    const sections = sanitizeSections(Array.isArray(payload) ? payload : (payload?.sections ?? []));
     const date     = Array.isArray(payload) ? null   : (payload?.date     ?? null);
     const content  = document.querySelector(`[data-content-for="${slug}"]`);
     const meta     = document.querySelector(`[data-meta-for="${slug}"]`);
