@@ -118,3 +118,44 @@ export function resizedMobileCoverSrcset(
   if (!RESIZE_ENABLED) return undefined;
   return sizes.map(([w, h]) => `${resizedMobileCover(src, w, h, quality)} ${w}w`).join(', ');
 }
+
+
+// ── Video slots ────────────────────────────────────────────────────────────
+//
+// Some full-frame slots (the hero, each gallery frame, the Events band) can
+// show a VIDEO instead of their still. The build always ships the still; the
+// root middleware swaps in a <video> for the slots the owner has uploaded one
+// for, using the URLs these helpers put on the element. See
+// functions/data/media.ts and src/components/MediaVideo.astro.
+//
+// These URLs deliberately do NOT go through /cdn-cgi/image: that layer
+// transforms images, and handing it a video returns an error rather than a
+// frame. They carry the same ?v= cache-buster as everything else, so removing
+// or replacing a video shows up immediately.
+
+/** The URL of a slot's video, derived from its still's src so the two can
+ *  never point at different things. `variant` picks the portrait cut. */
+export function videoSrc(src: string, variant: 'desktop' | 'mobile' = 'desktop'): string {
+  const file = src.replace(/^\/+/, '').replace(/^photos\//, '').replace(/\.[^.]+$/, '');
+  const name = variant === 'mobile' ? `${file}--mobile.mp4` : `${file}.mp4`;
+  return `/videos/${name}?v=${ASSET_VERSION_TOKEN}${SITE_QUERY_AMP}`;
+}
+
+/** The attributes that mark an element as a swappable media slot. Spread onto
+ *  the wrapper that holds the still; the middleware replaces its contents with
+ *  a <video> when the manifest says this slot has one.
+ *
+ *  `poster` is the still the video replaces — the frame is filled from an
+ *  image the browser has usually already fetched while the video's first bytes
+ *  arrive, so the swap never shows a black box. */
+export function mediaSlot(
+  key: string, src: string, opts: { poster: string; className?: string; mobile?: boolean },
+): Record<string, string> {
+  return {
+    'data-media-slot':  key,
+    'data-media-video': videoSrc(src, 'desktop'),
+    ...(opts.mobile ? { 'data-media-video-mobile': videoSrc(src, 'mobile') } : {}),
+    'data-media-poster': opts.poster,
+    'data-media-class':  opts.className ?? '',
+  };
+}

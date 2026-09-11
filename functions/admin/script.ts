@@ -39,15 +39,15 @@ const menuLabel = id => (MENUS.find(m => m.id === id) || {}).label || id;
 const isOff     = id => state.menusOff.has(id);
 
 // Flat list of every syncable menu slug → friendly label, derived from the
-// same MENUS config the editor uses. The events menu is skipped: it has no
-// .docx of its own, and its PDF has a SEPARATE source and sync button of its
-// own (see the "Events menu (PDF)" panel), deliberately out of reach of
-// "Sync all now" and the schedule. Menus the venue has switched off are
-// skipped too — no point pulling a menu nobody can see.
+// same MENUS config the editor uses. The Events-page PDF is not in MENUS at
+// all — it has no .docx, and its own source and "Sync now" live in the
+// "Events menu (PDF)" panel, deliberately out of reach of "Sync all now" and
+// the schedule. Menus the venue has switched off are skipped — no point
+// pulling a menu nobody can see.
 function syncMenus() {
   const out = [];
   for (const m of MENUS) {
-    if (m.id === 'events' || isOff(m.id)) continue;
+    if (isOff(m.id)) continue;
     if (m.variants) for (const v of m.variants) out.push({ slug: v.slug, label: m.label + ' · ' + v.label });
     else            out.push({ slug: m.slug, label: m.label });
   }
@@ -99,14 +99,25 @@ function renderSidebar() {
   const sidebar = document.getElementById('sidebar');
   sidebar.innerHTML = '';
 
-  // Sync sits at the top — it's the daily job.
+  // Sync sits at the top — it's the daily job. The events PDF and the
+  // per-venue menu switches live alongside it: all three are settings rather
+  // than dish-by-dish editing.
   sidebar.appendChild(el('div', { class: 'sidebar__group' }, 'OneDrive'));
   sidebar.appendChild(el('button', {
     class:   'sidebar__item' + (state.view === 'sync' ? ' is-active' : ''),
     onclick: () => switchToSync(),
   }, 'Sync menus'));
+  sidebar.appendChild(el('button', {
+    class:   'sidebar__item' + (state.view === 'eventsPdf' ? ' is-active' : ''),
+    title:   'The PDF behind the button on the Events page',
+    onclick: () => switchToEventsPdf(),
+  }, 'Events menu (PDF)'));
+  sidebar.appendChild(el('button', {
+    class:   'sidebar__item' + (state.view === 'setup' ? ' is-active' : ''),
+    onclick: () => switchToSetup(),
+  }, 'Menus in use'));
 
-  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'Menus'));
+  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'Manual Menu Editing'));
   for (const m of MENUS) {
     const off  = isOff(m.id);
     const item = el('button', {
@@ -118,20 +129,6 @@ function renderSidebar() {
     if (off) item.appendChild(el('span', { class: 'sidebar__badge' }, 'off'));
     sidebar.appendChild(item);
   }
-
-  // The events menu is a finished PDF rather than a list of dishes, so it gets
-  // its own panel at the foot of the menu list — file + its own OneDrive sync.
-  sidebar.appendChild(el('button', {
-    class:   'sidebar__item' + (state.view === 'eventsPdf' ? ' is-active' : ''),
-    title:   'The PDF behind the button on the Events page',
-    onclick: () => switchToEventsPdf(),
-  }, 'Events menu (PDF)'));
-
-  sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'This venue'));
-  sidebar.appendChild(el('button', {
-    class:   'sidebar__item' + (state.view === 'setup' ? ' is-active' : ''),
-    onclick: () => switchToSetup(),
-  }, 'Menus in use'));
 }
 
 /** Does any of this menu's languages have unsaved edits? */
@@ -976,9 +973,7 @@ function renderSetupPanel() {
     el('span', { class: 'save-status', id: 'setup-status' })));
 
   panel.appendChild(el('p', { class: 'featured-hint' },
-    'Switching a menu off removes its tab from the menu page and its tile from the ' +
-    'home page — for this venue only. Nothing is deleted: switch it back on and it ' +
-    'returns exactly as it was. Changes are live the moment you flip a switch.'));
+    'Off hides the menu on this venue’s site. Nothing is deleted — switch it back on any time.'));
 
   const list = el('div', { class: 'sections' });
   for (const m of MENUS) {
@@ -1052,9 +1047,8 @@ function renderEventsPdfPanel() {
   ));
 
   panel.appendChild(el('div', { class: 'notice' },
-    el('span', {}, 'This menu syncs on its own. “Sync all now” and the daily ' +
-      'schedule on the Sync menus panel never touch it — it changes only when ' +
-      'you upload a file or press Sync now here.'),
+    el('span', {}, 'Changes only when you upload here or press Sync now — ' +
+      '“Sync all now” and the schedule never touch it.'),
   ));
 
   // ── The live file ────────────────────────────────────────────
@@ -1074,10 +1068,9 @@ function renderEventsPdfPanel() {
       stateEl.appendChild(el('a', {
         href: eventsPdfUrl(), target: '_blank', rel: 'noopener',
         style: 'color:var(--accent);font-weight:600',
-      }, 'View the menu that’s live now ↗'));
+      }, 'View the live PDF ↗'));
     } else {
-      stateEl.appendChild(el('span', {},
-        'No menu uploaded — the button stays hidden on the Events page.'));
+      stateEl.appendChild(el('span', {}, 'No PDF — the button is hidden on the Events page.'));
     }
     removeBtn.hidden = !cur.hasPdf;
     uploadSpan.textContent = cur.hasPdf ? 'Replace PDF' : 'Upload PDF';
@@ -1088,13 +1081,13 @@ function renderEventsPdfPanel() {
   fileInput.addEventListener('change', () => uploadEventsPdf(fileInput));
 
   const fileTile = el('div', { class: 'tile' },
-    el('p', { class: 'tile__label' }, 'The file on the site'),
+    el('p', { class: 'tile__label' }, 'File'),
     el('div', { class: 'tile__body', style: 'flex-direction:column;align-items:stretch;gap:.7rem' },
       stateEl,
       el('div', { class: 'tile__body' },
         el('div', { class: 'file-btn' }, fileInput, uploadSpan),
         removeBtn,
-        el('span', { class: 'upload-info' }, 'PDF only, up to 15 MB. Live the moment it finishes.'),
+        el('span', { class: 'upload-info' }, 'PDF, up to 15 MB.'),
       ),
       statusEl,
     ),
@@ -1117,22 +1110,16 @@ function renderEventsPdfPanel() {
   }, 'Save link');
 
   const syncTile = el('div', { class: 'tile' },
-    el('p', { class: 'tile__label' }, 'OneDrive — this menu only'),
+    el('p', { class: 'tile__label' }, 'OneDrive'),
     el('div', { class: 'tile__body', style: 'flex-direction:column;align-items:stretch;gap:.7rem' },
       linkInput,
       el('div', { class: 'tile__body' }, saveLinkBtn, syncBtn,
-        el('span', { class: 'upload-info' },
-          'Paste the link to the PDF in OneDrive. Sync now saves the link, then replaces the menu on the site with it.')),
+        el('span', { class: 'upload-info' }, 'Sync now saves the link, then pulls the PDF.')),
       syncStatusEl,
     ),
   );
 
   panel.appendChild(el('div', { class: 'toolbar', style: 'grid-template-columns:1fr' }, fileTile, syncTile));
-
-  panel.appendChild(el('p', { class: 'featured-hint' },
-    'The button on the Events page appears only while a PDF is here, and ' +
-    'disappears the moment you remove it. Visitors read the menu on the page ' +
-    'itself, or open it full screen.'));
 
   main.appendChild(panel);
   paintFile();
@@ -1332,8 +1319,7 @@ function renderSyncPanel() {
   panel.appendChild(el('div', { class: 'save-bar' }, saveBtn, allBtn, status));
 
   panel.appendChild(el('p', { class: 'featured-hint' },
-    'Paste each menu’s OneDrive link. Links are saved before a sync runs. ' +
-    'A sync overwrites that menu, but keeps your ★ home-page picks.'));
+    'Paste each menu’s OneDrive link. A sync overwrites that menu, but keeps your ★ home-page picks.'));
 
   // Menu rows
   const list = el('div', { class: 'sections' });
@@ -1355,7 +1341,7 @@ function renderSyncPanel() {
   list.appendChild(el('div', { class: 'sync-menu-row' },
     el('div', { class: 'sync-menu-label' }, 'Events menu (PDF)'),
     el('div', {}, el('div', { class: 'sync-row-status' },
-      'Kept out of “Sync all now” and the schedule — it has its own link and its own button.')),
+      'Synced separately — not part of “Sync all now”.')),
     el('button', {
       class: 'subtab', style: 'border:1px solid var(--line)',
       onclick: () => switchToEventsPdf(),

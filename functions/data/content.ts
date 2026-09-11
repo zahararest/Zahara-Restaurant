@@ -162,7 +162,9 @@ export interface ContentGroup { title: string; note?: string; page: PageId; fiel
 /** Which site page a group of copy belongs to. Drives the page tabs in the
  *  /admin/content editor (one button per page, like the Menu editor's tabs)
  *  so the owner edits one page's text at a time instead of one long scroll. */
-export type PageId = 'home' | 'about' | 'events' | 'menu' | 'privacy' | 'accessibility' | 'popup' | 'reserve';
+export type PageId =
+  | 'site' | 'home' | 'about' | 'events' | 'menu' | 'contact'
+  | 'privacy' | 'accessibility' | 'popup' | 'reserve';
 
 export interface PageTab {
   id:     PageId;
@@ -176,12 +178,16 @@ export interface PageTab {
 
 /** Order + labels for the page tabs. */
 export const CONTENT_PAGES: PageTab[] = [
+  { id: 'site',          label: 'Site-wide',     path: '/',
+    note: 'The header and the footer — the same on every page, so a change here changes all of them.' },
   { id: 'home',          label: 'Home',          path: '/',
     note: 'The front page — hero, story, gallery, private events and the info row.' },
   { id: 'about',         label: 'About',         path: '/about',
     note: 'Getting here, the four seating areas, kashrut and contact.' },
   { id: 'events',        label: 'Events',        path: '/events',
-    note: 'The private-events page and the menu PDF behind its button.' },
+    note: 'The private-events page. The menu PDF behind its button lives in the Menu editor, under “Events menu (PDF)”.' },
+  { id: 'contact',       label: 'Contact form',  path: '/about',
+    note: 'The enquiry form that closes the About page and the Events page. One form, so these words appear on both.' },
   { id: 'menu',          label: 'Menu',          path: '/menu',
     note: 'The heading above the menu. Dishes and prices live in the Menu editor.' },
   { id: 'privacy',       label: 'Privacy',       path: '/privacy',
@@ -191,7 +197,7 @@ export const CONTENT_PAGES: PageTab[] = [
   { id: 'popup',         label: 'Entry popup',
     note: 'The announcement shown over every page when someone arrives.' },
   { id: 'reserve',       label: 'Reserve portal', path: '/reserve',
-    note: 'The two-venue booking page. Nothing on the site links to it — it is the link you hand out in an Instagram bio, a WhatsApp reply or a QR code.' },
+    note: 'The two-venue booking page. Unlinked from the site — it’s the link you hand out.' },
 ];
 
 /** Gallery photo keys that get an editable caption. Mirrors the gallery in
@@ -206,6 +212,58 @@ export const galleryCaptionKey = (photoKey: string): string => `gallery.caption.
 /** Editor layout — groups of fields shown on /admin/content/. Field keys
  *  match the `data-content-key` attributes the components render. */
 export const CONTENT_GROUPS: ContentGroup[] = [
+  // ── Site-wide: the header and footer, which every page carries ──────────
+  // These were the one visible surface with no editor at all. Their copy lives
+  // in src/data/i18n.ts (`header` / `footer`), and the components now carry
+  // matching data-content-key attributes, so an override here reaches every
+  // page at once.
+  { title: 'Header', page: 'site',
+    note: 'The bar at the top of every page. Changing a nav word changes the label only — never where the link goes.',
+    fields: [
+    { key: 'header.navMenu',   label: 'Nav · Menu',    role: 'link', he: 'תפריט',   en: 'Menu'   },
+    { key: 'header.navEvents', label: 'Nav · Events',  role: 'link', he: 'אירועים', en: 'Events' },
+    { key: 'header.navAbout',  label: 'Nav · About',   role: 'link', he: 'אודות',   en: 'About'  },
+    { key: 'header.brandText', label: 'Venue switch — Zahara side', role: 'label',
+      hint: 'The restaurant\u2019s name in the little two-part pill.', he: 'זהרה', en: 'Zahara' },
+    { key: 'header.rooftop',   label: 'Venue switch — rooftop side', role: 'label',
+      he: 'Rooftop', en: 'Rooftop' },
+    { key: 'header.rooftopSoon', label: 'Venue switch — rooftop badge', role: 'label',
+      hint: 'The small badge saying the rooftop site isn\u2019t open yet. Clear it only once it is.',
+      he: 'בקרוב', en: 'Soon' },
+  ] },
+  { title: 'Footer · Hours', page: 'site',
+    note: 'The first footer column. These are the hours a visitor reads on every page — keep them true.',
+    fields: [
+    { key: 'footer.hoursTitle', label: 'Column heading', role: 'label', he: 'שעות פעילות', en: 'Hours' },
+    { key: 'footer.weekdays',   label: 'Opening line',   role: 'body',  he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
+    { key: 'footer.closedNote', label: 'Closed line',    role: 'note',  he: 'סגור בשישי ובשבת', en: 'Closed Fri & Sat' },
+    { key: 'footer.hotelNote',  label: 'Address line',   role: 'note',
+      he: 'במלון נוצ׳ה, רחוב בן סירא 16', en: 'Inside Nucha Hotel, Ben Sira 16 Street' },
+  ] },
+  { title: 'Footer · Contact', page: 'site',
+    note: 'The phone, email and address links. Only the HEADING is words — the three links below it are the real phone number, address and email, set in the site\u2019s details.',
+    fields: [
+    { key: 'footer.contactTitle', label: 'Column heading', role: 'label', he: 'יצירת קשר', en: 'Contact' },
+  ] },
+  { title: 'Footer · Follow', page: 'site', fields: [
+    { key: 'footer.followTitle', label: 'Column heading', role: 'label', he: 'עקבו אחרינו', en: 'Follow' },
+    { key: 'footer.instagram',   label: 'Instagram link', role: 'link',  he: 'Instagram', en: 'Instagram' },
+    { key: 'footer.whatsapp',    label: 'WhatsApp link',  role: 'link',  he: 'WhatsApp',  en: 'WhatsApp'  },
+    { key: 'footer.facebook',    label: 'Facebook link',  role: 'link',  he: 'Facebook',  en: 'Facebook'  },
+  ] },
+  { title: 'Footer · Reserve', page: 'site', fields: [
+    { key: 'footer.reserveTitle', label: 'Column heading',  role: 'label', he: 'הזמנת מקום', en: 'Reserve' },
+    { key: 'footer.reserveTabit', label: 'Booking link',    role: 'link',  he: 'Tabit ↗',    en: 'Tabit ↗'  },
+    { key: 'footer.menuLink',     label: 'Menu link',       role: 'link',  he: 'תפריט מלא',  en: 'Full menu' },
+  ] },
+  { title: 'Footer · Bottom line', page: 'site',
+    note: 'The last line of every page. The year is filled in automatically.',
+    fields: [
+    { key: 'footer.rights',        label: 'Rights line',        role: 'note', he: 'כל הזכויות שמורות', en: 'All rights reserved' },
+    { key: 'footer.accessibility', label: 'Accessibility link', role: 'link', he: 'הצהרת נגישות',     en: 'Accessibility' },
+    { key: 'footer.privacy',       label: 'Privacy link',       role: 'link', he: 'מדיניות פרטיות',   en: 'Privacy' },
+  ] },
+
   { title: 'Hero', page: 'home', note: 'The first screen — text over the full-bleed photograph.', fields: [
     { key: 'home.heroEyebrow',   label: 'Eyebrow', role: 'eyebrow', onPhoto: true,
       hint: 'The small tracked line above the headline.',
@@ -213,11 +271,17 @@ export const CONTENT_GROUPS: ContentGroup[] = [
     // Empty in i18n.ts — the hero currently shows only the accent line below.
     // Type something here and it appears above it.
     { key: 'home.heroHeadline',  label: 'Headline', role: 'hero', onPhoto: true,
-      hint: 'The biggest words on the site. Empty right now — the line below carries the hero.',
+      hint: 'The biggest words on the site. Empty right now.',
       he: '',                    en: '' },
     { key: 'home.heroTitleMark', label: 'Headline accent', role: 'heroMark', onPhoto: true,
       hint: 'The italic second line of the headline.',
       he: 'זהרה Zahara',         en: 'younger sister.' },
+    { key: 'home.heroCtaReserve', label: 'Button — reserve', role: 'button', onPhoto: true,
+      hint: 'The filled button under the headline. It always opens Tabit, whatever it says.',
+      he: 'הזמינו מקום', en: 'Reserve a table' },
+    { key: 'home.heroCtaMenu',    label: 'Button — menu',    role: 'button', onPhoto: true,
+      hint: 'The outlined button beside it. It always goes to the menu page.',
+      he: 'לתפריט',      en: 'See the menu' },
   ] },
   { title: 'Story', page: 'home', note: 'The two story boxes over the dining-room photo.', fields: [
     { key: 'home.storyEyebrow', label: 'Eyebrow', role: 'eyebrow', onPhoto: true, he: 'הסיפור', en: 'The story' },
@@ -242,7 +306,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       hint: 'The small label next to the open/close arrow.', he: 'קראו עוד', en: 'Read more' },
   ] },
   { title: 'Menu section', page: 'home',
-    note: 'The photo band with the menu tiles. Only the tiles are on the page today — the copy below was part of the older layout.',
+    note: 'The photo band with the menu tiles. Only the tiles are on the page today.',
     fields: [
     { key: 'home.menuSplitEyebrow', label: 'Eyebrow', role: 'eyebrow', onPhoto: true, retired: true,
       he: 'התפריט', en: 'The menu' },
@@ -388,13 +452,40 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       en: 'The menu opens here on the page. For full-screen reading or a copy to keep, open it in a separate page.' },
     { key: 'events.menuFallback', label: 'Panel — line for phones that can’t show the menu', role: 'note',
       align: 'center', multiline: true,
-      hint: 'Some phone browsers (Android’s Chrome) can’t show a PDF inside a page. They get this line and the button instead.',
+      hint: 'Shown on phone browsers that can’t display a PDF inside a page.',
       he: 'הדפדפן שלכם פותח קובצי PDF בחלון נפרד. הקישו כדי לפתוח את תפריט האירועים.',
       en: 'Your browser opens PDFs in a window of its own. Tap to open the events menu.' },
   ] },
   // All retired — the four benefit boxes the opening band replaced. The editor
   // folds a fully-retired group into its "not on the site right now" details,
   // so the title reads on its own.
+  // ── The longer events section ──────────────────────────────────────────
+  // Every field ships EMPTY on purpose. The section is hidden until it is
+  // switched on, and each note inside it hides itself until it has words — so
+  // the owner can fill it one paragraph at a time and reveal the whole thing
+  // when it reads the way they want.
+  { title: 'Events page · The longer section', page: 'events',
+    note: 'Hidden until you switch it on above. Each note appears only once you have written it, so you can fill this in a bit at a time.',
+    fields: [
+    { key: 'events.extrasEyebrow', label: 'Eyebrow', role: 'eyebrow', align: 'center',
+      hint: 'The small tracked line that opens the section.', he: '', en: '' },
+    { key: 'events.extrasHeading', label: 'Heading', role: 'display', align: 'center',
+      hint: 'The big line. Leave it empty to hide the whole opening.', he: '', en: '' },
+    { key: 'events.extrasLede', label: 'Opening paragraph', role: 'lede', align: 'center', multiline: true,
+      hint: 'One paragraph on what an evening here is.', he: '', en: '' },
+    { key: 'events.extra1Title', label: 'Note 1 — heading', role: 'title', he: '', en: '' },
+    { key: 'events.extra1Body',  label: 'Note 1 — words',   role: 'body', multiline: true,
+      hint: 'Shown beside “Events photo 1” in the Images tab.', he: '', en: '' },
+    { key: 'events.extra2Title', label: 'Note 2 — heading', role: 'title', he: '', en: '' },
+    { key: 'events.extra2Body',  label: 'Note 2 — words',   role: 'body', multiline: true,
+      hint: 'Shown beside “Events photo 2” in the Images tab.', he: '', en: '' },
+    { key: 'events.extra3Title', label: 'Note 3 — heading', role: 'title', he: '', en: '' },
+    { key: 'events.extra3Body',  label: 'Note 3 — words',   role: 'body', multiline: true,
+      hint: 'Shown beside “Events photo 3” in the Images tab.', he: '', en: '' },
+    { key: 'events.extrasFilmCaption', label: 'Caption under the film', role: 'note', align: 'center',
+      hint: 'Optional line under the tall film. Empty hides it.', he: '', en: '' },
+  ] },
+
   { title: 'Events page', page: 'events', fields: [
     { key: 'events.benefit1', label: 'Benefit 1', role: 'body', align: 'center', retired: true,
       he: 'חדר פרטי לקבוצות אינטימיות', en: 'Private room for intimate groups' },
@@ -407,6 +498,28 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   ] },
 
   // ── Page headers (Menu / Privacy / Accessibility) ───────────────────────────
+  // ── The enquiry form (About page + Events page share one component) ─────
+  { title: 'Contact form · Opening', page: 'contact',
+    note: 'The words above the fields. The form is the same component on both pages, so this copy shows on both.',
+    fields: [
+    { key: 'contact.formEyebrow', label: 'Eyebrow', role: 'eyebrow', he: 'טופס פנייה', en: 'Inquiry form' },
+    { key: 'contact.formHeading', label: 'Heading', role: 'display', he: 'מה נוכל לעזור?', en: 'How can we help?' },
+  ] },
+  { title: 'Contact form · Field labels', page: 'contact',
+    note: 'The label above each box. The event-only fields (date, guests, type, time of day) show on the Events page.',
+    fields: [
+    { key: 'contact.fieldName',    label: 'Name',      role: 'label', he: 'שם מלא',         en: 'Full name' },
+    { key: 'contact.fieldPhone',   label: 'Phone',     role: 'label', he: 'טלפון',          en: 'Phone' },
+    { key: 'contact.fieldEmail',   label: 'Email',     role: 'label', he: 'אימייל',         en: 'Email' },
+    { key: 'contact.fieldDate',    label: 'Date',      role: 'label', he: 'תאריך משוער',    en: 'Estimated date' },
+    { key: 'contact.fieldGuests',  label: 'Guests',    role: 'label', he: 'מספר סועדים',    en: 'Guest count' },
+    { key: 'contact.fieldType',    label: 'Event type', role: 'label', he: 'סוג האירוע',    en: 'Event type' },
+    { key: 'contact.fieldWhen',    label: 'Time of day', role: 'label', he: 'זמן האירוע',   en: 'Time of day' },
+    { key: 'contact.fieldWhenHint', label: 'Time-of-day hint', role: 'note',
+      he: 'אפשר לבחור יותר מאחד', en: 'You can choose more than one' },
+    { key: 'contact.fieldMessage', label: 'Details',   role: 'label', he: 'פרטים נוספים',   en: 'Additional details' },
+    { key: 'contact.submit',       label: 'Send button', role: 'button', he: 'שליחת פנייה', en: 'Send message' },
+  ] },
   { title: 'Menu page · Header', page: 'menu', note: 'Menu items themselves are edited in the Menu editor tab.', fields: [
     { key: 'menu.eyebrow', label: 'Eyebrow', role: 'eyebrow', he: 'תפריט · מתעדכן יומי', en: 'Menu · Updated daily' },
     { key: 'menu.heading', label: 'Heading', role: 'display', he: 'מה יש היום.', en: "What's on today." },
@@ -476,7 +589,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       he: 'בר גג', en: 'Rooftop bar' },
     { key: 'reserve.rooftopName', label: 'Name', role: 'display', onPhoto: true, align: 'center',
       he: 'NUCHA ROOFTOP', en: 'NUCHA ROOFTOP',
-      hint: 'The big serif wordmark. Latin names are set a little smaller than the Hebrew one so both read at the same weight.' },
+      hint: 'The big serif wordmark.' },
     { key: 'reserve.rooftopMeta', label: 'Address line', role: 'note', onPhoto: true, align: 'center',
       he: '', en: '',
       hint: 'Empty, so this line is hidden. Type an address to show it — e.g. מלון נוצ׳ה · ירושלים' },

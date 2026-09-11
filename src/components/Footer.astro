@@ -17,38 +17,46 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
   <div class="wrap">
     <div class="footer-grid stagger">
       <div class="footer-block">
-        <h2>{t.hours}</h2>
-        <p>{t.weekdays}</p>
-        <p class="footer-note">{t.closedNote}</p>
-        <p class="footer-note">{t.hotelNote}</p>
+        <h2 data-content-key="footer.hoursTitle">{t.hours}</h2>
+        <p data-content-key="footer.weekdays">{t.weekdays}</p>
+        <p class="footer-note" data-content-key="footer.closedNote">{t.closedNote}</p>
+        <p class="footer-note" data-content-key="footer.hotelNote">{t.hotelNote}</p>
       </div>
 
       <div class="footer-block">
-        <h2>{t.contact}</h2>
+        <h2 data-content-key="footer.contactTitle">{t.contact}</h2>
+        {/* The three links below are the real phone / email / address from
+            src/data/restaurant.ts — the destination and the visible text are
+            the same string, so they are deliberately NOT admin copy: editing
+            the words would silently disagree with where the link goes. */}
         <a href={`tel:${dial}`}>{phoneTxt}</a>
         <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a>
         <a href={path('about', lang)}>{RESTAURANT.address[lang]}</a>
       </div>
 
       <div class="footer-block">
-        <h2>{t.follow}</h2>
-        <a href={RESTAURANT.instagram} target="_blank" rel="noopener">{t.instagram}</a>
-        <a href={RESTAURANT.whatsapp}  target="_blank" rel="noopener">{t.whatsapp}</a>
-        <a href={RESTAURANT.facebook}  target="_blank" rel="noopener">{t.facebook}</a>
+        <h2 data-content-key="footer.followTitle">{t.follow}</h2>
+        <a href={RESTAURANT.instagram} target="_blank" rel="noopener" data-content-key="footer.instagram">{t.instagram}</a>
+        <a href={RESTAURANT.whatsapp}  target="_blank" rel="noopener" data-content-key="footer.whatsapp">{t.whatsapp}</a>
+        <a href={RESTAURANT.facebook}  target="_blank" rel="noopener" data-content-key="footer.facebook">{t.facebook}</a>
       </div>
 
       <div class="footer-block">
-        <h2>{t.reserve}</h2>
-        <a href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">Tabit ↗</a>
-        <a href={path('menu', lang)}>{t.menuLink}</a>
+        <h2 data-content-key="footer.reserveTitle">{t.reserve}</h2>
+        <a href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-content-key="footer.reserveTabit">Tabit ↗</a>
+        <a href={path('menu', lang)} data-content-key="footer.menuLink">{t.menuLink}</a>
       </div>
     </div>
 
     <div class="footer-bottom">
-      <span>© {year} {RESTAURANT.name[lang]} — {t.rights}</span>
+      {/* The year and the restaurant name are computed, so only the rights
+          phrase is editable — wrapping the whole line would let an edit erase
+          the copyright notice by accident. */}
+      <span>© {year} {RESTAURANT.name[lang]} — <span data-content-key="footer.rights">{t.rights}</span></span>
       <span class="footer-bottom__links">
-        <a href={path('accessibility', lang)} style="margin-inline-end: 1rem;">{t.accessibility}</a>
-        <a href={path('privacy', lang)}>{t.privacy}</a>
+        <a href={path('accessibility', lang)} style="margin-inline-end: 1rem;"
+           data-content-key="footer.accessibility">{t.accessibility}</a>
+        <a href={path('privacy', lang)} data-content-key="footer.privacy">{t.privacy}</a>
       </span>
     </div>
   </div>

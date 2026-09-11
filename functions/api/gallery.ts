@@ -12,6 +12,7 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { PHOTO_CATALOGUE } from '../data/photos-map';
+import { videoObjectKey } from '../data/media';
 
 interface Env { IMAGES?: R2Bucket; }
 
@@ -29,7 +30,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
       filenames = optional
         .filter((p) =>
           present.has(`images/${p.key}`) ||
-          present.has(`images/${p.key}${MOBILE_SUFFIX}`))
+          present.has(`images/${p.key}${MOBILE_SUFFIX}`) ||
+          // A slot filled with a VIDEO is just as filled as one with a photo.
+          // Without this, uploading only a video to an optional slot left the
+          // frame reported empty and the gallery dropped it.
+          present.has(`images/${videoObjectKey(p.key, 'desktop')}`))
         .map((p) => p.filename);
     } catch (err) {
       console.warn('[api/gallery] R2 list failed', String(err));

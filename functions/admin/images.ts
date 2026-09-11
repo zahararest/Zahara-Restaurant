@@ -28,13 +28,14 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
+import { readMediaMap, videoFilename, type MediaEnv } from '../data/media';
 import {
   readContentOwn, galleryCaptionKey, GALLERY_CAPTION_KEYS,
   type ContentEnv, type ContentValue,
 } from '../data/content';
 import { adminSite, siteScope, type Site } from '../data/site';
 
-interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
+interface Env extends AuthEnv, ContentEnv, MediaEnv { IMAGES?: R2Bucket; }
 
 const GALLERY_CAPTION_SET = new Set<string>(GALLERY_CAPTION_KEYS);
 
@@ -156,8 +157,15 @@ const STYLE = `
     max-width: 340px;
   }
   .toolbar__search:focus { outline: 2px solid #9C4621; outline-offset: 0; border-color: #9C4621; }
-  .jumpnav { display: flex; gap: 0.3rem; flex-wrap: wrap; }
-  .jumpnav__chip {
+  /* ── Page tabs ─────────────────────────────────────────────────────
+     These used to be "jump" chips that scrolled a single 30-card page. On a
+     list that long, scrolling to a heading still leaves you unsure what you
+     are looking at — so they now FILTER, exactly the way the Desktop/Mobile
+     tabs above them do. One page at a time, and the two choices compose:
+     "Home page" + "Mobile" shows the home page's portrait crops and nothing
+     else. */
+  .pagetabs { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+  .pagetab {
     font: inherit;
     font-size: 0.72rem;
     letter-spacing: 0.08em;
@@ -168,8 +176,31 @@ const STYLE = `
     color: #6f6457;
     border: 1px solid #D5CBB1;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
   }
-  .jumpnav__chip:hover { color: #1a1410; border-color: #9C4621; background: #ece3d0; }
+  .pagetab:hover { color: #1a1410; border-color: #9C4621; background: #ece3d0; }
+  .pagetab.is-active {
+    background: #1a1410; color: #F4EDDF; border-color: #1a1410;
+  }
+  .pagetab:focus-visible { outline: 2px solid #9C4621; outline-offset: 2px; }
+  /* How many photos on that page still have no image — the reason to go
+     there, shown before you do. */
+  .pagetab__need {
+    font-size: 0.66rem;
+    font-weight: 700;
+    padding: 0 0.32rem;
+    border-radius: 999px;
+    background: #a53623;
+    color: #fff;
+  }
+  .pagetab__need[hidden] { display: none; }
+  /* While a search is running the page tabs are not in effect — say so
+     quietly rather than leaving a tab looking selected while results from
+     every page are on screen. */
+  .pagetabs.is-suspended { opacity: 0.45; }
 
   main {
     max-width: 1180px;
@@ -196,6 +227,23 @@ const STYLE = `
   .filter-chip:hover { color: #1a1410; border-color: #9C4621; }
   .filter-chip.is-active { background: #9C4621; border-color: #9C4621; color: #fff; }
   .filter-chip:focus-visible { outline: 2px solid #9C4621; outline-offset: 2px; }
+
+  /* ── Video slots ───────────────────────────────────────────────────
+     The card previews the real thing: the video sits over the still in the
+     same frame, so what the owner sees is what a visitor gets, and the still
+     underneath is visible the moment the video is removed. */
+  .card__video {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    display: block; background: #ece3d0;
+  }
+  .card__video-row {
+    display: grid; gap: 0.4rem;
+    margin-block-start: 0.55rem; padding-block-start: 0.55rem;
+    border-block-start: 1px dashed #D5CBB1;
+  }
+  .card__video-note { margin: 0; font-size: 0.72rem; color: #6f6457; }
+  .card__badge--video { background: #1F4E5F; color: #fff; }
 
   /* Busy overlay — while a card is uploading or removing, it locks and says
      so, so a slow connection never looks like "nothing happened". */
@@ -253,6 +301,9 @@ const STYLE = `
   }
 
   .group { margin-block-end: 2.5rem; scroll-margin-top: 130px; }
+  /* Filtered out by the page tabs — distinct from .is-empty (nothing matched
+     the search), so the two can't fight over one class. */
+  .group.is-off-page { display: none; }
   .group__head {
     display: flex;
     align-items: baseline;
@@ -687,39 +738,68 @@ const SCRIPT = `
       });
     }
 
-    // ── View tabs (Desktop / Mobile) ──────────────────────────────────
+    // ── View tabs (Desktop / Mobile) + page tabs ──────────────────────
+    // Two axes, one grid: WHICH SET (desktop photo / phone portrait crop) and
+    // WHICH PAGE. Both are tabs, both filter, and they compose — so the list
+    // on screen is always one page's photos in one set, never all thirty at
+    // once. Search cuts across both: a query looks everywhere, because "where
+    // did I put that photo" is exactly when the page filter is in the way.
     const views = Array.prototype.slice.call(document.querySelectorAll('[data-view]'));
     const viewTabs = Array.prototype.slice.call(document.querySelectorAll('[data-view-tab]'));
-    const jumpnav = document.getElementById('jumpnav');
+    const pagetabs = document.getElementById('pagetabs');
     const searchInput = document.getElementById('img-search');
+    // The PAGE, not the section element: each view has its own copy of every
+    // group (g-desktop-home / g-mobile-home), so keying off the DOM id would
+    // drop the selection on every Desktop↔Mobile switch.
+    let activePage = '';   // '' until the first buildPageTabs() picks one
 
     function activeView() {
       return views.find((v) => v.classList.contains('is-active')) || views[0];
     }
-    function buildJumpnav() {
-      if (!jumpnav) return;
+    function pageGroups() {
       const v = activeView();
-      if (!v) { jumpnav.innerHTML = ''; return; }
-      const groups = Array.prototype.slice.call(v.querySelectorAll('.group'))
-        .filter((g) => !g.classList.contains('is-empty'));
-      jumpnav.innerHTML = groups.map((g) =>
-        '<button type="button" class="jumpnav__chip" data-jump="' + escA(g.id) + '">' +
-          escA(g.dataset.groupLabel || '') + '</button>'
-      ).join('');
+      return v ? Array.prototype.slice.call(v.querySelectorAll('.group')) : [];
+    }
+    /** Rebuild the page tabs for the current view and make sure the selected
+     *  page still exists in it — the mobile set is a subset, so a page with no
+     *  portrait crops has no tab there and the selection has to move. */
+    function buildPageTabs() {
+      if (!pagetabs) return;
+      const groups = pageGroups();
+      // The mobile set is a subset — a page with no portrait crops has no tab
+      // here, so a selection pointing at one has to move rather than filter
+      // everything away.
+      if (!groups.some((g) => g.dataset.groupKey === activePage)) {
+        activePage = groups.length ? groups[0].dataset.groupKey : '';
+      }
+      pagetabs.innerHTML = groups.map((g) => {
+        const key = g.dataset.groupKey;
+        const need = Array.prototype.slice.call(g.querySelectorAll('[data-photo-card]'))
+          .filter((c) => cardState(c) === 'attention').length;
+        return '<button type="button" class="pagetab' +
+          (key === activePage ? ' is-active' : '') + '" data-page="' + escA(key) + '"' +
+          (key === activePage ? ' aria-current="true"' : '') + '>' +
+          escA(g.dataset.groupLabel || '') +
+          '<span class="pagetab__need"' + (need ? '' : ' hidden') + '>' + need + '</span>' +
+          '</button>';
+      }).join('');
+    }
+    function setPage(id) {
+      activePage = id;
+      applySearch();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     function setView(name) {
       views.forEach((v) => v.classList.toggle('is-active', v.dataset.view === name));
       viewTabs.forEach((t) => t.classList.toggle('is-active', t.dataset.viewTab === name));
+      buildPageTabs();     // may move activePage before the filter runs
       applySearch();
-      buildJumpnav();
     }
     viewTabs.forEach((t) => t.addEventListener('click', () => setView(t.dataset.viewTab)));
-    if (jumpnav) {
-      jumpnav.addEventListener('click', (e) => {
-        const chip = e.target.closest('[data-jump]');
-        if (!chip) return;
-        const target = document.getElementById(chip.dataset.jump);
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (pagetabs) {
+      pagetabs.addEventListener('click', (e) => {
+        const tab = e.target.closest('[data-page]');
+        if (tab) setPage(tab.dataset.page);
       });
     }
 
@@ -742,7 +822,12 @@ const SCRIPT = `
       const q = (searchInput && searchInput.value || '').trim().toLowerCase();
       const v = activeView();
       if (!v) return;
+      // A search is a "find it wherever it is" request, so it suspends the
+      // page filter rather than searching inside one page and reporting
+      // nothing. Clearing the box drops straight back to the chosen page.
+      const searching = q !== '';
       v.querySelectorAll('.group').forEach((group) => {
+        const onPage = searching || group.dataset.groupKey === activePage;
         let shown = 0;
         group.querySelectorAll('[data-photo-card]').forEach((card) => {
           const hay = card.dataset.search || '';
@@ -752,8 +837,14 @@ const SCRIPT = `
           if (matchQ && matchF) shown++;
         });
         group.classList.toggle('is-empty', shown === 0);
+        group.classList.toggle('is-off-page', !onPage);
       });
-      buildJumpnav();
+      if (pagetabs) {
+        pagetabs.classList.toggle('is-suspended', searching);
+        Array.prototype.slice.call(pagetabs.querySelectorAll('[data-page]')).forEach((t) => {
+          t.classList.toggle('is-active', !searching && t.dataset.page === activePage);
+        });
+      }
       updateCount();
     }
     if (searchInput) searchInput.addEventListener('input', applySearch);
@@ -769,7 +860,8 @@ const SCRIPT = `
     });
 
     // "X of Y photos set · N still need one" — counted from the DESKTOP view,
-    // which is the complete list (the mobile view is a subset).
+    // which is the complete list (the mobile view is a subset). Deliberately
+    // NOT narrowed to the current page: it is the whole job's progress bar.
     const countEl = document.getElementById('status-count');
     function updateCount() {
       if (!countEl) return;
@@ -944,6 +1036,10 @@ const SCRIPT = `
       const fname  = card.querySelector('[data-file-name]');
       const missingNote  = card.querySelector('[data-missing-note]');
       const optionalNote = card.querySelector('[data-optional-note]');
+      const videoFile    = card.querySelector('[data-input-video]');
+      const videoBtn     = card.querySelector('[data-btn-video]');
+      const videoDelBtn  = card.querySelector('[data-btn-video-remove]');
+      const videoNote    = card.querySelector('.card__video-note');
 
       function setStatus(msg, err) {
         if (!status) return;
@@ -1000,7 +1096,8 @@ const SCRIPT = `
         }
         if (missingNote)  missingNote.hidden = true;
         if (optionalNote) optionalNote.hidden = true;
-        updateCount();   // the badge just changed — keep the progress line honest
+        updateCount();     // the badge just changed — keep the progress line honest
+        buildPageTabs();   // …and the per-page "needs a photo" counts with it
         try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'set' }); } catch (_) {}
       }
 
@@ -1130,6 +1227,7 @@ const SCRIPT = `
               }
             }
             updateCount();
+            buildPageTabs();
             try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'delete' }); } catch (_) {}
           } catch (err) {
             setStatus(String(err.message || err), true);
@@ -1138,6 +1236,104 @@ const SCRIPT = `
             if (replace) replace.disabled = false;
             del.disabled = false;
             if (editB) editB.disabled = false;
+          }
+        });
+      }
+
+      // ── Video: use one instead of the photo, or go back ──────────────
+      // Deliberately NOT routed through the crop editor above. That editor
+      // re-encodes whatever it is given as a JPEG through a canvas, which is
+      // exactly the wrong thing to do to a video — so a video goes straight to
+      // its own endpoint, untouched.
+      if (videoBtn) {
+        const MAX_VIDEO = 40 * 1024 * 1024;
+
+        function rejectVideo(f) {
+          if (!/^video\\/(mp4|webm|quicktime)$/.test(f.type || '')) {
+            return 'That file isn\\'t a video we can use. Please pick an MP4 or a WebM.';
+          }
+          if (f.size > MAX_VIDEO) {
+            return 'That video is ' + Math.round(f.size / 1024 / 1024) + ' MB — the limit is 40 MB. ' +
+                   'A 10–20 second clip at 1080p is usually well under it.';
+          }
+          return null;
+        }
+
+        async function postVideo(fd) {
+          fd.append('key', key);
+          if (isMobile) fd.append('variant', 'mobile');
+          const res  = await fetch('/admin/images/video', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
+          return data;
+        }
+
+        /** Show the uploaded video in the card straight away, over the still
+         *  it now covers — the same stacking the live page uses, so the card
+         *  is a preview rather than a description of one. */
+        function showVideo(src) {
+          let el = card.querySelector('[data-card-video]');
+          if (!el) {
+            el = document.createElement('video');
+            el.className = 'card__video';
+            el.setAttribute('data-card-video', '');
+            el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'metadata';
+            if (thumbZone) thumbZone.appendChild(el);
+          }
+          el.src = src;
+          if (thumbZone) thumbZone.dataset.hasVideo = '1';
+          if (badge) {
+            badge.className = 'card__badge card__badge--video';
+            badge.textContent = isMobile ? 'Video · phone' : 'Video';
+          }
+          if (missingNote)  missingNote.hidden = true;
+          if (optionalNote) optionalNote.hidden = true;
+          if (videoDelBtn) videoDelBtn.hidden = false;
+          videoBtn.textContent = 'Replace video…';
+          if (videoNote) videoNote.textContent = 'The photo is still here. “Back to the photo” brings it back.';
+        }
+
+        videoBtn.addEventListener('click', () => { if (videoFile) videoFile.click(); });
+
+        if (videoFile) videoFile.addEventListener('change', async () => {
+          const f = videoFile.files && videoFile.files[0];
+          videoFile.value = '';
+          if (!f) return;
+          const bad = rejectVideo(f);
+          if (bad) { setStatus(bad, true); return; }
+
+          setBusy('Uploading video…');
+          setStatus('Uploading — a video takes longer than a photo.', false);
+          try {
+            const fd = new FormData();
+            fd.append('file', f);
+            await postVideo(fd);
+            setStatus('Live. The slot is showing the video now.', false);
+            showVideo('/videos/' + card.dataset.videoFile + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''));
+            updateCount();
+            buildPageTabs();
+          } catch (err) {
+            setStatus(String(err.message || err), true);
+          } finally {
+            setBusy('');
+          }
+        });
+
+        if (videoDelBtn) videoDelBtn.addEventListener('click', async () => {
+          if (!confirm('Show the photograph again instead of the video?')) return;
+          setBusy('Removing…');
+          try {
+            const fd = new FormData();
+            fd.append('action', 'delete');
+            await postVideo(fd);
+            // Reload rather than repaint: what the badge should say once the
+            // video is gone depends on the fallback chain, the optional flag
+            // and the venue — three things the server already knows and the
+            // browser would have to re-derive (and could get wrong).
+            location.reload();
+          } catch (err) {
+            setStatus(String(err.message || err), true);
+            setBusy('');
           }
         });
       }
@@ -1585,8 +1781,9 @@ const SCRIPT = `
       return { open: open };
     })();
 
-    // Default view + initial chrome.
-    buildJumpnav();
+    // Default view + initial chrome. The tabs are built first so applySearch
+    // has a page to filter to (it would otherwise hide everything).
+    buildPageTabs();
     applySearch();
     updateCount();
   })();
@@ -1618,6 +1815,12 @@ interface CardOpts {
   hasMobile: boolean;
   caption: ContentValue | null;
   site: Site;
+  /** A video is live in THIS card's frame — so the card previews the video,
+   *  says so on the badge, and offers to remove it. */
+  hasVideo: boolean;
+  /** A desktop video exists for this slot. The phone card needs to know:
+   *  a portrait cut only makes sense once there is a video to cut. */
+  hasDesktopVideo: boolean;
 }
 
 function renderCard(p: PhotoMeta, o: CardOpts): string {
@@ -1638,10 +1841,14 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   if (!isMobile && p.reused)   tags.push('<span class="card__tag">Shared</span>');
   if (!isMobile && p.reserved) tags.push('<span class="card__tag">Not shown</span>');
 
-  // Badge state.
+  // Badge state. A live video outranks every still state: it is what the
+  // visitor is actually seeing, and saying "Override" while a video plays
+  // would send the owner looking for a photo problem that isn't there.
   let badgeClass = '';
   let badgeText  = 'Default';
-  if (isMobile) {
+  if (o.hasVideo) {
+    badgeClass = 'card__badge--video'; badgeText = isMobile ? 'Video · phone' : 'Video';
+  } else if (isMobile) {
     if (o.hasMobile) { badgeClass = 'card__badge--set'; badgeText = 'Set'; }
     else             { badgeClass = 'card__badge--optional'; badgeText = 'Using desktop'; }
   } else if (o.hasOverride) {
@@ -1654,22 +1861,26 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
     badgeClass = 'card__badge--missing'; badgeText = 'Missing';
   }
 
-  const showMissingNote  = !isMobile && !o.hasOverride && !o.fallbackFromLabel && !p.reserved && !p.optional;
-  const showOptionalNote = !isMobile && !o.hasOverride && !!p.optional;
+  // A slot showing a video is not missing anything, whatever its still says.
+  const showMissingNote  = !o.hasVideo && !isMobile && !o.hasOverride && !o.fallbackFromLabel && !p.reserved && !p.optional;
+  const showOptionalNote = !o.hasVideo && !isMobile && !o.hasOverride && !!p.optional;
 
   // friendly AR label for the corner chip
   const arLabel = isMobile ? '9:16'
     : (p.aspect ? p.aspect.replace(/\s*\/\s*/, ':') : '16:9');
 
-  const where = isMobile
-    ? `Portrait crop shown on phones. ${esc(p.where)}`
-    : esc(p.where);
+  const where = esc(p.where);
+
+  // The video URL this card previews. Same route the live site uses, so what
+  // the owner sees here is literally what a visitor gets.
+  const videoPreviewSrc =
+    `/videos/${videoFilename(p.filename, isMobile ? 'mobile' : 'desktop')}?t=${o.version}${siteAmp}`;
 
   const searchHay = `${p.label} ${p.where} ${p.key}`.toLowerCase();
 
   const captionBlock = (!isMobile && o.caption) ? `
         <div class="card__caption">
-          <p class="card__caption-label">Gallery caption <span>shown on this photo in the home gallery</span></p>
+          <p class="card__caption-label">Gallery caption <span>shown on this photo</span></p>
           <input class="card__caption-input" type="text" dir="rtl"
                  data-caption-key="${esc(galleryCaptionKey(p.key))}" data-caption-lang="he"
                  value="${esc(o.caption.he ?? '')}" placeholder="כיתוב (עברית)" />
@@ -1686,16 +1897,46 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
     `<button class="btn btn--ghost" type="button" data-btn-choose>Choose existing</button>`;
   const delLabel = isMobile ? 'Remove' : (p.optional ? 'Remove' : 'Remove override');
 
+  // ── Video ────────────────────────────────────────────────────────────────
+  // Offered only where a moving image can actually work: a full-frame slot
+  // (see `video` in functions/data/photos-map.ts). The still is kept either
+  // way, so this is a switch the owner can undo, not an upload that destroys
+  // the photograph — which is what the note says, in those words.
+  const videoRow = !p.video ? '' : (() => {
+    const canCut = isMobile && !o.hasDesktopVideo;
+    const label  = o.hasVideo
+      ? 'Replace video…'
+      : (isMobile ? 'Add a phone cut…' : 'Use a video instead…');
+    return `
+        <div class="card__video-row">
+          <input class="card__file" type="file" data-input-video accept="video/mp4,video/webm,video/quicktime" />
+          <div class="card__row">
+            <button class="btn btn--ghost" type="button" data-btn-video${canCut ? ' disabled' : ''}>${label}</button>
+            <button class="btn btn--ghost" type="button" data-btn-video-remove${o.hasVideo ? '' : ' hidden'}>Back to the photo</button>
+          </div>
+          <p class="card__video-note">${
+            canCut
+              ? 'Add the main video first — this is its phone cut.'
+              : (o.hasVideo
+                  ? 'The photo is still here. “Back to the photo” brings it back.'
+                  : 'MP4 or WebM, up to 40&nbsp;MB. Silent and looping — the photo stays as the first frame.')
+          }</p>
+        </div>`;
+  })();
+
   return `
     <article class="card" data-photo-card="${esc(p.key)}" data-variant="${o.variant}"
              data-label="${esc(p.label)}" data-aspect="${targetAR.toFixed(5)}" data-fit="${esc(fit)}"
              data-search="${esc(searchHay)}"
+             ${p.video ? `data-video-file="${esc(videoFilename(p.filename, isMobile ? 'mobile' : 'desktop'))}"` : ''}
              ${p.optional ? 'data-optional="1"' : ''}
              ${o.fallbackFromLabel ? `data-fallback-label="${esc('Using ' + o.fallbackFromLabel)}"` : ''}>
-      <div class="card__thumb" data-thumb-zone>
+      <div class="card__thumb" data-thumb-zone${o.hasVideo ? ' data-has-video="1"' : ''}>
         <img data-thumb data-src="/${route}/${esc(p.filename)}" data-fallback="${esc(fallback)}"
              src="${esc(src)}" alt="${esc(p.label)}" loading="lazy" decoding="async"
              onerror="this.style.opacity=0.22" />
+        ${o.hasVideo ? `<video class="card__video" data-card-video muted loop playsinline preload="metadata"
+               src="${esc(videoPreviewSrc)}"></video>` : ''}
         <span class="card__badge ${badgeClass}" data-badge>${esc(badgeText)}</span>
         ${tags.length ? `<div class="card__tags">${tags.join('')}</div>` : ''}
         <span class="card__ar">${esc(arLabel)}</span>
@@ -1705,10 +1946,10 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
         <p class="card__where">${where}</p>
         <p class="card__token"><code>${esc(p.key)}${isMobile ? ' · mobile' : ''}</code></p>
         <p class="card__missing-note" data-missing-note ${showMissingNote ? '' : 'hidden'}>
-          No image stored — visitors see a broken photo here. Replace it to fix.
+          No image yet — replace it to fix.
         </p>
         <p class="card__optional-note" data-optional-note ${showOptionalNote ? '' : 'hidden'}>
-          ${esc(p.note ?? 'Optional slot — empty. Add a photo to show it in the home gallery.')}
+          ${esc(p.note ?? 'Optional — add a photo to show it in the home gallery.')}
         </p>
       </header>
       <div class="card__actions">
@@ -1725,6 +1966,7 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
           ${chooseBtn}
           <button class="btn btn--ghost" type="button" data-btn-delete>${delLabel}</button>
         </div>
+        ${videoRow}
         <p class="card__file-name" data-file-name></p>
         <p class="card__status" data-status></p>
         ${captionBlock}
@@ -1780,7 +2022,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
-  const content = await readContentOwn(env, site);
+  // Which slots are showing a video right now. Read from the manifest rather
+  // than derived from the R2 listing above, because the manifest is what the
+  // live site reads — if the two ever disagree, the admin should show what the
+  // visitor sees, not what the bucket happens to contain.
+  const [content, media] = await Promise.all([
+    readContentOwn(env, site),
+    readMediaMap(env, site),
+  ]);
   const v = Date.now();
 
   const libraryJson = JSON.stringify(
@@ -1803,12 +2052,18 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       const hasOverride = overrideSet.has(p.key);
       const fallbackFromLabel = !hasOverride && p.fallbackKey && overrideSet.has(p.fallbackKey)
         ? labelOf(p.fallbackKey) : null;
-      if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional) missingCount++;
+      if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional &&
+          media[p.key]?.d !== 'video') missingCount++;
       const caption = GALLERY_CAPTION_SET.has(p.key) ? (content[galleryCaptionKey(p.key)] ?? {}) : null;
-      return renderCard(p, { variant: 'desktop', version: v, hasOverride, hasMobile: mobileSet.has(p.key), fallbackFromLabel, caption, site });
+      return renderCard(p, {
+        variant: 'desktop', version: v, hasOverride, hasMobile: mobileSet.has(p.key),
+        fallbackFromLabel, caption, site,
+        hasVideo: media[p.key]?.d === 'video',
+        hasDesktopVideo: media[p.key]?.d === 'video',
+      });
     }).join('');
     return `
-      <section class="group" id="g-desktop-${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
+      <section class="group" id="g-desktop-${g}" data-group-key="${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
         <header class="group__head">
           <h2>${esc(PHOTO_GROUPS[g])}</h2>
           <small>${photos.length} photo${photos.length === 1 ? '' : 's'} · in page order</small>
@@ -1822,10 +2077,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const photos = PHOTO_CATALOGUE.filter((p) => p.group === g && p.mobile);
     if (!photos.length) return '';
     const cards = photos.map((p) =>
-      renderCard(p, { variant: 'mobile', version: v, hasOverride: overrideSet.has(p.key), hasMobile: mobileSet.has(p.key), fallbackFromLabel: null, caption: null, site }),
+      renderCard(p, {
+        variant: 'mobile', version: v, hasOverride: overrideSet.has(p.key),
+        hasMobile: mobileSet.has(p.key), fallbackFromLabel: null, caption: null, site,
+        hasVideo: media[p.key]?.m === 'video',
+        hasDesktopVideo: media[p.key]?.d === 'video',
+      }),
     ).join('');
     return `
-      <section class="group" id="g-mobile-${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
+      <section class="group" id="g-mobile-${g}" data-group-key="${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
         <header class="group__head">
           <h2>${esc(PHOTO_GROUPS[g])}</h2>
           <small>${photos.length} portrait crop${photos.length === 1 ? '' : 's'}</small>
@@ -1838,7 +2098,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // so this banner only carries the consequence — no "go hunt for the badge".
   const missingBanner = missingCount > 0
     ? `<p class="lead" style="background:#fbeae6;border-inline-start:3px solid #a53623;padding:0.6rem 0.85rem;color:#6b1a0e;">
-         <strong>${missingCount}</strong> photo${missingCount === 1 ? ' has' : 's have'} no image yet — visitors see a broken picture there.
+         <strong>${missingCount}</strong> photo${missingCount === 1 ? ' has' : 's have'} no image yet.
          Press <strong>Needs a photo</strong> above to see just those.
        </p>`
     : '';
@@ -1857,7 +2117,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <button class="viewtab"           type="button" data-view-tab="mobile">Mobile (portrait)</button>
       </div>
       <input class="toolbar__search" type="search" id="img-search" placeholder="Search photos by name, page or key…" aria-label="Search photos" />
-      <nav class="jumpnav" id="jumpnav" aria-label="Jump to page"></nav>
+      <nav class="pagetabs" id="pagetabs" role="tablist" aria-label="Which page's photos"></nav>
     </div>`,
   })}
   <main>
@@ -1874,13 +2134,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     </div>
 
     <p class="lead">
-      <strong>To change a photo:</strong> drag a picture onto the one you want
-      to replace — or click it. It opens in the editor where you frame it, then
-      press <strong>Apply&nbsp;&amp;&nbsp;upload</strong>.
-      <br />
-      <strong>Choose existing</strong> reuses a photo already on the site.
+      Drag a picture onto the one you want to replace, or click it — it opens in
+      the editor, then press <strong>Apply&nbsp;&amp;&nbsp;upload</strong>.
+      <strong>Choose existing</strong> reuses a photo already on the site;
       <strong>Remove</strong> puts the original back.
-      Photos from a phone or camera work — JPG, PNG or WebP, up to 10&nbsp;MB.
+      JPG, PNG or WebP, up to 10&nbsp;MB.
     </p>
 
     <div class="view is-active" data-view="desktop">
@@ -1890,10 +2148,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     <div class="view" data-view="mobile">
       <p class="view__intro">
-        Portrait crops shown on phones. The phone hero now cycles through the
-        gallery photos (Interior · Chef · Bar · Wine) and the standalone gallery
-        section is hidden on mobile — so these crops are what visitors see on a
-        phone. Leave any empty to fall back to the desktop photo.
+        Portrait crops shown on phones. Leave any empty to fall back to the desktop photo.
       </p>
       ${mobileGroups}
     </div>
@@ -1919,7 +2174,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <div class="ctl">
           <div class="ctl__row"><label for="ed-zoom">Zoom / crop</label><span class="ctl__val" id="ed-zoom-v">1.00×</span></div>
           <input type="range" id="ed-zoom" min="1" max="5" step="0.01" value="1" />
-          <p class="ctl__hint">Or scroll over the preview to zoom toward the cursor.</p>
         </div>
         <div class="ctl">
           <div class="ctl__row"><label>Rotate &amp; flip</label><span class="ctl__val" id="ed-rotate-v">0°</span></div>
@@ -1937,7 +2191,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             <button type="button" class="ctl__reset" id="ed-straighten-0" title="Reset straighten to 0°">Reset</button>
           </div>
           <input type="range" id="ed-straighten" min="-15" max="15" step="0.5" value="0" />
-          <p class="ctl__hint">Level a crooked horizon — the frame auto-fills, no empty corners.</p>
+          <p class="ctl__hint">Level a crooked horizon.</p>
         </div>
 
         <div class="editor__divider"></div>
@@ -1970,7 +2224,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
             <option value="1600">1600 px — medium</option>
             <option value="1280">1280 px — small (good for mobile)</option>
           </select>
-          <p class="ctl__hint">Smaller files load faster. 2000 px is plenty for full-bleed photos.</p>
+          <p class="ctl__hint">Smaller files load faster.</p>
         </div>
         <div class="ctl">
           <label for="ed-quality">JPEG quality</label>
@@ -1998,7 +2252,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <h2 class="picker__title" id="picker-title">Choose an existing image</h2>
         <button type="button" class="btn btn--ghost" id="picker-close">Close</button>
       </header>
-      <p class="picker__sub">Pick a photo already used elsewhere on the site to reuse it here — no re-upload needed. Photos already replaced by you are marked <em>Uploaded</em>.</p>
+      <p class="picker__sub">Reuse a photo from elsewhere on the site. Ones you replaced are marked <em>Uploaded</em>.</p>
       <div class="picker__grid" id="picker-grid"></div>
       <p class="picker__status" id="picker-status"></p>
     </div>

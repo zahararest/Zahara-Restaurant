@@ -153,6 +153,14 @@ export const PHOTOS = {
   gallery8:  { src: `${base}/gallery-8.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
   gallery9:  { src: `${base}/gallery-9.jpg`,  alt: { he: 'גלריה', en: 'Zahara gallery' } },
   gallery10: { src: `${base}/gallery-10.jpg`, alt: { he: 'גלריה', en: 'Zahara gallery' } },
+
+  // ── The longer Events section (hidden until switched on in /admin) ──────
+  // No files ship for these; they exist once the owner uploads them, exactly
+  // like the optional gallery slots above.
+  eventsFilm:   { src: `${base}/events-film.jpg`,    alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
+  eventsExtra1: { src: `${base}/events-extra-1.jpg`, alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
+  eventsExtra2: { src: `${base}/events-extra-2.jpg`, alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
+  eventsExtra3: { src: `${base}/events-extra-3.jpg`, alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
 } satisfies Record<string, PhotoEntry>;
 
 /** Hero photo shown above each menu category's content. */

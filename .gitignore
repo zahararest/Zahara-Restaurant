@@ -14,3 +14,8 @@ dist/
 ~$*.xlsx
 *.tmp
 HANDOFF.md
+docs/Zahara-Admin-Guide-HE.pdf
+docs/admin-guide/guide-en.html
+docs/admin-guide/guide-he.html
+docs/Zahara-Admin-Guide-EN.pdf
+docs/admin-guide/make-docx.mjs

@@ -6,6 +6,7 @@ import Motion        from '../components/Motion.astro';
 import Accessibility from '../components/Accessibility.astro';
 import ConsentBanner from '../components/ConsentBanner.astro';
 import ContentOverlay from '../components/ContentOverlay.astro';
+import MediaVideo     from '../components/MediaVideo.astro';
 import AnnouncementPopup from '../components/AnnouncementPopup.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
@@ -46,6 +47,11 @@ export interface Props {
   /** When set, emit a responsive high-priority preload for this page's LCP
    *  hero image so it downloads during head parse (reliable, early LCP). */
   heroImage?:      PhotoEntry;
+  /** The hero's /admin/images catalogue key. Only needed so the preload below
+   *  can be dropped when the owner has made that slot a video — the still is
+   *  then never rendered, and preloading it is a full-size download of an
+   *  image nobody sees, on the LCP path of all places. */
+  heroImageKey?:   string;
 }
 
 const {
@@ -54,6 +60,7 @@ const {
   lang = 'he',
   transparentHeader = false,
   heroImage,
+  heroImageKey,
 } = Astro.props;
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
@@ -246,10 +253,10 @@ const schema = {
       <>
         {/* quality 70 must match HeroBleed.astro's HERO_QUALITY exactly, or
             the preload URL won't match the <picture> and the bytes are wasted. */}
-        <link rel="preload" as="image" fetchpriority="high"
+        <link rel="preload" as="image" fetchpriority="high" data-hero-preload={heroImageKey}
               imagesrcset={resizedMobileCoverSrcset(heroImage.src, [[640, 1180], [820, 1500], [1080, 1980]], 70)}
               imagesizes="100vw" media="(max-width: 600px)" />
-        <link rel="preload" as="image" fetchpriority="high"
+        <link rel="preload" as="image" fetchpriority="high" data-hero-preload={heroImageKey}
               imagesrcset={resizedSrcset(heroImage.src, [800, 1200, 1800, 2400], 70)}
               imagesizes="100vw" media="(min-width: 601px)" />
       </>
@@ -561,6 +568,10 @@ const schema = {
         so an overridden heading is in place BEFORE the word-reveal splitter
         measures it. Shared with /reserve/, which has no BaseLayout. */}
     <ContentOverlay />
+
+    {/* Starts any slot the middleware turned from a still into a video (the
+        hero, a gallery frame, the Events band). Inert on a page with none. */}
+    <MediaVideo />
 
     {/* Motion owns every animation primitive — reveals, section HUD,
         parallax, progress bar, past-hero hand-off. Native browser scroll

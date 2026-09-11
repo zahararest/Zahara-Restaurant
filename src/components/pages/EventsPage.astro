@@ -7,6 +7,7 @@
 import BaseLayout    from '../../layouts/BaseLayout.astro';
 import BleedPhoto    from '../sections/BleedPhoto.astro';
 import ContactForm   from '../sections/ContactForm.astro';
+import EventsExtras  from '../sections/EventsExtras.astro';
 import { pick, contact as copy, eventsPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
 import { SITE_QUERY } from '../../lib/base';
@@ -41,7 +42,7 @@ const menuEmbedUrl = `${menuUrl}#view=FitH&toolbar=0&navpanes=0`;
   <div class="events-hero">
     {/* Short band (~46vh) so it doesn't dominate; the header gradient sits over
         its top edge, hiding part of the photo behind the nav. */}
-    <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} eager
+    <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} eager mediaKey="menuEvents"
                 height="clamp(300px, 46vh, 460px)"
                 mobileCrop={[[640, 680], [820, 870], [1080, 1150]]} />
   </div>
@@ -318,6 +319,10 @@ const menuEmbedUrl = `${menuUrl}#view=FitH&toolbar=0&navpanes=0`;
       .events-menu__out   { inline-size: 100%; justify-content: center; }
     }
   </style>
+
+  {/* The longer events section — the vertical film, the photographs and the
+      notes. Ships hidden; switched on per venue in /admin/content → Events. */}
+  <EventsExtras lang={lang} />
 
   <ContactForm lang={lang} defaultMode="event" showToggle={false} />
 </BaseLayout>

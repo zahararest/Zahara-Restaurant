@@ -416,8 +416,19 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
   {/* ── First-party tracking ──────────────────────────────────────────────
       Ground truth: survives ad blockers and consent-denied visitors, which on
       a page whose entire purpose is the click is the difference between
-      knowing the conversion rate and guessing it. Fires at most two beacons —
-      one on arrival, one on the chosen venue. See functions/api/reserve-track.ts. */}
+      knowing the conversion rate and guessing it.
+
+      ONE beacon per visit, not two. Each beacon is a KV write, and on the free
+      plan writes are the scarce resource (1,000/day) — an arrival + a click
+      beacon meant this page alone could exhaust the day's budget at ~500
+      visitors. So the arrival is held in memory and sent ONCE, carrying the
+      venue if one was chosen: a 'click' record now means "landed AND chose",
+      which is all the dashboard ever asked of the pair. Same numbers, half the
+      writes, and no per-pageload nonce stored at all.
+
+      It is sent at the first of: a venue choice, the page being hidden or
+      unloaded, or a 15s dwell — whichever comes first, and only once.
+      See functions/api/reserve-track.ts. */}
   <script is:inline>
     (function () {
       var ENDPOINT = '/api/reserve-track';
@@ -427,35 +438,30 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
       // gtag.js is still loading, blocked, or never arrives.
       function gtag() { (window.dataLayer = window.dataLayer || []).push(arguments); }
 
-      // Per-pageload nonce. Regenerated on every load and never written to
-      // storage, so it links a click to ITS view and nothing else.
-      var sid;
-      try {
-        var buf = new Uint8Array(6);
-        crypto.getRandomValues(buf);
-        sid = Array.prototype.map.call(buf, function (b) {
-          return (b + 0x100).toString(16).slice(1);
-        }).join('');
-      } catch (_) {
-        sid = (Math.random().toString(36) + '000000').slice(2, 14);
-      }
-
       var q = new URLSearchParams(location.search);
       var ctx = {
-        s:  sid,
         r:  document.referrer || '',
         us: q.get('utm_source')   || '',
         um: q.get('utm_medium')   || '',
         uc: q.get('utm_campaign') || '',
       };
 
-      function send(extra) {
-        var payload = { e: extra.e, s: ctx.s, r: ctx.r, us: ctx.us, um: ctx.um, uc: ctx.uc };
-        if (extra.v) payload.v = extra.v;
+      // The one beacon this page will ever send. `sent` is the whole guard:
+      // a click, a pagehide and the dwell timer can all fire, and only the
+      // first of them writes anything.
+      var sent = false;
+      function send(venue) {
+        if (sent) return;
+        sent = true;
+        var payload = {
+          e: venue ? 'click' : 'view',
+          r: ctx.r, us: ctx.us, um: ctx.um, uc: ctx.uc,
+        };
+        if (venue) payload.v = venue;
         var body = JSON.stringify(payload);
         try {
           // sendBeacon survives the page being torn down by the navigation,
-          // which is exactly what a click here causes.
+          // which is exactly what a venue choice here causes.
           if (navigator.sendBeacon) {
             navigator.sendBeacon(ENDPOINT, new Blob([body], { type: 'application/json' }));
             return;
@@ -472,7 +478,18 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
         } catch (_) { /* tracking must never break the page */ }
       }
 
-      send({ e: 'view' });
+      // Backstops, in the order they tend to fire. pagehide is the reliable
+      // one on iOS (where unload never runs); visibilitychange catches the
+      // app-switch that never becomes a pagehide; the timer catches a reader
+      // who simply leaves the tab open and closes the laptop.
+      window.addEventListener('pagehide', function () { send(''); });
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') send('');
+      });
+      setTimeout(function () { send(''); }, 15000);
+
+      // GA4 still gets the arrival immediately — it is not KV, and a page
+      // view there is expected to land on load.
       gtag('event', 'reserve_portal_view', {
         utm_source:   ctx.us,
         utm_campaign: ctx.uc,
@@ -483,7 +500,7 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
         (function (a) {
           var venue = a.getAttribute('data-venue');
           function choose() {
-            send({ e: 'click', v: venue });
+            send(venue);
             gtag('event', 'reserve_portal_click', { venue: venue, link_url: a.href });
           }
           // click covers tap, Enter, and cmd/ctrl-click; auxclick catches the

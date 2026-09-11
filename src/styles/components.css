@@ -635,10 +635,16 @@
   margin: 0;
   position: relative;
 }
-.bleed-photo img {
+/* The still, and the video that may stand in for it — the owner can put a
+   clip in a full-bleed band from /admin/images, and the root middleware swaps
+   the element server-side (see functions/data/media.ts). Both fill the frame
+   identically, so the band never changes shape with the medium. */
+.bleed-photo img,
+.bleed-photo video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 .bleed-photo--caption::after {
   content: attr(data-caption);

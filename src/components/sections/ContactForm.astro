@@ -81,7 +81,13 @@ const eventTimes: { value: string; label: string }[] = [
 
     <div class="form-card stagger reveal-on-scroll" data-contact-card>
       <header class="form-card__head">
-        <p class="eyebrow" data-form-eyebrow data-eyebrow-general={t.formEyebrowGeneral} data-eyebrow-event={t.formEyebrowEvent}>
+        {/* The general/event switch rewrites these two from the data-*
+            attributes, so they carry no data-content-key: an admin override
+            would be wiped the moment the reader flipped the toggle. The
+            editable opening copy is the pair below, on the Events page where
+            the form is locked to one mode. */}
+        <p class="eyebrow" data-form-eyebrow data-eyebrow-general={t.formEyebrowGeneral} data-eyebrow-event={t.formEyebrowEvent}
+           data-content-key={showToggle ? undefined : 'contact.formEyebrow'}>
           {isEvent ? t.formEyebrowEvent : t.formEyebrowGeneral}
         </p>
         <h2
@@ -92,6 +98,7 @@ const eventTimes: { value: string; label: string }[] = [
           data-word-reveal
           data-word-reveal-delay="0.06"
           data-word-reveal-step="0.06"
+          data-content-key={showToggle ? undefined : 'contact.formHeading'}
         >{isEvent ? t.formHeadingEvent : t.formHeadingGeneral}</h2>
       </header>
 
@@ -103,17 +110,17 @@ const eventTimes: { value: string; label: string }[] = [
 
         <div class="form__row form__row--2">
           <div class="field">
-            <label for="name">{t.fieldName}</label>
+            <label for="name" data-content-key="contact.fieldName">{t.fieldName}</label>
             <input id="name" name="name" type="text" required autocomplete="name" />
           </div>
           <div class="field">
-            <label for="phone">{t.fieldPhone}</label>
+            <label for="phone" data-content-key="contact.fieldPhone">{t.fieldPhone}</label>
             <input id="phone" name="phone" type="tel" required autocomplete="tel" />
           </div>
         </div>
 
         <div class="field">
-          <label for="email">{t.fieldEmail}</label>
+          <label for="email" data-content-key="contact.fieldEmail">{t.fieldEmail}</label>
           <input id="email" name="email" type="email" required autocomplete="email" />
         </div>
 
@@ -124,18 +131,18 @@ const eventTimes: { value: string; label: string }[] = [
           <div class="contact-event-fields" data-event-only hidden={!isEvent}>
             <div class="form__row form__row--2">
               <div class="field">
-                <label for="event_date">{t.fieldDate}</label>
+                <label for="event_date" data-content-key="contact.fieldDate">{t.fieldDate}</label>
                 <input id="event_date" name="event_date" type="date" required={isEvent} data-event-required />
               </div>
               <div class="field">
-                <label for="guests">{t.fieldGuests}</label>
+                <label for="guests" data-content-key="contact.fieldGuests">{t.fieldGuests}</label>
                 <input id="guests" name="guests" type="number" min="2" max="80" />
               </div>
             </div>
 
             <div class="form__row form__row--2">
               <div class="field">
-                <label for="event_type">{t.fieldType}</label>
+                <label for="event_type" data-content-key="contact.fieldType">{t.fieldType}</label>
                 <span class="select-shell">
                   <select id="event_type" name="event_type">
                     {eventTypes.map(opt => <option value={opt.value}>{opt.label}</option>)}
@@ -152,8 +159,8 @@ const eventTimes: { value: string; label: string }[] = [
                   server re-checks for no-JS). */}
               <fieldset class="field field--when" data-when-group>
                 <legend class="field__legend" id="event-time-label">
-                  {t.fieldWhen}
-                  <span class="field__hint">· {t.fieldWhenHint}</span>
+                  <span data-content-key="contact.fieldWhen">{t.fieldWhen}</span>
+                  <span class="field__hint">· <span data-content-key="contact.fieldWhenHint">{t.fieldWhenHint}</span></span>
                 </legend>
                 <span class="when-shell" data-when-shell>
                   <button
@@ -182,7 +189,7 @@ const eventTimes: { value: string; label: string }[] = [
         )}
 
         <div class="field">
-          <label for="message">{t.fieldMessage}</label>
+          <label for="message" data-content-key="contact.fieldMessage">{t.fieldMessage}</label>
           <textarea id="message" name="message" rows="5" required={isEvent} data-event-required></textarea>
         </div>
 
@@ -212,6 +219,7 @@ const eventTimes: { value: string; label: string }[] = [
             data-submit
             data-submit-general={t.submitGeneral}
             data-submit-event={t.submitEvent}
+            data-content-key={showToggle ? undefined : 'contact.submit'}
           >{isEvent ? t.submitEvent : t.submitGeneral}</button>
           <p id="form-status" role="status" aria-live="polite" class="form-status"></p>
         </div>

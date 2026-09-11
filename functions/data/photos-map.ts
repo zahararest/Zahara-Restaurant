@@ -45,6 +45,13 @@ export interface PhotoMeta {
                               // (overrides the default gallery-specific note)
   mobile?:      boolean;      // full-screen photo that supports a separate
                               // portrait crop for phones (served via /photos-m)
+  /** This slot can show a VIDEO instead of its still. Only full-frame slots
+   *  are marked: a video has to fill its frame to read as anything but a
+   *  glitch, and a looping clip in a 2:3 menu tile is noise, not atmosphere.
+   *  The still is always kept — a video is a switch, not a replacement (see
+   *  functions/data/media.ts) — so an unmarked slot simply never offers the
+   *  control in /admin/images. */
+  video?:       boolean;
   /** Aspect ratio the photo is actually shown at on the site (desktop), e.g.
    *  '2 / 3' for the menu tiles, '4 / 5' for editorial photo blocks, '16 / 9'
    *  for full-bleed. The /admin/images thumbnail previews at THIS ratio with
@@ -59,7 +66,7 @@ export interface PhotoMeta {
 
 export const PHOTO_CATALOGUE: PhotoMeta[] = [
   // ── HOME PAGE — top-to-bottom in scroll order ──────────────────────
-  { key: 'hero',     filename: 'MOYAL-00009.jpg', group: 'home', mobile: true,
+  { key: 'hero',     filename: 'MOYAL-00009.jpg', group: 'home', video: true, mobile: true,
     label: 'Hero',                where: 'Top of the home page. On phones it is the first frame of the rotating hero gallery. Also the social-share preview image' },
   { key: 'moodDining', filename: 'MOYAL-09221.jpg', group: 'home',
     label: 'Story backdrop', where: 'Darkened photo behind the opening story text' },
@@ -77,28 +84,28 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Menu tile · Cocktails', where: '“Cocktails” tile in the home menu section' },
   { key: 'menuDessert',   filename: 'MOYAL-00084.jpg', group: 'home', fallbackKey: 'interior', aspect: '2 / 3',
     label: 'Menu tile · Dessert',   where: '“Dessert” tile in the home menu section' },
-  { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home', mobile: true,
+  { key: 'interior', filename: 'MOYAL-09548.jpg', group: 'home', video: true, mobile: true,
     label: 'Gallery 1 · Interior', where: 'First photo of the home gallery (desktop) and a frame in the phone hero rotation' },
-  { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home', mobile: true,
+  { key: 'chef',     filename: 'MOYAL-09851.jpg', group: 'home', video: true, mobile: true,
     label: 'Gallery 2 · Chef',     where: 'Second photo of the home gallery (desktop) and a frame in the phone hero rotation' },
-  { key: 'bar',      filename: 'MOYAL-09574.jpg', group: 'home', mobile: true,
+  { key: 'bar',      filename: 'MOYAL-09574.jpg', group: 'home', video: true, mobile: true,
     label: 'Gallery 3 · Bar',      where: 'Third photo of the home gallery (desktop) and a frame in the phone hero rotation' },
-  { key: 'wine',     filename: 'MOYAL-09832.jpg', group: 'home', mobile: true,
+  { key: 'wine',     filename: 'MOYAL-09832.jpg', group: 'home', video: true, mobile: true,
     label: 'Gallery 4 · Wine bar', where: 'Fourth photo of the home gallery (desktop) and a frame in the phone hero rotation' },
   // Optional gallery slots 5–10. Empty by default; upload one to add it to
   // the home-page gallery (max 10 photos). Empty slots are hidden on the
   // site, never shown as blanks.
-  { key: 'gallery5',  filename: 'gallery-5.jpg',  group: 'home', optional: true, mobile: true,
+  { key: 'gallery5',  filename: 'gallery-5.jpg',  group: 'home', video: true, optional: true, mobile: true,
     label: 'Gallery 5 · Extra', where: 'Optional 5th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery6',  filename: 'gallery-6.jpg',  group: 'home', optional: true, mobile: true,
+  { key: 'gallery6',  filename: 'gallery-6.jpg',  group: 'home', video: true, optional: true, mobile: true,
     label: 'Gallery 6 · Extra', where: 'Optional 6th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery7',  filename: 'gallery-7.jpg',  group: 'home', optional: true, mobile: true,
+  { key: 'gallery7',  filename: 'gallery-7.jpg',  group: 'home', video: true, optional: true, mobile: true,
     label: 'Gallery 7 · Extra', where: 'Optional 7th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery8',  filename: 'gallery-8.jpg',  group: 'home', optional: true, mobile: true,
+  { key: 'gallery8',  filename: 'gallery-8.jpg',  group: 'home', video: true, optional: true, mobile: true,
     label: 'Gallery 8 · Extra', where: 'Optional 8th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery9',  filename: 'gallery-9.jpg',  group: 'home', optional: true, mobile: true,
+  { key: 'gallery9',  filename: 'gallery-9.jpg',  group: 'home', video: true, optional: true, mobile: true,
     label: 'Gallery 9 · Extra', where: 'Optional 9th home-gallery photo — shows only if uploaded' },
-  { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', optional: true, mobile: true,
+  { key: 'gallery10', filename: 'gallery-10.jpg', group: 'home', video: true, optional: true, mobile: true,
     label: 'Gallery 10 · Extra', where: 'Optional 10th home-gallery photo — shows only if uploaded' },
   { key: 'detail2',  filename: 'MOYAL-09885.jpg', group: 'home', aspect: '4 / 5',
     label: 'Events — photo block', where: 'Beside the events text near the footer' },
@@ -108,8 +115,24 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     label: 'Menu intro', where: 'Large photo at the top of every menu page' },
 
   // ── EVENTS PAGE ────────────────────────────────────────────────────
-  { key: 'menuEvents', filename: 'MOYAL-09682.jpg', group: 'events', fallbackKey: 'detail2',
+  { key: 'menuEvents', filename: 'MOYAL-09682.jpg', group: 'events', video: true, fallbackKey: 'detail2',
     label: 'Events page photo', where: 'Full-width band near the top of the Events page' },
+  // The longer events section. Hidden until it is switched on in
+  // /admin/content → Events (see functions/data/sections.ts), so these slots
+  // can be filled at leisure without anything half-finished going live.
+  { key: 'eventsFilm', filename: 'events-film.jpg', group: 'events', optional: true,
+    video: true, mobile: true, aspect: '9 / 16',
+    label: 'Events film — vertical', where: 'The tall film in the longer events section (only while that section is switched on)',
+    note: 'Empty. This slot is built for a VERTICAL clip — press “Use a video instead…” below. The photo you put here is its first frame.' },
+  { key: 'eventsExtra1', filename: 'events-extra-1.jpg', group: 'events', optional: true, aspect: '4 / 5',
+    label: 'Events photo 1', where: 'Beside the first note in the longer events section',
+    note: 'Empty — the note beside it stays hidden until a photo is here.' },
+  { key: 'eventsExtra2', filename: 'events-extra-2.jpg', group: 'events', optional: true, aspect: '4 / 5',
+    label: 'Events photo 2', where: 'Beside the second note in the longer events section',
+    note: 'Empty — the note beside it stays hidden until a photo is here.' },
+  { key: 'eventsExtra3', filename: 'events-extra-3.jpg', group: 'events', optional: true, aspect: '4 / 5',
+    label: 'Events photo 3', where: 'Beside the third note in the longer events section',
+    note: 'Empty — the note beside it stays hidden until a photo is here.' },
 
   // ── ABOUT PAGE (formerly Contact + Location) ───────────────────────
   { key: 'contact', filename: 'contact-page.jpg', group: 'about', fallbackKey: 'interior',

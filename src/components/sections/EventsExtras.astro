@@ -1,0 +1,267 @@
+---
+// The longer events section — a tall film, three photographs, three notes.
+//
+// SHIPPED HIDDEN. It is switched on per venue in /admin/content → Events (see
+// functions/data/sections.ts), so it can be built, deployed and looked at
+// without a visitor seeing an unfinished band. Until then the markup is inert:
+// `hidden` in the HTML, revealed only when the middleware's marker says this
+// venue has turned it on. Hiding it in the document rather than with a class
+// means no-JS visitors don't see it either.
+//
+// It is also SELF-EMPTYING. Every piece of copy ships blank and every photo
+// slot ships empty, and each note hides itself until it has words and a photo.
+// So switching the section on with nothing written shows the heading and
+// nothing else, rather than three empty frames — the owner can fill it one
+// paragraph at a time and reveal it when it reads right.
+
+import { PHOTOS } from '../../data/photos';
+import { resized, resizedSrcset, mediaSlot } from '../../lib/photo';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+
+const NOTE_WIDTHS = [520, 760, 1040] as const;
+
+// Each note is a photograph, a heading and a paragraph, with the content keys
+// that make all three editable. `optional` marks the photo as one with no
+// shipped file — the same confirm-then-show dance the home gallery uses.
+const notes = [
+  { photo: PHOTOS.eventsExtra1, titleKey: 'events.extra1Title', bodyKey: 'events.extra1Body' },
+  { photo: PHOTOS.eventsExtra2, titleKey: 'events.extra2Title', bodyKey: 'events.extra2Body' },
+  { photo: PHOTOS.eventsExtra3, titleKey: 'events.extra3Title', bodyKey: 'events.extra3Body' },
+];
+---
+
+<section class="events-extras" data-section="eventsExtras" hidden aria-labelledby="events-extras-title">
+  <div class="wrap events-extras__inner">
+
+    <header class="events-extras__head" data-extras-head hidden>
+      <p class="eyebrow eyebrow--center" data-content-key="events.extrasEyebrow"></p>
+      <h2 class="display events-extras__title" id="events-extras-title"
+          data-content-key="events.extrasHeading"></h2>
+      <p class="events-extras__lede" data-content-key="events.extrasLede"></p>
+    </header>
+
+    {/* The vertical film. Portrait on purpose: it is shot on a phone at a real
+        event, and letterboxing that into a 16:9 frame throws away most of it.
+        The slot is a media slot like the hero's, so the middleware swaps in the
+        <video> when one is uploaded — with the still as its first frame. */}
+    <figure class="events-extras__film" data-extras-film hidden>
+      <div
+        class="events-extras__film-frame"
+        {...mediaSlot('eventsFilm', PHOTOS.eventsFilm.src, {
+          poster: resized(PHOTOS.eventsFilm.src, 900),
+          className: 'events-extras__film-media',
+          mobile: true,
+        })}
+      >
+        <img
+          class="events-extras__film-media"
+          data-src={resized(PHOTOS.eventsFilm.src, 900)}
+          data-srcset={resizedSrcset(PHOTOS.eventsFilm.src, [600, 900, 1200])}
+          sizes="(max-width: 720px) 88vw, 34vw"
+          alt={PHOTOS.eventsFilm.alt[lang]}
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+      <figcaption class="events-extras__film-caption" data-content-key="events.extrasFilmCaption"></figcaption>
+    </figure>
+
+    <div class="events-extras__notes">
+      {notes.map((n) => (
+        <article class="events-extras__note" data-extras-note data-filename={n.photo.src.split('/').pop()} hidden>
+          <div class="events-extras__note-photo">
+            <img
+              data-src={resized(n.photo.src, 760)}
+              data-srcset={resizedSrcset(n.photo.src, NOTE_WIDTHS)}
+              sizes="(max-width: 720px) 88vw, 30vw"
+              alt={n.photo.alt[lang]}
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <h3 class="events-extras__note-title" data-content-key={n.titleKey}></h3>
+          <p class="events-extras__note-body" data-content-key={n.bodyKey}></p>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  function zaharaEventsExtras() {
+    var section = document.querySelector('[data-section="eventsExtras"]');
+    if (!section) return;
+
+    // Is this venue showing the section at all? The marker is injected by the
+    // root middleware from the venue's own KV record.
+    var on = false;
+    try {
+      var tag = document.getElementById('zahara-sections');
+      if (tag) on = (JSON.parse(tag.textContent || '{}').on || []).indexOf('eventsExtras') !== -1;
+    } catch (e) { /* malformed marker — stay hidden, which is the safe state */ }
+    if (!on) return;
+
+    // Every decision below reads the copy that is ON the page, so it has to
+    // run AFTER the editable-copy overlay has written it in. That overlay is
+    // an inline script near the end of <body> — below this component — so
+    // this runs on DOMContentLoaded, by which point every parser-inserted
+    // script has executed. (Running inline, as this first did, read empty
+    // elements and hid a section the owner had written.)
+    function written(el) { return !!(el && el.textContent.trim()); }
+
+    var head = section.querySelector('[data-extras-head]');
+    if (head && (written(head.querySelector('[data-content-key="events.extrasHeading"]')) ||
+                 written(head.querySelector('[data-content-key="events.extrasLede"]')))) {
+      head.hidden = false;
+    }
+
+    var caption = section.querySelector('.events-extras__film-caption');
+    if (caption && !written(caption)) caption.hidden = true;
+
+    // Photographs. These slots ship no file, so asking for them blind would be
+    // three 404s; /api/gallery already answers "which optional slots exist",
+    // and a slot the middleware turned into a video is filled by definition.
+    var film  = section.querySelector('[data-extras-film]');
+    var notes = Array.prototype.slice.call(section.querySelectorAll('[data-extras-note]'));
+    var slots = notes.concat(film ? [film] : []);
+
+    function promote(el) {
+      var frame = el.querySelector('[data-media-slot]') || el;
+      if (frame.dataset && frame.dataset.mediaIsVideo === '1') { el.hidden = false; reveal(); return; }
+      var img = el.querySelector('img[data-src]');
+      if (!img) return;
+      img.addEventListener('load',  function () { el.hidden = false; reveal(); }, { once: true });
+      if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+      img.src = img.dataset.src;
+    }
+
+    var revealed = false;
+    function reveal() {
+      if (revealed) return;
+      revealed = true;
+      section.hidden = false;
+    }
+
+    // A note with words but no photograph still deserves to be read, so the
+    // text-only case is allowed — a note with neither is not.
+    notes.forEach(function (n) {
+      if (written(n.querySelector('.events-extras__note-body')) ||
+          written(n.querySelector('.events-extras__note-title'))) {
+        n.hidden = false;
+        n.classList.add('is-textual');
+        reveal();
+      }
+    });
+
+    if (head && !head.hidden) reveal();
+
+    fetch('/api/gallery', { headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : { filenames: [] }; })
+      .then(function (data) {
+        var have = {};
+        ((data && data.filenames) || []).forEach(function (f) { have[f] = true; });
+        slots.forEach(function (el) {
+          var frame = el.querySelector('[data-media-slot]') || el;
+          var isVideo = frame.dataset && frame.dataset.mediaIsVideo === '1';
+          if (have[el.dataset.filename] || isVideo) { el.classList.add('has-photo'); promote(el); }
+        });
+      })
+      .catch(function () { /* leave the photographs out rather than risk 404s */ });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', zaharaEventsExtras);
+  } else {
+    zaharaEventsExtras();
+  }
+</script>
+
+<style>
+  /* Hidden is hidden — the attribute has to win over the layout below. */
+  .events-extras[hidden],
+  .events-extras__note[hidden],
+  .events-extras__film[hidden] { display: none !important; }
+
+  .events-extras {
+    background: var(--paper);
+    border-block-end: 1px solid var(--rule-soft);
+    padding-block: clamp(3rem, 7vw, 5.5rem);
+  }
+  .events-extras__inner { display: grid; gap: clamp(2rem, 5vw, 3.5rem); }
+
+  .events-extras__head {
+    max-width: var(--readable-max);
+    margin-inline: auto;
+    text-align: center;
+    display: grid;
+    justify-items: center;
+    gap: var(--space-2xs);
+  }
+  .events-extras__title { margin: 0; font-size: var(--step-4); }
+  .events-extras__lede {
+    margin: 0; max-width: 52ch;
+    font-size: var(--step-1); line-height: 1.7; font-weight: 300;
+    color: var(--ink-soft);
+  }
+
+  /* ── The vertical film ───────────────────────────────────────────────
+     Held to a column narrow enough that a portrait frame reads as a portrait
+     frame rather than a tower — roughly a phone held up at arm's length. */
+  .events-extras__film { margin: 0; display: grid; justify-items: center; gap: var(--space-2xs); }
+  .events-extras__film-frame {
+    inline-size: min(340px, 78vw);
+    aspect-ratio: 9 / 16;
+    overflow: hidden;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    background: var(--paper-card);
+  }
+  /* One rule for both states: the still that ships, and the <video> the
+     middleware may put in its place. */
+  .events-extras__film-frame :global(img),
+  .events-extras__film-frame :global(video) {
+    inline-size: 100%; block-size: 100%;
+    object-fit: cover; display: block;
+  }
+  .events-extras__film-caption {
+    margin: 0; font-size: var(--step--1); color: var(--ink-muted); text-align: center;
+    max-inline-size: 44ch;
+  }
+  .events-extras__film-caption[hidden] { display: none; }
+
+  /* ── The three notes ─────────────────────────────────────────────────
+     Photograph, then heading, then words — an editorial column, not a card.
+     No borders, no shadows: the photograph is the edge. */
+  .events-extras__notes {
+    display: grid;
+    gap: clamp(1.75rem, 4vw, 2.75rem);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    align-items: start;
+  }
+  .events-extras__note { display: grid; gap: var(--space-2xs); }
+  .events-extras__note-photo { aspect-ratio: 4 / 5; overflow: hidden; background: var(--paper-card); }
+  .events-extras__note-photo img {
+    inline-size: 100%; block-size: 100%; object-fit: cover; display: block;
+  }
+  /* A note the owner wrote but hasn't photographed yet: drop the empty frame
+     rather than show a grey rectangle where a picture should be. */
+  .events-extras__note.is-textual:not(.has-photo) .events-extras__note-photo { display: none; }
+  .events-extras__note-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .events-extras__note-title:empty { display: none; }
+  .events-extras__note-body {
+    margin: 0;
+    font-size: var(--step-0);
+    line-height: 1.65;
+    color: var(--ink-soft);
+  }
+  .events-extras__note-body:empty { display: none; }
+</style>

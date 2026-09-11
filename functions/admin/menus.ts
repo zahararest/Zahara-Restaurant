@@ -47,8 +47,8 @@ export const MENU_TYPES: MenuType[] = [
     { key: 'en', slug: 'wine_en',    label: 'English', dir: 'ltr' },
   ]},
   { id: 'cocktails', label: 'Cocktails', slug: 'cocktails', dir: 'ltr' },
-  { id: 'events',  label: 'Events',    variants: [
-    { key: 'he', slug: 'events',     label: 'Hebrew',  dir: 'rtl' },
-    { key: 'en', slug: 'events_en',  label: 'English', dir: 'ltr' },
-  ]},
+  // No 'events' category. The Events page carries a finished PDF, not a list
+  // of dishes — it is managed in the "Events menu (PDF)" panel and has nothing
+  // to do with these hand-edited menus. (src/data/menu-spec.ts dropped the
+  // matching public category too, so an events list had nowhere to render.)
 ];

@@ -10,28 +10,47 @@
 // the page as the secondary, richer-but-lossier view.
 //
 // WHAT IS STORED — deliberately no personal data
-// Per hit: timestamp, event, venue, a PER-PAGELOAD nonce, coarse geo from
-// Cloudflare, device class, browser family, referrer HOST, and UTM tags.
-// No IP address, no persistent identifier, nothing written to the visitor's
-// device. The nonce (`s`) is generated fresh on every page load and lives only
-// in that page's memory — it exists so a click can be tied to the view that
-// produced it (that's the click-through rate) and is useless for recognising
-// anyone across visits. Because nothing is stored on the device and nothing
-// identifies a person, this needs no cookie consent to run.
+// Per visit: timestamp, whether a venue was chosen and which, coarse geo from
+// Cloudflare, device class, browser family, referrer HOST, and UTM tags. No IP
+// address, no identifier of any kind, nothing written to the visitor's device.
+// (Earlier records also carried a per-pageload nonce, which joined a click to
+// its arrival; one record per visit made it unnecessary and it is no longer
+// written.) Because nothing is stored on the device and nothing identifies a
+// person, this needs no cookie consent to run.
 //
 // STORAGE SHAPE
-// One KV key per hit, with the whole record in the key's METADATA:
+// One KV key per VISIT, with the whole record in the key's METADATA:
 //
-//   rsv:<YYYY-MM-DD>:<epoch-ms>:<rand>   →  ""  + metadata { e, v, t, s, … }
+//   rsv:<YYYY-MM-DD>:<epoch-ms>:<rand>   →  ""  + metadata { e, v, t, … }
 //
-// KV `list()` returns metadata inline, so the dashboard reads a whole day in
-// ONE list call — no per-key get(). A key per hit also means no
-// read-modify-write, so concurrent visitors can't clobber each other's counts
-// the way a single incrementing counter would.
+// KV `list()` returns metadata inline, so a day is read in ONE list call — no
+// per-key get(). A key per visit also means no read-modify-write, so
+// concurrent visitors can't clobber each other's counts the way a single
+// incrementing counter would.
 //
 // The date in the key is the ISRAEL date, not UTC — the owner reads these
 // numbers in local time, and a UTC bucket would split an evening's traffic
 // across two days at 03:00 local.
+//
+// ── COST: why one record per visit, and why closed days are cached ──────────
+// This runs on Cloudflare's free plan, where WRITES (1,000/day) are the
+// binding limit and reads (100,000/day) are the next one. Two things keep this
+// page inside both:
+//
+//   1. ONE write per visit. The page used to beacon twice — an arrival and, if
+//      it happened, a venue click — so a visitor who booked cost two of the
+//      day's 1,000 writes and the portal alone could run the account dry at
+//      ~500 visitors. A 'click' record now MEANS "landed and chose", so the
+//      pair collapses into one record with no loss: visits are records, clicks
+//      are records whose `e` is 'click', and the click-through rate is the
+//      ratio of the two. (Records written before this change carry a session
+//      nonce `s`; summarise() still reads those correctly — see below.)
+//
+//   2. The read side is deliberately left alone. A report is one list() per
+//      day in the range, but only the OWNER opens it, a handful of times a
+//      day — a rounding error against the 100,000 daily reads. The reads that
+//      actually scale with traffic are the ones every page makes through
+//      functions/_middleware.ts, which is where the caching went.
 
 import type { KVNamespace } from '@cloudflare/workers-types';
 
@@ -48,14 +67,19 @@ export type ReserveVenue = 'zahara' | 'rooftop';
 /** One recorded hit. Field names are short because KV metadata is capped at
  *  1024 bytes per key. */
 export interface Hit {
-  /** 'view' = landed on the portal · 'click' = chose a venue. */
+  /** One visit. 'view' = landed and chose nothing · 'click' = landed AND chose
+   *  a venue. A click therefore counts as a visit too — it is not a second
+   *  record alongside a view. */
   e:  ReserveEvent;
   /** Which venue was chosen (clicks only). */
   v?: ReserveVenue;
   /** Epoch ms. */
   t:  number;
-  /** Per-pageload nonce — links a click to its view. Not persistent. */
-  s:  string;
+  /** LEGACY: the per-pageload nonce that used to join a click record to its
+   *  view record. Never written any more — its presence is exactly what marks
+   *  a record as the old two-per-visit shape, which is how summarise() avoids
+   *  counting those visits twice. */
+  s?: string;
   /** Two-letter country, from Cloudflare. */
   c?:  string;
   /** City, from Cloudflare. */
@@ -245,8 +269,21 @@ function toBreakdown(map: Map<string, number>, limit = 12): Breakdown[] {
  * just re-printing the same visitor mix under two headings.
  */
 export function summarise(hits: Hit[], days: string[], venue?: ReserveVenue): Summary {
-  // Which sessions chose which venue — needed before the main pass, because a
-  // view is only kept once we know what its session did later.
+  // TWO RECORD SHAPES live in this list, and the difference is `s`:
+  //
+  //   current — one record per visit. A 'click' record IS the arrival too, so
+  //             it counts as both a visit and a click. No `s`.
+  //   legacy  — two records per visit, joined by the nonce `s`: a 'view' for
+  //             the arrival and a separate 'click' for the choice. Counting a
+  //             legacy click as a visit would double that visitor.
+  //
+  // So `isVisit` below is the one place the distinction lives: a record is an
+  // arrival if it is a current-shape record (no `s`) or a legacy 'view'.
+  const isVisit = (h: Hit) => !h.s || h.e === 'view';
+
+  // Legacy only: which sessions chose which venue — needed before the main
+  // pass, because a legacy view is kept only once we know what its session did
+  // later. Current-shape records answer that on their own.
   let keep: Set<string> | null = null;
   if (venue) {
     keep = new Set<string>();
@@ -269,37 +306,51 @@ export function summarise(hits: Hit[], days: string[], venue?: ReserveVenue): Su
 
   let views = 0, zahara = 0, rooftop = 0;
 
+  // Current-shape visits and clicks have no session to dedupe by, so they are
+  // counted straight. Legacy ones go through the session sets as before.
+  let plainVisits = 0;
+  let plainClicks = 0;
+
   for (const h of hits) {
+    const legacy = !!h.s;
+
     // Venue tab: drop arrivals that never chose this venue, and clicks that
     // belong to the other one.
     if (keep) {
-      if (h.e === 'view') { if (!h.s || !keep.has(h.s)) continue; }
-      else if ((h.v ?? 'zahara') !== venue) continue;
+      if (legacy) {
+        if (h.e === 'view') { if (!keep.has(h.s as string)) continue; }
+        else if ((h.v ?? 'zahara') !== venue) continue;
+      } else if (h.e !== 'click' || (h.v ?? 'zahara') !== venue) {
+        continue;
+      }
     }
 
     const row = dayMap.get(israelDay(h.t));
 
-    if (h.e === 'view') {
+    if (isVisit(h)) {
       views++;
-      if (h.s) viewSessions.add(h.s);
+      if (legacy) viewSessions.add(h.s as string); else plainVisits++;
       if (row) row.views++;
       hours[israelHour(h.t)]++;
-      // Context is attributed to the ARRIVAL, not the click — a click carries
-      // the same context, and counting both would double every visitor.
+      // Context is attributed to the ARRIVAL. On a legacy pair that is the
+      // view record only — the click carries the same context, and counting
+      // both would double every visitor.
       tally(countries, h.c,  '(unknown)');
       tally(cities,    h.ct, '(unknown)');
       tally(devices,   h.d,  '(unknown)');
       tally(browsers,  h.b,  '(unknown)');
       tally(referrers, h.r,  '(direct)');
       tally(campaigns, h.uc || h.us, '(none)');
-    } else {
-      if (h.s) clickSessions.add(h.s);
+    }
+
+    if (h.e === 'click') {
+      if (legacy) clickSessions.add(h.s as string); else plainClicks++;
       if (h.v === 'rooftop') { rooftop++; if (row) row.rooftop++; }
       else                   { zahara++;  if (row) row.zahara++;  }
     }
   }
 
-  const visits = viewSessions.size || views;
+  const visits = viewSessions.size + plainVisits || views;
 
   return {
     views,
@@ -307,7 +358,7 @@ export function summarise(hits: Hit[], days: string[], venue?: ReserveVenue): Su
     zahara,
     rooftop,
     clicks: zahara + rooftop,
-    ctr: visits ? clickSessions.size / visits : 0,
+    ctr: visits ? (clickSessions.size + plainClicks) / visits : 0,
     days: Array.from(dayMap.values()),
     hours,
     countries: toBreakdown(countries),

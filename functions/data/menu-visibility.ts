@@ -4,7 +4,7 @@
 // want cocktails and wine and nothing else. Rather than fork the menu spec per
 // venue, each venue stores the list of categories it has switched OFF:
 //
-//   KV `__menus_off__` → ["dessert", "events"]
+//   KV `__menus_off__` → ["dessert", "wine"]
 //
 // Read by:
 //   • functions/admin/index.ts   — the menu editor greys those out.
@@ -24,7 +24,7 @@ const KEY = '__menus_off__';
 
 /** Every category id that can be switched off. Mirrors the ids in
  *  functions/admin/menus.ts (admin) and src/data/menu-spec.ts (public). */
-export const MENU_IDS = ['food', 'dessert', 'wine', 'cocktails', 'events'] as const;
+export const MENU_IDS = ['food', 'dessert', 'wine', 'cocktails'] as const;
 export type MenuId = (typeof MENU_IDS)[number];
 const VALID = new Set<string>(MENU_IDS);
 
@@ -34,8 +34,7 @@ const VALID = new Set<string>(MENU_IDS);
 export function sanitiseMenusOff(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   const off = Array.from(new Set(input.filter((x): x is string => typeof x === 'string' && VALID.has(x))));
-  const publicIds = MENU_IDS.filter((id) => id !== 'events');
-  if (publicIds.every((id) => off.includes(id))) off.splice(off.indexOf(publicIds[0]), 1);
+  if (MENU_IDS.every((id) => off.includes(id))) off.splice(off.indexOf(MENU_IDS[0]), 1);
   return off;
 }
 

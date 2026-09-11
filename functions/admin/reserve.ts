@@ -6,9 +6,8 @@
 // picked.
 //
 // WRITTEN FOR SOMEONE WHO IS NOT A COMPUTER PERSON. That constraint drives
-// every choice here: the headline is a SENTENCE in plain words before it is a
-// number, the controls are big labelled buttons rather than dropdowns or a
-// query string to edit, "Today" and "Yesterday" are one click each, and every
+// every choice here: the controls are big labelled buttons rather than
+// dropdowns or a query string to edit, "Today" and "Yesterday" are one click each, and every
 // table says what it counts in words. No charts to interpret, no jargon
 // ("sessions", "conversion", "bounce"), no state that has to be set up before
 // the page is useful. It works with JavaScript switched off apart from the
@@ -58,7 +57,6 @@ function dayDate(day: string): Date {
 }
 
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 const PAGE_CSS = String.raw`
 .wrap { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1.75rem 4rem; }
@@ -90,20 +88,6 @@ const PAGE_CSS = String.raw`
 .pick input[type="date"] {
   padding: .55rem .6rem; border: 1px solid var(--line);
   background: var(--card); color: var(--ink); font-size: .88rem;
-}
-
-/* ── The sentence ─────────────────────────────────────────────────────── */
-.headline {
-  border: 1px solid var(--line); border-inline-start: 4px solid var(--accent);
-  background: var(--card); padding: 1.1rem 1.25rem; margin: 1.5rem 0;
-  font-size: 1.08rem; line-height: 1.65; color: var(--ink);
-}
-.headline b { font-weight: 700; }
-.headline .za   { color: #9C4621; font-weight: 700; }
-.headline .roof { color: #1F6260; font-weight: 700; }
-.headline__when {
-  display: block; font-size: .7rem; letter-spacing: .16em; text-transform: uppercase;
-  font-weight: 700; color: var(--muted); margin-bottom: .5rem;
 }
 
 /* ── Tiles ────────────────────────────────────────────────────────────── */
@@ -182,10 +166,10 @@ tbody tr.is-today td { font-weight: 700; }
 
 // ── Period ──────────────────────────────────────────────────────────────────
 
-interface Period { id: string; label: string; days: string[]; phrase: string }
+interface Period { id: string; label: string; days: string[] }
 
-/** Turn the query string into a set of Israel-local days plus the words used
- *  to describe it. `day=YYYY-MM-DD` beats `period=…` when both are present. */
+/** Turn the query string into a set of Israel-local days.
+ *  `day=YYYY-MM-DD` beats `period=…` when both are present. */
 function resolvePeriod(url: URL): Period {
   const today = israelDay(Date.now());
 
@@ -195,23 +179,22 @@ function resolvePeriod(url: URL): Period {
       id: `day:${asked}`,
       label: LONG_DAY_FMT.format(dayDate(asked)),
       days: [asked],
-      phrase: asked === today ? 'Today' : `On ${LONG_DAY_FMT.format(dayDate(asked))}`,
     };
   }
 
   switch (url.searchParams.get('period')) {
     case 'today':
-      return { id: 'today', label: 'Today', days: [today], phrase: 'Today' };
+      return { id: 'today', label: 'Today', days: [today] };
     case 'yesterday': {
       const y = israelDay(Date.now() - 86_400_000);
-      return { id: 'yesterday', label: 'Yesterday', days: [y], phrase: 'Yesterday' };
+      return { id: 'yesterday', label: 'Yesterday', days: [y] };
     }
     case '30':
-      return { id: '30', label: 'Last 30 days', days: recentDays(30), phrase: 'In the last 30 days' };
+      return { id: '30', label: 'Last 30 days', days: recentDays(30) };
     case '90':
-      return { id: '90', label: 'Last 90 days', days: recentDays(90), phrase: 'In the last 90 days' };
+      return { id: '90', label: 'Last 90 days', days: recentDays(90) };
     default:
-      return { id: '7', label: 'Last 7 days', days: recentDays(7), phrase: 'In the last 7 days' };
+      return { id: '7', label: 'Last 7 days', days: recentDays(7) };
   }
 }
 
@@ -257,37 +240,6 @@ function controls(period: Period, venue: ReserveVenue | null, today: string): st
     ${venueBtn(null,      'Everyone',      'btn--all')}
     ${venueBtn('zahara',  'Zahara only',   'btn--zahara')}
     ${venueBtn('rooftop', 'Rooftop only',  'btn--rooftop')}
-  </div>`;
-}
-
-/** The plain-words summary. This is the part most people will read and then
- *  stop, so it has to be true and complete on its own. */
-function headline(period: Period, all: Summary, venue: ReserveVenue | null, since: string): string {
-  const when = `<span class="headline__when">${esc(period.label)}${since}</span>`;
-
-  if (venue) {
-    const n = venue === 'zahara' ? all.zahara : all.rooftop;
-    const cls = venue === 'zahara' ? 'za' : 'roof';
-    return `<div class="headline">${when}
-      ${esc(period.phrase)}, <span class="${cls}">${plural(n, 'person', 'people')}</span>
-      went to <b>${VENUE_LABEL[venue]}</b>'s booking page —
-      that is <b>${pct(n, all.visits)}%</b> of the ${plural(all.visits, 'person', 'people')}
-      who opened the page, and <b>${pct(n, all.clicks)}%</b> of everyone who picked a venue.
-    </div>`;
-  }
-
-  if (!all.visits) {
-    return `<div class="headline">${when}Nobody opened the page ${esc(period.phrase.toLowerCase())}.</div>`;
-  }
-
-  const chose = all.clicks
-    ? `<b>${plural(all.clicks, 'of them', 'of them')}</b> went on to book (<b>${Math.round(all.ctr * 100)}%</b>) —
-       <span class="za">${all.zahara}</span> at Zahara and
-       <span class="roof">${all.rooftop}</span> at Nucha Rooftop.`
-    : 'Nobody has picked a venue yet.';
-
-  return `<div class="headline">${when}
-    ${esc(period.phrase)}, <b>${plural(all.visits, 'person', 'people')}</b> opened the page. ${chose}
   </div>`;
 }
 
@@ -486,10 +438,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       readResetAt(env),
     ]);
 
-    const since = resetAt ? ` · counting since ${esc(LONG_DAY_FMT.format(new Date(resetAt)))}` : '';
-
     if (!hits.length) {
-      body = headline(period, summarise([], period.days), venue, since) + `
+      body = `
         <div class="empty">
           Nothing happened in this period.<br />
           <span class="muted">Try a longer range above, or open
@@ -503,7 +453,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       const filtered = venue ? summarise(hits, period.days, venue) : all;
 
       body = [
-        headline(period, all, venue, since),
         tiles(all, venue),
         dayTable(filtered, today, venue),
         `<div class="grid">

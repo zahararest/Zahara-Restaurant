@@ -139,6 +139,10 @@ export const ADMIN_NAV: NavItem[] = [
   { id: 'menu',    href: '/admin/',         label: 'Menu editor' },
   { id: 'images',  href: '/admin/images/',  label: 'Images' },
   { id: 'content', href: '/admin/content/', label: 'Content' },
+  // The entry popup is scheduled copy the owner switches on and off, not
+  // page text they set once — so it sits in the header rather than inside
+  // Content. Same editor, one page (see functions/admin/popup.ts).
+  { id: 'popup',   href: '/admin/popup/',   label: 'Popup' },
   { id: 'colors',  href: '/admin/colors/',  label: 'Colors' },
   // Read-only, and the one section that is NOT venue-scoped — the /reserve/
   // portal sits above both venues (see functions/admin/reserve.ts).
@@ -146,8 +150,8 @@ export const ADMIN_NAV: NavItem[] = [
 ];
 
 const TITLES: Record<string, string> = {
-  menu: 'Menu editor', images: 'Images', content: 'Content', colors: 'Colors',
-  reserve: 'Reserve portal',
+  menu: 'Menu editor', images: 'Images', content: 'Content', popup: 'Entry popup',
+  colors: 'Colors', reserve: 'Reserve portal',
 };
 
 /**

@@ -30,15 +30,21 @@ import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContentForEditor, defaultTokens, defaultAlignFor, styleFor,
-  readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, EVENTS_MENU_OBJECT, type PopupConfig,
+  readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField, type ContentGroup,
   type ContentAlign, type FieldRole, type PageId,
 } from '../data/content';
 import { readPalette } from '../data/palette';
+import { SECTIONS, readSections, type SectionEnv, type SectionMap } from '../data/sections';
 import { PHOTO_CATALOGUE } from '../data/photos-map';
 import { adminSite, siteScope, type Site } from '../data/site';
 
-interface Env extends AuthEnv, ContentEnv { IMAGES?: R2Bucket; }
+interface Env extends AuthEnv, ContentEnv, SectionEnv { IMAGES?: R2Bucket; }
+
+/** The bindings the editor needs. Exported so /admin/popup, which renders the
+ *  same editor over one page, can type its own handler without redeclaring
+ *  them (and drifting when a binding is added). */
+export type ContentPageEnv = Env;
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => (
@@ -98,7 +104,11 @@ const STYLE = String.raw`
   @font-face { font-family:'AlenbiSerif'; font-style:normal; font-weight:700; font-display:swap;
     src:url('/fonts/AlenbiSerifBold_web/AlenbiSerif-Bold.woff2') format('woff2'); }
 
-  html, body { height: 100%; }
+  /* NB: html/body deliberately have NO height:100%. It caps the sticky
+     containing block at one viewport, which let the shared .topbar scroll away
+     while .tools (inside the tall .wb grid) stayed pinned — the header
+     vanishing above a floating search bar. The rail sizes itself off 100vh and
+     the save bar is fixed, so nothing needed it. */
   body { font-size: .92rem; }
   main { display: block; }
 
@@ -1141,52 +1151,44 @@ const SCRIPT = String.raw`
     });
   })();
 
-  // ── Events menu PDF (Events panel) — upload / replace / remove, live now ─
+  // ── Optional sections — switch on / off, saved immediately ─────────────
+  // Not part of the save bar on purpose: revealing a section is a publishing
+  // decision, and bundling it with unsaved copy edits means either publishing
+  // work you were still writing or losing the flip when you discard.
   (function () {
-    var fileInput = $('#pdf-file');
-    var uploadBtn = $('#pdf-upload');
-    var removeBtn = $('#pdf-remove');
-    var statusEl  = $('#pdf-status');
-    var stateEl   = $('#pdf-state');
-    if (!uploadBtn) return;
-    var suffix = window.ADMIN_SITE_SUFFIX || '';
-    function setS(m, err) {
-      if (!statusEl) return;
-      statusEl.textContent = m || '';
-      statusEl.classList.toggle('minor--err', !!err);
-    }
-    async function post(fd) {
-      var res  = await fetch('/admin/events-menu', { method: 'POST', body: fd });
-      var data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
-      return data;
-    }
-    uploadBtn.addEventListener('click', function () { if (fileInput) fileInput.click(); });
-    if (fileInput) fileInput.addEventListener('change', async function () {
-      if (!fileInput.files || !fileInput.files.length) return;
-      setS('Uploading…', false);
-      try {
-        var fd = new FormData(); fd.append('file', fileInput.files[0]);
-        await post(fd);
-        setS('Saved · the button is now live on the Events page.', false);
-        if (removeBtn) removeBtn.hidden = false;
-        uploadBtn.textContent = 'Replace PDF…';
-        stateEl.innerHTML = '<a class="pdf__link" href="/events-menu?v=' + Date.now() + suffix +
-          '" target="_blank" rel="noopener">View the current PDF ↗</a>';
-      } catch (err) { setS(String(err.message || err), true); }
-      finally { fileInput.value = ''; }
-    });
-    if (removeBtn) removeBtn.addEventListener('click', async function () {
-      if (!confirm('Remove the events menu PDF? The button disappears from the Events page.')) return;
-      setS('Removing…', false);
-      try {
-        var fd = new FormData(); fd.append('action', 'delete');
-        await post(fd);
-        setS('Removed.', false);
-        removeBtn.hidden = true;
-        uploadBtn.textContent = 'Upload PDF…';
-        stateEl.textContent = 'No menu uploaded — the button stays hidden on the Events page.';
-      } catch (err) { setS(String(err.message || err), true); }
+    $$('[data-section-toggle]').forEach(function (box) {
+      var id  = box.getAttribute('data-section-toggle');
+      var out = $('[data-section-status="' + id + '"]');
+      function say(msg, err) {
+        if (!out) return;
+        out.textContent = msg || '';
+        out.classList.toggle('minor--err', !!err);
+      }
+      box.addEventListener('change', async function () {
+        var wanted = box.checked;
+        box.disabled = true;
+        say('Saving…', false);
+        try {
+          // The whole on-list is sent, so this stays correct if a second
+          // section is added later and both are flipped in one sitting.
+          var on = $$('[data-section-toggle]')
+            .filter(function (b) { return b.checked; })
+            .map(function (b) { return b.getAttribute('data-section-toggle'); });
+          var res  = await fetch('/admin/sections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ on: on }),
+          });
+          var data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Failed');
+          say(wanted ? 'On — visitors see it now.' : 'Off — hidden from visitors.', false);
+        } catch (err) {
+          box.checked = !wanted;   // the switch must never lie about the site
+          say(String(err.message || err), true);
+        } finally {
+          box.disabled = false;
+        }
+      });
     });
   })();
 
@@ -1324,8 +1326,7 @@ function groupHtml(g: ContentGroup, overrides: ContentMap): string {
   const rest = retired.length ? `
     <details class="retired" data-retired>
       <summary>${esc(g.title)} — not on the site right now (${retired.length})</summary>
-      <p class="retired__note">These belong to parts of the page that aren’t built any more.
-        Your words are kept safe here, but editing them changes nothing unless that section comes back.</p>
+      <p class="retired__note">Kept safe, but editing them changes nothing unless the section comes back.</p>
       ${retired.map(render).join('')}
     </details>` : '';
 
@@ -1355,13 +1356,12 @@ function popupVisHtml(cfg: PopupConfig): string {
   let status: string;
   if (active) {
     status = cfg.until > 0
-      ? `Showing now — it hides itself on ${fmt(cfg.until)} (Israel time).`
-      : 'Showing now, with no end time — it stays until you switch it off.';
+      ? `Showing now — hides itself on ${fmt(cfg.until)}.`
+      : 'Showing now, with no end time.';
   } else if (cfg.enabled && cfg.until > 0) {
-    status = `The end time (${fmt(cfg.until)}, Israel time) has passed, so nobody sees the popup. `
-      + 'Pick a new one — or clear it — and save.';
+    status = `Ended ${fmt(cfg.until)} — nobody sees it. Pick a new end time, or clear it, and save.`;
   } else {
-    status = 'Switched off — visitors don’t see it.';
+    status = 'Switched off.';
   }
   return `
     <section class="card">
@@ -1378,8 +1378,7 @@ function popupVisHtml(cfg: PopupConfig): string {
         <span>Hide it automatically on</span>
         <input class="when" type="datetime-local" id="popup-until" value="${esc(jerusalemInputValue(cfg.until))}">
         <button type="button" class="mini" id="popup-until-clear">No end time</button>
-        <span class="row__hint">Date and time in Israel. Leave it empty and the popup
-          stays up until you switch it off.</span>
+        <span class="row__hint">Israel time. Empty = no end.</span>
       </div>
       <div class="row"><p class="status${active ? ' status--on' : ''}">${esc(status)}</p></div>
     </section>`;
@@ -1404,9 +1403,9 @@ function jerusalemInputValue(ms: number): string {
  *  actions are immediate; the chosen style rides along with Save changes. */
 function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string, site: Site): string {
   const modes: Array<[string, string, string]> = [
-    ['text',  'Text card',   'A paper card with your title and message.'],
-    ['photo', 'Photo',       'The popup is the photo, edge to edge — no card, no words.'],
-    ['both',  'Photo + text', 'The photo on top, your title and message beneath it.'],
+    ['text',  'Text card',   'Title and message on a paper card.'],
+    ['photo', 'Photo',       'The photo alone, edge to edge.'],
+    ['both',  'Photo + text', 'Photo on top, words beneath.'],
   ];
   const modeBtns = modes.map(([id, label, note]) =>
     `<button type="button" class="mode${cfg.mode === id ? ' is-active' : ''}" data-popup-mode="${id}">
@@ -1433,13 +1432,13 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string, si
   return `
     <section class="card">
       <h3 class="card__title">What the popup looks like</h3>
-      <p class="card__note" id="popup-style-note">The words themselves are the two fields below.</p>
+      <p class="card__note" id="popup-style-note">The words are the two fields below.</p>
       <div class="modes" role="group" aria-label="Popup style">${modeBtns}</div>
       <input type="hidden" id="popup-mode" value="${esc(cfg.mode)}" />
 
       <div class="photo${cfg.mode === 'text' ? ' is-hidden' : ''}" id="popup-photo">
         <p class="need${needPhoto ? '' : ' is-hidden'}" id="popup-photo-need">
-          No photo uploaded yet — add one below, or the popup falls back to the text card.
+          No photo yet — until you add one, the popup shows the text card.
         </p>
         <div class="photo__row">
           ${thumb}
@@ -1458,54 +1457,85 @@ function popupStyleHtml(cfg: PopupConfig, hasImage: boolean, version: string, si
     </section>`;
 }
 
-/** The Events panel's menu-PDF manager — the file behind the "View events
- *  menu" button. Uploads are live immediately (stored in R2, served at
- *  /events-menu). */
-function eventsMenuHtml(hasPdf: boolean, version: string, site: Site): string {
-  const siteAmp = site === 'rooftop' ? '&site=rooftop' : '';
-  const state = hasPdf
-    ? `<a class="pdf__link" href="/events-menu?v=${esc(version)}${siteAmp}" target="_blank" rel="noopener">View the current PDF ↗</a>`
-    : 'No menu uploaded — the button stays hidden on the Events page.';
-  return `
+/** The switch for an optional page section — copy that is built and deployed
+ *  but not yet meant to be seen. It saves the INSTANT it is flipped, with no
+ *  trip through the save bar: "is this on the site" is not the same kind of
+ *  decision as "have I finished writing this paragraph", and making the owner
+ *  press Save afterwards is how a section ends up live by accident. */
+function sectionsHtml(page: PageId, on: SectionMap): string {
+  const mine = SECTIONS.filter((sec) => sec.page === page);
+  if (!mine.length) return '';
+  return mine.map((sec) => {
+    const isOn = on[sec.id] === true;
+    return `
     <section class="card">
-      <h3 class="card__title">Events menu (PDF)</h3>
-      <p class="card__note">The file behind the menu button — visitors read it on the page itself.
-        Saved the moment you upload it. To pull it from OneDrive instead, open
-        <a class="pdf__link" href="/admin/">Menu editor → Events menu (PDF)</a>,
-        which syncs on its own and is left out of “Sync all now”.</p>
-      <div class="row"><p id="pdf-state">${state}</p></div>
+      <h3 class="card__title">${esc(sec.label)}</h3>
+      <p class="card__note">${esc(sec.note)}</p>
       <div class="row">
-        <input class="pdf__file" type="file" id="pdf-file" accept="application/pdf,.pdf" />
-        <button type="button" class="btn" id="pdf-upload">${hasPdf ? 'Replace PDF…' : 'Upload PDF…'}</button>
-        <button type="button" class="btn btn--ghost" id="pdf-remove"${hasPdf ? '' : ' hidden'}>Remove</button>
-        <span class="row__hint">PDF only, up to 15&nbsp;MB. It opens in the browser.</span>
+        <label class="switch">
+          <input type="checkbox" data-section-toggle="${esc(sec.id)}"${isOn ? ' checked' : ''} />
+          <span class="switch__track" aria-hidden="true"></span>
+          <span>Show it on the site</span>
+        </label>
+        <span class="row__hint">Saves the moment you flip it.</span>
       </div>
-      <p class="minor" id="pdf-status"></p>
+      <p class="minor" data-section-status="${esc(sec.id)}"></p>
     </section>`;
+  }).join('');
 }
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+/** Which pages a given editor route shows.
+ *
+ *  The entry popup used to be one tab among the site's pages, which buried a
+ *  thing the owner switches on and off weekly under seven things they touch
+ *  once a year. It now has its own /admin/popup route — the SAME editor, the
+ *  same save endpoint, just pointed at one page — so the two never drift
+ *  apart the way a hand-copied second editor would. */
+export interface EditorScope {
+  /** Admin-nav id, for the active header link. */
+  nav:      string;
+  /** Browser/tab title. */
+  title:    string;
+  /** Page tabs to render, in order. */
+  pages:    PageId[];
+  /** Hide the page rail when there's only one page to show. */
+  showRail: boolean;
+}
+
+export const CONTENT_SCOPE: EditorScope = {
+  nav: 'content', title: 'Content', showRail: true,
+  pages: CONTENT_PAGES.map((p) => p.id).filter((id) => id !== 'popup'),
+};
+
+export const POPUP_SCOPE: EditorScope = {
+  nav: 'popup', title: 'Popup', pages: ['popup'], showRail: false,
+};
+
+export async function renderEditor(
+  request: Request, env: Env, scope: EditorScope,
+): Promise<Response> {
   if (!(await checkAccess(request, env))) return unauthorized();
 
   // The venue being edited (site-switch cookie). Prefill from its OWN store so
   // the save/diff compares against code defaults, never the other venue's copy.
   const site = adminSite(request);
-  const [overrides, popupCfg, palette] = await Promise.all([
+  const [overrides, popupCfg, palette, sectionsOn] = await Promise.all([
     readContentForEditor(env, site), readPopupConfigOwn(env, site), readPalette(env, site),
+    readSections(env, site),
   ]);
 
-  // Is a popup photo / events PDF actually stored right now for THIS venue?
-  // (head avoids downloading them.)
+  // Is a popup photo actually stored right now for THIS venue? (head avoids
+  // downloading it.) The Events-page PDF is NOT probed here any more — it is
+  // the menu editor's "Events menu (PDF)" panel's job, and having a second
+  // uploader for the same object on the Events copy tab meant two places to
+  // look and two places to get it wrong.
   const bucket = siteScope(env, site).images;
   let hasPopupImage = false;
-  let hasEventsMenu = false;
-  if (bucket) {
+  if (bucket && scope.pages.includes('popup')) {
     try { hasPopupImage = (await bucket.head(POPUP_IMAGE_OBJECT)) !== null; }
     catch (err) { console.warn('[admin/content] popup image head failed', err); }
-    try { hasEventsMenu = (await bucket.head(EVENTS_MENU_OBJECT)) !== null; }
-    catch (err) { console.warn('[admin/content] events menu head failed', err); }
   }
   const adminVersion = Date.now().toString(36);
 
@@ -1521,9 +1551,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     .map(([k, v]) => `${SITE_TOKEN[k]}:${v}`)
     .join(';');
 
-  // Which pages actually have copy (all of them, but stay defensive).
+  // The pages this route edits, in CONTENT_PAGES order. A page with no copy
+  // and no tools of its own would render an empty panel, so it is dropped.
   const pages = CONTENT_PAGES.filter((p) =>
-    CONTENT_GROUPS.some((g) => g.page === p.id) || p.id === 'popup' || p.id === 'events');
+    scope.pages.includes(p.id) &&
+    (CONTENT_GROUPS.some((g) => g.page === p.id) || p.id === 'popup'));
   const base = site === 'rooftop' ? '/rooftop' : '';
 
   const railHtml = pages.map((p) =>
@@ -1536,9 +1568,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const href = p.path ? `${base}${p.path === '/' ? '/' : p.path}` : '';
     const tools = p.id === 'popup'
       ? popupVisHtml(popupCfg) + popupStyleHtml(popupCfg, hasPopupImage, adminVersion, site)
-      : p.id === 'events'
-        ? eventsMenuHtml(hasEventsMenu, adminVersion, site)
-        : '';
+      : sectionsHtml(p.id, sectionsOn);
     return `
     <section class="panel" data-page-panel="${esc(p.id)}" data-page-href="${esc(href)}" role="tabpanel">
       <header class="panel__head">
@@ -1555,7 +1585,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   // put a field back exactly as the page ships it. Any "original" the owner
   // pinned for this venue rides along and takes over that job.
   const defaults = Object.fromEntries(
-    CONTENT_GROUPS.flatMap((g) => g.fields.map((f) => {
+    CONTENT_GROUPS.filter((g) => scope.pages.includes(g.page)).flatMap((g) => g.fields.map((f) => {
       const saved = overrides[f.key];
       return [f.key, {
         he: defaultTokens(f.key, 'he'),
@@ -1567,27 +1597,31 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     })),
   );
 
-  const html = `${adminHead(site, 'Content',
+  // One page to edit (the popup) means the page rail is a list of one — noise.
+  // The "on this page" jump list still earns its keep, so the rail stays, just
+  // without the page tabs.
+  const railPages = scope.showRail ? `
+      <p class="rail__cap">Pages</p>
+      <nav class="rail__nav" role="tablist" aria-label="Pages">${railHtml}</nav>` : `
+      <nav class="rail__nav" role="tablist" aria-label="Pages" hidden>${railHtml}</nav>`;
+
+  const html = `${adminHead(site, scope.title,
     `<style>${CHROME_CSS}${STYLE}${paletteCss ? `.stage{${paletteCss}}` : ''}</style>`)}
 <body>
-  ${topbar('content', { site })}
+  ${topbar(scope.nav, { site })}
   <div class="wb" id="wb">
     <aside class="rail">
-      <p class="rail__cap">Pages</p>
-      <nav class="rail__nav" role="tablist" aria-label="Pages">${railHtml}</nav>
+      ${railPages}
       <p class="rail__cap">On this page</p>
       <nav class="rail__jump" id="jump" aria-label="Sections"></nav>
       <p class="rail__foot">
-        Every box is styled the way the site shows it. Type straight into it —
-        select words and press <strong>B</strong>, <strong>I</strong> or
-        <strong>U</strong> to style them, and use <strong>A−</strong> /
-        <strong>A+</strong> to size the whole line. Hebrew and English are
-        styled separately.
+        Type straight into a box. Select words and press <strong>B</strong>,
+        <strong>I</strong> or <strong>U</strong>; <strong>A−</strong> /
+        <strong>A+</strong> sizes the line. Hebrew and English style separately.
       </p>
       <p class="rail__foot">
-        <strong>Original</strong> puts a box back the way it was;
-        <strong>Set as original</strong> makes what you’ve written the thing it
-        goes back to. <strong>⌘S</strong> saves.
+        <strong>Original</strong> puts a box back; <strong>Set as original</strong>
+        makes what you wrote the new one. <strong>⌘S</strong> saves.
       </p>
     </aside>
 
@@ -1595,7 +1629,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       <div class="tools">
         <label class="search">
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14" stroke-linecap="round"/></svg>
-          <input id="q" type="search" placeholder="Search every page for a word…" aria-label="Search the site's text" />
+          <input id="q" type="search" placeholder="${scope.showRail ? 'Search every page for a word…' : 'Search this page for a word…'}" aria-label="Search the site's text" />
         </label>
         <div class="seg" role="group" aria-label="Which language to show">
           <button type="button" class="seg__btn is-active" data-view="both">Both</button>
@@ -1637,4 +1671,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       'X-Robots-Tag':  'noindex, nofollow',
     },
   });
-};
+}
+
+/** GET /admin/content — every page of the site's copy except the popup. */
+export const onRequestGet: PagesFunction<Env> = ({ request, env }) =>
+  renderEditor(request as unknown as Request, env, CONTENT_SCOPE);

@@ -29,8 +29,13 @@ const otherLangHref = altLangHref(currPath, lang);
 // this build serves (SITE_ID). Switching goes to the home page (same structure,
 // scoped data).
 const zaharaHome   = lang === 'he' ? '/' : '/en/';
-const rooftopHome  = lang === 'he' ? '/' : '/en/'; //fix add rooftop 
+const rooftopHome  = lang === 'he' ? '/' : '/en/';
 const onRooftop    = SITE_ID === 'rooftop';
+// The rooftop site has no home of its own yet, so on the Zahara build its
+// segment would point straight back at the page you're already on — a switch
+// that visibly does nothing, which reads as a bug. Until it launches the
+// segment carries a "soon" badge and goes nowhere.
+const rooftopSoon  = !onRooftop;
 
 const isCurrent = (href: string) => {
   const norm = (s: string) => s.replace(/\/$/, '') || '/';
@@ -56,6 +61,7 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     <nav class="nav nav-row" aria-label={t.navAria}>
       {navItems.map(item => (
         <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}
+           data-content-key={`header.nav${item.key[0].toUpperCase()}${item.key.slice(1)}`}
            data-track={item.key === 'about' ? 'about_click' : undefined}>{item.label}</a>
       ))}
     </nav>
@@ -70,14 +76,25 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
          data-switch-home={onRooftop ? undefined : true}
          data-track={onRooftop ? 'zahara_click' : undefined}
          aria-label={t.brandAria}>
-        {t.brandText}
+        <span data-content-key="header.brandText">{t.brandText}</span>
       </a>
-      <a href={rooftopHome}
-         class={`site-switch__seg${onRooftop ? ' is-active' : ''}`}
-         data-switch-home={onRooftop ? true : undefined}
-         data-track={onRooftop ? undefined : 'rooftop_click'}>
-        <span class="site-switch__name">{t.rooftop}</span>
-      </a>
+      {rooftopSoon ? (
+        /* Pre-launch: a button, not a link — it announces the venue without
+           promising a page. Tapping it lifts you back to the top (the same
+           courtesy the active segment gives), never sideways to Zahara. */
+        <button type="button" class="site-switch__seg site-switch__seg--soon"
+                data-switch-top aria-disabled="true">
+          <span class="site-switch__name" data-content-key="header.rooftop">{t.rooftop}</span>
+          <span class="site-switch__soon" data-content-key="header.rooftopSoon">{t.rooftopSoon}</span>
+        </button>
+      ) : (
+        <a href={rooftopHome}
+           class={`site-switch__seg${onRooftop ? ' is-active' : ''}`}
+           data-switch-home={onRooftop ? true : undefined}
+           data-track={onRooftop ? undefined : 'rooftop_click'}>
+          <span class="site-switch__name" data-content-key="header.rooftop">{t.rooftop}</span>
+        </a>
+      )}
     </div>
 
     <div class="header-cta">
@@ -158,15 +175,23 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
   <ul>
     {navItems.map(item => (
       <li><a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}
+             data-content-key={`header.nav${item.key[0].toUpperCase()}${item.key.slice(1)}`}
              data-track={item.key === 'about' ? 'about_click' : undefined}>{item.label}</a></li>
     ))}
   </ul>
   <div class="mobile-nav__cta">
-    {/* Switch to the OTHER venue (same domain). */}
-    <a class="btn btn--ghost" href={onRooftop ? zaharaHome : rooftopHome}
-       data-track={onRooftop ? 'zahara_click' : 'rooftop_click'}>
-      {onRooftop ? t.brandText : t.rooftop}
-    </a>
+    {/* Switch to the OTHER venue (same domain). While the rooftop is
+        pre-launch there is nowhere to switch to, so it reads as a label. */}
+    {rooftopSoon ? (
+      <span class="btn btn--ghost is-soon" aria-disabled="true">
+        {t.rooftop} · {t.rooftopSoon}
+      </span>
+    ) : (
+      <a class="btn btn--ghost" href={onRooftop ? zaharaHome : rooftopHome}
+         data-track={onRooftop ? 'zahara_click' : 'rooftop_click'}>
+        {onRooftop ? t.brandText : t.rooftop}
+      </a>
+    )}
     <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
     <div class="mobile-nav__social">
       <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label="Instagram" data-track="instagram_click">
@@ -252,6 +277,11 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
 
   // ── Venue switcher — clicking the active (Zahara) segment when already on
   // its page scrolls to the top instead of reloading. ─────────────────────
+  // Pre-launch rooftop segment — no destination, so it just lifts the reader
+  // back to the top rather than sitting dead under the finger.
+  document.querySelector<HTMLButtonElement>('[data-switch-top]')
+    ?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
   const switchHome = document.querySelector<HTMLAnchorElement>('[data-switch-home]');
   if (switchHome) {
     switchHome.addEventListener('click', (e) => {

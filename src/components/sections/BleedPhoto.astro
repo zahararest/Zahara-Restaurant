@@ -1,5 +1,5 @@
 ---
-import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -16,10 +16,16 @@ export interface Props {
    *  is set). Defaults to a full-screen tall crop — pass a wider set for
    *  short bands so they don't request a too-tall image. */
   mobileCrop?: readonly (readonly [number, number])[];
+  /** The /admin/images catalogue key, when this band is a slot the owner may
+   *  put a VIDEO in. Passing it lets the middleware swap the still for a
+   *  <video>; without it the band is a photograph and nothing else. Only pass
+   *  it for a photo marked `video: true` in functions/data/photos-map.ts, or
+   *  the admin would offer a control with nothing on the page to act on. */
+  mediaKey?: string;
 }
 
 const {
-  lang, photo, caption, height, eager = false,
+  lang, photo, caption, height, eager = false, mediaKey,
   // Matches the full-screen default height (100dvh) — same crop set as the hero.
   mobileCrop = [[640, 1180], [820, 1500], [1080, 1980]] as const,
 } = Astro.props;
@@ -29,6 +35,14 @@ const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
 ---
 
 <figure class={classList} data-caption={caption} style={height ? `height: ${height};` : undefined}>
+  <div
+    class="bleed-photo__media"
+    {...(mediaKey ? mediaSlot(mediaKey, photo.src, {
+      poster: resized(photo.src, 1800),
+      className: 'bleed-photo__video',
+      mobile: true,
+    }) : {})}
+  >
   <picture>
     {/* Phones get a subject-aware portrait crop via /photos-m (the admin
         mobile upload, or a crop of the desktop image when none is set), so a
@@ -47,4 +61,14 @@ const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
       decoding="async"
     />
   </picture>
+  </div>
 </figure>
+
+<style>
+  /* A pass-through: the figure already sizes the band and the image's own
+     rules still reach through it. It exists only so the middleware can swap
+     the picture for a <video> without taking the figure's caption with it.
+     The video's own sizing sits next to `.bleed-photo img` in components.css,
+     where anyone styling this band will actually look. */
+  .bleed-photo__media { display: contents; }
+</style>

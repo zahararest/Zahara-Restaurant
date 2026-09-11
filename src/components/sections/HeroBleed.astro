@@ -2,7 +2,7 @@
 import { pick, home as copy, global as globals } from '../../data/i18n';
 import { RESTAURANT }              from '../../data/restaurant';
 import { path }                    from '../../lib/paths';
-import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
 import type { Lang }               from '../../data/i18n';
 import type { PhotoEntry }         from '../../data/photos';
 
@@ -10,8 +10,11 @@ export interface Props {
   lang:  Lang;
   photo: PhotoEntry;
   /** Mobile-only: extra photos the hero rotates through after the LCP frame.
-   *  Pass the in-page gallery set here. Desktop ignores these entirely. */
-  mobileSlides?: readonly PhotoEntry[];
+   *  Pass the in-page gallery set here. Desktop ignores these entirely.
+   *  `key` is the /admin/images catalogue key, so a frame the owner has given
+   *  a video gets one here too — the phone hero shows the same media the
+   *  gallery does, which is the whole point of it being the same set. */
+  mobileSlides?: readonly (PhotoEntry & { key: string })[];
 }
 
 const { lang, photo, mobileSlides = [] } = Astro.props;
@@ -38,7 +41,16 @@ const HERO_QUALITY = 70;
     {/* Frame 0 — the LCP hero. Always visible (desktop = the only frame;
         mobile = the first frame of the rotation). This is the image
         BaseLayout preloads, so the LCP is unchanged. */}
-    <div class="hero-bleed__slide hero-bleed__slide--base is-active" data-hero-slide>
+    {/* A media SLOT, not just a photo: if the owner has uploaded a video for
+        the hero, the middleware replaces everything inside this wrapper with a
+        <video> before the page is sent — so the browser never fetches the
+        still it would have thrown away. See src/lib/photo.ts → mediaSlot(). */}
+    <div class="hero-bleed__slide hero-bleed__slide--base is-active" data-hero-slide
+         {...mediaSlot('hero', photo.src, {
+           poster: resized(photo.src, 1800, HERO_QUALITY),
+           className: 'hero-bleed__img',
+           mobile: true,
+         })}>
       <picture>
         {/* Phones get a tall portrait crop (subject-aware) so the wide photo
             isn't scaled up + cropped into a "zoomed-in" sliver. */}
@@ -64,7 +76,12 @@ const HERO_QUALITY = 70;
         cross-fading every few seconds. Lazy-loaded and display:none on desktop,
         so they never download there and never touch the desktop hero. */}
     {mobileSlides.map((p) => (
-      <div class="hero-bleed__slide hero-bleed__slide--extra" data-hero-slide aria-hidden="true">
+      <div class="hero-bleed__slide hero-bleed__slide--extra" data-hero-slide aria-hidden="true"
+           {...mediaSlot(p.key, p.src, {
+             poster: resized(p.src, 1100, HERO_QUALITY),
+             className: 'hero-bleed__img',
+             mobile: true,
+           })}>
         <picture>
           <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER, HERO_QUALITY)} sizes="100vw" />
           <img
@@ -116,8 +133,10 @@ const HERO_QUALITY = 70;
     </h1>
     <!-- <p class="hero-bleed__lede fade-up" set:html={t.heroLede} /> -->
     <div class="btn-row fade-up">
-      <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-hero-reserve>{t.heroCtaReserve}</a>
-      <a class="btn btn--ghost" href={path('menu', lang)}>{t.heroCtaMenu}</a>
+      <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener"
+         data-hero-reserve data-content-key="home.heroCtaReserve">{t.heroCtaReserve}</a>
+      <a class="btn btn--ghost" href={path('menu', lang)}
+         data-content-key="home.heroCtaMenu">{t.heroCtaMenu}</a>
     </div>
   </div>
 
@@ -266,6 +285,16 @@ const HERO_QUALITY = 70;
   .hero-bleed__slide {
     position: absolute;
     inset: 0;
+  }
+  /* A swapped-in <video> stands exactly where its still stood. It carries the
+     same class as the <img> it replaced, but `video` needs the sizing said
+     again — a replaced element with no intrinsic box would otherwise collapse
+     before its metadata arrives. */
+  .hero-bleed__slide video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
   /* The rotating gallery frames only exist on phones; desktop never shows or
      downloads them. Hidden by default (opacity 0) so a no-JS phone shows just

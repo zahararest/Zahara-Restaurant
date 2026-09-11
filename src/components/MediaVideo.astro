@@ -1,0 +1,97 @@
+---
+// Starts the videos the middleware swapped in for their stills.
+//
+// The <video> arrives from the server with NO src — only `data-video-src` and
+// (when the owner uploaded a portrait cut) `data-video-src-mobile`. One page is
+// served to every screen, so the choice between the two can only be made here,
+// in the browser that knows how wide it is. Setting the src rather than
+// shipping it means exactly one file is ever fetched: no phone downloading a
+// landscape master to throw it away.
+//
+// Everything else is restraint. These are atmosphere behind text, not media the
+// reader came for, so: muted and looping (a background video that makes noise
+// is a bug), `playsinline` so iOS doesn't hijack the screen into fullscreen,
+// paused when off-screen or when the tab is hidden so it costs nothing to
+// scroll past, and never started at all under prefers-reduced-motion — where
+// the poster still, which is the photograph the video replaced, is the whole
+// point of having kept it.
+---
+<script is:inline>
+  (function () {
+    var vids = document.querySelectorAll('video[data-video-src]');
+    if (!vids.length) return;
+
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var phone  = window.matchMedia('(max-width: 600px)');
+
+    function sourceFor(v) {
+      var m = v.getAttribute('data-video-src-mobile');
+      return (phone.matches && m) ? m : v.getAttribute('data-video-src');
+    }
+
+    // Reduced motion: leave the poster showing. It is the still this video
+    // replaced, so the slot looks finished rather than empty — and no video
+    // bytes are fetched at all.
+    if (reduce.matches) return;
+
+    function load(v) {
+      if (v.dataset.videoLoaded) return;
+      v.dataset.videoLoaded = '1';
+      v.src = sourceFor(v);
+      // A failed load leaves the poster in place rather than a black frame.
+      v.addEventListener('error', function () { v.removeAttribute('src'); }, { once: true });
+    }
+
+    // Whether each video SHOULD be running — the intersection observer's
+    // answer, kept separately from whether it IS running. Tabbing away pauses
+    // without changing the answer, so tabbing back knows what to resume; the
+    // observer would not fire again on its own, since nothing moved.
+    function want(v)  { return v.dataset.videoOnScreen === '1'; }
+    function play(v)  {
+      if (!v.dataset.videoLoaded || document.hidden || !want(v)) return;
+      var p = v.play();
+      if (p && p.catch) p.catch(function () {});
+    }
+    function pause(v) { if (!v.paused) v.pause(); }
+
+    // Load on approach, play only while actually on screen. The hero is
+    // already in view on load, so it starts immediately; a gallery frame five
+    // screens down costs nothing until it is nearly there.
+    if ('IntersectionObserver' in window) {
+      var near = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          load(e.target);
+          near.unobserve(e.target);
+          play(e.target);
+        });
+      }, { rootMargin: '400px 0px' });
+      var onScreen = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          e.target.dataset.videoOnScreen = e.isIntersecting ? '1' : '0';
+          if (e.isIntersecting) play(e.target); else pause(e.target);
+        });
+      }, { threshold: 0.1 });
+      Array.prototype.forEach.call(vids, function (v) { near.observe(v); onScreen.observe(v); });
+    } else {
+      Array.prototype.forEach.call(vids, function (v) { v.dataset.videoOnScreen = '1'; load(v); play(v); });
+    }
+
+    // A backgrounded tab should not be decoding video.
+    document.addEventListener('visibilitychange', function () {
+      Array.prototype.forEach.call(vids, document.hidden ? pause : play);
+    });
+
+    // Crossing the phone breakpoint after load changes which cut is right.
+    // Only re-point videos that already committed to a source.
+    var onBreakpoint = function () {
+      Array.prototype.forEach.call(vids, function (v) {
+        if (!v.dataset.videoLoaded) return;
+        var want = sourceFor(v);
+        if (want && v.getAttribute('src') !== want) { v.src = want; play(v); }
+      });
+    };
+    if (phone.addEventListener) phone.addEventListener('change', onBreakpoint);
+    else if (phone.addListener)  phone.addListener(onBreakpoint);
+  })();
+</script>

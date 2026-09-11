@@ -59,18 +59,19 @@ const kitchenCaption  = t.kitchenCaption;
 // shows, plus up to six optional slots the admin can fill in /admin/images.
 // Empty optional slots are hidden client-side, so the gallery grows from 4
 // up to 10 photos without ever showing a blank frame.
-const galleryPhotos   = [
-  PHOTOS.interior, PHOTOS.chef, PHOTOS.bar, PHOTOS.wine,
-];
-const galleryOptional = [
-  PHOTOS.gallery5, PHOTOS.gallery6, PHOTOS.gallery7,
-  PHOTOS.gallery8, PHOTOS.gallery9, PHOTOS.gallery10,
-];
-// Per-photo caption content keys (edited per photo in /admin/images),
-// parallel to the photo arrays above.
-const galleryCaptionKeys  = ['interior', 'chef', 'bar', 'wine'].map(k => `gallery.caption.${k}`);
-const galleryOptionalCaptionKeys =
-  ['gallery5', 'gallery6', 'gallery7', 'gallery8', 'gallery9', 'gallery10'].map(k => `gallery.caption.${k}`);
+// Each frame carries its /admin/images catalogue key alongside the photo, so
+// the caption key, the phone hero's copy of the frame, and the video the owner
+// may have uploaded for it are all derived from ONE list instead of three
+// hand-kept-parallel ones.
+const galleryBaseKeys     = ['interior', 'chef', 'bar', 'wine'] as const;
+const galleryOptionalKeys = ['gallery5', 'gallery6', 'gallery7',
+                             'gallery8', 'gallery9', 'gallery10'] as const;
+
+const galleryPhotos   = galleryBaseKeys.map(k => ({ ...PHOTOS[k], key: k }));
+const galleryOptional = galleryOptionalKeys.map(k => ({ ...PHOTOS[k], key: k }));
+// Per-photo caption content keys (edited per photo in /admin/images).
+const galleryCaptionKeys         = galleryBaseKeys.map(k => `gallery.caption.${k}`);
+const galleryOptionalCaptionKeys = galleryOptionalKeys.map(k => `gallery.caption.${k}`);
 
 const sec = {
   hero:      t.secHero,
@@ -189,7 +190,7 @@ const emptyLabel = t.emptyLabel;
 ---
 
 <BaseLayout title={title} seoTitle={t.seoTitle} lang={lang} transparentHeader
-            description={description} heroImage={PHOTOS.hero}>
+            description={description} heroImage={PHOTOS.hero} heroImageKey="hero">
   {/* The hero photo is the LCP. BaseLayout emits an art-directed
       <link rel=preload as=image> for it (matching HeroBleed's <picture>), so
       it downloads during head parse and the LCP fires early + reliably. */}
