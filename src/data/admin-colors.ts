@@ -337,7 +337,7 @@ export const darkDefaults: Record<string, string> = {
   '--paper':          '#0F0B07',
   '--paper-deep':     '#181410',
   '--paper-edge':     '#2A2218',
-  '--paper-card':     '#1A1612',
+  '--paper-card':     '#221B14',
   '--paper-on-photo': '#F4ECCF',
   '--ink':            '#F0E8D2',
   '--ink-soft':       '#C4B89A',

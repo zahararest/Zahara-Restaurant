@@ -644,17 +644,70 @@ body.nav-open { overflow: hidden; }
   background: transparent;
   border-color: transparent;
 }
-/* Narrow screens wrap the bar onto two rows, where a rule pinned to the bar's
+/* ── Phones: the switcher has to come with you ─────────────────
+   The side rail is desktop-only, so below 880px the tab bar itself stays put
+   under the header — otherwise changing menu means scrolling a 60-wine list
+   back to the top. One row that scrolls sideways on a paper-translucent
+   backdrop, bled to the screen edges so content passes cleanly underneath. */
+@media (max-width: 879px) {
+  .menu-tabs {
+    position: sticky;
+    top: var(--header-h);
+    z-index: 20;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    background: color-mix(in srgb, var(--paper) 93%, transparent);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    /* Bleed by exactly the .wrap padding — no more, or it overflows the page. */
+    margin-inline: calc(clamp(1.25rem, 4vw, 2.5rem) * -1);
+    padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+    padding-block: 0.15rem;
+    margin-block-end: var(--space-s);
+  }
+  .menu-tabs::-webkit-scrollbar { display: none; }
+  .menu-tab { padding: 0.6rem 0.95rem; letter-spacing: 0.16em; }
+
+  /* Wine types stick directly beneath it. The offset is measured rather than
+     guessed — the bar's height moves with the font and the venue's tab count. */
+  .wine-nav {
+    position: sticky;
+    top: calc(var(--header-h) + var(--menu-tabs-h, 2.9rem));
+    z-index: 19;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    background: color-mix(in srgb, var(--paper) 93%, transparent);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    margin-inline: calc(clamp(1.25rem, 4vw, 2.5rem) * -1);
+    padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+    padding-block: 0.5rem;
+    margin-block-end: var(--space-s);
+  }
+  .wine-nav::-webkit-scrollbar { display: none; }
+  /* The hairline separators assume words sitting in a centred line; in a
+     scroller they collide with the padding. */
+  .wine-nav__chip + .wine-nav__chip::before { inset-inline-start: -0.75rem; }
+}
+
+/* Narrow screens put the bar in a scroller, where a rule pinned to the bar's
    bottom edge no longer sits under the open tab. There the tab carries its
    own underline and the slider stands down. */
-@media (max-width: 700px) {
+@media (max-width: 879px) {
   .menu-tabs__indicator { display: none; }
   .menu-tab { position: relative; }
   .menu-tab.is-active::after {
     content: '';
     position: absolute;
-    inset-inline: 1.1rem;
-    inset-block-end: 0.25rem;
+    inset-inline: 0.6rem;
+    inset-block-end: 0.2rem;
     height: 1px;
     background: var(--accent);
   }
@@ -684,16 +737,55 @@ body.nav-open { overflow: hidden; }
   padding-block-end: var(--space-l);
 }
 
-/* Each menu section is a soft "paper card". */
+/* A breath of light across the top of a menu card. Capped at 2.5%: the wash
+   sits UNDER --ink-muted (regions, captions), and in dark mode that text is
+   4.84:1 on the flat card — a 7% wash drops it to 4.0:1 and fails AA, while
+   2.5% holds 4.57:1. In light mode a cream wash only raises contrast, so the
+   dark side is the binding constraint. Don't raise it without re-measuring. */
+:root {
+  --menu-card-sheen: linear-gradient(180deg,
+    color-mix(in srgb, var(--paper-on-photo) 2.5%, transparent) 0%,
+    transparent 62%);
+}
+
+/* Each menu section is a sheet of paper laid on the page.
+   It used to be a gradient whose bottom stop was var(--paper) — the page
+   colour — so a tall card literally dissolved into the background and read as
+   a smudge. It's a FLAT surface now, one clear step off the page, with a real
+   hairline edge and a thread of light along the top. Predictable contrast for
+   the text on it, too, which a fading gradient can't promise. */
 .menu-section-group {
   position: relative;
   padding: clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3rem);
-  background: linear-gradient(180deg, var(--paper-card) 0%, var(--paper) 100%);
-  border: 1px solid var(--rule-soft);
-  box-shadow: var(--shadow-2);
+  background: var(--menu-card-sheen), var(--paper-card);
+  border: 1px solid var(--rule);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--paper-on-photo) 14%, transparent),
+    var(--shadow-2);
   overflow: hidden;
   isolation: isolate;
 }
+
+/* Printed-stock grain, the same tile the page uses — it's what stops a flat
+   fill from reading as a plastic panel. Sits under the text (z-index:-1
+   inside the card's own stacking context). */
+.menu-section-group:not(.is-flat)::after,
+.wine-group::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+html[data-theme="dark"] .menu-section-group:not(.is-flat)::after,
+html[data-theme="dark"] .wine-group::after { mix-blend-mode: overlay; opacity: 0.055; }
+/* Texture is not information — drop it on the high-contrast palette. */
+html.a11y-contrast .menu-section-group::after,
+html.a11y-contrast .wine-group::after { display: none; }
 
 /* Soft accent glow tucked behind each card. */
 .menu-section-group::before {
@@ -927,9 +1019,12 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
   display: grid;
   gap: var(--space-l);
   padding: clamp(1.75rem, 4vw, 3rem) clamp(1.25rem, 5vw, 3rem);
-  background: linear-gradient(180deg, var(--paper-card) 0%, var(--paper) 100%);
-  border: 1px solid var(--rule-soft);
-  box-shadow: var(--shadow-2);
+  background: var(--menu-card-sheen), var(--paper-card);
+  border: 1px solid var(--rule);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--paper-on-photo) 14%, transparent),
+    var(--shadow-2);
+  overflow: hidden;
   isolation: isolate;
 }
 .wine-group[hidden] { display: none; }

@@ -34,12 +34,37 @@
     // bytes are fetched at all.
     if (reduce.matches) return;
 
+    // Put the photograph back. Dropping the source and reloading returns the
+    // element to its poster — the still this video replaced — so a clip the
+    // browser cannot show degrades to the picture it was standing in for
+    // rather than to a black rectangle.
+    function giveUp(v) {
+      v.dataset.videoFailed = '1';
+      v.removeAttribute('src');
+      try { v.load(); } catch (e) {}
+    }
+
+    // Speed, where the owner asked for one in /admin/images. Re-applied after
+    // every source change, since swapping src resets it in some browsers.
+    function applyRate(v) {
+      var rate = parseFloat(v.getAttribute('data-video-rate'));
+      if (rate > 0) { try { v.playbackRate = rate; } catch (e) {} }
+    }
+
     function load(v) {
-      if (v.dataset.videoLoaded) return;
+      if (v.dataset.videoLoaded || v.dataset.videoFailed) return;
       v.dataset.videoLoaded = '1';
+      applyRate(v);
       v.src = sourceFor(v);
       // A failed load leaves the poster in place rather than a black frame.
-      v.addEventListener('error', function () { v.removeAttribute('src'); }, { once: true });
+      v.addEventListener('error', function () { giveUp(v); }, { once: true });
+      // …and so does a file that LOADS but carries no picture. An audio-only
+      // file, or a video track in a codec this browser can't decode, reports a
+      // perfectly healthy readyState and fires no error — it just paints
+      // nothing, which on a full-bleed hero reads as the site being broken.
+      v.addEventListener('loadeddata', function () {
+        if (!v.videoWidth || !v.videoHeight) giveUp(v);
+      }, { once: true });
     }
 
     // Whether each video SHOULD be running — the intersection observer's
@@ -48,7 +73,7 @@
     // observer would not fire again on its own, since nothing moved.
     function want(v)  { return v.dataset.videoOnScreen === '1'; }
     function play(v)  {
-      if (!v.dataset.videoLoaded || document.hidden || !want(v)) return;
+      if (!v.dataset.videoLoaded || v.dataset.videoFailed || document.hidden || !want(v)) return;
       var p = v.play();
       if (p && p.catch) p.catch(function () {});
     }
@@ -86,9 +111,9 @@
     // Only re-point videos that already committed to a source.
     var onBreakpoint = function () {
       Array.prototype.forEach.call(vids, function (v) {
-        if (!v.dataset.videoLoaded) return;
+        if (!v.dataset.videoLoaded || v.dataset.videoFailed) return;
         var want = sourceFor(v);
-        if (want && v.getAttribute('src') !== want) { v.src = want; play(v); }
+        if (want && v.getAttribute('src') !== want) { v.src = want; applyRate(v); play(v); }
       });
     };
     if (phone.addEventListener) phone.addEventListener('change', onBreakpoint);

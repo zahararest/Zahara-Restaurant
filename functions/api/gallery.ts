@@ -12,9 +12,9 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { PHOTO_CATALOGUE } from '../data/photos-map';
-import { videoObjectKey } from '../data/media';
+import { readMediaMap, videoObjectKey, type MediaEnv } from '../data/media';
 
-interface Env { IMAGES?: R2Bucket; }
+interface Env extends MediaEnv { IMAGES?: R2Bucket; }
 
 const MOBILE_SUFFIX = '__mobile';
 
@@ -24,8 +24,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
 
   if (env.IMAGES) {
     try {
-      // R2 list returns up to 1000 keys; the gallery set is tiny.
-      const listing = await env.IMAGES.list({ prefix: 'images/' });
+      // R2 list returns up to 1000 keys; the gallery set is tiny. The media
+      // manifest comes along because a video file existing is not the same as
+      // the slot showing it — a video the owner has switched away from leaves
+      // the slot as empty as it ever was.
+      const [listing, media] = await Promise.all([
+        env.IMAGES.list({ prefix: 'images/' }),
+        readMediaMap(env),
+      ]);
       const present = new Set(listing.objects.map((o) => o.key)); // e.g. images/gallery5
       filenames = optional
         .filter((p) =>
@@ -34,7 +40,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
           // A slot filled with a VIDEO is just as filled as one with a photo.
           // Without this, uploading only a video to an optional slot left the
           // frame reported empty and the gallery dropped it.
-          present.has(`images/${videoObjectKey(p.key, 'desktop')}`))
+          (media[p.key]?.d === 'video' && present.has(`images/${videoObjectKey(p.key, 'desktop')}`)))
         .map((p) => p.filename);
     } catch (err) {
       console.warn('[api/gallery] R2 list failed', String(err));

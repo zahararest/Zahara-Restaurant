@@ -47,7 +47,8 @@ const notes = [
         event, and letterboxing that into a 16:9 frame throws away most of it.
         The slot is a media slot like the hero's, so the middleware swaps in the
         <video> when one is uploaded — with the still as its first frame. */}
-    <figure class="events-extras__film" data-extras-film hidden>
+    <figure class="events-extras__film" data-extras-film hidden
+            data-filename={PHOTOS.eventsFilm.src.split('/').pop()}>
       <div
         class="events-extras__film-frame"
         {...mediaSlot('eventsFilm', PHOTOS.eventsFilm.src, {

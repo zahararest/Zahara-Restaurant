@@ -211,11 +211,20 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
           // the already-cached image while the video's first bytes arrive.
           const poster = el.getAttribute('data-media-poster') || '';
           const cls    = el.getAttribute('data-media-class') || '';
+          // How the owner framed it in /admin/images. Only written when it is
+          // NOT the default, so an untouched slot ships the same markup it
+          // always did and the class's own object-fit still governs.
+          const slot  = media[key];
+          const style =
+            (slot.fit === 'contain' ? 'object-fit:contain;' : '') +
+            (slot.pos ? `object-position:${slot.pos};` : '');
           el.setAttribute('data-media-is-video', '1');
           el.setInnerContent(
             `<video class="${escAttr(cls)}" playsinline muted loop autoplay preload="none"` +
             ` aria-hidden="true" tabindex="-1"` +
             (poster ? ` poster="${escAttr(poster)}"` : '') +
+            (style  ? ` style="${escAttr(style)}"` : '') +
+            (slot.rate ? ` data-video-rate="${escAttr(String(slot.rate))}"` : '') +
             ` data-video-src="${escAttr(src)}"` +
             (srcMobile ? ` data-video-src-mobile="${escAttr(srcMobile)}"` : '') +
             `></video>`,

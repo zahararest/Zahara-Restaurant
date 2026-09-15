@@ -40,6 +40,11 @@ interface Env extends AuthEnv, ContentEnv, MediaEnv { IMAGES?: R2Bucket; }
 const GALLERY_CAPTION_SET = new Set<string>(GALLERY_CAPTION_KEYS);
 
 const STYLE = `
+  /* The hidden attribute has to win. Several blocks below set an explicit display, and a
+     class rule beats the user-agent's [hidden] { display: none } every time —
+     which is how the "behind the photo" control and the video tool row ended
+     up visible in states that had nothing to put in them. */
+  [hidden] { display: none !important; }
   *, *::before, *::after { box-sizing: border-box; }
   body {
     margin: 0;
@@ -237,13 +242,57 @@ const STYLE = `
     width: 100%; height: 100%; object-fit: cover;
     display: block; background: #ece3d0;
   }
+  /* A video that is uploaded but NOT currently shown still previews here, at
+     half strength, so "hidden" looks like a state rather than like the file
+     having gone. */
+  .card__thumb[data-video-state="hidden"] .card__video { opacity: 0.38; }
+  /* One video the browser refuses is not worth a black rectangle: hide it and
+     let the photograph underneath show through, with the reason written out
+     in the note below the card. */
+  .card__video[hidden] { display: none; }
   .card__video-row {
     display: grid; gap: 0.4rem;
     margin-block-start: 0.55rem; padding-block-start: 0.55rem;
     border-block-start: 1px dashed #D5CBB1;
   }
   .card__video-note { margin: 0; font-size: 0.72rem; color: #6f6457; }
+  .card__video-note--err { color: #a53623; }
+  .card__video-meta {
+    margin: 0; font-size: 0.68rem; color: #9a8d77;
+    font-family: 'Inter', monospace; letter-spacing: 0.01em;
+  }
   .card__badge--video { background: #1F4E5F; color: #fff; }
+  .card__badge--video-off { background: #6f6457; color: #fff; }
+  /* Deleting a video is the one button here that cannot be undone, so it is
+     the one button that doesn't look like its neighbours. Specificity matched
+     to .btn--ghost, which sets its own colour. */
+  .btn.card__btn-danger { color: #a53623; border-color: #e3b7ad; }
+  .btn.card__btn-danger:hover { color: #fff; background: #a53623; border-color: #a53623; }
+
+  /* ── Video framing ──────────────────────────────────────────────────
+     A video can't be cropped in the browser the way a photo can, so what is
+     offered instead is where it sits in its frame: which part survives the
+     crop, whether it is cropped at all, and how fast the loop runs. Each
+     control writes to the card's own preview first, so the owner is looking
+     at the answer while they drag. */
+  .card__video-adjust {
+    display: none; gap: 0.5rem;
+    margin-block-start: 0.15rem; padding: 0.55rem 0.65rem;
+    background: #f3eddc; border: 1px solid #e6dcc4;
+  }
+  .card__video-adjust.is-open { display: grid; }
+  .card__video-adjust .ctl__row { display: flex; justify-content: space-between;
+    align-items: baseline; gap: 0.5rem; }
+  .card__video-adjust label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em; }
+  .card__video-adjust .ctl__val { font-family: 'Inter', monospace; font-size: 0.68rem; color: #6f6457; }
+  .card__video-adjust input[type="range"] { width: 100%; accent-color: #9C4621; }
+  .card__video-fit { display: flex; gap: 0.35rem; }
+  .card__video-fit button {
+    flex: 1 1 0; font: inherit; font-size: 0.68rem; letter-spacing: 0.06em;
+    text-transform: uppercase; font-weight: 600; padding: 0.34rem 0.4rem;
+    border: 1px solid #D5CBB1; background: #fff; color: #6f6457; cursor: pointer;
+  }
+  .card__video-fit button.is-on { background: #1a1410; border-color: #1a1410; color: #F4EDDF; }
 
   /* Busy overlay — while a card is uploading or removing, it locks and says
      so, so a slow connection never looks like "nothing happened". */
@@ -608,14 +657,35 @@ const STYLE = `
     min-height: 280px;
   }
   .editor__canvas {
+    /* The bitmap and the on-screen size are both set in JS, from the stage's
+       measured box — a max-height here would shorten the element without
+       narrowing it, and squash the picture. max-width stays as a backstop. */
     max-width: 100%;
-    max-height: 78vh;
     cursor: grab;
     box-shadow: 0 6px 30px rgba(0,0,0,0.3);
     background: #1a1410;
+    /* The canvas handles its own drag and pinch, so the browser must not
+       also scroll or zoom the page underneath the finger. */
     touch-action: none;
+    -webkit-user-select: none; user-select: none;
   }
   .editor__canvas:active { cursor: grabbing; }
+  /* A line under the canvas that says, in numbers, what will be uploaded —
+     so "how much am I cutting off" is never a guess. */
+  .editor__readout {
+    margin: 0.5rem 0 0; text-align: center;
+    font-family: 'Inter', monospace; font-size: 0.68rem; color: #6f6457;
+  }
+  .editor__readout b { color: #1a1410; font-weight: 600; }
+  .editor__readout--warn { color: #8a4b12; }
+  .editor__stagewrap { display: grid; align-content: center; justify-items: center; width: 100%; }
+  @media (max-width: 760px) {
+    /* On a phone the picture is the whole job — give it the room, and keep
+       the controls one thumb-scroll below rather than squeezed beside it. */
+    .editor { padding: 0; }
+    .editor__panel { width: 100%; }
+    .editor__stage { padding: 0.6rem; min-height: 0; }
+  }
   .editor__side {
     border-inline-start: 1px solid #D5CBB1;
     padding: 1.1rem 1.2rem 1.4rem;
@@ -1013,6 +1083,93 @@ const SCRIPT = `
       return data;
     };
 
+    // ── Card video previews ───────────────────────────────────────────
+    // Why this exists at all: a <video> with preload="metadata" and no poster
+    // paints BLACK in Safari until it has decoded a frame, and it will not
+    // decode one unprompted. That is what put a black rectangle over every
+    // video slot in this panel — the file was fine, the element just had
+    // nothing to show. Three things fix it, and all three are needed:
+    //
+    //   • every preview carries the slot's still as its poster, so the frame
+    //     is never empty even before a byte of video arrives;
+    //   • it actually PLAYS, muted and looping, while it is on screen, so the
+    //     card shows what a visitor sees rather than a frozen first frame;
+    //   • a video the browser can't decode hides itself and says why, instead
+    //     of sitting there as a black box with no explanation.
+    const ZAHARA_VIDEO_PREVIEW = (function () {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+      function start(v) {
+        if (v.dataset.previewFailed) return;
+        // Under reduced motion, pull a single frame instead of looping. The
+        // card still shows the video rather than a black rectangle.
+        if (reduce.matches) { try { if (!v.currentTime) v.currentTime = 0.1; } catch (e) {} return; }
+        const pr = v.play();
+        if (pr && pr.catch) pr.catch(function () {
+          // Autoplay refused: fall back to a still frame so the card is never
+          // blank, and never treat it as a broken file.
+          try { if (!v.currentTime) v.currentTime = 0.1; } catch (e) {}
+        });
+      }
+
+      const io = 'IntersectionObserver' in window
+        ? new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+              if (e.isIntersecting) start(e.target);
+              else if (!e.target.paused) e.target.pause();
+            });
+          }, { rootMargin: '250px 0px' })
+        : null;
+
+      function fail(v, why) {
+        v.dataset.previewFailed = '1';
+        v.hidden = true;
+        try { v.pause(); } catch (e) {}
+        const card = v.closest('[data-photo-card]');
+        const note = card && card.querySelector('[data-video-note]');
+        if (note) {
+          note.classList.add('card__video-note--err');
+          note.textContent = why;
+        }
+      }
+
+      function watch(v) {
+        if (v.dataset.previewWatched) return;
+        v.dataset.previewWatched = '1';
+        v.addEventListener('error', function () {
+          fail(v, 'This video will not play in a browser. Replace it with an H.264 MP4 — ' +
+                  'iPhone clips recorded in HEVC look fine on the phone and play nowhere else.');
+        });
+        // Loads cleanly but carries no picture: an audio-only file, or a video
+        // track this browser can't decode. It reports a healthy readyState and
+        // fires no error, so nothing else would ever catch it.
+        v.addEventListener('loadeddata', function () {
+          if (!v.videoWidth || !v.videoHeight) {
+            fail(v, 'This file has no picture a browser can show — only sound, or a ' +
+                    'video track it cannot decode. Replace it with an H.264 MP4.');
+          }
+        });
+        if (io) io.observe(v);
+        else start(v);
+      }
+
+      /** Nudge a preview back into motion after its source changed — swapping
+       *  src stops playback, and the observer fired long ago. Re-observing asks
+       *  it again rather than playing blind, so a card below the fold doesn't
+       *  start decoding just because a button was pressed. */
+      function resume(v) {
+        if (!v) return;
+        delete v.dataset.previewFailed;
+        v.hidden = false;
+        if (io) { io.unobserve(v); io.observe(v); }
+        else start(v);
+      }
+
+      return { watch: watch, resume: resume };
+    })();
+    function watchVideo(v) { ZAHARA_VIDEO_PREVIEW.watch(v); }
+    document.querySelectorAll('[data-card-video]').forEach(watchVideo);
+
     // ── Per-card wiring (one card = one image; variant set in dataset) ─
     const cards = document.querySelectorAll('[data-photo-card]');
     cards.forEach((card) => {
@@ -1038,8 +1195,14 @@ const SCRIPT = `
       const optionalNote = card.querySelector('[data-optional-note]');
       const videoFile    = card.querySelector('[data-input-video]');
       const videoBtn     = card.querySelector('[data-btn-video]');
-      const videoDelBtn  = card.querySelector('[data-btn-video-remove]');
-      const videoNote    = card.querySelector('.card__video-note');
+      const videoHideBtn = card.querySelector('[data-btn-video-hide]');
+      const videoShowBtn = card.querySelector('[data-btn-video-show]');
+      const videoDelBtn  = card.querySelector('[data-btn-video-delete]');
+      const videoTools   = card.querySelector('[data-video-tools]');
+      const videoAdjBtn  = card.querySelector('[data-btn-video-adjust]');
+      const videoAdjust  = card.querySelector('[data-video-adjust]');
+      const videoNote    = card.querySelector('[data-video-note]');
+      const videoMeta    = card.querySelector('[data-video-meta]');
 
       function setStatus(msg, err) {
         if (!status) return;
@@ -1240,11 +1403,17 @@ const SCRIPT = `
         });
       }
 
-      // ── Video: use one instead of the photo, or go back ──────────────
+      // ── Video: use one instead of the photo, and switch back freely ──
       // Deliberately NOT routed through the crop editor above. That editor
       // re-encodes whatever it is given as a JPEG through a canvas, which is
       // exactly the wrong thing to do to a video — so a video goes straight to
       // its own endpoint, untouched.
+      //
+      // Three states, and the card can be in any of them:
+      //   no file           → offer to upload one
+      //   file, hidden      → preview it at half strength, offer to show it
+      //   file, showing     → preview it, offer to go back to the photograph
+      // Nothing here deletes the video except the button that says it does.
       if (videoBtn) {
         const MAX_VIDEO = 40 * 1024 * 1024;
 
@@ -1259,6 +1428,35 @@ const SCRIPT = `
           return null;
         }
 
+        /** Ask THIS browser whether it can actually show the file, before 40 MB
+         *  go over a hotel wifi to a bucket. An iPhone records HEVC by default:
+         *  it uploads fine, Safari plays it, and Chrome, Edge and Firefox show
+         *  the photograph instead with no error anywhere — which is exactly the
+         *  "it uploaded but nothing happens" that has no visible cause. A file
+         *  that reports no width here will report none to a visitor either. */
+        function inspectVideo(f) {
+          return new Promise((resolve) => {
+            const url = URL.createObjectURL(f);
+            const el  = document.createElement('video');
+            el.muted = true; el.preload = 'metadata'; el.src = url;
+            let settled = false;
+            const done = (res) => {
+              if (settled) return;
+              settled = true;
+              URL.revokeObjectURL(url);
+              resolve(res);
+            };
+            el.addEventListener('loadedmetadata', () => done({
+              ok: el.videoWidth > 0 && el.videoHeight > 0,
+              w: el.videoWidth, h: el.videoHeight, duration: el.duration,
+            }));
+            el.addEventListener('error', () => done({ ok: false, w: 0, h: 0, duration: 0 }));
+            // A browser that never answers shouldn't block the upload — the
+            // server checks the file's brands too.
+            setTimeout(() => done({ ok: true, unknown: true, w: 0, h: 0, duration: 0 }), 6000);
+          });
+        }
+
         async function postVideo(fd) {
           fd.append('key', key);
           if (isMobile) fd.append('variant', 'mobile');
@@ -1268,29 +1466,104 @@ const SCRIPT = `
           return data;
         }
 
-        /** Show the uploaded video in the card straight away, over the still
-         *  it now covers — the same stacking the live page uses, so the card
-         *  is a preview rather than a description of one. */
-        function showVideo(src) {
-          let el = card.querySelector('[data-card-video]');
-          if (!el) {
+        function videoEl() { return card.querySelector('[data-card-video]'); }
+
+        /** Redraw the card from the state the SERVER just reported, rather than
+         *  from what the button that was pressed hoped would happen. Every video
+         *  endpoint answers with the full state for this reason. */
+        function applyState(st) {
+          const showing = isMobile ? st.showingMobile : st.showing;
+          const hasFile = isMobile ? st.hasMobileFile : st.hasFile;
+
+          let el = videoEl();
+          if (hasFile && !el) {
             el = document.createElement('video');
             el.className = 'card__video';
             el.setAttribute('data-card-video', '');
             el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'metadata';
+            if (thumb) el.poster = thumb.src;
             if (thumbZone) thumbZone.appendChild(el);
+            watchVideo(el);
           }
-          el.src = src;
-          if (thumbZone) thumbZone.dataset.hasVideo = '1';
+          if (el) {
+            el.hidden = !hasFile;
+            if (hasFile) {
+              el.style.objectFit = st.fit;
+              el.style.objectPosition = st.pos;
+              const want = '/videos/' + card.dataset.videoFile + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || '');
+              if (el.dataset.videoStamp !== String(st.stamp || '')) {
+                el.dataset.videoStamp = String(st.stamp || '');
+                el.src = want;
+                ZAHARA_VIDEO_PREVIEW.resume(el);
+              }
+              try { el.playbackRate = st.rate || 1; } catch (e) {}
+            } else {
+              el.removeAttribute('src');
+              try { el.load(); } catch (e) {}
+            }
+          }
+
+          if (thumbZone) {
+            if (hasFile) {
+              thumbZone.dataset.hasVideo = '1';
+              thumbZone.dataset.videoState = showing ? 'shown' : 'hidden';
+            } else {
+              delete thumbZone.dataset.hasVideo;
+              delete thumbZone.dataset.videoState;
+            }
+          }
+
           if (badge) {
-            badge.className = 'card__badge card__badge--video';
-            badge.textContent = isMobile ? 'Video · phone' : 'Video';
+            if (showing) {
+              badge.className = 'card__badge card__badge--video';
+              badge.textContent = isMobile ? 'Video · phone' : 'Video';
+            } else if (hasFile) {
+              badge.className = 'card__badge card__badge--video-off';
+              badge.textContent = 'Video hidden';
+            }
+            // With no file left the badge depends on the fallback chain and the
+            // optional flag, which only the server knows — reloadSoon() below
+            // gets the honest answer instead of guessing here.
           }
-          if (missingNote)  missingNote.hidden = true;
-          if (optionalNote) optionalNote.hidden = true;
-          if (videoDelBtn) videoDelBtn.hidden = false;
-          videoBtn.textContent = 'Replace video…';
-          if (videoNote) videoNote.textContent = 'The photo is still here. “Back to the photo” brings it back.';
+
+          if (hasFile) {
+            if (missingNote)  missingNote.hidden = true;
+            if (optionalNote) optionalNote.hidden = true;
+          }
+
+          videoBtn.textContent = hasFile
+            ? 'Replace video…'
+            : (isMobile ? 'Add a phone cut…' : 'Use a video instead…');
+          if (videoHideBtn) videoHideBtn.hidden = !showing;
+          if (videoShowBtn) videoShowBtn.hidden = !(hasFile && !showing);
+          if (videoTools)   videoTools.hidden   = !hasFile;
+          if (!hasFile && videoAdjust) videoAdjust.classList.remove('is-open');
+
+          if (videoNote) {
+            videoNote.classList.remove('card__video-note--err');
+            videoNote.textContent = showing
+              ? 'Showing the video. The photo is still here — “Back to the photo” brings it back without deleting anything.'
+              : (hasFile
+                  ? 'The video is saved but hidden — visitors see the photo. “Show the video” puts it back.'
+                  : (isMobile
+                      ? 'Optional. A portrait cut of the same clip, used on phones.'
+                      : 'MP4 or WebM (H.264), up to 40 MB. Silent and looping — the photo stays as its first frame.'));
+          }
+          if (videoMeta) {
+            const bytes = isMobile ? st.mobileSize : st.size;
+            if (hasFile && bytes) {
+              videoMeta.hidden = false;
+              videoMeta.textContent = (Math.round(bytes / 1024 / 1024 * 10) / 10) + ' MB' +
+                (st.type && !isMobile ? ' · ' + st.type.replace('video/', '').toUpperCase() : '');
+            } else {
+              videoMeta.hidden = true;
+              videoMeta.textContent = '';
+            }
+          }
+          syncAdjust(st);
+          updateCount();
+          buildPageTabs();
+          try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'video' }); } catch (_) {}
         }
 
         videoBtn.addEventListener('click', () => { if (videoFile) videoFile.click(); });
@@ -1302,16 +1575,31 @@ const SCRIPT = `
           const bad = rejectVideo(f);
           if (bad) { setStatus(bad, true); return; }
 
+          setBusy('Checking video…');
+          setStatus('Checking that this video will play…', false);
+          const probe = await inspectVideo(f);
+          if (!probe.ok) {
+            setBusy('');
+            setStatus(
+              'This browser can\\'t play that video, so most visitors couldn\\'t either — ' +
+              'usually an iPhone HEVC clip. On the iPhone: Settings → Camera → Formats → ' +
+              '“Most Compatible”, then re-record or re-export it. An H.264 MP4 always works.',
+              true,
+            );
+            return;
+          }
+
           setBusy('Uploading video…');
           setStatus('Uploading — a video takes longer than a photo.', false);
           try {
             const fd = new FormData();
             fd.append('file', f);
-            await postVideo(fd);
-            setStatus('Live. The slot is showing the video now.', false);
-            showVideo('/videos/' + card.dataset.videoFile + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''));
-            updateCount();
-            buildPageTabs();
+            const st = await postVideo(fd);
+            st.stamp = Date.now();
+            applyState(st);
+            const dims = probe.w ? ' · ' + probe.w + '×' + probe.h : '';
+            setStatus('Saved' + dims + '. The preview above is the same file the site serves. ' +
+                      'Give the live page up to half a minute to pick it up.', false);
           } catch (err) {
             setStatus(String(err.message || err), true);
           } finally {
@@ -1319,23 +1607,147 @@ const SCRIPT = `
           }
         });
 
-        if (videoDelBtn) videoDelBtn.addEventListener('click', async () => {
-          if (!confirm('Show the photograph again instead of the video?')) return;
-          setBusy('Removing…');
+        /** Run one of the switch actions and redraw. reloadAfter is for the
+         *  cases where what the card should say next depends on the fallback
+         *  chain, the optional flag and the venue — three things the server
+         *  already knows and the browser would have to re-derive. */
+        async function videoAction(action, busyLabel, okMsg, reloadAfter) {
+          setBusy(busyLabel);
           try {
             const fd = new FormData();
-            fd.append('action', 'delete');
-            await postVideo(fd);
-            // Reload rather than repaint: what the badge should say once the
-            // video is gone depends on the fallback chain, the optional flag
-            // and the venue — three things the server already knows and the
-            // browser would have to re-derive (and could get wrong).
-            location.reload();
+            fd.append('action', action);
+            const st = await postVideo(fd);
+            st.stamp = Date.now();
+            if (reloadAfter) { location.reload(); return; }
+            applyState(st);
+            setStatus(okMsg, false);
           } catch (err) {
             setStatus(String(err.message || err), true);
+          } finally {
+            setBusy('');
+          }
+        }
+
+        if (videoHideBtn) videoHideBtn.addEventListener('click', () => {
+          videoAction('hide', 'Switching…',
+            'Back to the photo. The video is kept — press “Show the video” any time. ' +
+            'The live page can take up to half a minute to catch up.', false);
+        });
+
+        if (videoShowBtn) videoShowBtn.addEventListener('click', () => {
+          videoAction('show', 'Switching…',
+            'Showing the video again. The live page can take up to half a minute to catch up.', false);
+        });
+
+        if (videoDelBtn) videoDelBtn.addEventListener('click', () => {
+          if (!confirm(
+            'Delete this video for good?\\n\\n' +
+            'The photograph stays. If you only want visitors to see the photo ' +
+            'for now, press “Back to the photo” instead — that keeps the video ' +
+            'so you can bring it back later.'
+          )) return;
+          videoAction('delete', 'Deleting…', 'Video deleted.', true);
+        });
+
+        // ── Framing ────────────────────────────────────────────────────────
+        // A video can't be re-cropped in a canvas the way a photo can, so what
+        // the owner gets is where it sits in its frame. Every control paints
+        // the card's own preview immediately and only then offers to save, so
+        // the drag is the preview rather than a guess followed by a reload.
+        const fitBox  = card.querySelector('[data-video-fit]');
+        const posX    = card.querySelector('[data-video-posx]');
+        const posY    = card.querySelector('[data-video-posy]');
+        const posXV   = card.querySelector('[data-video-posx-v]');
+        const posYV   = card.querySelector('[data-video-posy-v]');
+        const rateIn  = card.querySelector('[data-video-rate]');
+        const rateV   = card.querySelector('[data-video-rate-v]');
+        const saveB   = card.querySelector('[data-btn-video-save]');
+        const resetB  = card.querySelector('[data-btn-video-reset]');
+        let chosenFit = (card.querySelector('[data-video-fit] .is-on') || {}).dataset
+          ? card.querySelector('[data-video-fit] .is-on').dataset.fit : 'cover';
+
+        function syncAdjust(st) {
+          if (!st || !fitBox) return;
+          chosenFit = st.fit;
+          Array.prototype.forEach.call(fitBox.querySelectorAll('button'), (b) => {
+            b.classList.toggle('is-on', b.dataset.fit === st.fit);
+          });
+          const m = /^(\\d{1,3})% (\\d{1,3})%$/.exec(st.pos || '50% 50%');
+          if (posX) posX.value = m ? m[1] : '50';
+          if (posY) posY.value = m ? m[2] : '50';
+          if (rateIn) rateIn.value = String(st.rate || 1);
+          paintFraming();
+        }
+
+        function paintFraming() {
+          const x = posX ? posX.value : '50';
+          const y = posY ? posY.value : '50';
+          const r = rateIn ? parseFloat(rateIn.value) : 1;
+          if (posXV) posXV.textContent = x + '%';
+          if (posYV) posYV.textContent = y + '%';
+          if (rateV) rateV.textContent = r.toFixed(2) + '×';
+          const el = videoEl();
+          if (el) {
+            el.style.objectFit = chosenFit;
+            el.style.objectPosition = x + '% ' + y + '%';
+            try { el.playbackRate = r; } catch (e) {}
+          }
+          // The focal point only does anything while the video is being
+          // cropped — say so rather than leaving two sliders that appear dead.
+          const posLabel = card.querySelector('[data-video-posx-label]');
+          if (posLabel) {
+            posLabel.textContent = chosenFit === 'contain'
+              ? 'Keep this part · across (no crop, so nothing to choose)'
+              : 'Keep this part · across';
+          }
+        }
+
+        if (videoAdjBtn && videoAdjust) {
+          videoAdjBtn.addEventListener('click', () => {
+            const open = videoAdjust.classList.toggle('is-open');
+            videoAdjBtn.textContent = open ? 'Done adjusting' : 'Adjust…';
+          });
+        }
+        if (fitBox) fitBox.addEventListener('click', (e) => {
+          const b = e.target.closest('button[data-fit]');
+          if (!b) return;
+          chosenFit = b.dataset.fit;
+          Array.prototype.forEach.call(fitBox.querySelectorAll('button'), (x) => {
+            x.classList.toggle('is-on', x === b);
+          });
+          paintFraming();
+        });
+        [posX, posY, rateIn].forEach((el) => {
+          if (el) el.addEventListener('input', paintFraming);
+        });
+        if (resetB) resetB.addEventListener('click', () => {
+          chosenFit = 'cover';
+          if (fitBox) Array.prototype.forEach.call(fitBox.querySelectorAll('button'), (b) => {
+            b.classList.toggle('is-on', b.dataset.fit === 'cover');
+          });
+          if (posX) posX.value = '50';
+          if (posY) posY.value = '50';
+          if (rateIn) rateIn.value = '1';
+          paintFraming();
+        });
+        if (saveB) saveB.addEventListener('click', async () => {
+          setBusy('Saving…');
+          try {
+            const fd = new FormData();
+            fd.append('action', 'options');
+            fd.append('fit', chosenFit);
+            fd.append('pos', (posX ? posX.value : '50') + '% ' + (posY ? posY.value : '50') + '%');
+            fd.append('rate', rateIn ? rateIn.value : '1');
+            const st = await postVideo(fd);
+            applyState(st);
+            setStatus('Framing saved. The live page can take up to half a minute to catch up.', false);
+          } catch (err) {
+            setStatus(String(err.message || err), true);
+          } finally {
             setBusy('');
           }
         });
+        paintFraming();
       }
     });
 
@@ -1348,6 +1760,7 @@ const SCRIPT = `
       const subEl   = document.getElementById('ed-sub');
       const statusEl= document.getElementById('ed-status');
       const metaEl  = document.getElementById('ed-meta');
+      const readout = document.getElementById('ed-readout');
 
       const inputs = {
         grayscale:  document.getElementById('ed-grayscale'),
@@ -1358,6 +1771,7 @@ const SCRIPT = `
         straighten: document.getElementById('ed-straighten'),
         width:      document.getElementById('ed-width'),
         quality:    document.getElementById('ed-quality'),
+        edge:       document.getElementById('ed-edge'),
       };
       const vals = {
         grayscale:  document.getElementById('ed-grayscale-v'),
@@ -1379,6 +1793,9 @@ const SCRIPT = `
       const flipHB   = document.getElementById('ed-flip-h');
       const flipVB   = document.getElementById('ed-flip-v');
       const straightenB = document.getElementById('ed-straighten-0');
+      const viewB    = document.getElementById('ed-view');
+      const fitAllB  = document.getElementById('ed-fitall');
+      const edgeCtl  = document.getElementById('ed-edge-ctl');
 
       let img = null;            // loaded HTMLImageElement
       let work = null;           // { el, w, h } — rotation-applied source
@@ -1390,7 +1807,27 @@ const SCRIPT = `
       let comparing = false;
       let rotation = 0;          // 0/90/180/270, baked into export
       let flipH = false, flipV = false;  // mirror, baked into export
-      const PREVIEW_MAX = 460;   // px — preview longest edge (a little smaller)
+
+      // ── Two ways to look at the same crop ─────────────────────────────
+      // 'whole' draws the ENTIRE photograph with the crop marked on top of
+      // it; 'frame' draws only what will be uploaded. The editor opens in
+      // 'whole' because the question being answered is "what am I cutting
+      // off", and a preview that shows only the keeper cannot answer it —
+      // which is what made a 9:16 phone crop of a landscape photo look like
+      // the rest of the picture had gone missing.
+      let viewMode = 'whole';
+      // Blurred backdrop cache, rebuilt only when the source or the fill
+      // changes — not on every frame of a drag.
+      let edgeTile = null;
+
+      // Stage sizing. The canvas used to be a fixed 460px box; on a phone that
+      // is most of the screen spent on letterboxing. Measure the stage instead.
+      function stageBox() {
+        const stage = canvas.parentElement && canvas.parentElement.parentElement;
+        const w = stage ? Math.max(260, stage.clientWidth - 32) : 460;
+        const h = Math.max(300, Math.round(window.innerHeight * (window.innerWidth <= 760 ? 0.5 : 0.7)));
+        return { w: Math.min(w, 760), h: h };
+      }
 
       function markDirty() { dirty = true; }
       function zoom() { return parseFloat(inputs.zoom.value) || 1; }
@@ -1431,11 +1868,13 @@ const SCRIPT = `
       function fineDeg() { return inputs.straighten ? (parseFloat(inputs.straighten.value) || 0) : 0; }
 
       // Rebuild the working source with every geometric transform baked in:
-      // the 90° rotation, horizontal/vertical flip, and the fine straighten
-      // angle. The straighten uses a cover-scale (enlarge just enough that the
-      // tilted image still fills the frame) so there are never transparent
-      // corners — the classic reason to reach for a desktop photo app.
+      // the 90 degree rotation, horizontal/vertical flip, and the fine
+      // straighten angle. The straighten uses a cover-scale (enlarge just
+      // enough that the tilted image still fills the frame) so there are never
+      // transparent corners — the classic reason to reach for a desktop photo
+      // app.
       function buildWork() {
+        edgeTile = null;
         if (!img) { work = null; return; }
         const rot90 = rotation % 180 !== 0;
         const w = rot90 ? img.naturalHeight : img.naturalWidth;
@@ -1445,8 +1884,8 @@ const SCRIPT = `
           work = { el: img, w: img.naturalWidth, h: img.naturalHeight };
           return;
         }
-        // Minimal uniform scale so a w×h frame stays covered after rotating by
-        // the fine angle (exact for same-frame rotation): |cos| + max(w/h,h/w)*|sin|.
+        // Minimal uniform scale so a w x h frame stays covered after rotating
+        // by the fine angle (exact for same-frame rotation).
         const cover = Math.abs(Math.cos(fine)) +
           Math.max(w / h, h / w) * Math.abs(Math.sin(fine));
         const c = document.createElement('canvas');
@@ -1467,23 +1906,98 @@ const SCRIPT = `
         if (wAR > targetAR) { const sh = work.h; return { sw: sh * targetAR, sh: sh }; }
         const sw = work.w; return { sw: sw, sh: sw / targetAR };
       }
-      // Source-pixel crop rect for the current zoom + centre.
+
+      // ── Zooming out past the edges ────────────────────────────────────
+      // Zoom 1 is "the biggest crop of this shape that fits inside the
+      // photo", which used to also be the floor — so a tall 9:16 slot fed a
+      // landscape photo could only ever show a narrow slice of it, and no
+      // amount of dragging revealed more. Below 1 the crop grows past the
+      // photograph: the whole picture fits in the frame with something behind
+      // it, and the export is still exactly the shape and pixel size this slot
+      // needs. minZoom is where the picture fits entirely; a little below that
+      // leaves breathing room around it.
+      function fitWholeZoom() {
+        if (!work) return 1;
+        const b = baseCrop();
+        return Math.min(b.sw / work.w, b.sh / work.h);
+      }
+      function minZoom() { return Math.max(0.05, fitWholeZoom() * 0.8); }
+
+      function syncZoomBounds() {
+        if (!inputs.zoom || !work) return;
+        const lo = minZoom();
+        inputs.zoom.min = lo.toFixed(3);
+        if (zoom() < lo) inputs.zoom.value = lo.toFixed(3);
+      }
+
+      // Source-pixel crop rect for the current zoom + centre. Below zoom 1 the
+      // rect deliberately extends outside the source; the centre still moves
+      // within the photo, so dragging slides the picture inside the frame.
       function cropRect() {
         const z = zoom();
         const b = baseCrop();
         const sw = b.sw / z, sh = b.sh / z;
-        const maxX = Math.max(0, work.w - sw), maxY = Math.max(0, work.h - sh);
         let sx = cx * work.w - sw / 2;
         let sy = cy * work.h - sh / 2;
-        sx = clamp(sx, 0, maxX);
-        sy = clamp(sy, 0, maxY);
+        if (sw <= work.w) sx = clamp(sx, 0, work.w - sw);
+        if (sh <= work.h) sy = clamp(sy, 0, work.h - sh);
         return { sx: sx, sy: sy, sw: sw, sh: sh };
       }
 
-      function previewSize() {
-        let pw = PREVIEW_MAX, ph = Math.round(pw / targetAR);
-        if (ph > PREVIEW_MAX) { ph = PREVIEW_MAX; pw = Math.round(ph * targetAR); }
-        return { pw: pw, ph: ph };
+      /** True when part of the frame is not photograph — i.e. the fill colour
+       *  is actually going to show. */
+      function hasMargins() {
+        if (!work) return false;
+        const c = cropRect();
+        return c.sx < -0.5 || c.sy < -0.5 ||
+               c.sx + c.sw > work.w + 0.5 || c.sy + c.sh > work.h + 0.5;
+      }
+
+      // What the canvas is looking at, in source pixels. In 'frame' view that
+      // is exactly the crop; in 'whole' view it is the crop and the whole
+      // photograph together, so neither can be dragged out of sight.
+      function viewBox() {
+        const c = cropRect();
+        if (viewMode === 'frame' || comparing) {
+          if (comparing) {
+            const pad = Math.max(work.w, work.h) * 0.03;
+            return { x: -pad, y: -pad, w: work.w + pad * 2, h: work.h + pad * 2 };
+          }
+          return { x: c.sx, y: c.sy, w: c.sw, h: c.sh };
+        }
+        const x0 = Math.min(0, c.sx), y0 = Math.min(0, c.sy);
+        const x1 = Math.max(work.w, c.sx + c.sw), y1 = Math.max(work.h, c.sy + c.sh);
+        const pad = Math.max(x1 - x0, y1 - y0) * 0.05;
+        return { x: x0 - pad, y: y0 - pad, w: (x1 - x0) + pad * 2, h: (y1 - y0) + pad * 2 };
+      }
+
+      /** Canvas pixel size. In 'crop only' view the canvas IS the crop, so it
+       *  carries the slot's aspect ratio exactly and what is on screen is
+       *  literally what uploads. In 'whole photo' view it takes the whole
+       *  stage and stays that size: the view box inside it grows and shrinks
+       *  with the zoom, but the element itself never resizes mid-drag, which
+       *  it would if it tracked the content. */
+      function sizeCanvas() {
+        const box = stageBox();
+        const v   = viewBox();
+        // Shape the element to what is being looked at, so there is no dead
+        // ground around the picture. While the crop sits inside the photo the
+        // view box IS the photo, so this is steady through a drag; it only
+        // grows once the zoom goes past the edges, which is the moment the
+        // frame is supposed to be seen growing.
+        const ar = (viewMode === 'frame' && !comparing) ? targetAR : (v.w / v.h);
+        let pw = box.w, ph = Math.round(pw / ar);
+        if (ph > box.h) { ph = box.h; pw = Math.round(ph * ar); }
+        pw = Math.max(1, pw); ph = Math.max(1, ph);
+        // Draw at the screen's real pixel density. The crop outline is a
+        // one-pixel line and the corner marks are what the owner aims at, so a
+        // preview rendered at half the display's resolution reads as blurry
+        // guesswork on every retina screen — which is most of them.
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.style.width  = pw + 'px';
+        canvas.style.height = ph + 'px';
+        canvas.width  = Math.round(pw * dpr);
+        canvas.height = Math.round(ph * dpr);
       }
 
       function syncLabels() {
@@ -1491,76 +2005,235 @@ const SCRIPT = `
         vals.brightness.textContent = inputs.brightness.value + '%';
         vals.contrast.textContent   = inputs.contrast.value + '%';
         vals.saturate.textContent   = inputs.saturate.value + '%';
-        vals.zoom.textContent       = zoom().toFixed(2) + '×';
-        if (rotateV) rotateV.textContent = rotation + '\\u00B0';
-        if (vals.straighten) vals.straighten.textContent = (fineDeg() > 0 ? '+' : '') + fineDeg().toFixed(1) + '\\u00B0';
+        vals.zoom.textContent       = zoom().toFixed(2) + 'x';
+        if (rotateV) rotateV.textContent = rotation + '°';
+        if (vals.straighten) vals.straighten.textContent = (fineDeg() > 0 ? '+' : '') + fineDeg().toFixed(1) + '°';
         bwChip.classList.toggle('is-on', inputs.grayscale.value === '100');
         if (flipHB) flipHB.classList.toggle('is-on', flipH);
         if (flipVB) flipVB.classList.toggle('is-on', flipV);
+        if (viewB) {
+          viewB.classList.toggle('is-on', viewMode === 'whole');
+          viewB.textContent = viewMode === 'whole' ? 'Whole photo' : 'Crop only';
+        }
+        if (edgeCtl) edgeCtl.hidden = !hasMargins();
       }
 
-      function setRotation(deg) {
-        rotation = ((deg % 360) + 360) % 360;
-        buildWork();
-        markDirty();
-        drawPreview();
+      /** The line under the canvas: the exported size, and how much of the
+       *  photograph it keeps. */
+      function syncReadout() {
+        if (!readout || !work) return;
+        const out = outputSize();
+        const c   = cropRect();
+        // How wide the PHOTOGRAPH itself lands in that file — the number that
+        // decides whether it looks sharp, which is not the same as the file's
+        // own width once there are margins around it.
+        const photoW = Math.round(out.w * Math.min(c.sw, work.w) / c.sw);
+        const kept   = Math.round(
+          (Math.min(c.sw, work.w) / work.w) * (Math.min(c.sh, work.h) / work.h) * 100);
+        const minW = (ctxState && ctxState.variant === 'mobile') ? 700 : 1200;
+        readout.innerHTML = hasMargins()
+          ? 'Uploads at <b>' + out.w + ' × ' + out.h + '</b> — exactly the shape this slot needs, ' +
+            'with the whole photo ' + photoW + ' px wide inside it'
+          : 'Uploads at <b>' + out.w + ' × ' + out.h + '</b> — keeping about <b>' + kept + '%</b> of the photo';
+        readout.classList.toggle('editor__readout--warn', photoW < minW);
+      }
+
+      /** Source pixels → canvas pixels: one uniform scale, centred, so the
+       *  picture is never stretched to fill a box of a different shape. */
+      function mapper() {
+        const v  = viewBox();
+        const k  = Math.min(canvas.width / v.w, canvas.height / v.h);
+        const ox = (canvas.width  - v.w * k) / 2;
+        const oy = (canvas.height - v.h * k) / 2;
+        return {
+          k: k, kx: k, ky: k,
+          x: function (sx) { return ox + (sx - v.x) * k; },
+          y: function (sy) { return oy + (sy - v.y) * k; },
+          sx: function (px) { return v.x + (px - ox) / k; },
+          sy: function (py) { return v.y + (py - oy) / k; },
+        };
+      }
+
+      function edgeColor() {
+        const mode = inputs.edge ? inputs.edge.value : 'blur';
+        if (mode === 'paper') return '#F4EDDF';
+        if (mode === 'white') return '#ffffff';
+        return '#141210';
+      }
+
+      /** A blurred copy of the photo, for the frame behind it when zoomed out.
+       *  Built by shrinking to a thumbnail and letting the browser's smoothing
+       *  do the blurring on the way back up — which works in every browser,
+       *  unlike ctx.filter, and costs nothing to redraw. */
+      function edgeSource() {
+        if (edgeTile) return edgeTile;
+        const tw = 28, th = Math.max(1, Math.round(tw * (work.h / work.w)));
+        const c = document.createElement('canvas');
+        c.width = tw; c.height = th;
+        const cc = c.getContext('2d');
+        cc.drawImage(work.el, 0, 0, work.w, work.h, 0, 0, tw, th);
+        edgeTile = c;
+        return c;
+      }
+
+      /** Paint the frame's backdrop into a context whose (0,0)-(dw,dh) is the
+       *  crop rectangle. Only called when the crop reaches past the photo. */
+      function paintEdges(g, dw, dh) {
+        const mode = inputs.edge ? inputs.edge.value : 'blur';
+        if (mode !== 'blur') {
+          g.fillStyle = edgeColor();
+          g.fillRect(0, 0, dw, dh);
+          return;
+        }
+        g.fillStyle = '#141210';
+        g.fillRect(0, 0, dw, dh);
+        const tile = edgeSource();
+        const scale = Math.max(dw / tile.width, dh / tile.height);
+        const bw = tile.width * scale, bh = tile.height * scale;
+        g.save();
+        g.imageSmoothingEnabled = true;
+        g.globalAlpha = 0.85;
+        g.drawImage(tile, (dw - bw) / 2, (dh - bh) / 2, bw, bh);
+        g.restore();
       }
 
       function drawPreview() {
         if (!work) return;
-        const { pw, ph } = previewSize();
-        canvas.width = pw; canvas.height = ph;
-        ctx.clearRect(0, 0, pw, ph);
+        syncZoomBounds();
+        sizeCanvas();
+        const m = mapper();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         if (comparing) {
-          // Show the whole (un-cropped, un-adjusted) source, letterboxed.
+          // Hold to see the whole, untouched photograph.
           ctx.fillStyle = '#1a1410';
-          ctx.fillRect(0, 0, pw, ph);
-          const wAR = work.w / work.h;
-          let dw = pw, dh = Math.round(pw / wAR);
-          if (dh > ph) { dh = ph; dw = Math.round(ph * wAR); }
-          ctx.drawImage(work.el, 0, 0, work.w, work.h, (pw - dw) / 2, (ph - dh) / 2, dw, dh);
-          syncLabels();
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(work.el, 0, 0, work.w, work.h,
+            m.x(0), m.y(0), work.w * m.kx, work.h * m.ky);
+          syncLabels(); syncReadout();
           return;
         }
 
-        const { sx, sy, sw, sh } = cropRect();
-        ctx.drawImage(work.el, sx, sy, sw, sh, 0, 0, pw, ph);
+        const c = cropRect();
+        const cxp = m.x(c.sx), cyp = m.y(c.sy);
+        const cwp = c.sw * m.kx, chp = c.sh * m.ky;
 
+        // 1. The ground. In 'whole' view everything outside the crop is still
+        //    drawn, only dimmed, which is the whole point of this view.
+        ctx.fillStyle = '#2a231c';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (viewMode === 'whole') {
+          ctx.save();
+          ctx.globalAlpha = 0.3;
+          ctx.drawImage(work.el, 0, 0, work.w, work.h,
+            m.x(0), m.y(0), work.w * m.kx, work.h * m.ky);
+          ctx.restore();
+        }
+
+        // 2. The crop itself, at full strength, clipped to its rectangle.
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cxp, cyp, cwp, chp);
+        ctx.clip();
+        if (hasMargins()) {
+          ctx.save();
+          ctx.translate(cxp, cyp);
+          paintEdges(ctx, cwp, chp);
+          ctx.restore();
+        }
+        ctx.drawImage(work.el, 0, 0, work.w, work.h,
+          m.x(0), m.y(0), work.w * m.kx, work.h * m.ky);
+        ctx.restore();
+
+        // 3. Colour adjustments, over the crop area only — what is outside it
+        //    is context, not the picture being graded.
         const o = currentOpts();
         if (needsAdjust(o)) {
-          try {
-            const id = ctx.getImageData(0, 0, pw, ph);
-            adjustPixels(id.data, o);
-            ctx.putImageData(id, 0, 0);
-          } catch (err) {
-            setStatus('Cannot adjust this image (security restriction): ' + err.message, true);
+          const rx = Math.max(0, Math.floor(cxp)), ry = Math.max(0, Math.floor(cyp));
+          const rw = Math.min(canvas.width - rx, Math.ceil(cwp)), rh = Math.min(canvas.height - ry, Math.ceil(chp));
+          if (rw > 0 && rh > 0) {
+            try {
+              const id = ctx.getImageData(rx, ry, rw, rh);
+              adjustPixels(id.data, o);
+              ctx.putImageData(id, rx, ry);
+            } catch (err) {
+              setStatus('Cannot adjust this image (security restriction): ' + err.message, true);
+            }
           }
         }
+
+        // 4. The crop marks. Only in 'whole' view — in 'crop only' view the
+        //    canvas edge already is the crop edge.
+        if (viewMode === 'whole') drawCropMarks(cxp, cyp, cwp, chp);
+
         syncLabels();
+        syncReadout();
+      }
+
+      /** The crop rectangle, drawn so it reads as a frame over the photo: a
+       *  bright outline, corner marks to grab, and thirds guides inside. */
+      function drawCropMarks(x, y, w, h) {
+        ctx.save();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(26,20,16,0.55)';
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+        ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+        ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
+        ctx.beginPath();
+        for (let i = 1; i < 3; i++) {
+          ctx.moveTo(x + (w * i) / 3, y);      ctx.lineTo(x + (w * i) / 3, y + h);
+          ctx.moveTo(x, y + (h * i) / 3);      ctx.lineTo(x + w, y + (h * i) / 3);
+        }
+        ctx.stroke();
+
+        const len = Math.max(10, Math.min(24, Math.min(w, h) * 0.16));
+        ctx.strokeStyle = '#F4EDDF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, y + len);         ctx.lineTo(x, y);         ctx.lineTo(x + len, y);
+        ctx.moveTo(x + w - len, y);     ctx.lineTo(x + w, y);     ctx.lineTo(x + w, y + len);
+        ctx.moveTo(x, y + h - len);     ctx.lineTo(x, y + h);     ctx.lineTo(x + len, y + h);
+        ctx.moveTo(x + w - len, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - len);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      /** The pixel size of what Apply will upload. Always exactly the slot's
+       *  aspect ratio: zooming out changes how much photograph is inside the
+       *  frame, never the shape or the size of the file that leaves here. */
+      function outputSize() {
+        const c = cropRect();
+        // Never scale the photograph up: one output pixel per source pixel of
+        // the crop is the ceiling, whatever size was picked in the menu.
+        const natural = Math.max(1, Math.round(c.sw));
+        const chosen  = inputs.width.value === 'orig' ? natural : parseInt(inputs.width.value, 10);
+        const outW    = Math.max(1, Math.min(chosen, natural));
+        return { w: outW, h: Math.max(1, Math.round(outW / targetAR)) };
       }
 
       // Build the full-resolution output at the target aspect ratio.
       function exportBlob() {
-        const { sx, sy, sw, sh } = cropRect();
-        const cap = inputs.width.value === 'orig'
-          ? Math.round(sw)
-          : Math.min(parseInt(inputs.width.value, 10), Math.round(sw));
-        const outW = Math.max(1, Math.round(cap));
-        const outH = Math.max(1, Math.round(outW / targetAR));
+        const c = cropRect();
+        const out = outputSize();
         const off = document.createElement('canvas');
-        off.width = outW; off.height = outH;
+        off.width = out.w; off.height = out.h;
         const octx = off.getContext('2d');
-        octx.drawImage(work.el, sx, sy, sw, sh, 0, 0, outW, outH);
+        const kx = out.w / c.sw, ky = out.h / c.sh;
+        if (hasMargins()) paintEdges(octx, out.w, out.h);
+        octx.drawImage(work.el, 0, 0, work.w, work.h,
+          (0 - c.sx) * kx, (0 - c.sy) * ky, work.w * kx, work.h * ky);
         const o = currentOpts();
         if (needsAdjust(o)) {
-          const id = octx.getImageData(0, 0, outW, outH);
+          const id = octx.getImageData(0, 0, out.w, out.h);
           adjustPixels(id.data, o);
           octx.putImageData(id, 0, 0);
         }
         const q = parseFloat(inputs.quality.value);
         return new Promise((resolve, reject) => {
-          off.toBlob((b) => b ? resolve({ blob: b, w: outW, h: outH }) : reject(new Error('Export failed')), 'image/jpeg', q);
+          off.toBlob((b) => b ? resolve({ blob: b, w: out.w, h: out.h }) : reject(new Error('Export failed')), 'image/jpeg', q);
         });
       }
 
@@ -1574,12 +2247,14 @@ const SCRIPT = `
         inputs.brightness.value = '100';
         inputs.contrast.value = '100';
         inputs.saturate.value = '100';
-        inputs.zoom.value = '1';
-        if (inputs.straighten) inputs.straighten.value = '0';
+        if (inputs.edge) inputs.edge.value = 'blur';
         cx = 0.5; cy = 0.5;
         rotation = 0;
         flipH = false; flipV = false;
         buildWork();
+        syncZoomBounds();
+        inputs.zoom.value = '1';
+        if (inputs.straighten) inputs.straighten.value = '0';
         dirty = false;
         drawPreview();
       }
@@ -1605,13 +2280,15 @@ const SCRIPT = `
         titleEl.textContent = 'Edit · ' + opts.label;
         if (subEl) {
           subEl.innerHTML = cropToAR
-            ? 'Framing to <b>' + arText(targetAR) + '</b> — exactly how it appears on the site. Scroll to zoom toward the cursor, drag to reposition.'
-            : 'Shown whole on the site — fit the full image. Scroll to zoom, drag to reposition.';
+            ? 'The bright rectangle is what the site shows — <b>' + arText(targetAR) + '</b>. ' +
+              'Drag the photo to move it, pinch or scroll to zoom. Zoom out past the edges to fit more in.'
+            : 'Shown whole on the site — fit the full image. Drag to reposition, pinch or scroll to zoom.';
         }
         setStatus('Loading…', false);
         // Default export size depends on the slot.
         inputs.width.value = opts.variant === 'mobile' ? '1280' : '2000';
         inputs.quality.value = '0.85';
+        viewMode = 'whole';
         reset();
         applyB.disabled = true;
         root.classList.add('is-open');
@@ -1624,6 +2301,7 @@ const SCRIPT = `
           if (!cropToAR) targetAR = im.naturalWidth / im.naturalHeight;
           rotation = 0;
           buildWork();
+          syncZoomBounds();
           // Say the size plainly, and warn when the source is too small for the
           // slot — a screenshot or a WhatsApp copy will look soft stretched
           // across a full-bleed band, and there's no way to tell from the
@@ -1649,7 +2327,7 @@ const SCRIPT = `
 
       function close() {
         root.classList.remove('is-open');
-        img = null; work = null; ctxState = null;
+        img = null; work = null; ctxState = null; edgeTile = null;
       }
 
       // ── Wire controls ──
@@ -1657,10 +2335,22 @@ const SCRIPT = `
         inputs[k].addEventListener('input', () => { markDirty(); drawPreview(); });
       });
       inputs.zoom.addEventListener('input', () => { markDirty(); drawPreview(); });
-      inputs.width.addEventListener('change', markDirty);
+      inputs.width.addEventListener('change', () => { markDirty(); syncReadout(); });
       inputs.quality.addEventListener('change', markDirty);
+      if (inputs.edge) inputs.edge.addEventListener('change', () => { markDirty(); drawPreview(); });
       bwChip.addEventListener('click', () => {
         inputs.grayscale.value = inputs.grayscale.value === '100' ? '0' : '100';
+        markDirty(); drawPreview();
+      });
+      if (viewB) viewB.addEventListener('click', () => {
+        viewMode = viewMode === 'whole' ? 'frame' : 'whole';
+        drawPreview();
+      });
+      if (fitAllB) fitAllB.addEventListener('click', () => {
+        if (!work) return;
+        syncZoomBounds();
+        inputs.zoom.value = fitWholeZoom().toFixed(3);
+        cx = 0.5; cy = 0.5;
         markDirty(); drawPreview();
       });
       if (rotateLB) rotateLB.addEventListener('click', () => setRotation(rotation - 90));
@@ -1686,6 +2376,14 @@ const SCRIPT = `
       cancelB.addEventListener('click', tryClose);
       root.addEventListener('click', (e) => { if (e.target === root) tryClose(); });
 
+      function setRotation(deg) {
+        rotation = ((deg % 360) + 360) % 360;
+        buildWork();
+        syncZoomBounds();
+        markDirty();
+        drawPreview();
+      }
+
       function startCompare() { if (comparing || !work) return; comparing = true; compareB.classList.add('is-on'); drawPreview(); }
       function stopCompare()  { if (!comparing) return; comparing = false; compareB.classList.remove('is-on'); drawPreview(); }
       compareB.addEventListener('pointerdown', (e) => { e.preventDefault(); startCompare(); });
@@ -1703,25 +2401,38 @@ const SCRIPT = `
         if (e.key === 's' || e.key === 'S') { e.preventDefault(); if (!applyB.disabled) applyB.click(); return; }
         if (e.key === 'r' || e.key === 'R') { e.preventDefault(); reset(); return; }
         if (e.key === 'b' || e.key === 'B') { e.preventDefault(); bwChip.click(); return; }
+        if (e.key === 'v' || e.key === 'V') { e.preventDefault(); if (viewB) viewB.click(); return; }
       });
       document.addEventListener('keyup', (e) => { if (e.key === ' ') stopCompare(); });
 
-      // Zoom toward the cursor with the wheel — keeps the point under the
-      // pointer fixed instead of zooming the whole frame from the centre.
+      /** Canvas pixel coordinates for a pointer event. */
+      function canvasPoint(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (e.clientX - rect.left) / rect.width  * canvas.width,
+          y: (e.clientY - rect.top)  / rect.height * canvas.height,
+        };
+      }
+
+      // Zoom toward a point on the canvas — keeps whatever is under the finger
+      // or the cursor fixed instead of zooming the whole frame from the centre.
       function zoomToPoint(newZoom, px, py) {
         if (!work) return;
+        const m = mapper();
+        // Absolute source point currently under the pointer.
+        const fx = m.sx(px);
+        const fy = m.sy(py);
         const before = cropRect();
-        const { pw, ph } = previewSize();
-        // Absolute source point currently under the cursor.
-        const fx = before.sx + (px / pw) * before.sw;
-        const fy = before.sy + (py / ph) * before.sh;
-        inputs.zoom.value = clamp(newZoom, 1, parseFloat(inputs.zoom.max)).toFixed(2);
+        // Where that point sits inside the crop, as a fraction of it.
+        const rx = (fx - before.sx) / before.sw;
+        const ry = (fy - before.sy) / before.sh;
+        inputs.zoom.value = clamp(newZoom, minZoom(), parseFloat(inputs.zoom.max)).toFixed(3);
         const z = zoom();
         const b = baseCrop();
         const sw = b.sw / z, sh = b.sh / z;
-        // Place the crop so the focal point stays under the cursor.
-        const sx = fx - (px / pw) * sw;
-        const sy = fy - (py / ph) * sh;
+        // Put the crop back so the same fraction of it is still that point.
+        const sx = fx - rx * sw;
+        const sy = fy - ry * sh;
         cx = clamp((sx + sw / 2) / work.w, 0, 1);
         cy = clamp((sy + sh / 2) / work.h, 0, 1);
         markDirty();
@@ -1730,34 +2441,74 @@ const SCRIPT = `
       canvas.addEventListener('wheel', (e) => {
         if (!work) return;
         e.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const px = (e.clientX - rect.left) / rect.width  * canvas.width;
-        const py = (e.clientY - rect.top)  / rect.height * canvas.height;
+        const p = canvasPoint(e);
         const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-        zoomToPoint(zoom() * factor, px, py);
+        zoomToPoint(zoom() * factor, p.x, p.y);
       }, { passive: false });
 
-      // Drag to pan the crop.
-      let dragging = false, lastX = 0, lastY = 0;
+      // ── Drag to pan, pinch to zoom ────────────────────────────────────
+      // Pointer events cover mouse, pen and touch; two fingers are tracked so
+      // a phone gets the pinch it expects instead of only a one-finger drag.
+      const points = new Map();
+      let pinchDist = 0, pinchMid = null;
+
+      function panBy(dxCanvas, dyCanvas) {
+        const k = mapper().k;
+        if (!k) return;
+        cx -= (dxCanvas / k) / work.w;
+        cy -= (dyCanvas / k) / work.h;
+        cx = clamp(cx, 0, 1); cy = clamp(cy, 0, 1);
+      }
+
       canvas.addEventListener('pointerdown', (e) => {
         if (!work) return;
-        dragging = true; lastX = e.clientX; lastY = e.clientY;
         canvas.setPointerCapture(e.pointerId);
+        points.set(e.pointerId, canvasPoint(e));
+        if (points.size === 2) {
+          const [a, b] = Array.from(points.values());
+          pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+          pinchMid  = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        }
       });
       canvas.addEventListener('pointermove', (e) => {
-        if (!dragging || !work) return;
-        const rect = canvas.getBoundingClientRect();
-        const { sw, sh } = cropRect();
-        // Move proportionally: dragging right reveals content to the left.
-        cx -= ((e.clientX - lastX) / rect.width)  * (sw / work.w);
-        cy -= ((e.clientY - lastY) / rect.height) * (sh / work.h);
-        cx = clamp(cx, 0, 1); cy = clamp(cy, 0, 1);
-        lastX = e.clientX; lastY = e.clientY;
+        if (!work || !points.has(e.pointerId)) return;
+        const prev = points.get(e.pointerId);
+        const now  = canvasPoint(e);
+        points.set(e.pointerId, now);
+
+        if (points.size >= 2) {
+          const [a, b] = Array.from(points.values());
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          const mid  = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          if (pinchDist > 0 && dist > 0) {
+            // Pan with the midpoint first, then zoom about it — so two fingers
+            // move and scale the picture in one gesture.
+            panBy(mid.x - pinchMid.x, mid.y - pinchMid.y);
+            zoomToPoint(zoom() * (dist / pinchDist), mid.x, mid.y);
+          }
+          pinchDist = dist; pinchMid = mid;
+          return;
+        }
+
+        panBy(now.x - prev.x, now.y - prev.y);
         markDirty();
         drawPreview();
       });
-      canvas.addEventListener('pointerup',     () => { dragging = false; });
-      canvas.addEventListener('pointercancel', () => { dragging = false; });
+      function endPointer(e) {
+        points.delete(e.pointerId);
+        if (points.size < 2) { pinchDist = 0; pinchMid = null; }
+      }
+      canvas.addEventListener('pointerup', endPointer);
+      canvas.addEventListener('pointercancel', endPointer);
+      canvas.addEventListener('pointerleave', endPointer);
+
+      // The canvas is sized from the stage, so a rotated phone or a resized
+      // window has to redraw at the new size rather than keep the old box.
+      let resizeRaf = 0;
+      window.addEventListener('resize', () => {
+        if (!root.classList.contains('is-open') || resizeRaf) return;
+        resizeRaf = requestAnimationFrame(() => { resizeRaf = 0; drawPreview(); });
+      });
 
       applyB.addEventListener('click', async () => {
         if (!work || !ctxState) return;
@@ -1815,12 +2566,27 @@ interface CardOpts {
   hasMobile: boolean;
   caption: ContentValue | null;
   site: Site;
-  /** A video is live in THIS card's frame — so the card previews the video,
-   *  says so on the badge, and offers to remove it. */
+  /** A video is being SHOWN in THIS card's frame — so the badge says Video and
+   *  the card offers to switch back to the photograph. */
   hasVideo: boolean;
-  /** A desktop video exists for this slot. The phone card needs to know:
+  /** A video FILE exists for this card's frame, shown or not. This is what
+   *  decides whether the card previews it and offers to show / delete it —
+   *  a hidden video is still there, and is meant to be easy to bring back. */
+  hasVideoFile: boolean;
+  /** A desktop video file exists for this slot. The phone card needs to know:
    *  a portrait cut only makes sense once there is a video to cut. */
   hasDesktopVideo: boolean;
+  /** How the video sits in its frame — same values the live page uses, so the
+   *  card preview and the site agree. */
+  videoFit: 'cover' | 'contain';
+  videoPosX: number;
+  videoPosY: number;
+  videoRate: number;
+  /** Bytes and content type of the video file, for the line under the card.
+   *  Zero / empty when there is no file (or on the phone card, which shares
+   *  the desktop clip's framing and doesn't repeat its details). */
+  videoSize: number;
+  videoType: string;
 }
 
 function renderCard(p: PhotoMeta, o: CardOpts): string {
@@ -1848,6 +2614,11 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   let badgeText  = 'Default';
   if (o.hasVideo) {
     badgeClass = 'card__badge--video'; badgeText = isMobile ? 'Video · phone' : 'Video';
+  } else if (o.hasVideoFile) {
+    // The file is there, the slot just isn't showing it. Saying "Missing" or
+    // "Default" here would send the owner looking for a video they already
+    // uploaded.
+    badgeClass = 'card__badge--video-off'; badgeText = 'Video hidden';
   } else if (isMobile) {
     if (o.hasMobile) { badgeClass = 'card__badge--set'; badgeText = 'Set'; }
     else             { badgeClass = 'card__badge--optional'; badgeText = 'Using desktop'; }
@@ -1861,9 +2632,12 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
     badgeClass = 'card__badge--missing'; badgeText = 'Missing';
   }
 
-  // A slot showing a video is not missing anything, whatever its still says.
-  const showMissingNote  = !o.hasVideo && !isMobile && !o.hasOverride && !o.fallbackFromLabel && !p.reserved && !p.optional;
-  const showOptionalNote = !o.hasVideo && !isMobile && !o.hasOverride && !!p.optional;
+  // A slot with a video in it is not missing anything, whatever its still says
+  // — and that stays true while the video is hidden, since one press brings it
+  // back.
+  const filled = o.hasVideo || o.hasVideoFile;
+  const showMissingNote  = !filled && !isMobile && !o.hasOverride && !o.fallbackFromLabel && !p.reserved && !p.optional;
+  const showOptionalNote = !filled && !isMobile && !o.hasOverride && !!p.optional;
 
   // friendly AR label for the corner chip
   const arLabel = isMobile ? '9:16'
@@ -1899,28 +2673,71 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
 
   // ── Video ────────────────────────────────────────────────────────────────
   // Offered only where a moving image can actually work: a full-frame slot
-  // (see `video` in functions/data/photos-map.ts). The still is kept either
-  // way, so this is a switch the owner can undo, not an upload that destroys
-  // the photograph — which is what the note says, in those words.
+  // (see `video` in functions/data/photos-map.ts).
+  //
+  // Two separate facts drive this block, and keeping them apart is the point:
+  //   hasVideoFile — a video has been uploaded for this frame
+  //   hasVideo     — visitors are seeing it right now
+  // So "back to the photo" is a switch that leaves the file alone, and getting
+  // the video back is one press. Only "Delete video" removes anything, and it
+  // says so first.
   const videoRow = !p.video ? '' : (() => {
-    const canCut = isMobile && !o.hasDesktopVideo;
-    const label  = o.hasVideo
+    const canCut  = isMobile && !o.hasDesktopVideo;
+    const hasFile = o.hasVideoFile;
+    const upLabel = hasFile
       ? 'Replace video…'
       : (isMobile ? 'Add a phone cut…' : 'Use a video instead…');
+    const note = canCut
+      ? 'Add the main video first — this is its phone cut.'
+      : (o.hasVideo
+          ? 'Showing the video. The photo is still here — “Back to the photo” brings it back without deleting anything.'
+          : (hasFile
+              ? 'The video is saved but hidden — visitors see the photo. “Show the video” puts it back.'
+              : 'MP4 or WebM (H.264), up to 40&nbsp;MB. Silent and looping — the photo stays as its first frame.'));
+    const meta = hasFile && o.videoSize
+      ? `${Math.round(o.videoSize / 1024 / 1024 * 10) / 10} MB${o.videoType ? ' · ' + o.videoType.replace('video/', '').toUpperCase() : ''}`
+      : '';
     return `
-        <div class="card__video-row">
+        <div class="card__video-row" data-video-row>
           <input class="card__file" type="file" data-input-video accept="video/mp4,video/webm,video/quicktime" />
           <div class="card__row">
-            <button class="btn btn--ghost" type="button" data-btn-video${canCut ? ' disabled' : ''}>${label}</button>
-            <button class="btn btn--ghost" type="button" data-btn-video-remove${o.hasVideo ? '' : ' hidden'}>Back to the photo</button>
+            <button class="btn btn--ghost" type="button" data-btn-video${canCut ? ' disabled' : ''}>${upLabel}</button>
+            <button class="btn btn--ghost" type="button" data-btn-video-hide${o.hasVideo ? '' : ' hidden'}>Back to the photo</button>
+            <button class="btn btn--ghost" type="button" data-btn-video-show${(hasFile && !o.hasVideo) ? '' : ' hidden'}>Show the video</button>
           </div>
-          <p class="card__video-note">${
-            canCut
-              ? 'Add the main video first — this is its phone cut.'
-              : (o.hasVideo
-                  ? 'The photo is still here. “Back to the photo” brings it back.'
-                  : 'MP4 or WebM, up to 40&nbsp;MB. Silent and looping — the photo stays as the first frame.')
-          }</p>
+          <div class="card__row" data-video-tools${hasFile ? '' : ' hidden'}>
+            <button class="btn btn--ghost" type="button" data-btn-video-adjust${isMobile ? ' hidden' : ''}>Adjust…</button>
+            <button class="btn btn--ghost card__btn-danger" type="button" data-btn-video-delete>Delete video</button>
+          </div>
+          ${isMobile ? '' : `
+          <div class="card__video-adjust" data-video-adjust>
+            <div class="ctl">
+              <div class="ctl__row"><label>How it fills the frame</label></div>
+              <div class="card__video-fit" data-video-fit>
+                <button type="button" data-fit="cover"${o.videoFit !== 'contain' ? ' class="is-on"' : ''}>Fill (crop)</button>
+                <button type="button" data-fit="contain"${o.videoFit === 'contain' ? ' class="is-on"' : ''}>Fit whole</button>
+              </div>
+            </div>
+            <div class="ctl">
+              <div class="ctl__row"><label data-video-posx-label>Keep this part · across</label><span class="ctl__val" data-video-posx-v>${o.videoPosX}%</span></div>
+              <input type="range" data-video-posx min="0" max="100" step="1" value="${o.videoPosX}" />
+            </div>
+            <div class="ctl">
+              <div class="ctl__row"><label>Keep this part · up and down</label><span class="ctl__val" data-video-posy-v>${o.videoPosY}%</span></div>
+              <input type="range" data-video-posy min="0" max="100" step="1" value="${o.videoPosY}" />
+            </div>
+            <div class="ctl">
+              <div class="ctl__row"><label>Speed</label><span class="ctl__val" data-video-rate-v>${o.videoRate.toFixed(2)}×</span></div>
+              <input type="range" data-video-rate min="0.25" max="2" step="0.05" value="${o.videoRate}" />
+            </div>
+            <div class="card__row">
+              <button class="btn btn--ghost" type="button" data-btn-video-reset>Reset framing</button>
+              <button class="btn" type="button" data-btn-video-save>Save framing</button>
+            </div>
+            <p class="card__video-note" data-video-adjust-note>Applies to the phone cut too.</p>
+          </div>`}
+          <p class="card__video-note" data-video-note>${note}</p>
+          ${meta ? `<p class="card__video-meta" data-video-meta>${esc(meta)}</p>` : '<p class="card__video-meta" data-video-meta hidden></p>'}
         </div>`;
   })();
 
@@ -1931,11 +2748,12 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
              ${p.video ? `data-video-file="${esc(videoFilename(p.filename, isMobile ? 'mobile' : 'desktop'))}"` : ''}
              ${p.optional ? 'data-optional="1"' : ''}
              ${o.fallbackFromLabel ? `data-fallback-label="${esc('Using ' + o.fallbackFromLabel)}"` : ''}>
-      <div class="card__thumb" data-thumb-zone${o.hasVideo ? ' data-has-video="1"' : ''}>
+      <div class="card__thumb" data-thumb-zone${o.hasVideoFile ? ` data-has-video="1" data-video-state="${o.hasVideo ? 'shown' : 'hidden'}"` : ''}>
         <img data-thumb data-src="/${route}/${esc(p.filename)}" data-fallback="${esc(fallback)}"
              src="${esc(src)}" alt="${esc(p.label)}" loading="lazy" decoding="async"
              onerror="this.style.opacity=0.22" />
-        ${o.hasVideo ? `<video class="card__video" data-card-video muted loop playsinline preload="metadata"
+        ${o.hasVideoFile ? `<video class="card__video" data-card-video muted loop playsinline preload="metadata"
+               poster="${esc(src)}" style="object-fit:${o.videoFit};object-position:${o.videoPosX}% ${o.videoPosY}%"
                src="${esc(videoPreviewSrc)}"></video>` : ''}
         <span class="card__badge ${badgeClass}" data-badge>${esc(badgeText)}</span>
         ${tags.length ? `<div class="card__tags">${tags.join('')}</div>` : ''}
@@ -2030,6 +2848,64 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     readContentOwn(env, site),
     readMediaMap(env, site),
   ]);
+
+  // …and which slots HAVE a video file, shown or not. That is a question only
+  // the bucket can answer, and it is a different question: a video the owner
+  // has switched away from is still there to switch back to, and a card that
+  // didn't know would offer to upload it again.
+  const videoFiles       = new Set<string>();
+  const videoMobileFiles = new Set<string>();
+  const videoDetail      = new Map<string, { size: number; type: string }>();
+
+  async function collectVideos(from: typeof bucket, keys: Set<string>, mobileKeys: Set<string>) {
+    if (!from) return;
+    try {
+      // httpMetadata has to be asked for — without it the card can't say what
+      // format the video is, which is the first thing to check when one won't
+      // play.
+      const listing = await from.list({ prefix: 'images/', include: ['httpMetadata' as const] });
+      for (const obj of listing.objects) {
+        const k = obj.key.replace(/^images\//, '');
+        if (k.endsWith('__video_mobile'))    mobileKeys.add(k.slice(0, -'__video_mobile'.length));
+        else if (k.endsWith('__video')) {
+          const base = k.slice(0, -'__video'.length);
+          keys.add(base);
+          videoDetail.set(base, { size: obj.size, type: obj.httpMetadata?.contentType ?? '' });
+        }
+      }
+    } catch (err) {
+      console.warn('[admin/images] R2 video list failed', err);
+    }
+  }
+  await collectVideos(bucket, videoFiles, videoMobileFiles);
+  if (site !== 'zahara') {
+    // Shared slots live in Zahara's bucket whichever venue is being edited —
+    // the same rule the still overrides follow just above.
+    const sharedVideos = new Set<string>();
+    const sharedMobile = new Set<string>();
+    await collectVideos(siteScope(env, 'zahara').images, sharedVideos, sharedMobile);
+    for (const p of PHOTO_CATALOGUE) {
+      if (!p.shared) continue;
+      videoFiles.delete(p.key);
+      videoMobileFiles.delete(p.key);
+      if (sharedVideos.has(p.key)) videoFiles.add(p.key);
+      if (sharedMobile.has(p.key)) videoMobileFiles.add(p.key);
+    }
+  }
+
+  /** The framing the owner saved for a slot, split into the numbers the card's
+   *  sliders want. */
+  function videoFraming(key: string) {
+    const slot = media[key] ?? {};
+    const m = /^(\d{1,3})% (\d{1,3})%$/.exec(slot.pos ?? '');
+    return {
+      videoFit:  (slot.fit === 'contain' ? 'contain' : 'cover') as 'cover' | 'contain',
+      videoPosX: m ? Number(m[1]) : 50,
+      videoPosY: m ? Number(m[2]) : 50,
+      videoRate: typeof slot.rate === 'number' ? slot.rate : 1,
+    };
+  }
+
   const v = Date.now();
 
   const libraryJson = JSON.stringify(
@@ -2053,13 +2929,18 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       const fallbackFromLabel = !hasOverride && p.fallbackKey && overrideSet.has(p.fallbackKey)
         ? labelOf(p.fallbackKey) : null;
       if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional &&
-          media[p.key]?.d !== 'video') missingCount++;
+          !videoFiles.has(p.key)) missingCount++;
       const caption = GALLERY_CAPTION_SET.has(p.key) ? (content[galleryCaptionKey(p.key)] ?? {}) : null;
+      const detail  = videoDetail.get(p.key);
       return renderCard(p, {
         variant: 'desktop', version: v, hasOverride, hasMobile: mobileSet.has(p.key),
         fallbackFromLabel, caption, site,
         hasVideo: media[p.key]?.d === 'video',
-        hasDesktopVideo: media[p.key]?.d === 'video',
+        hasVideoFile: videoFiles.has(p.key),
+        hasDesktopVideo: videoFiles.has(p.key),
+        videoSize: detail?.size ?? 0,
+        videoType: detail?.type ?? '',
+        ...videoFraming(p.key),
       });
     }).join('');
     return `
@@ -2081,7 +2962,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         variant: 'mobile', version: v, hasOverride: overrideSet.has(p.key),
         hasMobile: mobileSet.has(p.key), fallbackFromLabel: null, caption: null, site,
         hasVideo: media[p.key]?.m === 'video',
-        hasDesktopVideo: media[p.key]?.d === 'video',
+        hasVideoFile: videoMobileFiles.has(p.key),
+        hasDesktopVideo: videoFiles.has(p.key),
+        videoSize: 0, videoType: '',
+        ...videoFraming(p.key),
       }),
     ).join('');
     return `
@@ -2135,10 +3019,22 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     <p class="lead">
       Drag a picture onto the one you want to replace, or click it — it opens in
-      the editor, then press <strong>Apply&nbsp;&amp;&nbsp;upload</strong>.
+      the editor, which shows the <strong>whole photo</strong> with the part the
+      site uses marked out. Drag it to move that frame, pinch or scroll to zoom,
+      and zoom out past the edges to fit more of the picture in. Then press
+      <strong>Apply&nbsp;&amp;&nbsp;upload</strong>.
       <strong>Choose existing</strong> reuses a photo already on the site;
       <strong>Remove</strong> puts the original back.
       JPG, PNG or WebP, up to 10&nbsp;MB.
+    </p>
+    <p class="lead">
+      Some full-frame slots can show a <strong>video</strong> instead — the
+      photo underneath is always kept. <strong>Back to the photo</strong> is a
+      switch, not a delete: the video stays saved and
+      <strong>Show the video</strong> brings it back. Use an
+      <strong>H.264 MP4</strong>; an iPhone recording in its default HEVC format
+      plays on the phone and nowhere else. Changes can take up to half a minute
+      to appear on the live site.
     </p>
 
     <div class="view is-active" data-view="desktop">
@@ -2148,7 +3044,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     <div class="view" data-view="mobile">
       <p class="view__intro">
-        Portrait crops shown on phones. Leave any empty to fall back to the desktop photo.
+        Portrait crops shown on phones. Leave any empty to fall back to the
+        desktop photo. These are tall 9:16 frames cut from wide photographs, so
+        the editor shows the whole picture and marks the part that survives —
+        zoom out past its edges if you would rather fit all of it in than crop
+        a slice out of it.
       </p>
       ${mobileGroups}
     </div>
@@ -2158,22 +3058,40 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   <div class="editor" id="editor" aria-hidden="true">
     <div class="editor__panel" role="dialog" aria-label="Photo editor">
       <div class="editor__stage">
-        <canvas class="editor__canvas" id="ed-canvas" width="460" height="345"></canvas>
+        <div class="editor__stagewrap">
+          <canvas class="editor__canvas" id="ed-canvas" width="460" height="345"></canvas>
+          <p class="editor__readout" id="ed-readout"></p>
+        </div>
       </div>
       <div class="editor__side">
         <h2 class="editor__title" id="ed-title">Edit photo</h2>
         <p class="editor__sub" id="ed-sub">Scroll to zoom toward the cursor, drag to reposition.</p>
 
         <div class="editor__toggles">
+          <button type="button" class="chip is-on" id="ed-view" title="Switch between the whole photo with the crop marked, and the crop on its own">Whole photo</button>
           <button type="button" class="chip" id="ed-bw">Black &amp; white</button>
           <button type="button" class="chip" id="ed-compare" title="Hold to see the original, uncropped">Compare (hold)</button>
           <button type="button" class="chip" id="ed-center" title="Recentre the crop">Centre</button>
+          <button type="button" class="chip" id="ed-fitall" title="Zoom out until the whole photo is inside the frame">Fit whole photo</button>
           <button type="button" class="chip" id="ed-reset">Reset</button>
         </div>
 
         <div class="ctl">
           <div class="ctl__row"><label for="ed-zoom">Zoom / crop</label><span class="ctl__val" id="ed-zoom-v">1.00×</span></div>
-          <input type="range" id="ed-zoom" min="1" max="5" step="0.01" value="1" />
+          <input type="range" id="ed-zoom" min="0.2" max="5" step="0.01" value="1" />
+          <p class="ctl__hint" id="ed-zoom-hint">Drag the photo to move the crop. Pinch or scroll to zoom.</p>
+        </div>
+        <!-- Only reachable once the zoom goes below "fits exactly", which is
+             where the frame stops being entirely photograph. -->
+        <div class="ctl" id="ed-edge-ctl" hidden>
+          <label for="ed-edge">Behind the photo</label>
+          <select id="ed-edge">
+            <option value="blur" selected>Blurred photo</option>
+            <option value="paper">Paper (site background)</option>
+            <option value="dark">Near-black</option>
+            <option value="white">White</option>
+          </select>
+          <p class="ctl__hint">Fills the frame around the photo when you zoom out past its edges. The upload is still the exact shape and size this slot needs.</p>
         </div>
         <div class="ctl">
           <div class="ctl__row"><label>Rotate &amp; flip</label><span class="ctl__val" id="ed-rotate-v">0°</span></div>
