@@ -73,6 +73,13 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
 <html lang="he" dir="rtl" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
+  <!-- Google Tag Manager -->
+  <script is:inline>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-WLNNDWCB');</script>
+  <!-- End Google Tag Manager -->
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   {/* Unlisted by design: nothing links here, it is kept out of the sitemap
       (astro.config.mjs), and the header in public/_headers repeats this for
@@ -91,6 +98,10 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
   />
 </head>
 <body>
+  <!-- Google Tag Manager (noscript) -->
+  <Fragment set:html={`<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WLNNDWCB"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`} />
+  <!-- End Google Tag Manager (noscript) -->
   {/* Every data-content-key below is editable in /admin/content → Reserve
       portal. The keys must match CONTENT_GROUPS in functions/data/content.ts. */}
   <header class="portal__head">
