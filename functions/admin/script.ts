@@ -880,6 +880,17 @@ function parseLines(rawLines, sep) {
 const WINE_RULER = /^[.…·_\-\s]{6,}$/;
 const HAS_LETTERS = /[A-Za-z֐-׿]/;
 
+// Where "name | region" splits: a "|" always wins, else the LAST spaced " / "
+// (the English list's separator since 2026-09; a Hebrew name can carry its
+// own slash, e.g. "פסגות / PR, 2024 | הרי יהודה").
+function regionCut(field) {
+  const bar = field.indexOf('|');
+  if (bar >= 0) return { at: bar, len: 1 };
+  let at = -1, len = 0;
+  for (const m of field.matchAll(/\s+\/\s+/g)) { at = m.index; len = m[0].length; }
+  return at >= 0 ? { at: at, len: len } : { at: field.length, len: 0 };
+}
+
 function parseWineLines(lines) {
   const sections = [];
   let current = null;
@@ -920,9 +931,9 @@ function parseWineLines(lines) {
     if (nameIdx < 0) nameIdx = rest.length - 1;
     const nameField = rest[nameIdx] || '';
     const note      = rest.slice(0, nameIdx).join(' ').replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
-    const bar       = nameField.indexOf('|');
-    const name      = (bar < 0 ? nameField : nameField.slice(0, bar)).replace(/\s+/g, ' ').trim();
-    const region    = (bar < 0 ? ''        : nameField.slice(bar + 1)).replace(/\s+/g, ' ').trim();
+    const cut       = regionCut(nameField);
+    const name      = nameField.slice(0, cut.at).replace(/\s+/g, ' ').trim();
+    const region    = nameField.slice(cut.at + cut.len).replace(/\s+/g, ' ').trim();
 
     if (!name) continue;
     if (!current) { current = { title: '', items: [] }; sections.push(current); }

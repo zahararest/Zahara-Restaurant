@@ -373,6 +373,20 @@ const WINE_RULER = /^[.…·_\-\s]{6,}$/;
 /** Any letter, in either script — a price field has none. */
 const HAS_LETTERS = /[A-Za-z֐-׿]/;
 
+/**
+ * Where "name | region" splits. The English list switched to a spaced slash
+ * ("Martini Asti, NV / Italy") in 2026-09, while a Hebrew name can carry its
+ * own slash ("פסגות / PR, 2024 | הרי יהודה") — so a "|" always wins, and
+ * otherwise the LAST " / " is the one before the region.
+ */
+function regionCut(field: string): { at: number; len: number } {
+  const bar = field.indexOf('|');
+  if (bar >= 0) return { at: bar, len: 1 };
+  let at = -1, len = 0;
+  for (const m of field.matchAll(/\s+\/\s+/g)) { at = m.index ?? -1; len = m[0].length; }
+  return at >= 0 ? { at, len } : { at: field.length, len: 0 };
+}
+
 export function parseWineLines(lines: string[]): MenuSection[] {
   const sections: MenuSection[] = [];
   let current: MenuSection | null = null;
@@ -418,9 +432,9 @@ export function parseWineLines(lines: string[]): MenuSection[] {
     if (nameIdx < 0) nameIdx = rest.length - 1;
     const nameField = rest[nameIdx] || '';
     const note      = rest.slice(0, nameIdx).join(' ').replace(/\s*,\s*/g, ', ').replace(/\s+/g, ' ').trim();
-    const bar       = nameField.indexOf('|');
-    const name      = (bar < 0 ? nameField : nameField.slice(0, bar)).replace(/\s+/g, ' ').trim();
-    const region    = (bar < 0 ? ''        : nameField.slice(bar + 1)).replace(/\s+/g, ' ').trim();
+    const cut       = regionCut(nameField);
+    const name      = nameField.slice(0, cut.at).replace(/\s+/g, ' ').trim();
+    const region    = nameField.slice(cut.at + cut.len).replace(/\s+/g, ' ').trim();
 
     if (!name) continue;
     if (!current) { current = { title: '', items: [] }; sections.push(current); }
