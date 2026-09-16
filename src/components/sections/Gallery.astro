@@ -43,7 +43,11 @@ const nextLabel = g.nextPhoto;
 ---
 
 <section class="gallery-scene" aria-label={eyebrow}>
-  <div class="gallery-film" data-gallery aria-roledescription="carousel">
+  {/* data-gallery-place / data-gallery-extra: when the venue shows a single
+      photo here (/admin/home → Gallery → Show as), the middleware removes
+      every extra frame, the arrows and the counter, and marks the film
+      data-gallery-single. The script below does nothing with one frame. */}
+  <div class="gallery-film" data-gallery aria-roledescription="carousel" data-gallery-place="gallery">
 
     {/* Section eyebrow + heading — top corner, kept restrained so it sits
         WITH the photography instead of fighting it. */}
@@ -65,6 +69,7 @@ const nextLabel = g.nextPhoto;
     {photos.map((p, i) => (
       <div
         class={`gallery-film__slide${i === 0 ? ' is-active' : ''}`}
+        data-gallery-extra={i === 0 ? undefined : 'gallery'}
         role="group"
         aria-roledescription="slide"
         aria-hidden={i !== 0}
@@ -107,6 +112,7 @@ const nextLabel = g.nextPhoto;
       <div
         class="gallery-film__slide is-pending"
         data-optional
+        data-gallery-extra="gallery"
         data-filename={p.src.split('/').pop()}
         role="group"
         aria-roledescription="slide"
@@ -140,6 +146,7 @@ const nextLabel = g.nextPhoto;
     {/* Prev: left-pointing chevron in LTR, right-pointing in RTL */}
     <button
       class="gallery-film__arrow gallery-film__arrow--prev"
+      data-gallery-extra="gallery"
       type="button"
       data-gallery-prev
       aria-label={prevLabel}
@@ -156,6 +163,7 @@ const nextLabel = g.nextPhoto;
     {/* Next: right-pointing chevron in LTR, left-pointing in RTL */}
     <button
       class="gallery-film__arrow gallery-film__arrow--next"
+      data-gallery-extra="gallery"
       type="button"
       data-gallery-next
       aria-label={nextLabel}
@@ -171,7 +179,7 @@ const nextLabel = g.nextPhoto;
 
     {/* Photo counter — bottom corner. The total is updated client-side as
         optional slots are confirmed or dropped. */}
-    <div class="gallery-film__counter" aria-live="polite" aria-atomic="true">
+    <div class="gallery-film__counter" aria-live="polite" aria-atomic="true" data-gallery-extra="gallery">
       <span class="gallery-film__counter-index" data-gallery-index>01</span>
       <span class="gallery-film__counter-sep" aria-hidden="true">/</span>
       <span class="gallery-film__counter-total" data-gallery-total>{String(photos.length).padStart(2, '0')}</span>

@@ -5,7 +5,9 @@
 import type { MenuType } from './menus';
 import type { Site }     from '../data/site';
 
-export function adminScript(menuTypes: MenuType[], site: Site = 'zahara', menusOff: string[] = []): string {
+export function adminScript(
+  menuTypes: MenuType[], site: Site = 'zahara', menusOff: string[] = [], pricesOff: string[] = [],
+): string {
   return String.raw`
 const MENUS = ${JSON.stringify(menuTypes)};
 
@@ -21,7 +23,7 @@ try { bc = new BroadcastChannel('zahara-menu'); } catch {}
 const state = {
   // Sync is the front door: it's what the owner comes here to do most days,
   // so it opens first and sits at the top of the list.
-  view:          'sync',     // 'sync' | 'editor' | 'setup' | 'eventsPdf'
+  view:          'sync',     // 'sync' | 'editor' | 'setup' | 'prices' | 'eventsPdf'
   menuId:        MENUS[0].id,
   data:          {},
   collapsed:     {},
@@ -32,11 +34,14 @@ const state = {
   eventsPdf:     null,
   // Menus this venue doesn't use — greyed out here, dropped from the site.
   menusOff:      new Set(${JSON.stringify(menusOff)}),
+  // Menus this venue shows without prices — the prices stay in the menu.
+  pricesOff:     new Set(${JSON.stringify(pricesOff)}),
   dirty:         new Set(),  // slugs with unsaved edits
 };
 
 const menuLabel = id => (MENUS.find(m => m.id === id) || {}).label || id;
 const isOff     = id => state.menusOff.has(id);
+const noPrices  = id => state.pricesOff.has(id);
 
 // Flat list of every syncable menu slug → friendly label, derived from the
 // same MENUS config the editor uses. The Events-page PDF is not in MENUS at
@@ -116,6 +121,11 @@ function renderSidebar() {
     class:   'sidebar__item' + (state.view === 'setup' ? ' is-active' : ''),
     onclick: () => switchToSetup(),
   }, 'Menus in use'));
+  sidebar.appendChild(el('button', {
+    class:   'sidebar__item' + (state.view === 'prices' ? ' is-active' : ''),
+    title:   'Show or hide prices on each menu, for this venue',
+    onclick: () => switchToPrices(),
+  }, 'Prices'));
 
   sidebar.appendChild(el('div', { class: 'sidebar__group', style: 'margin-top:1.75rem' }, 'Manual Menu Editing'));
   for (const m of MENUS) {
@@ -239,6 +249,7 @@ function uploadHintFor(menu) {
 function renderPanel() {
   if (state.view === 'sync')      return renderSyncPanel();
   if (state.view === 'setup')     return renderSetupPanel();
+  if (state.view === 'prices')    return renderPricesPanel();
   if (state.view === 'eventsPdf') return renderEventsPdfPanel();
   const menu = activeMenu();
   const slug = currentSlug();
@@ -271,6 +282,15 @@ function renderPanel() {
       el('span', {}, menu.label + ' is switched off — visitors don’t see this menu on ' +
         (SITE === 'rooftop' ? 'the rooftop site' : 'the site') + '.'),
       el('button', { class: 'notice__btn', onclick: () => setMenuOff(menu.id, false) }, 'Switch it on'),
+    ));
+  }
+
+  // Prices hidden for this venue: they are still edited here, just not shown.
+  if (noPrices(menu.id)) {
+    panel.appendChild(el('div', { class: 'notice' },
+      el('span', {}, 'Prices are hidden on ' + (SITE === 'rooftop' ? 'the rooftop' : 'Zahara') + '’s ' +
+        menu.label + ' menu. You can still edit them — visitors just don’t see them.'),
+      el('button', { class: 'notice__btn', onclick: () => setPricesOff(menu.id, false) }, 'Show prices'),
     ));
   }
 
@@ -1074,6 +1094,78 @@ function renderSetupPanel() {
       el('label', { class: 'sync-toggle' }, cb, el('span', { class: 'setup-row__name' }, m.label)),
       el('span', { class: 'setup-row__slugs' }, slugs),
       el('span', { class: 'setup-row__state' }, on ? 'On the site' : 'Hidden'),
+    ));
+  }
+  panel.appendChild(list);
+  main.appendChild(panel);
+}
+
+// ── Prices (per venue, per menu) ─────────────────────────────
+// A venue can show any menu without prices. It is a display choice: the prices
+// stay in the menu (and in this editor), the menu page leaves them out and
+// lays that menu out without a price column. Saves the moment a box is ticked.
+async function setPricesOff(id, off) {
+  const before = new Set(state.pricesOff);
+  if (off) state.pricesOff.add(id); else state.pricesOff.delete(id);
+  renderPanel();
+  const statusEl = document.getElementById('prices-status');
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.className = 'save-status'; }
+  try {
+    const res = await fetch('/admin/price-visibility', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ off: Array.from(state.pricesOff) }),
+    });
+    const j = await res.json();
+    if (!j.ok) throw new Error(j.error || 'Save failed');
+    state.pricesOff = new Set(j.off);
+    renderPanel();
+    const done = document.getElementById('prices-status');
+    if (done) { done.textContent = '✓ Saved · live on the site within a minute'; done.className = 'save-status ok'; }
+  } catch (e) {
+    // The boxes must never claim something the site isn't doing.
+    state.pricesOff = before;
+    renderPanel();
+    const err = document.getElementById('prices-status');
+    if (err) { err.textContent = 'Error: ' + (e.message || e); err.className = 'save-status err'; }
+  }
+}
+
+function switchToPrices() {
+  state.view = 'prices';
+  renderSidebar();
+  renderPricesPanel();
+}
+
+function renderPricesPanel() {
+  const main = document.getElementById('main-area');
+  main.innerHTML = '';
+  const venue = SITE === 'rooftop' ? 'the rooftop' : 'Zahara';
+  const panel = el('div', { class: 'panel is-active' });
+  panel.appendChild(el('div', { class: 'panel__head' },
+    el('div', {},
+      el('h1', { class: 'panel__title' }, 'Prices'),
+      el('p',  { class: 'panel__sub'   }, 'Which menus show prices on ' + venue + '’s site'),
+    ),
+  ));
+
+  panel.appendChild(el('div', { class: 'save-bar' },
+    el('span', { class: 'save-status', id: 'prices-status' })));
+
+  panel.appendChild(el('p', { class: 'featured-hint' },
+    'Untick a menu to show it without prices. The menu page then lists each dish centred, with no price column. ' +
+    'The prices themselves are kept — you can still edit them, and ticking the box brings them back.'));
+
+  const list = el('div', { class: 'sections' });
+  for (const m of MENUS) {
+    const shown = !noPrices(m.id);
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = shown;
+    cb.addEventListener('change', () => setPricesOff(m.id, !cb.checked));
+    const note = isOff(m.id) ? 'This menu is switched off in Menus in use' : '';
+    list.appendChild(el('div', { class: 'setup-row' + (shown ? '' : ' is-off') },
+      el('label', { class: 'sync-toggle' }, cb, el('span', { class: 'setup-row__name' }, m.label)),
+      el('span', { class: 'setup-row__slugs' }, note),
+      el('span', { class: 'setup-row__state' }, shown ? 'Prices shown' : 'Prices hidden'),
     ));
   }
   panel.appendChild(list);

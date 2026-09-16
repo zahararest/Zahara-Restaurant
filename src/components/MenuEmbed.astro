@@ -116,19 +116,33 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
   </div>{/* end .menu-embed-main */}
 </div>
 
-{/* Categories this venue doesn't use. The middleware injects the list as
-    <script id="zahara-menus">; this runs while the block is still parsing,
-    so a dropped tab never paints. Whatever survives keeps working normally —
-    the main script below queries the DOM after this has run. */}
+{/* Categories this venue doesn't use, and menus it shows without prices. The
+    middleware injects both lists as <script id="zahara-menus">; this runs while
+    the block is still parsing, so a dropped tab never paints and a hidden price
+    never shows. Whatever survives keeps working normally — the main script
+    below queries the DOM after this has run, and reads data-prices on each
+    panel to leave the prices out of everything it renders there. */}
 <script is:inline>
   (function () {
     var tag = document.getElementById('zahara-menus');
     if (!tag) return;
-    var off;
-    try { off = (JSON.parse(tag.textContent || '{}').off) || []; } catch (e) { return; }
-    if (!off.length) return;
+    var cfg;
+    try { cfg = JSON.parse(tag.textContent || '{}') || {}; } catch (e) { return; }
+    var off      = cfg.off || [];
+    var noPrices = cfg.noPrices || [];
     var embed = document.getElementById('menu-embed');
     if (!embed) return;
+
+    // No prices: mark the panel (the CSS drops the price column, the main
+    // script renders without them) and take the server-rendered ones out.
+    noPrices.forEach(function (id) {
+      var pan = embed.querySelector('.menu-panel[data-tab-id="' + id + '"]');
+      if (!pan) return;
+      pan.setAttribute('data-prices', 'off');
+      Array.prototype.forEach.call(pan.querySelectorAll('.menu-item__price'), function (p) { p.remove(); });
+    });
+
+    if (!off.length) return;
     off.forEach(function (id) {
       var tab = embed.querySelector('.menu-tab[data-tab-id="' + id + '"]');
       var pan = embed.querySelector('.menu-panel[data-tab-id="' + id + '"]');
@@ -212,7 +226,8 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
     return a >= b ? { bottle: m[1], glass: m[2] } : { bottle: m[2], glass: m[1] };
   }
 
-  function renderPrice(price, kind) {
+  function renderPrice(price, kind, showPrices) {
+    if (!showPrices) return '';
     if (kind !== 'wine') return `<span class="menu-item__price">${esc(price)}</span>`;
     const split = splitWinePrice(price);
     if (!split) return `<span class="menu-item__price">${esc(price)}</span>`;
@@ -286,13 +301,14 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
       .sort((a, b) => rank(a) - rank(b));
   }
 
-  function renderWineItem(item) {
+  function renderWineItem(item, showPrices) {
     const split = splitWinePrice(item.price);
     const meta  = [];
     if (item.note)        meta.push(`<em class="menu-item__note">${esc(item.note)}</em>`);
     if (item.description) meta.push(`<span class="menu-item__region">${esc(item.description)}</span>`);
 
-    const price = split
+    const price = !showPrices ? ''
+      : split
       ? `<span class="wine-price" aria-label="${esc(bottleLabel)} ${esc(split.bottle)}, ${esc(glassLabel)} ${esc(split.glass)}">
            <span class="wine-price__bottle">${esc(split.bottle)}</span>
            <span class="wine-price__glass">${esc(split.glass)}</span>
@@ -308,10 +324,10 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
     </li>`;
   }
 
-  function renderWineGroup(group, isActive) {
+  function renderWineGroup(group, isActive, showPrices) {
     // One column layout decision per group, so every price below a heading
-    // lines up with the ones above it.
-    const twoCol = group.sections.some(s => (s.items || []).some(it => splitWinePrice(it.price)));
+    // lines up with the ones above it. No prices, no columns to caption.
+    const twoCol = showPrices && group.sections.some(s => (s.items || []).some(it => splitWinePrice(it.price)));
     const head   = twoCol
       ? `<li class="menu-item-row wine-cols" aria-hidden="true">
            <span></span>
@@ -328,7 +344,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
       const heading = s.title
         ? `<h2 class="wine-subhead" data-word-reveal data-word-reveal-delay="0.05" data-word-reveal-step="0.05">${esc(s.title)}</h2>`
         : '';
-      const items = (s.items || []).map(renderWineItem).join('');
+      const items = (s.items || []).map(it => renderWineItem(it, showPrices)).join('');
       return `<div class="menu-section-group is-flat">${heading}
         <ul class="menu-items-list menu-items-list--wine${twoCol ? ' is-two-col' : ''}">${i === 0 ? head : ''}${items}</ul>
       </div>`;
@@ -337,7 +353,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
     return `<section class="wine-group" data-wine-group="${esc(group.id)}"${isActive ? '' : ' hidden'}>${body}</section>`;
   }
 
-  function renderWine(sections) {
+  function renderWine(sections, showPrices) {
     wineGroups = groupWine(sections);
     if (!wineGroups.length) return '';
     if (!wineGroups.some(g => g.id === activeWineGroup)) activeWineGroup = wineGroups[0].id;
@@ -350,7 +366,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
       : '';
 
     return `<div class="menu-inline">${nav}${
-      wineGroups.map(g => renderWineGroup(g, g.id === activeWineGroup)).join('')
+      wineGroups.map(g => renderWineGroup(g, g.id === activeWineGroup, showPrices)).join('')
     }</div>`;
   }
 
@@ -380,7 +396,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
   }
 
   // ── Renderers per kind ──────────────────────────────────────
-  function renderList(sections, kind) {
+  function renderList(sections, kind, showPrices) {
     if (!sections || sections.length === 0) return '';
 
     const body = sections.map((s) => {
@@ -393,7 +409,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
             <strong class="menu-item__name">${esc(item.name)}</strong>
             ${desc}
           </div>
-          ${renderPrice(item.price, kind)}
+          ${renderPrice(item.price, kind, showPrices)}
         </li>`;
       }).join('');
       const heading = s.title ? `<h2 class="menu-section-heading" data-word-reveal data-word-reveal-delay="0.05" data-word-reveal-step="0.05">${esc(s.title)}</h2>` : '';
@@ -403,7 +419,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
     return `<div class="menu-inline">${body}</div>`;
   }
 
-  function renderCocktails(sections) {
+  function renderCocktails(sections, showPrices) {
     if (!sections || sections.length === 0) return '';
     return sections.map((s) => {
       const cards = (s.items ?? []).map(item => {
@@ -426,7 +442,7 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
         return `<article class="cocktail-card">
           <header class="cocktail-card__head">
             <h3 class="cocktail-card__name">${esc(item.name)}</h3>
-            <span class="cocktail-card__price">${esc(item.price)}</span>
+            ${showPrices ? `<span class="cocktail-card__price">${esc(item.price)}</span>` : ''}
           </header>
           <div class="cocktail-card__body">${enHtml}${heHtml}</div>
         </article>`;
@@ -464,9 +480,13 @@ const wineTypes = WINE_TYPES.map(w => ({ id: w.id, test: w.test, label: w.label[
     const date     = Array.isArray(payload) ? null   : (payload?.date     ?? null);
     const content  = document.querySelector(`[data-content-for="${slug}"]`);
     const meta     = document.querySelector(`[data-meta-for="${slug}"]`);
-    const html     = kind === 'cocktails' ? renderCocktails(sections)
-                   : kind === 'wine'      ? renderWine(sections)
-                   :                        renderList(sections, kind);
+    // A venue can show this menu without prices (set in the menu editor); the
+    // pre-paint script above marks its panel.
+    const panel      = content && content.closest('.menu-panel');
+    const showPrices = !(panel && panel.getAttribute('data-prices') === 'off');
+    const html     = kind === 'cocktails' ? renderCocktails(sections, showPrices)
+                   : kind === 'wine'      ? renderWine(sections, showPrices)
+                   :                        renderList(sections, kind, showPrices);
 
     if (content) {
       if (html) content.innerHTML = html;

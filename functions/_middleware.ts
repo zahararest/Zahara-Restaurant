@@ -20,15 +20,17 @@ import {
   readPopupConfig, popupActive, popupShowsImage, type ContentEnv,
 } from './data/content';
 import { readMenusOff, type MenuVisEnv } from './data/menu-visibility';
+import { readPricesOff, type PriceVisEnv } from './data/price-visibility';
 import {
   readMediaMap, frameModes, framingFor, DEFAULT_POSITION, type MediaEnv, type MediaMap,
 } from './data/media';
 import { readSections, sectionsToJson, type SectionEnv, type SectionMap } from './data/sections';
+import { readHomeLayout, type HomeLayout, type HomeSectionEnv } from './data/home-sections';
 import { siteFromRequest, withSiteParam } from './data/site';
 
 const ASSET_VERSION_TOKEN = '__ZASSETV__';
 
-type Env = PaletteEnv & ContentEnv & MenuVisEnv & MediaEnv & SectionEnv;
+type Env = PaletteEnv & ContentEnv & MenuVisEnv & PriceVisEnv & MediaEnv & SectionEnv & HomeSectionEnv;
 
 // ── KV read budget ──────────────────────────────────────────────────────────
 //
@@ -71,6 +73,28 @@ function isStandalonePage(request: { url: string }): boolean {
   try {
     const path = new URL(request.url).pathname.replace(/\/+$/, '');
     return path === '/reserve' || path === '/rooftop/reserve';
+  } catch {
+    return false;
+  }
+}
+
+/** The home page, in either language, for either venue — the only page whose
+ *  sections can be switched off, so the only one that reads that record. */
+function isHomePage(request: { url: string }): boolean {
+  try {
+    const path = new URL(request.url).pathname.replace(/index\.html$/, '').replace(/\/+$/, '');
+    return path === '' || path === '/en' || path === '/rooftop' || path === '/rooftop/en';
+  } catch {
+    return false;
+  }
+}
+
+/** The menu page, in either language, for either venue — the only page that
+ *  shows prices, so the only one that reads which menus hide them. */
+function isMenuPage(request: { url: string }): boolean {
+  try {
+    const path = new URL(request.url).pathname.replace(/index\.html$/, '').replace(/\/+$/, '');
+    return /^(\/rooftop)?(\/en)?\/menu$/.test(path);
   } catch {
     return false;
   }
@@ -167,7 +191,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   // them) the popup switch and menu list — read together so the added latency
   // stays a single round trip, and through the memo so a busy minute is one
   // round trip rather than one per visitor.
-  const [palette, content, assetVersion, popupCfg, menusOff, media, sections] = await Promise.all([
+  const [palette, content, assetVersion, popupCfg, menusOff, media, sections, home, pricesOff] = await Promise.all([
     memoised(`palette:${site}`, () => readPalette(ctx.env, site)),
     memoised(`content:${site}`, () => readContent(ctx.env, site)),
     memoised(`version:${site}`, () => readAssetVersion(ctx.env, site)),
@@ -175,6 +199,12 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     standalone ? Promise.resolve([] as string[]) : memoised(`menus:${site}`, () => readMenusOff(ctx.env, site)),
     memoised(`media:${site}`, () => readMediaMap(ctx.env, site)),
     standalone ? Promise.resolve({} as SectionMap) : memoised(`sections:${site}`, () => readSections(ctx.env, site)),
+    isHomePage(ctx.request)
+      ? memoised(`home:${site}`, () => readHomeLayout(ctx.env, site))
+      : Promise.resolve({ off: [], single: [] } as HomeLayout),
+    isMenuPage(ctx.request)
+      ? memoised(`prices:${site}`, () => readPricesOff(ctx.env, site))
+      : Promise.resolve([] as string[]),
   ]);
 
   const css        = paletteToCss(palette);
@@ -188,7 +218,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
   const sectionsOn = Object.keys(sections).length > 0;
 
   let res = response;
-  if (css || hasContent || popupOn || menusOff.length || sectionsOn) {
+  if (css || hasContent || popupOn || menusOff.length || pricesOff.length || sectionsOn) {
     const styleTag = css
       ? `<style id="zahara-palette-server" data-zahara-palette>${css}</style>`
       : '';
@@ -212,10 +242,11 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
         }</script>`
       : '';
     // Menus this venue doesn't use — the menu embed and the home tiles drop
-    // those categories before first paint.
-    const menusTag = menusOff.length
+    // those categories before first paint — and, on the menu page, the menus
+    // it shows without prices, which the embed lays out without a price column.
+    const menusTag = menusOff.length || pricesOff.length
       ? `<script id="zahara-menus" type="application/json">${
-          JSON.stringify({ off: menusOff }).replace(/</g, '\\u003c')
+          JSON.stringify({ off: menusOff, noPrices: pricesOff }).replace(/</g, '\\u003c')
         }</script>`
       : '';
     // Optional sections the owner has switched on. Absent = every optional
@@ -231,6 +262,63 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
           if (popupTag)    el.append(popupTag,    { html: true });
           if (menusTag)    el.append(menusTag,    { html: true });
           if (sectionsTag) el.append(sectionsTag, { html: true });
+        },
+      })
+      .transform(res);
+  }
+
+  // ── Home sections this venue has switched off ───────────────────────────
+  // Removed from the markup rather than hidden, so nothing inside them — the
+  // photos, a video, the gallery's script — is ever fetched or run. Runs before
+  // the video swap below, which then never sees a slot that isn't there.
+  //
+  // The same pass turns a gallery into a single photo: everything a gallery
+  // place marks as `data-gallery-extra="<place>"` (the frames after the first,
+  // the arrows, the counter) goes, and the page's own scripts already do
+  // nothing with fewer than two frames.
+  if (home.off.length || home.single.length) {
+    const off    = new Set(home.off);
+    const single = new Set(home.single);
+    res = new HTMLRewriter()
+      .on('[data-gallery-extra]', {
+        element(el) {
+          const place = el.getAttribute('data-gallery-extra');
+          if (place && single.has(place)) el.remove();
+        },
+      })
+      .on('[data-gallery-place]', {
+        element(el) {
+          const place = el.getAttribute('data-gallery-place');
+          if (!place || !single.has(place)) return;
+          el.setAttribute('data-gallery-single', '');
+          // One photo is not a carousel — don't announce it as one.
+          el.removeAttribute('aria-roledescription');
+        },
+      })
+      .on('[data-home-section]', {
+        element(el) {
+          const id = el.getAttribute('data-home-section');
+          if (id && off.has(id)) el.remove();
+        },
+      })
+      // A wrapper around several switchable parts: gone once all of them are,
+      // otherwise it records which are off (for CSS) and takes the section
+      // label of the first part still showing, so the page's section counter
+      // never names a part that was removed.
+      .on('[data-home-group]', {
+        element(el) {
+          let members: unknown;
+          try { members = JSON.parse(attr(el, 'data-home-group')); } catch { return; }
+          if (!Array.isArray(members) || !members.length) return;
+          const parts   = members.filter((m): m is [string, string?] => Array.isArray(m) && typeof m[0] === 'string');
+          const showing = parts.filter(([id]) => !off.has(id));
+          if (!showing.length) { el.remove(); return; }
+          const hidden = parts.filter(([id]) => off.has(id)).map(([id]) => id);
+          if (hidden.length) el.setAttribute('data-home-off', hidden.join(' '));
+          const label = showing[0][1];
+          if (typeof label === 'string' && el.hasAttribute('data-section-name')) {
+            el.setAttribute('data-section-name', label);
+          }
         },
       })
       .transform(res);

@@ -1152,6 +1152,41 @@ html[dir="rtl"] .menu-section-group.reveal--off .menu-items-list .menu-item-row 
   .wine-cols .wine-price__glass { letter-spacing: 0.08em; }
 }
 
+/* ── A menu shown without prices ───────────────────────────────────
+   Set per venue, per menu, in the menu editor (functions/data/
+   price-visibility.ts). Without a price column the full-width row rules —
+   there to carry the eye across to a figure — lead nowhere, and a name
+   pushed to one edge reads as something missing. So the list becomes a
+   card: each dish centred on the narrower prose measure, like the
+   headings above it, parted by a short neutral hairline. The accent rule
+   stays with the headings, where it already was. */
+.menu-panel[data-prices="off"] .menu-items-list {
+  max-width: var(--prose-max);
+}
+.menu-panel[data-prices="off"] .menu-item-row {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+.menu-panel[data-prices="off"] .menu-item-row + .menu-item-row::before {
+  content: '';
+  display: block;
+  width: 1.2rem;
+  height: 1px;
+  background: var(--rule);
+  margin-block-end: var(--space-m);
+}
+.menu-panel[data-prices="off"] .menu-item__main { align-items: center; }
+.menu-panel[data-prices="off"] .menu-item__meta { justify-content: center; }
+
+/* Cocktails: the name was one end of a name-and-price line; alone, it sits
+   in the middle of its card, and so do the words under it. */
+.menu-panel[data-prices="off"] .cocktail-card { text-align: center; }
+.menu-panel[data-prices="off"] .cocktail-card__head { justify-content: center; }
+.menu-panel[data-prices="off"] .cocktail-card__line--he { text-align: center; }
+
 .menu-coming-soon {
   display: grid;
   place-items: center;

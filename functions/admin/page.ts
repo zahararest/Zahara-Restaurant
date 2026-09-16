@@ -11,7 +11,7 @@ import { MENU_TYPES }             from './menus';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
 import type { Site }              from '../data/site';
 
-export function adminPage(site: Site = 'zahara', menusOff: string[] = []): string {
+export function adminPage(site: Site = 'zahara', menusOff: string[] = [], pricesOff: string[] = []): string {
   return `${adminHead(site, 'Menu editor', `<style>${CHROME_CSS}${ADMIN_CSS}</style>`)}
 <body>
   ${topbar('menu', { site })}
@@ -21,7 +21,7 @@ export function adminPage(site: Site = 'zahara', menusOff: string[] = []): strin
     <main class="main"   id="main-area"></main>
   </div>
 
-  <script>${adminScript(MENU_TYPES, site, menusOff)}</script>
+  <script>${adminScript(MENU_TYPES, site, menusOff, pricesOff)}</script>
 </body>
 </html>`;
 }

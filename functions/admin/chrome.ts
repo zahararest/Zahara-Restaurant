@@ -139,6 +139,9 @@ export const ADMIN_NAV: NavItem[] = [
   { id: 'menu',    href: '/admin/',         label: 'Menu editor' },
   { id: 'images',  href: '/admin/images/',  label: 'Images' },
   { id: 'content', href: '/admin/content/', label: 'Content' },
+  // Which parts of the home page each venue shows — the rooftop is built from
+  // the same page but isn't the restaurant (see functions/admin/home.ts).
+  { id: 'home',    href: '/admin/home/',    label: 'Home sections' },
   // The entry popup is scheduled copy the owner switches on and off, not
   // page text they set once — so it sits in the header rather than inside
   // Content. Same editor, one page (see functions/admin/popup.ts).
@@ -150,7 +153,7 @@ export const ADMIN_NAV: NavItem[] = [
 ];
 
 const TITLES: Record<string, string> = {
-  menu: 'Menu editor', images: 'Images', content: 'Content', popup: 'Entry popup',
+  menu: 'Menu editor', images: 'Images', content: 'Content', home: 'Home page sections', popup: 'Entry popup',
   colors: 'Colors', reserve: 'Reserve portal',
 };
 

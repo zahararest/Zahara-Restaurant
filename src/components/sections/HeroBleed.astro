@@ -75,8 +75,10 @@ const HERO_QUALITY = 70;
     {/* Mobile-only rotating gallery — the same photos as the in-page gallery,
         cross-fading every few seconds. Lazy-loaded and display:none on desktop,
         so they never download there and never touch the desktop hero. */}
+    {/* data-gallery-extra: removed by the middleware when the venue shows a
+        single photo here instead (/admin/home → Top of the page → On phones). */}
     {mobileSlides.map((p) => (
-      <div class="hero-bleed__slide hero-bleed__slide--extra" data-hero-slide aria-hidden="true"
+      <div class="hero-bleed__slide hero-bleed__slide--extra" data-hero-slide aria-hidden="true" data-gallery-extra="hero"
            {...mediaSlot(p.key, p.src, {
              poster: resized(p.src, 1100, HERO_QUALITY),
              className: 'hero-bleed__img',
@@ -104,7 +106,7 @@ const HERO_QUALITY = 70;
       them up (phone + more than one slide), so they never show inert on
       desktop or with no JS. Swipe is handled in the same script. */}
   {mobileSlides.length > 0 && (
-    <div class="hero-bleed__nav">{/* real controls (labelled buttons) — not aria-hidden, so they're not focusable elements buried in a hidden subtree */}
+    <div class="hero-bleed__nav" data-gallery-extra="hero">{/* real controls (labelled buttons) — not aria-hidden, so they're not focusable elements buried in a hidden subtree */}
       <button class="hero-bleed__arrow hero-bleed__arrow--prev" type="button" data-hero-prev aria-label={prevLabel}>
         <svg viewBox="0 0 20 40" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

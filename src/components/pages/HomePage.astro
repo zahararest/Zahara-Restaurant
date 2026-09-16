@@ -211,11 +211,19 @@ const emptyLabel = t.emptyLabel;
     </div>
   </aside> -->
 
-  <div data-section-name={sec.story}>
+  {/* Every switchable part of the home page carries data-home-section, and
+      the middleware removes the ones a venue has switched off in /admin/home
+      (see functions/data/home-sections.ts). A wrapper holding several of them
+      carries data-home-group — [id, section label] pairs — so it goes too once
+      all of its parts are gone, and otherwise takes the label of its first
+      remaining part for the section HUD. */}
+  <div data-section-name={sec.story}
+       data-home-group={JSON.stringify([['info', sec.story], ['story', sec.story], ['kitchen', sec.kitchen]])}>
     {/* One full-screen unit: the info strip sits at the top of the moody
         dining-room photo, with the editorial story centred below it — so the
         info strip reads as part of this section instead of a stray band. */}
-    <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
+    <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}
+         data-home-group={JSON.stringify([['info'], ['story']])}>
       {/* The backdrop photo is a CSS background, which a video can't replace,
           so the slot is an empty layer over it. A video put here plays above
           the photo and under the darkening wash; its poster is the same URL as
@@ -225,8 +233,8 @@ const emptyLabel = t.emptyLabel;
              poster: resized(PHOTOS.moodDining.src, 1600),
              className: 'section-on-photo__video',
            })}></div>
-      <InfoStrip lang={lang} />
-      <div class="story-scene__body wrap">
+      <div class="home-slot" data-home-section="info"><InfoStrip lang={lang} /></div>
+      <div class="story-scene__body wrap" data-home-section="story">
         {/* Two transparent glass boxes over the photo. Box A (the approach)
             is open by default but closable; box B (the story) is closed by
             default and collapses to just its title until opened. Both reveal
@@ -270,7 +278,9 @@ const emptyLabel = t.emptyLabel;
         </div>
       </div>
     </div>
-    <BleedPhoto lang={lang} photo={PHOTOS.kitchen} mediaKey="kitchen" />
+    <div class="home-slot" data-home-section="kitchen">
+      <BleedPhoto lang={lang} photo={PHOTOS.kitchen} mediaKey="kitchen" />
+    </div>
   </div>
 
   <!-- <div data-section-name={sec.kitchen}>
@@ -400,7 +410,7 @@ const emptyLabel = t.emptyLabel;
   {/* ── Menu split — full-frame photo that says how the table is built:
       four parts (food / wine / cocktails / dessert), one link to the full
       menu. Replaces the old in-page menu preview. */}
-  <section class="menu-split" data-section-name={sec.menu} aria-label={t.menuSplitEyebrow}>
+  <section class="menu-split" data-section-name={sec.menu} data-home-section="menu" aria-label={t.menuSplitEyebrow}>
     <div class="menu-split__media" aria-hidden="true"
          {...mediaSlot('menuSplit', PHOTOS.menuSplit.src, {
            poster: resized(PHOTOS.menuSplit.src, 1800),
@@ -507,7 +517,7 @@ const emptyLabel = t.emptyLabel;
       </div> -->
     </div>
   </section>
-<div data-section-name={sec.events}>
+<div data-section-name={sec.events} data-home-section="events">
     <PhotoBlock
       lang={lang}
       photo={PHOTOS.detail2}
@@ -524,7 +534,7 @@ const emptyLabel = t.emptyLabel;
     />
    </div> 
    
-  <div class="home-gallery" data-section-name={sec.gallery}>
+  <div class="home-gallery" data-section-name={sec.gallery} data-home-section="gallery">
     <Gallery
       lang={lang}
       eyebrow={t.galleryEyebrow}
@@ -540,7 +550,7 @@ const emptyLabel = t.emptyLabel;
 
    
    
-  <div data-section-name={sec.instagram}>
+  <div data-section-name={sec.instagram} data-home-section="instagram">
     <InstagramFeed lang={lang} />
   </div>
 

@@ -931,6 +931,10 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
   .section-on-photo::before { filter: grayscale(1); animation: none; }
 }
 
+/* A wrapper that only exists so a home-page section can be switched off per
+   venue (see functions/data/home-sections.ts). It takes no part in layout. */
+.home-slot { display: contents; }
+
 /* ── Story scene — info strip + editorial story as ONE full-screen unit ── */
 .story-scene {
   justify-content: flex-start;       /* info strip band sits at the top */
@@ -940,6 +944,9 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
    frame. The body's height is fixed (not "remaining after the strip") and the
    scene's inherited overflow:hidden means opening/closing a box never extends
    the frame or re-fits (zooms) the background photo. */
+/* The story switched off for this venue but the info strip kept: the scene is
+   then just that band over the photo, not a full screen with nothing in it. */
+.story-scene[data-home-off~="story"] { min-height: 0; }
 .story-scene__body {
   flex: 0 0 auto;
   height: 100vh;
