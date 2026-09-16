@@ -28,6 +28,7 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
+import { SHRINK_JS } from './shrink';
 import {
   CONTENT_GROUPS, CONTENT_PAGES, readContentForEditor, defaultTokens, defaultAlignFor, styleFor,
   readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
@@ -1110,9 +1111,23 @@ const SCRIPT = String.raw`
     if (uploadBtn && fileInput) uploadBtn.addEventListener('click', function () { fileInput.click(); });
     if (fileInput) fileInput.addEventListener('change', async function () {
       if (!fileInput.files || !fileInput.files.length) return;
-      setS('Uploading…', false);
+      var picked = fileInput.files[0];
       try {
-        var fd = new FormData(); fd.append('file', fileInput.files[0]);
+        // The popup shows its photo at most ~32rem wide, served exactly as
+        // uploaded — so a photographer's 40 MB original is shrunk here, in the
+        // browser, to 1600 px on its long side before it goes anywhere. A file
+        // that is already that small goes up untouched.
+        var blob = picked, name = picked.name;
+        if (window.ZAHARA_SHRINK) {
+          if (picked.size > 4 * 1024 * 1024) setS('Preparing a large photo…', false);
+          var ready = await window.ZAHARA_SHRINK.prepareFile(picked, {
+            maxEdge: 1600, maxBytes: 1.5 * 1024 * 1024, quality: 0.88,
+          });
+          blob = ready.blob;
+          if (ready.changed) name = name.replace(/\.[^.]+$/, '') + (blob.type === 'image/png' ? '.png' : '.jpg');
+        }
+        setS('Uploading…', false);
+        var fd = new FormData(); fd.append('file', blob, name);
         await post(fd); onHasImage(true);
         setS('Photo saved · live now.', false);
       } catch (err) { setS(String(err.message || err), true); }
@@ -1660,6 +1675,7 @@ export async function renderEditor(
     window.ADMIN_SITE_SUFFIX = ${JSON.stringify(site === 'rooftop' ? '&site=rooftop' : '')};
     window.ZAHARA_CONTENT_DEFAULTS = ${JSON.stringify(defaults).replace(/</g, '\\u003c')};
   </script>
+  <script>${SHRINK_JS}</script>
   <script>${SCRIPT}</script>
 </body>
 </html>`;

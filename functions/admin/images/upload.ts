@@ -1,7 +1,13 @@
 // POST /admin/images/upload  — Basic-auth gated.
 // Body: multipart/form-data with fields:
 //   key  — the PHOTOS key being overridden (e.g. 'hero')
-//   file — the image file (image/jpeg | image/png | image/webp, ≤ 5MB)
+//   file — the image file (image/jpeg | image/png | image/webp, ≤ 10 MB)
+//
+// The 10 MB cap is on what ARRIVES, not on what the owner picked: /admin/images
+// opens every photo in its editor, which shrinks it in the browser to the size
+// the slot needs (≤ 2560 px wide) before posting — so a 50 MB photographer's
+// original reaches this route as a file of a few hundred KB. See
+// functions/admin/shrink.ts.
 //
 // Stores the image in R2 at `images/{key}` with its original
 // Content-Type as metadata so the middleware can serve it back.

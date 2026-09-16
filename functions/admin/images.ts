@@ -27,6 +27,7 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
+import { SHRINK_JS } from './shrink';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, canShowVideo, type PhotoMeta } from '../data/photos-map';
 import {
   readMediaMap, videoFilename, videoState, type MediaEnv, type MediaMap, type VideoState,
@@ -1227,7 +1228,13 @@ const SCRIPT = `
       // message is the same however the file arrived. iPhones shoot HEIC by
       // default and browsers can't decode it, so it gets its own instruction
       // rather than a bare "wrong format".
-      const MAX_BYTES = 10 * 1024 * 1024;
+      //
+      // The size limit is generous on purpose: a photographer's JPEG is 20–50
+      // MB, and it never goes up as it is — the editor shrinks it in this
+      // browser to the size the slot needs, and only that is uploaded (see
+      // functions/admin/shrink.ts). The cap only stops a file big enough to
+      // make the tab itself run out of memory.
+      const MAX_BYTES = 100 * 1024 * 1024;
       function rejectReason(f) {
         const name = (f.name || '').toLowerCase();
         if (/\\.(heic|heif)$/.test(name) || /^image\\/hei[cf]/.test(f.type)) {
@@ -1239,7 +1246,7 @@ const SCRIPT = `
           return 'That file isn\\'t a photo we can use. Please pick a JPG, PNG or WebP.';
         }
         if (f.size > MAX_BYTES) {
-          return 'That photo is ' + Math.round(f.size / 1024 / 1024) + ' MB — the limit is 10 MB. ' +
+          return 'That photo is ' + Math.round(f.size / 1024 / 1024) + ' MB — the limit is 100 MB. ' +
                  'Try exporting it a bit smaller.';
         }
         return null;
@@ -1936,7 +1943,20 @@ const SCRIPT = `
       const fitAllB  = document.getElementById('ed-fitall');
       const edgeCtl  = document.getElementById('ed-edge-ctl');
 
-      let img = null;            // loaded HTMLImageElement
+      // ── Big photos: edit a copy, upload from the original ─────────────
+      // A photographer's 60 MP JPEG is far too heavy to redraw on every frame
+      // of a drag, or to copy whole for every rotate. So the editor works on a
+      // copy no longer than EDIT_EDGE on its long side — plenty for a screen —
+      // and Apply goes back to the ORIGINAL, drawing it through the same
+      // transform, so the upload keeps every pixel the crop can use.
+      const EDIT_EDGE = 3200;
+      // Nothing on the site is ever shown wider than this (the largest image
+      // the pages request), so exporting wider only makes a heavier file for
+      // the resize layer to fetch.
+      const MAX_EXPORT_W = 2560;
+
+      let img = null;            // what the editor draws: the photo, or its editing copy
+      let full = null;           // the photo as loaded, at full resolution
       let work = null;           // { el, w, h } — rotation-applied source
       let ctxState = null;       // open() opts
       let targetAR = 16 / 9;     // crop aspect (the shape used on the site)
@@ -2012,30 +2032,47 @@ const SCRIPT = `
       // enough that the tilted image still fills the frame) so there are never
       // transparent corners — the classic reason to reach for a desktop photo
       // app.
-      function buildWork() {
-        edgeTile = null;
-        if (!img) { work = null; return; }
-        const rot90 = rotation % 180 !== 0;
-        const w = rot90 ? img.naturalHeight : img.naturalWidth;
-        const h = rot90 ? img.naturalWidth  : img.naturalHeight;
+      /** Size of an <img> or a canvas. */
+      function sizeOf(el) {
+        return { w: el.naturalWidth || el.width, h: el.naturalHeight || el.height };
+      }
+
+      /** Every geometric transform, for a w × h work frame, onto a context:
+       *  after this, drawing the unrotated source centred on (0, 0) lands it
+       *  exactly where the work source has it. Shared by buildWork (the
+       *  editing copy) and exportBlob (the original), which is what keeps the
+       *  upload identical to what was framed. */
+      function workTransform(g, w, h) {
         const fine = fineDeg() * Math.PI / 180;
-        if (rotation === 0 && !flipH && !flipV && fine === 0) {
-          work = { el: img, w: img.naturalWidth, h: img.naturalHeight };
-          return;
-        }
         // Minimal uniform scale so a w x h frame stays covered after rotating
         // by the fine angle (exact for same-frame rotation).
         const cover = Math.abs(Math.cos(fine)) +
           Math.max(w / h, h / w) * Math.abs(Math.sin(fine));
+        g.translate(w / 2, h / 2);
+        g.rotate(fine);
+        g.scale(cover, cover);
+        g.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+        g.rotate(rotation * Math.PI / 180);
+      }
+
+      function buildWork() {
+        edgeTile = null;
+        if (!img) { work = null; return; }
+        const s = sizeOf(img);
+        const rot90 = rotation % 180 !== 0;
+        const w = rot90 ? s.h : s.w;
+        const h = rot90 ? s.w : s.h;
+        if (rotation === 0 && !flipH && !flipV && fineDeg() === 0) {
+          work = { el: img, w: s.w, h: s.h };
+          return;
+        }
         const c = document.createElement('canvas');
         c.width = w; c.height = h;
         const cc = c.getContext('2d');
-        cc.translate(w / 2, h / 2);
-        cc.rotate(fine);
-        cc.scale(cover, cover);
-        cc.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-        cc.rotate(rotation * Math.PI / 180);
-        cc.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+        cc.imageSmoothingEnabled = true;
+        cc.imageSmoothingQuality = 'high';
+        workTransform(cc, w, h);
+        cc.drawImage(img, -s.w / 2, -s.h / 2);
         work = { el: c, w: w, h: h };
       }
 
@@ -2345,25 +2382,52 @@ const SCRIPT = `
        *  frame, never the shape or the size of the file that leaves here. */
       function outputSize() {
         const c = cropRect();
-        // Never scale the photograph up: one output pixel per source pixel of
-        // the crop is the ceiling, whatever size was picked in the menu.
-        const natural = Math.max(1, Math.round(c.sw));
+        // Never scale the photograph up: one output pixel per ORIGINAL pixel
+        // of the crop is the ceiling, whatever size was picked in the menu —
+        // measured on the original, not on the smaller editing copy. And never
+        // wider than the site ever shows a photo.
+        const natural = Math.max(1, Math.round(c.sw * fullScale()));
         const chosen  = inputs.width.value === 'orig' ? natural : parseInt(inputs.width.value, 10);
-        const outW    = Math.max(1, Math.min(chosen, natural));
+        const outW    = Math.max(1, Math.min(chosen, natural, MAX_EXPORT_W));
         return { w: outW, h: Math.max(1, Math.round(outW / targetAR)) };
       }
 
-      // Build the full-resolution output at the target aspect ratio.
+      /** Original pixels per editing-copy pixel (1 when no copy was needed). */
+      function fullScale() {
+        if (!full || !img) return 1;
+        return sizeOf(full).w / sizeOf(img).w;
+      }
+
+      // Build the output at the target aspect ratio — from the ORIGINAL photo,
+      // not the editing copy. The crop is measured in editing-copy units, so
+      // the original is drawn through the same transform, scaled to the same
+      // footprint: the geometry is identical, the pixels are the full ones.
+      // A big reduction is made in halves first (ZAHARA_SHRINK.stepDown), so
+      // fine detail comes out clean rather than jagged.
       function exportBlob() {
         const c = cropRect();
         const out = outputSize();
         const off = document.createElement('canvas');
         off.width = out.w; off.height = out.h;
         const octx = off.getContext('2d');
+        octx.imageSmoothingEnabled = true;
+        octx.imageSmoothingQuality = 'high';
         const kx = out.w / c.sw, ky = out.h / c.sh;
         if (hasMargins()) paintEdges(octx, out.w, out.h);
-        octx.drawImage(work.el, 0, 0, work.w, work.h,
-          (0 - c.sx) * kx, (0 - c.sy) * ky, work.w * kx, work.h * ky);
+        const source = full || img;
+        const src = sizeOf(source);
+        const edit = sizeOf(img);
+        // Output pixels per original pixel, for choosing how far to pre-shrink.
+        const ratio = kx * edit.w / src.w;
+        const step = window.ZAHARA_SHRINK
+          ? window.ZAHARA_SHRINK.stepDown(source, src.w, src.h, ratio)
+          : { el: source };
+        octx.save();
+        octx.scale(kx, ky);
+        octx.translate(-c.sx, -c.sy);
+        workTransform(octx, work.w, work.h);
+        octx.drawImage(step.el, -edit.w / 2, -edit.h / 2, edit.w, edit.h);
+        octx.restore();
         const o = currentOpts();
         if (needsAdjust(o)) {
           const id = octx.getImageData(0, 0, out.w, out.h);
@@ -2423,7 +2487,8 @@ const SCRIPT = `
               'Drag the photo to move it, pinch or scroll to zoom. Zoom out past the edges to fit more in.'
             : 'Shown whole on the site — fit the full image. Drag to reposition, pinch or scroll to zoom.';
         }
-        setStatus('Loading…', false);
+        setStatus(opts.source && opts.source.size > 8 * 1024 * 1024
+          ? 'Opening a large photo — this can take a few seconds…' : 'Loading…', false);
         // Default export size depends on the slot.
         inputs.width.value = opts.variant === 'mobile' ? '1280' : '2000';
         inputs.quality.value = '0.85';
@@ -2435,7 +2500,14 @@ const SCRIPT = `
         const im = new Image();
         im.crossOrigin = 'anonymous';
         im.onload = () => {
-          img = im;
+          full = im;
+          // Big photo → edit a copy (see EDIT_EDGE above).
+          const fit = window.ZAHARA_SHRINK
+            ? window.ZAHARA_SHRINK.fitWithin(im.naturalWidth, im.naturalHeight, EDIT_EDGE)
+            : { k: 1 };
+          img = fit.k < 1
+            ? window.ZAHARA_SHRINK.resample(im, im.naturalWidth, im.naturalHeight, fit.w, fit.h)
+            : im;
           // 'contain' photos are shown whole — frame to the source ratio (no crop).
           if (!cropToAR) targetAR = im.naturalWidth / im.naturalHeight;
           rotation = 0;
@@ -2446,7 +2518,12 @@ const SCRIPT = `
           // across a full-bleed band, and there's no way to tell from the
           // thumbnail alone.
           const minW = opts.variant === 'mobile' ? 800 : 1400;
-          metaEl.textContent = im.naturalWidth + ' × ' + im.naturalHeight + ' px source';
+          metaEl.textContent = im.naturalWidth + ' × ' + im.naturalHeight + ' px source' +
+            (opts.source && opts.source.size && window.ZAHARA_SHRINK
+              ? ' · ' + window.ZAHARA_SHRINK.mb(opts.source.size) : '');
+          if (fit.k < 1) {
+            metaEl.textContent += ' — shrunk here in your browser; only the finished photo below is uploaded.';
+          }
           metaEl.classList.toggle('editor__meta--warn', im.naturalWidth < minW);
           if (im.naturalWidth < minW) {
             metaEl.textContent += ' — small for this slot (' + minW + ' px+ recommended). ' +
@@ -2466,7 +2543,7 @@ const SCRIPT = `
 
       function close() {
         root.classList.remove('is-open');
-        img = null; work = null; ctxState = null; edgeTile = null;
+        img = null; full = null; work = null; ctxState = null; edgeTile = null;
       }
 
       // ── Wire controls ──
@@ -3165,7 +3242,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       <strong>Apply&nbsp;&amp;&nbsp;upload</strong>.
       <strong>Choose existing</strong> reuses a photo already on the site;
       <strong>Remove</strong> puts the original back.
-      JPG, PNG or WebP, up to 10&nbsp;MB.
+      JPG, PNG or WebP, straight from the camera or the photographer — up to
+      100&nbsp;MB. A big photo is shrunk to the size its slot needs in your
+      browser, so only a light file is ever uploaded.
     </p>
     <p class="lead">
       Any photo can show a <strong>video</strong> instead — the photo
@@ -3279,7 +3358,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <div class="ctl">
           <label for="ed-width">Export size (max width)</label>
           <select id="ed-width">
-            <option value="orig">Keep original width</option>
+            <option value="orig">Largest the site uses (2560 px)</option>
             <option value="2400">2400 px — extra large</option>
             <option value="2000" selected>2000 px — large (recommended)</option>
             <option value="1600">1600 px — medium</option>
@@ -3327,6 +3406,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     // fallback). Empty for Zahara, so its previews are unchanged.
     window.ADMIN_SITE_SUFFIX = ${JSON.stringify(site === 'rooftop' ? '&site=rooftop' : '')};
   </script>
+  <script>${SHRINK_JS}</script>
   <script>${SCRIPT}</script>
 </body>
 </html>`;
