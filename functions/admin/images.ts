@@ -27,8 +27,10 @@
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
-import { PHOTO_CATALOGUE, PHOTO_GROUPS, type PhotoMeta } from '../data/photos-map';
-import { readMediaMap, videoFilename, type MediaEnv } from '../data/media';
+import { PHOTO_CATALOGUE, PHOTO_GROUPS, canShowVideo, type PhotoMeta } from '../data/photos-map';
+import {
+  readMediaMap, videoFilename, videoState, type MediaEnv, type MediaMap, type VideoState,
+} from '../data/media';
 import {
   readContentOwn, galleryCaptionKey, GALLERY_CAPTION_KEYS,
   type ContentEnv, type ContentValue,
@@ -1197,12 +1199,17 @@ const SCRIPT = `
       const videoBtn     = card.querySelector('[data-btn-video]');
       const videoHideBtn = card.querySelector('[data-btn-video-hide]');
       const videoShowBtn = card.querySelector('[data-btn-video-show]');
+      const videoFollowBtn = card.querySelector('[data-btn-video-follow]');
       const videoDelBtn  = card.querySelector('[data-btn-video-delete]');
       const videoTools   = card.querySelector('[data-video-tools]');
       const videoAdjBtn  = card.querySelector('[data-btn-video-adjust]');
       const videoAdjust  = card.querySelector('[data-video-adjust]');
       const videoNote    = card.querySelector('[data-video-note]');
       const videoMeta    = card.querySelector('[data-video-meta]');
+      // Set by the video block below. A photo upload or removal rewrites the
+      // badge for the PHOTO; while a video is what visitors see, this puts the
+      // video badge back on top (and remembers the photo one for later).
+      let reassertVideoBadge = null;
 
       function setStatus(msg, err) {
         if (!status) return;
@@ -1259,6 +1266,7 @@ const SCRIPT = `
         }
         if (missingNote)  missingNote.hidden = true;
         if (optionalNote) optionalNote.hidden = true;
+        if (reassertVideoBadge) reassertVideoBadge();
         updateCount();     // the badge just changed — keep the progress line honest
         buildPageTabs();   // …and the per-page "needs a photo" counts with it
         try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'set' }); } catch (_) {}
@@ -1370,7 +1378,11 @@ const SCRIPT = `
             if (thumb) { thumb.style.opacity = 1; thumb.src = thumb.dataset.fallback + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || ''); }
             if (isMobile) {
               setStatus('Removed — using desktop', false);
-              if (badge) { badge.textContent = 'Using desktop'; badge.classList.remove('card__badge--set'); }
+              if (badge) {
+                badge.textContent = 'Using desktop';
+                badge.classList.remove('card__badge--set');
+                badge.classList.add('card__badge--optional');
+              }
             } else if (badge) {
               badge.classList.remove('card__badge--override', 'card__badge--fallback', 'card__badge--optional', 'card__badge--missing');
               if (card.dataset.fallbackLabel) {
@@ -1389,6 +1401,7 @@ const SCRIPT = `
                 if (missingNote) missingNote.hidden = false;
               }
             }
+            if (reassertVideoBadge) reassertVideoBadge();
             updateCount();
             buildPageTabs();
             try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'delete' }); } catch (_) {}
@@ -1409,13 +1422,27 @@ const SCRIPT = `
       // exactly the wrong thing to do to a video — so a video goes straight to
       // its own endpoint, untouched.
       //
-      // Three states, and the card can be in any of them:
+      // Each card is ONE frame of the slot — desktop or phone — and the two are
+      // independent. Per frame, a card can be in any of these states:
       //   no file           → offer to upload one
       //   file, hidden      → preview it at half strength, offer to show it
       //   file, showing     → preview it, offer to go back to the photograph
-      // Nothing here deletes the video except the button that says it does.
+      // and a phone card has one more: following the desktop video, which is
+      // what a phone does until the owner decides something for phones.
+      // Nothing here deletes a video except the button that says it does.
+      //
+      // The card draws itself from the slot's state as the SERVER reports it
+      // (see videoState() in functions/data/media.ts) — on load from the
+      // data-video-init attribute, afterwards from every endpoint response.
       if (videoBtn) {
         const MAX_VIDEO = 40 * 1024 * 1024;
+        const hasPhoneFrame = card.dataset.phoneFrame === '1';
+        let lastState = null;
+        // The photo badge a video badge is standing in front of, so it can be
+        // put back when the video goes. The server renders it alongside.
+        let photoBadge = badge
+          ? { cls: badge.dataset.photoClass || badge.className, text: badge.dataset.photoText || badge.textContent }
+          : null;
 
         function rejectVideo(f) {
           if (!/^video\\/(mp4|webm|quicktime)$/.test(f.type || '')) {
@@ -1468,101 +1495,196 @@ const SCRIPT = `
 
         function videoEl() { return card.querySelector('[data-card-video]'); }
 
+        /** This card's frame, read out of the slot's state. */
+        function frame(st) {
+          const mode = st.phoneMode;
+          if (!isMobile) {
+            return {
+              hasFile: st.hasFile, showing: st.showing, preview: st.hasFile,
+              file: card.dataset.videoFile, sig: 'd' + st.uploaded,
+              fit: st.fit, pos: st.pos, rate: st.rate,
+              bytes: st.size, type: st.type,
+            };
+          }
+          // A phone following the desktop previews the desktop clip — that is
+          // what phones are playing, whether or not a phone file sits unused.
+          const followsDesktop = mode === 'desktop';
+          return {
+            hasFile: st.hasMobileFile, showing: mode !== 'photo',
+            preview: st.hasMobileFile || followsDesktop,
+            file: followsDesktop ? card.dataset.videoFileDesktop : card.dataset.videoFile,
+            sig: followsDesktop ? 'd' + st.uploaded : 'm' + st.mobileUploaded,
+            fit: st.mfit, pos: st.mpos, rate: st.mrate,
+            bytes: st.mobileSize, type: st.mobileType,
+          };
+        }
+
+        function isVideoBadge() { return !!badge && badge.className.indexOf('card__badge--video') !== -1; }
+
+        /** Put the right badge up: the video's while this frame shows one or
+         *  keeps one, otherwise the photo's. Also called after a photo upload
+         *  or removal, which only know how to draw the photo badge. */
+        function drawBadge(st) {
+          if (!badge || !st) return;
+          const f = frame(st);
+          // Snapshot the photo badge whenever the photo code was the last to
+          // draw it — a plain photo badge, or one a photo upload stamped its
+          // class onto while the video badge was up.
+          const photoMod = badge.className.match(/card__badge--(override|set|missing|fallback|optional)/);
+          if (!isVideoBadge() || photoMod) {
+            photoBadge = { cls: 'card__badge' + (photoMod ? ' ' + photoMod[0] : ''), text: badge.textContent };
+          }
+          if (f.showing || f.hasFile) {
+            badge.className = 'card__badge ' + (f.showing ? 'card__badge--video' : 'card__badge--video-off');
+            badge.textContent = !f.showing ? 'Video hidden'
+              : (!isMobile ? 'Video' : (st.phoneMode === 'own' ? 'Video · phone' : 'Desktop video'));
+          } else if (photoBadge) {
+            badge.className = photoBadge.cls;
+            badge.textContent = photoBadge.text;
+          }
+          // The "no image yet" notes belong to the photo badge; a video in the
+          // frame means nothing is missing.
+          if (!isMobile) {
+            const cls = badge.className;
+            if (missingNote)  missingNote.hidden  = cls.indexOf('card__badge--missing')  === -1;
+            if (optionalNote) optionalNote.hidden = cls.indexOf('card__badge--optional') === -1;
+          }
+        }
+        reassertVideoBadge = () => drawBadge(lastState);
+
+        /** One sentence on what visitors see, in the owner's terms. */
+        function noteFor(st) {
+          const mode = st.phoneMode;
+          if (!isMobile) {
+            let note = st.showing
+              ? 'Showing the video. The photo is still here — “Back to the photo” brings it back without deleting anything.'
+              : (st.hasFile
+                  ? 'The video is saved but hidden — visitors see the photo. “Show the video” puts it back.'
+                  : 'MP4 or WebM (H.264), up to 40 MB. Silent and looping — the photo stays as its first frame.');
+            if (!hasPhoneFrame) {
+              if (st.showing) note += ' It plays on phones too.';
+            } else if (st.showing || st.hasFile || mode !== 'photo') {
+              note += mode === 'own'     ? ' Phones play their own video (Mobile tab).'
+                    : mode === 'desktop' ? ' Phones play this one too.'
+                    :                      ' Phones show the photo (Mobile tab).';
+            }
+            return note;
+          }
+          if (mode === 'own') {
+            return 'Phones play this video. The photo is still here — “Back to the photo” brings it back without deleting anything.';
+          }
+          if (mode === 'desktop') {
+            return st.hasMobileFile
+              ? 'Phones are playing the desktop video. Your phone video is saved — “Show the phone video” switches to it.'
+              : 'Phones are playing the desktop video. Upload one here to give phones their own, or press “Back to the photo”.';
+          }
+          if (st.hasMobileFile) {
+            return 'The phone video is saved but hidden — phones see the photo. “Show the phone video” puts it back.';
+          }
+          return st.showing
+            ? 'Phones show the photo while desktop plays a video. “Use the desktop video” plays it on phones too, or upload a phone video.'
+            : 'MP4 or WebM (H.264), up to 40 MB. A tall (portrait) clip suits phones best. Only phones see it — desktop is not affected.';
+        }
+
         /** Redraw the card from the state the SERVER just reported, rather than
          *  from what the button that was pressed hoped would happen. Every video
          *  endpoint answers with the full state for this reason. */
-        function applyState(st) {
-          const showing = isMobile ? st.showingMobile : st.showing;
-          const hasFile = isMobile ? st.hasMobileFile : st.hasFile;
+        function applyState(st, initial) {
+          lastState = st;
+          const f    = frame(st);
+          const mode = st.phoneMode;
 
           let el = videoEl();
-          if (hasFile && !el) {
+          if (f.preview && !el) {
             el = document.createElement('video');
             el.className = 'card__video';
             el.setAttribute('data-card-video', '');
             el.muted = true; el.loop = true; el.playsInline = true; el.preload = 'metadata';
             if (thumb) el.poster = thumb.src;
-            if (thumbZone) thumbZone.appendChild(el);
+            if (thumbZone) thumbZone.insertBefore(el, badge || null);
             watchVideo(el);
           }
           if (el) {
-            el.hidden = !hasFile;
-            if (hasFile) {
-              el.style.objectFit = st.fit;
-              el.style.objectPosition = st.pos;
-              const want = '/videos/' + card.dataset.videoFile + '?t=' + Date.now() + (window.ADMIN_SITE_SUFFIX || '');
-              if (el.dataset.videoStamp !== String(st.stamp || '')) {
-                el.dataset.videoStamp = String(st.stamp || '');
-                el.src = want;
+            el.hidden = !f.preview;
+            if (f.preview) {
+              el.style.objectFit = f.fit;
+              el.style.objectPosition = f.pos;
+              // Only reload when the file being previewed actually changed, so
+              // pressing a switch doesn't restart a clip the owner is watching.
+              if (el.dataset.videoSig !== f.sig) {
+                el.dataset.videoSig = f.sig;
+                el.src = '/videos/' + f.file + '?t=' + encodeURIComponent(f.sig) + (window.ADMIN_SITE_SUFFIX || '');
                 ZAHARA_VIDEO_PREVIEW.resume(el);
               }
-              try { el.playbackRate = st.rate || 1; } catch (e) {}
-            } else {
+              try { el.playbackRate = f.rate || 1; } catch (e) {}
+            } else if (el.getAttribute('src')) {
+              delete el.dataset.videoSig;
               el.removeAttribute('src');
               try { el.load(); } catch (e) {}
             }
           }
 
           if (thumbZone) {
-            if (hasFile) {
+            if (f.preview) {
               thumbZone.dataset.hasVideo = '1';
-              thumbZone.dataset.videoState = showing ? 'shown' : 'hidden';
+              thumbZone.dataset.videoState = f.showing ? 'shown' : 'hidden';
             } else {
               delete thumbZone.dataset.hasVideo;
               delete thumbZone.dataset.videoState;
             }
           }
 
-          if (badge) {
-            if (showing) {
-              badge.className = 'card__badge card__badge--video';
-              badge.textContent = isMobile ? 'Video · phone' : 'Video';
-            } else if (hasFile) {
-              badge.className = 'card__badge card__badge--video-off';
-              badge.textContent = 'Video hidden';
-            }
-            // With no file left the badge depends on the fallback chain and the
-            // optional flag, which only the server knows — reloadSoon() below
-            // gets the honest answer instead of guessing here.
-          }
+          drawBadge(st);
 
-          if (hasFile) {
-            if (missingNote)  missingNote.hidden = true;
-            if (optionalNote) optionalNote.hidden = true;
+          videoBtn.textContent = f.hasFile
+            ? (isMobile ? 'Replace phone video…' : 'Replace video…')
+            : (isMobile ? 'Use a video on phones…' : 'Use a video instead…');
+          if (videoHideBtn) videoHideBtn.hidden = !f.showing;
+          if (videoShowBtn) videoShowBtn.hidden = !(f.hasFile && (isMobile ? mode !== 'own' : !st.showing));
+          if (videoFollowBtn) videoFollowBtn.hidden = !(st.showing && st.hasFile && mode !== 'desktop');
+          const canFrame = f.hasFile || f.preview;
+          if (videoTools)   videoTools.hidden   = !canFrame;
+          if (videoDelBtn)  videoDelBtn.hidden  = !f.hasFile;
+          if (!canFrame && videoAdjust) {
+            videoAdjust.classList.remove('is-open');
+            if (videoAdjBtn) videoAdjBtn.textContent = 'Adjust…';
           }
-
-          videoBtn.textContent = hasFile
-            ? 'Replace video…'
-            : (isMobile ? 'Add a phone cut…' : 'Use a video instead…');
-          if (videoHideBtn) videoHideBtn.hidden = !showing;
-          if (videoShowBtn) videoShowBtn.hidden = !(hasFile && !showing);
-          if (videoTools)   videoTools.hidden   = !hasFile;
-          if (!hasFile && videoAdjust) videoAdjust.classList.remove('is-open');
 
           if (videoNote) {
             videoNote.classList.remove('card__video-note--err');
-            videoNote.textContent = showing
-              ? 'Showing the video. The photo is still here — “Back to the photo” brings it back without deleting anything.'
-              : (hasFile
-                  ? 'The video is saved but hidden — visitors see the photo. “Show the video” puts it back.'
-                  : (isMobile
-                      ? 'Optional. A portrait cut of the same clip, used on phones.'
-                      : 'MP4 or WebM (H.264), up to 40 MB. Silent and looping — the photo stays as its first frame.'));
+            videoNote.textContent = noteFor(st);
           }
           if (videoMeta) {
-            const bytes = isMobile ? st.mobileSize : st.size;
-            if (hasFile && bytes) {
+            if (f.hasFile && f.bytes) {
               videoMeta.hidden = false;
-              videoMeta.textContent = (Math.round(bytes / 1024 / 1024 * 10) / 10) + ' MB' +
-                (st.type && !isMobile ? ' · ' + st.type.replace('video/', '').toUpperCase() : '');
+              videoMeta.textContent = (Math.round(f.bytes / 1024 / 1024 * 10) / 10) + ' MB' +
+                (f.type ? ' · ' + f.type.replace('video/', '').toUpperCase() : '');
             } else {
               videoMeta.hidden = true;
               videoMeta.textContent = '';
             }
           }
+          const adjNote = card.querySelector('[data-video-adjust-note]');
+          if (adjNote) {
+            adjNote.textContent = isMobile
+              ? (st.phoneFramed ? 'Phones only.' : 'Phones only. Until you save here, phones use the desktop framing.')
+              : (!hasPhoneFrame ? 'Applies on phones too.'
+                  : (st.phoneFramed ? 'Desktop only — phones are framed on the Mobile tab.'
+                                    : 'Phones use this framing too, until you frame them on the Mobile tab.'));
+          }
           syncAdjust(st);
+          if (initial) return;
           updateCount();
           buildPageTabs();
+        }
+
+        // Both cards of a slot draw from the same state, so a switch pressed on
+        // one redraws the other — hiding the desktop video changes what a phone
+        // that follows it sees.
+        const peers = (window.ZAHARA_VIDEO_CARDS = window.ZAHARA_VIDEO_CARDS || {});
+        (peers[key] = peers[key] || []).push(applyState);
+        function applyEverywhere(st) {
+          (peers[key] || []).forEach((apply) => apply(st));
           try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'video' }); } catch (_) {}
         }
 
@@ -1595,10 +1717,10 @@ const SCRIPT = `
             const fd = new FormData();
             fd.append('file', f);
             const st = await postVideo(fd);
-            st.stamp = Date.now();
-            applyState(st);
+            applyEverywhere(st);
             const dims = probe.w ? ' · ' + probe.w + '×' + probe.h : '';
-            setStatus('Saved' + dims + '. The preview above is the same file the site serves. ' +
+            setStatus('Saved' + dims + '. The preview above is the same file the site serves' +
+                      (isMobile ? ' to phones' : '') + '. ' +
                       'Give the live page up to half a minute to pick it up.', false);
           } catch (err) {
             setStatus(String(err.message || err), true);
@@ -1617,9 +1739,8 @@ const SCRIPT = `
             const fd = new FormData();
             fd.append('action', action);
             const st = await postVideo(fd);
-            st.stamp = Date.now();
             if (reloadAfter) { location.reload(); return; }
-            applyState(st);
+            applyEverywhere(st);
             setStatus(okMsg, false);
           } catch (err) {
             setStatus(String(err.message || err), true);
@@ -1630,30 +1751,42 @@ const SCRIPT = `
 
         if (videoHideBtn) videoHideBtn.addEventListener('click', () => {
           videoAction('hide', 'Switching…',
-            'Back to the photo. The video is kept — press “Show the video” any time. ' +
+            (isMobile ? 'Phones are back on the photo. ' : 'Back to the photo. ') +
+            'Any video is kept — you can show it again any time. ' +
             'The live page can take up to half a minute to catch up.', false);
         });
 
         if (videoShowBtn) videoShowBtn.addEventListener('click', () => {
           videoAction('show', 'Switching…',
-            'Showing the video again. The live page can take up to half a minute to catch up.', false);
+            (isMobile ? 'Phones are showing the phone video again. ' : 'Showing the video again. ') +
+            'The live page can take up to half a minute to catch up.', false);
+        });
+
+        if (videoFollowBtn) videoFollowBtn.addEventListener('click', () => {
+          videoAction('follow', 'Switching…',
+            'Phones now play the desktop video. The live page can take up to half a minute to catch up.', false);
         });
 
         if (videoDelBtn) videoDelBtn.addEventListener('click', () => {
-          if (!confirm(
-            'Delete this video for good?\\n\\n' +
-            'The photograph stays. If you only want visitors to see the photo ' +
-            'for now, press “Back to the photo” instead — that keeps the video ' +
-            'so you can bring it back later.'
+          if (!confirm(isMobile
+            ? 'Delete the phone video for good?\\n\\n' +
+              'The photograph stays, and phones go back to whatever desktop shows. If you only ' +
+              'want phones to see the photo for now, press “Back to the photo” instead — that ' +
+              'keeps the video so you can bring it back later.'
+            : 'Delete this video for good?\\n\\n' +
+              'The photograph stays, and a phone video (if there is one) is not touched. If you ' +
+              'only want visitors to see the photo for now, press “Back to the photo” instead — ' +
+              'that keeps the video so you can bring it back later.'
           )) return;
           videoAction('delete', 'Deleting…', 'Video deleted.', true);
         });
 
         // ── Framing ────────────────────────────────────────────────────────
         // A video can't be re-cropped in a canvas the way a photo can, so what
-        // the owner gets is where it sits in its frame. Every control paints
-        // the card's own preview immediately and only then offers to save, so
-        // the drag is the preview rather than a guess followed by a reload.
+        // the owner gets is where it sits in its frame — per frame, since a
+        // phone is a different shape. Every control paints the card's own
+        // preview immediately and only then offers to save, so the drag is the
+        // preview rather than a guess followed by a reload.
         const fitBox  = card.querySelector('[data-video-fit]');
         const posX    = card.querySelector('[data-video-posx]');
         const posY    = card.querySelector('[data-video-posy]');
@@ -1663,19 +1796,19 @@ const SCRIPT = `
         const rateV   = card.querySelector('[data-video-rate-v]');
         const saveB   = card.querySelector('[data-btn-video-save]');
         const resetB  = card.querySelector('[data-btn-video-reset]');
-        let chosenFit = (card.querySelector('[data-video-fit] .is-on') || {}).dataset
-          ? card.querySelector('[data-video-fit] .is-on').dataset.fit : 'cover';
+        let chosenFit = 'cover';
 
         function syncAdjust(st) {
           if (!st || !fitBox) return;
-          chosenFit = st.fit;
+          const f = frame(st);
+          chosenFit = f.fit;
           Array.prototype.forEach.call(fitBox.querySelectorAll('button'), (b) => {
-            b.classList.toggle('is-on', b.dataset.fit === st.fit);
+            b.classList.toggle('is-on', b.dataset.fit === f.fit);
           });
-          const m = /^(\\d{1,3})% (\\d{1,3})%$/.exec(st.pos || '50% 50%');
+          const m = /^(\\d{1,3})% (\\d{1,3})%$/.exec(f.pos || '50% 50%');
           if (posX) posX.value = m ? m[1] : '50';
           if (posY) posY.value = m ? m[2] : '50';
-          if (rateIn) rateIn.value = String(st.rate || 1);
+          if (rateIn) rateIn.value = String(f.rate || 1);
           paintFraming();
         }
 
@@ -1739,15 +1872,21 @@ const SCRIPT = `
             fd.append('pos', (posX ? posX.value : '50') + '% ' + (posY ? posY.value : '50') + '%');
             fd.append('rate', rateIn ? rateIn.value : '1');
             const st = await postVideo(fd);
-            applyState(st);
-            setStatus('Framing saved. The live page can take up to half a minute to catch up.', false);
+            applyEverywhere(st);
+            setStatus((isMobile ? 'Phone framing saved.' : 'Framing saved.') +
+                      ' The live page can take up to half a minute to catch up.', false);
           } catch (err) {
             setStatus(String(err.message || err), true);
           } finally {
             setBusy('');
           }
         });
-        paintFraming();
+
+        try {
+          applyState(JSON.parse(card.dataset.videoInit || 'null'), true);
+        } catch (e) {
+          console.warn('[admin/images] bad video state for', key, e);
+        }
       }
     });
 
@@ -2566,27 +2705,10 @@ interface CardOpts {
   hasMobile: boolean;
   caption: ContentValue | null;
   site: Site;
-  /** A video is being SHOWN in THIS card's frame — so the badge says Video and
-   *  the card offers to switch back to the photograph. */
-  hasVideo: boolean;
-  /** A video FILE exists for this card's frame, shown or not. This is what
-   *  decides whether the card previews it and offers to show / delete it —
-   *  a hidden video is still there, and is meant to be easy to bring back. */
-  hasVideoFile: boolean;
-  /** A desktop video file exists for this slot. The phone card needs to know:
-   *  a portrait cut only makes sense once there is a video to cut. */
-  hasDesktopVideo: boolean;
-  /** How the video sits in its frame — same values the live page uses, so the
-   *  card preview and the site agree. */
-  videoFit: 'cover' | 'contain';
-  videoPosX: number;
-  videoPosY: number;
-  videoRate: number;
-  /** Bytes and content type of the video file, for the line under the card.
-   *  Zero / empty when there is no file (or on the phone card, which shares
-   *  the desktop clip's framing and doesn't repeat its details). */
-  videoSize: number;
-  videoType: string;
+  /** The slot's video state — both frames, as videoState() reports it and
+   *  every video endpoint answers with. Null for a slot that can't show a
+   *  video. The card's script draws the video controls from this. */
+  video: VideoState | null;
 }
 
 function renderCard(p: PhotoMeta, o: CardOpts): string {
@@ -2600,26 +2722,27 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   const src      = `/${route}/${p.filename}?t=${o.version}${siteAmp}`;
   const fallback = `/${route}/${p.filename}`;
 
-  const targetAR = isMobile ? (9 / 16) : aspectToNum(p.aspect);
+  const targetAR = isMobile ? aspectToNum(p.mobileAspect ?? '9 / 16') : aspectToNum(p.aspect);
   const fit      = p.fit || 'cover';
 
   const tags: string[] = [];
   if (!isMobile && p.reused)   tags.push('<span class="card__tag">Shared</span>');
   if (!isMobile && p.reserved) tags.push('<span class="card__tag">Not shown</span>');
 
-  // Badge state. A live video outranks every still state: it is what the
-  // visitor is actually seeing, and saying "Override" while a video plays
-  // would send the owner looking for a photo problem that isn't there.
+  // This card's frame of the video, if the slot can have one.
+  const v         = o.video;
+  const phoneMode = v?.phoneMode ?? 'photo';
+  const frameFile = !!v && (isMobile ? v.hasMobileFile : v.hasFile);
+  const frameShow = !!v && (isMobile ? phoneMode !== 'photo' : v.showing);
+
+  // Badge state — the photo's first, then the video's on top of it. A live
+  // video outranks every still state: it is what the visitor is actually
+  // seeing, and saying "Override" while a video plays would send the owner
+  // looking for a photo problem that isn't there. The photo badge still rides
+  // along (data-photo-*) so the card can put it back when the video goes.
   let badgeClass = '';
   let badgeText  = 'Default';
-  if (o.hasVideo) {
-    badgeClass = 'card__badge--video'; badgeText = isMobile ? 'Video · phone' : 'Video';
-  } else if (o.hasVideoFile) {
-    // The file is there, the slot just isn't showing it. Saying "Missing" or
-    // "Default" here would send the owner looking for a video they already
-    // uploaded.
-    badgeClass = 'card__badge--video-off'; badgeText = 'Video hidden';
-  } else if (isMobile) {
+  if (isMobile) {
     if (o.hasMobile) { badgeClass = 'card__badge--set'; badgeText = 'Set'; }
     else             { badgeClass = 'card__badge--optional'; badgeText = 'Using desktop'; }
   } else if (o.hasOverride) {
@@ -2631,24 +2754,46 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   } else if (!p.reserved) {
     badgeClass = 'card__badge--missing'; badgeText = 'Missing';
   }
+  const photoBadgeClass = `card__badge ${badgeClass}`.trim();
+  const photoBadgeText  = badgeText;
+  if (frameShow) {
+    badgeClass = 'card__badge--video';
+    badgeText  = !isMobile ? 'Video' : (phoneMode === 'own' ? 'Video · phone' : 'Desktop video');
+  } else if (frameFile) {
+    // The file is there, the frame just isn't showing it. Saying "Missing" or
+    // "Default" here would send the owner looking for a video they already
+    // uploaded.
+    badgeClass = 'card__badge--video-off'; badgeText = 'Video hidden';
+  }
 
   // A slot with a video in it is not missing anything, whatever its still says
   // — and that stays true while the video is hidden, since one press brings it
   // back.
-  const filled = o.hasVideo || o.hasVideoFile;
+  const filled = frameShow || frameFile;
   const showMissingNote  = !filled && !isMobile && !o.hasOverride && !o.fallbackFromLabel && !p.reserved && !p.optional;
   const showOptionalNote = !filled && !isMobile && !o.hasOverride && !!p.optional;
 
   // friendly AR label for the corner chip
-  const arLabel = isMobile ? '9:16'
+  const arLabel = isMobile
+    ? (p.mobileAspect ?? '9 / 16').replace(/\s*\/\s*/, ':')
     : (p.aspect ? p.aspect.replace(/\s*\/\s*/, ':') : '16:9');
 
   const where = esc(p.where);
 
-  // The video URL this card previews. Same route the live site uses, so what
-  // the owner sees here is literally what a visitor gets.
-  const videoPreviewSrc =
-    `/videos/${videoFilename(p.filename, isMobile ? 'mobile' : 'desktop')}?t=${o.version}${siteAmp}`;
+  // The video this card previews. Same route the live site uses, so what the
+  // owner sees here is literally what a visitor gets — for a phone following
+  // the desktop, that is the desktop clip. `sig` changes exactly when the file
+  // does; the card script reloads the preview on a change and not otherwise.
+  const followsDesktop = isMobile && phoneMode === 'desktop';
+  const preview   = !!v && (isMobile ? (v.hasMobileFile || followsDesktop) : v.hasFile);
+  const previewFile = videoFilename(p.filename, isMobile && !followsDesktop ? 'mobile' : 'desktop');
+  const previewSig  = !v ? '' : (isMobile && !followsDesktop ? 'm' + v.mobileUploaded : 'd' + v.uploaded);
+  const videoPreviewSrc = `/videos/${previewFile}?t=${encodeURIComponent(previewSig)}${siteAmp}`;
+  const framing = !v ? { fit: 'cover', pos: '50% 50%', rate: 1 }
+    : (isMobile ? { fit: v.mfit, pos: v.mpos, rate: v.mrate } : { fit: v.fit, pos: v.pos, rate: v.rate });
+  const posMatch = /^(\d{1,3})% (\d{1,3})%$/.exec(framing.pos);
+  const posX = posMatch ? Number(posMatch[1]) : 50;
+  const posY = posMatch ? Number(posMatch[2]) : 50;
 
   const searchHay = `${p.label} ${p.where} ${p.key}`.toLowerCase();
 
@@ -2672,90 +2817,82 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   const delLabel = isMobile ? 'Remove' : (p.optional ? 'Remove' : 'Remove override');
 
   // ── Video ────────────────────────────────────────────────────────────────
-  // Offered only where a moving image can actually work: a full-frame slot
-  // (see `video` in functions/data/photos-map.ts).
+  // Every slot offers one (bar the few that opt out — see `video` in
+  // functions/data/photos-map.ts), on each of its frames independently.
   //
   // Two separate facts drive this block, and keeping them apart is the point:
-  //   hasVideoFile — a video has been uploaded for this frame
-  //   hasVideo     — visitors are seeing it right now
+  //   a FILE   — a video has been uploaded for this frame
+  //   SHOWING  — visitors are seeing it right now
   // So "back to the photo" is a switch that leaves the file alone, and getting
   // the video back is one press. Only "Delete video" removes anything, and it
   // says so first.
-  const videoRow = !p.video ? '' : (() => {
-    const canCut  = isMobile && !o.hasDesktopVideo;
-    const hasFile = o.hasVideoFile;
-    const upLabel = hasFile
-      ? 'Replace video…'
-      : (isMobile ? 'Add a phone cut…' : 'Use a video instead…');
-    const note = canCut
-      ? 'Add the main video first — this is its phone cut.'
-      : (o.hasVideo
-          ? 'Showing the video. The photo is still here — “Back to the photo” brings it back without deleting anything.'
-          : (hasFile
-              ? 'The video is saved but hidden — visitors see the photo. “Show the video” puts it back.'
-              : 'MP4 or WebM (H.264), up to 40&nbsp;MB. Silent and looping — the photo stays as its first frame.'));
-    const meta = hasFile && o.videoSize
-      ? `${Math.round(o.videoSize / 1024 / 1024 * 10) / 10} MB${o.videoType ? ' · ' + o.videoType.replace('video/', '').toUpperCase() : ''}`
-      : '';
-    return `
+  //
+  // The markup is a skeleton: which buttons show and what the note says are
+  // drawn by the card script from the slot's state (data-video-init), the same
+  // function that redraws the card after every button press — so the first
+  // render and every later one can't drift apart.
+  const videoRow = !v ? '' : `
         <div class="card__video-row" data-video-row>
           <input class="card__file" type="file" data-input-video accept="video/mp4,video/webm,video/quicktime" />
           <div class="card__row">
-            <button class="btn btn--ghost" type="button" data-btn-video${canCut ? ' disabled' : ''}>${upLabel}</button>
-            <button class="btn btn--ghost" type="button" data-btn-video-hide${o.hasVideo ? '' : ' hidden'}>Back to the photo</button>
-            <button class="btn btn--ghost" type="button" data-btn-video-show${(hasFile && !o.hasVideo) ? '' : ' hidden'}>Show the video</button>
+            <button class="btn btn--ghost" type="button" data-btn-video>${isMobile ? 'Use a video on phones…' : 'Use a video instead…'}</button>
+            <button class="btn btn--ghost" type="button" data-btn-video-hide hidden>Back to the photo</button>
+            <button class="btn btn--ghost" type="button" data-btn-video-show hidden>${isMobile ? 'Show the phone video' : 'Show the video'}</button>
+            ${isMobile ? '<button class="btn btn--ghost" type="button" data-btn-video-follow hidden>Use the desktop video</button>' : ''}
           </div>
-          <div class="card__row" data-video-tools${hasFile ? '' : ' hidden'}>
-            <button class="btn btn--ghost" type="button" data-btn-video-adjust${isMobile ? ' hidden' : ''}>Adjust…</button>
-            <button class="btn btn--ghost card__btn-danger" type="button" data-btn-video-delete>Delete video</button>
+          <div class="card__row" data-video-tools hidden>
+            <button class="btn btn--ghost" type="button" data-btn-video-adjust>Adjust…</button>
+            <button class="btn btn--ghost card__btn-danger" type="button" data-btn-video-delete>${isMobile ? 'Delete phone video' : 'Delete video'}</button>
           </div>
-          ${isMobile ? '' : `
           <div class="card__video-adjust" data-video-adjust>
             <div class="ctl">
               <div class="ctl__row"><label>How it fills the frame</label></div>
               <div class="card__video-fit" data-video-fit>
-                <button type="button" data-fit="cover"${o.videoFit !== 'contain' ? ' class="is-on"' : ''}>Fill (crop)</button>
-                <button type="button" data-fit="contain"${o.videoFit === 'contain' ? ' class="is-on"' : ''}>Fit whole</button>
+                <button type="button" data-fit="cover"${framing.fit !== 'contain' ? ' class="is-on"' : ''}>Fill (crop)</button>
+                <button type="button" data-fit="contain"${framing.fit === 'contain' ? ' class="is-on"' : ''}>Fit whole</button>
               </div>
             </div>
             <div class="ctl">
-              <div class="ctl__row"><label data-video-posx-label>Keep this part · across</label><span class="ctl__val" data-video-posx-v>${o.videoPosX}%</span></div>
-              <input type="range" data-video-posx min="0" max="100" step="1" value="${o.videoPosX}" />
+              <div class="ctl__row"><label data-video-posx-label>Keep this part · across</label><span class="ctl__val" data-video-posx-v>${posX}%</span></div>
+              <input type="range" data-video-posx min="0" max="100" step="1" value="${posX}" />
             </div>
             <div class="ctl">
-              <div class="ctl__row"><label>Keep this part · up and down</label><span class="ctl__val" data-video-posy-v>${o.videoPosY}%</span></div>
-              <input type="range" data-video-posy min="0" max="100" step="1" value="${o.videoPosY}" />
+              <div class="ctl__row"><label>Keep this part · up and down</label><span class="ctl__val" data-video-posy-v>${posY}%</span></div>
+              <input type="range" data-video-posy min="0" max="100" step="1" value="${posY}" />
             </div>
             <div class="ctl">
-              <div class="ctl__row"><label>Speed</label><span class="ctl__val" data-video-rate-v>${o.videoRate.toFixed(2)}×</span></div>
-              <input type="range" data-video-rate min="0.25" max="2" step="0.05" value="${o.videoRate}" />
+              <div class="ctl__row"><label>Speed</label><span class="ctl__val" data-video-rate-v>${framing.rate.toFixed(2)}×</span></div>
+              <input type="range" data-video-rate min="0.25" max="2" step="0.05" value="${framing.rate}" />
             </div>
             <div class="card__row">
               <button class="btn btn--ghost" type="button" data-btn-video-reset>Reset framing</button>
               <button class="btn" type="button" data-btn-video-save>Save framing</button>
             </div>
-            <p class="card__video-note" data-video-adjust-note>Applies to the phone cut too.</p>
-          </div>`}
-          <p class="card__video-note" data-video-note>${note}</p>
-          ${meta ? `<p class="card__video-meta" data-video-meta>${esc(meta)}</p>` : '<p class="card__video-meta" data-video-meta hidden></p>'}
+            <p class="card__video-note" data-video-adjust-note></p>
+          </div>
+          <p class="card__video-note" data-video-note></p>
+          <p class="card__video-meta" data-video-meta hidden></p>
         </div>`;
-  })();
 
   return `
     <article class="card" data-photo-card="${esc(p.key)}" data-variant="${o.variant}"
              data-label="${esc(p.label)}" data-aspect="${targetAR.toFixed(5)}" data-fit="${esc(fit)}"
              data-search="${esc(searchHay)}"
-             ${p.video ? `data-video-file="${esc(videoFilename(p.filename, isMobile ? 'mobile' : 'desktop'))}"` : ''}
+             ${v ? `data-video-file="${esc(videoFilename(p.filename, isMobile ? 'mobile' : 'desktop'))}"
+                    data-video-file-desktop="${esc(videoFilename(p.filename, 'desktop'))}"
+                    data-video-init="${esc(JSON.stringify(v))}"
+                    ${p.mobile ? 'data-phone-frame="1"' : ''}` : ''}
              ${p.optional ? 'data-optional="1"' : ''}
              ${o.fallbackFromLabel ? `data-fallback-label="${esc('Using ' + o.fallbackFromLabel)}"` : ''}>
-      <div class="card__thumb" data-thumb-zone${o.hasVideoFile ? ` data-has-video="1" data-video-state="${o.hasVideo ? 'shown' : 'hidden'}"` : ''}>
+      <div class="card__thumb" data-thumb-zone${preview ? ` data-has-video="1" data-video-state="${frameShow ? 'shown' : 'hidden'}"` : ''}>
         <img data-thumb data-src="/${route}/${esc(p.filename)}" data-fallback="${esc(fallback)}"
              src="${esc(src)}" alt="${esc(p.label)}" loading="lazy" decoding="async"
              onerror="this.style.opacity=0.22" />
-        ${o.hasVideoFile ? `<video class="card__video" data-card-video muted loop playsinline preload="metadata"
-               poster="${esc(src)}" style="object-fit:${o.videoFit};object-position:${o.videoPosX}% ${o.videoPosY}%"
-               src="${esc(videoPreviewSrc)}"></video>` : ''}
-        <span class="card__badge ${badgeClass}" data-badge>${esc(badgeText)}</span>
+        ${preview ? `<video class="card__video" data-card-video muted loop playsinline preload="metadata"
+               poster="${esc(src)}" style="object-fit:${esc(framing.fit)};object-position:${esc(framing.pos)}"
+               data-video-sig="${esc(previewSig)}" src="${esc(videoPreviewSrc)}"></video>` : ''}
+        <span class="card__badge ${badgeClass}" data-badge
+              data-photo-class="${esc(photoBadgeClass)}" data-photo-text="${esc(photoBadgeText)}">${esc(badgeText)}</span>
         ${tags.length ? `<div class="card__tags">${tags.join('')}</div>` : ''}
         <span class="card__ar">${esc(arLabel)}</span>
       </div>
@@ -2841,23 +2978,29 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   }
 
   // Which slots are showing a video right now. Read from the manifest rather
-  // than derived from the R2 listing above, because the manifest is what the
+  // than derived from the R2 listing below, because the manifest is what the
   // live site reads — if the two ever disagree, the admin should show what the
   // visitor sees, not what the bucket happens to contain.
-  const [content, media] = await Promise.all([
+  //
+  // Shared photos (the /reserve/ portal) keep their video switches in Zahara's
+  // manifest whichever venue is being edited — the same rule their files
+  // follow — so when the rooftop is open, read that one too.
+  const [content, ownMedia, sharedMedia] = await Promise.all([
     readContentOwn(env, site),
     readMediaMap(env, site),
+    site === 'zahara' ? Promise.resolve(null) : readMediaMap(env, 'zahara'),
   ]);
+  const mediaFor = (p: PhotoMeta): MediaMap => (p.shared && sharedMedia ? sharedMedia : ownMedia);
 
-  // …and which slots HAVE a video file, shown or not. That is a question only
+  // …and which frames HAVE a video file, shown or not. That is a question only
   // the bucket can answer, and it is a different question: a video the owner
   // has switched away from is still there to switch back to, and a card that
   // didn't know would offer to upload it again.
-  const videoFiles       = new Set<string>();
-  const videoMobileFiles = new Set<string>();
-  const videoDetail      = new Map<string, { size: number; type: string }>();
+  type FileInfo = { size: number; type: string; uploaded: string };
+  const videoFiles       = new Map<string, FileInfo>();
+  const videoMobileFiles = new Map<string, FileInfo>();
 
-  async function collectVideos(from: typeof bucket, keys: Set<string>, mobileKeys: Set<string>) {
+  async function collectVideos(from: typeof bucket, keys: Map<string, FileInfo>, mobileKeys: Map<string, FileInfo>) {
     if (!from) return;
     try {
       // httpMetadata has to be asked for — without it the card can't say what
@@ -2866,12 +3009,13 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       const listing = await from.list({ prefix: 'images/', include: ['httpMetadata' as const] });
       for (const obj of listing.objects) {
         const k = obj.key.replace(/^images\//, '');
-        if (k.endsWith('__video_mobile'))    mobileKeys.add(k.slice(0, -'__video_mobile'.length));
-        else if (k.endsWith('__video')) {
-          const base = k.slice(0, -'__video'.length);
-          keys.add(base);
-          videoDetail.set(base, { size: obj.size, type: obj.httpMetadata?.contentType ?? '' });
-        }
+        const info: FileInfo = {
+          size: obj.size,
+          type: obj.httpMetadata?.contentType ?? '',
+          uploaded: obj.uploaded ? new Date(obj.uploaded).toISOString() : '',
+        };
+        if (k.endsWith('__video_mobile'))  mobileKeys.set(k.slice(0, -'__video_mobile'.length), info);
+        else if (k.endsWith('__video'))    keys.set(k.slice(0, -'__video'.length), info);
       }
     } catch (err) {
       console.warn('[admin/images] R2 video list failed', err);
@@ -2881,29 +3025,36 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (site !== 'zahara') {
     // Shared slots live in Zahara's bucket whichever venue is being edited —
     // the same rule the still overrides follow just above.
-    const sharedVideos = new Set<string>();
-    const sharedMobile = new Set<string>();
+    const sharedVideos = new Map<string, FileInfo>();
+    const sharedMobile = new Map<string, FileInfo>();
     await collectVideos(siteScope(env, 'zahara').images, sharedVideos, sharedMobile);
     for (const p of PHOTO_CATALOGUE) {
       if (!p.shared) continue;
       videoFiles.delete(p.key);
       videoMobileFiles.delete(p.key);
-      if (sharedVideos.has(p.key)) videoFiles.add(p.key);
-      if (sharedMobile.has(p.key)) videoMobileFiles.add(p.key);
+      const d = sharedVideos.get(p.key);
+      const m = sharedMobile.get(p.key);
+      if (d) videoFiles.set(p.key, d);
+      if (m) videoMobileFiles.set(p.key, m);
     }
   }
 
-  /** The framing the owner saved for a slot, split into the numbers the card's
-   *  sliders want. */
-  function videoFraming(key: string) {
-    const slot = media[key] ?? {};
-    const m = /^(\d{1,3})% (\d{1,3})%$/.exec(slot.pos ?? '');
-    return {
-      videoFit:  (slot.fit === 'contain' ? 'contain' : 'cover') as 'cover' | 'contain',
-      videoPosX: m ? Number(m[1]) : 50,
-      videoPosY: m ? Number(m[2]) : 50,
-      videoRate: typeof slot.rate === 'number' ? slot.rate : 1,
-    };
+  /** Both frames' video state for a slot — null where the slot can't have one.
+   *  The same shape every video endpoint answers with. */
+  function videoFor(p: PhotoMeta): VideoState | null {
+    if (!canShowVideo(p)) return null;
+    const d = videoFiles.get(p.key);
+    const m = videoMobileFiles.get(p.key);
+    return videoState(p.key, mediaFor(p)[p.key], {
+      hasFile:        !!d,
+      size:           d?.size ?? 0,
+      type:           d?.type ?? '',
+      uploaded:       d?.uploaded ?? '',
+      hasMobileFile:  !!m,
+      mobileSize:     m?.size ?? 0,
+      mobileType:     m?.type ?? '',
+      mobileUploaded: m?.uploaded ?? '',
+    });
   }
 
   const v = Date.now();
@@ -2931,16 +3082,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional &&
           !videoFiles.has(p.key)) missingCount++;
       const caption = GALLERY_CAPTION_SET.has(p.key) ? (content[galleryCaptionKey(p.key)] ?? {}) : null;
-      const detail  = videoDetail.get(p.key);
       return renderCard(p, {
         variant: 'desktop', version: v, hasOverride, hasMobile: mobileSet.has(p.key),
-        fallbackFromLabel, caption, site,
-        hasVideo: media[p.key]?.d === 'video',
-        hasVideoFile: videoFiles.has(p.key),
-        hasDesktopVideo: videoFiles.has(p.key),
-        videoSize: detail?.size ?? 0,
-        videoType: detail?.type ?? '',
-        ...videoFraming(p.key),
+        fallbackFromLabel, caption, site, video: videoFor(p),
       });
     }).join('');
     return `
@@ -2961,18 +3105,14 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       renderCard(p, {
         variant: 'mobile', version: v, hasOverride: overrideSet.has(p.key),
         hasMobile: mobileSet.has(p.key), fallbackFromLabel: null, caption: null, site,
-        hasVideo: media[p.key]?.m === 'video',
-        hasVideoFile: videoMobileFiles.has(p.key),
-        hasDesktopVideo: videoFiles.has(p.key),
-        videoSize: 0, videoType: '',
-        ...videoFraming(p.key),
+        video: videoFor(p),
       }),
     ).join('');
     return `
       <section class="group" id="g-mobile-${g}" data-group-key="${g}" data-group-label="${esc(PHOTO_GROUPS[g])}">
         <header class="group__head">
           <h2>${esc(PHOTO_GROUPS[g])}</h2>
-          <small>${photos.length} portrait crop${photos.length === 1 ? '' : 's'}</small>
+          <small>${photos.length} phone frame${photos.length === 1 ? '' : 's'}</small>
         </header>
         <div class="grid">${cards}</div>
       </section>`;
@@ -3028,10 +3168,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       JPG, PNG or WebP, up to 10&nbsp;MB.
     </p>
     <p class="lead">
-      Some full-frame slots can show a <strong>video</strong> instead — the
-      photo underneath is always kept. <strong>Back to the photo</strong> is a
-      switch, not a delete: the video stays saved and
-      <strong>Show the video</strong> brings it back. Use an
+      Any photo can show a <strong>video</strong> instead — the photo
+      underneath is always kept. Desktop and phones are separate: a video added
+      here plays on phones too until you choose something else for them on the
+      <strong>Mobile</strong> tab, where a photo can also have a phone-only
+      video. <strong>Back to the photo</strong> is a switch, not a delete: the
+      video stays saved and <strong>Show the video</strong> brings it back. Use an
       <strong>H.264 MP4</strong>; an iPhone recording in its default HEVC format
       plays on the phone and nowhere else. Changes can take up to half a minute
       to appear on the live site.
@@ -3044,8 +3186,9 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
     <div class="view" data-view="mobile">
       <p class="view__intro">
-        Portrait crops shown on phones. Leave any empty to fall back to the
-        desktop photo. These are tall 9:16 frames cut from wide photographs, so
+        What phones see, for every full-width photo. Leave a photo empty to fall
+        back to the desktop one; add a video to play one on phones only —
+        desktop is not affected. Most are tall 9:16 frames cut from wide photographs, so
         the editor shows the whole picture and marks the part that survives —
         zoom out past its edges if you would rather fit all of it in than crop
         a slice out of it.

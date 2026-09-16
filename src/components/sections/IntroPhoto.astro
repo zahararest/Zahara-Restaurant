@@ -3,7 +3,7 @@
 // but uses the same overlay treatment so a transparent header sits nicely
 // on top of it.
 
-import { resized, resizedSrcset, resizedMobileCoverSrcset }  from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot }  from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -18,9 +18,12 @@ export interface Props {
   eyebrowKey?: string;
   headingKey?: string;
   ledeKey?:    string;
+  /** The /admin/images catalogue key, so the photo can be a video (on the
+   *  desktop frame, the phone frame, or both). */
+  mediaKey?:   string;
 }
 
-const { lang, photo, eyebrow, heading, lede, eyebrowKey, headingKey, ledeKey } = Astro.props;
+const { lang, photo, eyebrow, heading, lede, eyebrowKey, headingKey, ledeKey, mediaKey } = Astro.props;
 const INTRO_WIDTHS = [800, 1200, 1800, 2400] as const;
 // On phones .intro-photo is ~62vh (clamp 360–520px) → roughly 3:4. Request a
 // subject-aware portrait crop via /photos-m (the admin mobile upload, or a crop
@@ -29,7 +32,12 @@ const INTRO_MOBILE_COVER = [[640, 850], [820, 1090], [1080, 1440]] as const;
 ---
 
 <section class="intro-photo" aria-label={eyebrow}>
-  <div class="intro-photo__media" data-hero-parallax aria-hidden="true">
+  <div class="intro-photo__media" data-hero-parallax aria-hidden="true"
+       {...(mediaKey ? mediaSlot(mediaKey, photo.src, {
+         poster: resized(photo.src, 1800),
+         className: 'intro-photo__img',
+         mobile: true,
+       }) : {})}>
     <picture>
       <source
         media="(max-width: 600px)"

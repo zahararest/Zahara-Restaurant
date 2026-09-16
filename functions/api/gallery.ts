@@ -12,11 +12,21 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { PHOTO_CATALOGUE } from '../data/photos-map';
-import { readMediaMap, videoObjectKey, type MediaEnv } from '../data/media';
+import { readMediaMap, videoObjectKey, frameModes, type MediaEnv } from '../data/media';
 
 interface Env extends MediaEnv { IMAGES?: R2Bucket; }
 
 const MOBILE_SUFFIX = '__mobile';
+
+/** A frame is showing a video AND there is a file for it to play. A phone
+ *  video falls back to the desktop file (see /videos), so either file will do
+ *  for the phone frame. */
+function hasShownVideo(key: string, media: Awaited<ReturnType<typeof readMediaMap>>, present: Set<string>): boolean {
+  const modes   = frameModes(media[key]);
+  const desktop = present.has(`images/${videoObjectKey(key, 'desktop')}`);
+  const mobile  = present.has(`images/${videoObjectKey(key, 'mobile')}`);
+  return (modes.desktop && desktop) || (modes.mobile && (mobile || desktop));
+}
 
 export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   const optional = PHOTO_CATALOGUE.filter((p) => p.optional);
@@ -39,8 +49,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
           present.has(`images/${p.key}${MOBILE_SUFFIX}`) ||
           // A slot filled with a VIDEO is just as filled as one with a photo.
           // Without this, uploading only a video to an optional slot left the
-          // frame reported empty and the gallery dropped it.
-          (media[p.key]?.d === 'video' && present.has(`images/${videoObjectKey(p.key, 'desktop')}`)))
+          // frame reported empty and the gallery dropped it. Either frame
+          // counts: the page itself decides per screen whether a slot with a
+          // phone-only video has anything to show on a desktop.
+          hasShownVideo(p.key, media, present))
         .map((p) => p.filename);
     } catch (err) {
       console.warn('[api/gallery] R2 list failed', String(err));

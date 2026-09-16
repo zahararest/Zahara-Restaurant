@@ -4,7 +4,7 @@
 // src/lib/photo.ts) so we never download a 6 MB original to a phone
 // for an 800-pixel-wide slot.
 
-import { resized, resizedSrcset } from '../lib/photo';
+import { resized, resizedSrcset, mediaSlot } from '../lib/photo';
 
 interface Props {
   src?: string;         // e.g. "/photos/MOYAL-00009.jpg"
@@ -13,6 +13,9 @@ interface Props {
   loading?: 'lazy' | 'eager';
   class?: string;
   sizes?: string;
+  /** The /admin/images catalogue key. Passing it makes the frame a media slot,
+   *  so the owner can show a video in it instead of the photo. */
+  mediaKey?: string;
 }
 
 const {
@@ -22,6 +25,7 @@ const {
   loading = 'lazy',
   class: className = '',
   sizes = '(min-width: 880px) 50vw, 100vw',
+  mediaKey,
 } = Astro.props;
 
 const placeholderSrc =
@@ -37,7 +41,8 @@ const imageSrcset = isReal
 const imageErrorHandler = `this.onerror=null; this.src='${placeholderSrc}';`;
 ---
 
-<figure class={`photo ${className}`} style={`aspect-ratio: ${aspect};`}>
+<figure class={`photo ${className}`} style={`aspect-ratio: ${aspect};`}
+        {...(mediaKey && isReal ? mediaSlot(mediaKey, src!, { poster: resized(src!, 1200) }) : {})}>
   <img
     src={imageSrc}
     srcset={imageSrcset}
@@ -62,6 +67,15 @@ const imageErrorHandler = `this.onerror=null; this.src='${placeholderSrc}';`;
     object-fit: cover;
     display: block;
     transition: transform 1s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.6s ease;
+    filter: saturate(0.95);
+  }
+  /* The video the middleware may put in the frame — same box as the photo, but
+     no hover zoom: footage already moves. */
+  .photo video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
     filter: saturate(0.95);
   }
   .photo:hover img {

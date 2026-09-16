@@ -33,7 +33,7 @@ import { pick, home as copy } from '../../data/i18n';
 import { PHOTOS, MENU_CATEGORY_PHOTOS } from '../../data/photos';
 import type { PhotoEntry } from '../../data/photos';
 import { path } from '../../lib/paths';
-import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
+import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
 import { menuHe } from '../../data/menu-he';
 import type { Lang } from '../../data/i18n';
 
@@ -216,6 +216,15 @@ const emptyLabel = t.emptyLabel;
         dining-room photo, with the editorial story centred below it — so the
         info strip reads as part of this section instead of a stray band. */}
     <div class="section-on-photo story-scene" style={`--bg-photo: url(${resized(PHOTOS.moodDining.src, 1600)})`}>
+      {/* The backdrop photo is a CSS background, which a video can't replace,
+          so the slot is an empty layer over it. A video put here plays above
+          the photo and under the darkening wash; its poster is the same URL as
+          the background, so the photo is only ever downloaded once. */}
+      <div class="section-on-photo__media" aria-hidden="true"
+           {...mediaSlot('moodDining', PHOTOS.moodDining.src, {
+             poster: resized(PHOTOS.moodDining.src, 1600),
+             className: 'section-on-photo__video',
+           })}></div>
       <InfoStrip lang={lang} />
       <div class="story-scene__body wrap">
         {/* Two transparent glass boxes over the photo. Box A (the approach)
@@ -261,7 +270,7 @@ const emptyLabel = t.emptyLabel;
         </div>
       </div>
     </div>
-    <BleedPhoto lang={lang} photo={PHOTOS.kitchen}  />
+    <BleedPhoto lang={lang} photo={PHOTOS.kitchen} mediaKey="kitchen" />
   </div>
 
   <!-- <div data-section-name={sec.kitchen}>
@@ -392,7 +401,12 @@ const emptyLabel = t.emptyLabel;
       four parts (food / wine / cocktails / dessert), one link to the full
       menu. Replaces the old in-page menu preview. */}
   <section class="menu-split" data-section-name={sec.menu} aria-label={t.menuSplitEyebrow}>
-    <div class="menu-split__media" aria-hidden="true">
+    <div class="menu-split__media" aria-hidden="true"
+         {...mediaSlot('menuSplit', PHOTOS.menuSplit.src, {
+           poster: resized(PHOTOS.menuSplit.src, 1800),
+           className: 'menu-split__img',
+           mobile: true,
+         })}>
       <picture>
         <source media="(max-width: 600px)"
                 srcset={resizedMobileCoverSrcset(PHOTOS.menuSplit.src, [[640, 1180], [820, 1500], [1080, 1980]])}
@@ -413,10 +427,10 @@ const emptyLabel = t.emptyLabel;
     <div class="menu-split__inner wrap">
       {(() => {
         const parts = [
-          { label: t.menuSplitFood,      tab: 'food'      as const, photo: PHOTOS.menuFood      },
-          { label: t.menuSplitWine,      tab: 'wine'      as const, photo: PHOTOS.menuWine      },
-          { label: t.menuSplitCocktails, tab: 'cocktails' as const, photo: PHOTOS.menuCocktails },
-          // { label: t.menuSplitDessert,   tab: 'dessert',   photo: PHOTOS.menuDessert   },
+          { label: t.menuSplitFood,      tab: 'food'      as const, key: 'menuFood',      photo: PHOTOS.menuFood      },
+          { label: t.menuSplitWine,      tab: 'wine'      as const, key: 'menuWine',      photo: PHOTOS.menuWine      },
+          { label: t.menuSplitCocktails, tab: 'cocktails' as const, key: 'menuCocktails', photo: PHOTOS.menuCocktails },
+          // { label: t.menuSplitDessert,   tab: 'dessert',   key: 'menuDessert',   photo: PHOTOS.menuDessert   },
         ];
         return (
       <ol class="menu-tiles reveal-on-scroll" style={`--tile-count:${parts.length}`} data-menu-tiles>
@@ -430,7 +444,11 @@ const emptyLabel = t.emptyLabel;
                 class="menu-tile__toggle"
                 href={`${menuPath}#tab-${part.tab}`}
               >
-                <span class="menu-tile__media">
+                <span class="menu-tile__media"
+                      {...mediaSlot(part.key, part.photo.src, {
+                        poster: resized(part.photo.src, 800),
+                        className: 'menu-tile__img',
+                      })}>
                   <img
                     class="menu-tile__img"
                     src={resized(part.photo.src, 800)}
@@ -493,6 +511,7 @@ const emptyLabel = t.emptyLabel;
     <PhotoBlock
       lang={lang}
       photo={PHOTOS.detail2}
+      mediaKey="detail2"
       eyebrow={t.eventsEyebrow}
       heading={t.eventsHeading}
       paragraphs={[t.eventsP1, t.eventsP2]}

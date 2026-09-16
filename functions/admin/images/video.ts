@@ -3,13 +3,19 @@
 // Body: multipart/form-data
 //   key      — the catalogue key (e.g. 'hero')
 //   variant  — 'desktop' (default) | 'mobile'
-//   action   — what to do:
+//   action   — what to do, to THAT frame only:
 //                (omitted) upload the `file` field and show it
 //                'show'    show the video that is already in the bucket
 //                'hide'    go back to the photograph, KEEPING the video
+//                'follow'  (phone only) show whatever the desktop shows
 //                'delete'  remove the video file for good
-//                'options' save fit / position / speed (desktop record)
+//                'options' save fit / position / speed for this frame
 //   file     — video/mp4 or video/webm, ≤ MAX_BYTES (upload only)
+//
+// The two frames are independent: a phone can play a video over a desktop
+// photograph and the other way round. Until the owner makes a choice for
+// phones they follow the desktop, which is how every slot behaved before the
+// frames were separated. See functions/data/media.ts.
 //
 // GET /admin/images/video?key=… — what this slot has: whether a video file
 // exists for each frame, whether it is being shown, and its framing options.
@@ -25,12 +31,12 @@
 
 import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, type AuthEnv } from '../auth';
-import { PHOTO_CATALOGUE, photoSite } from '../../data/photos-map';
+import { PHOTO_CATALOGUE, photoSite, canShowVideo } from '../../data/photos-map';
 import { bumpAssetVersion, type ContentEnv } from '../../data/content';
 import {
-  readMediaMap, setMediaSlot, setMediaOptions, clearMediaSlot,
-  videoObjectKey, isPosition, isRate, DEFAULT_POSITION,
-  type MediaEnv, type MediaVariant,
+  readMediaMap, setDesktopVideo, setPhoneMode, setMediaOptions,
+  clearDesktopVideo, clearPhoneVideo, videoObjectKey, videoState,
+  isPosition, isRate, type MediaEnv, type MediaVariant,
 } from '../../data/media';
 import { adminSite, siteScope } from '../../data/site';
 
@@ -99,7 +105,9 @@ function looksLikeHevc(bytes: Uint8Array): boolean {
   return brands.some((b) => hevc.has(b)) && !brands.some((b) => good.has(b));
 }
 
-/** Everything the admin needs to draw one slot's video controls. */
+/** Everything the admin needs to draw one slot's video controls — the SAME
+ *  shape the page renders its cards from (videoState), so a redraw after a
+ *  button press can never read a field the first render didn't have. */
 async function slotState(env: Env, site: ReturnType<typeof adminSite>, key: string) {
   const bucket = siteScope(env, site).images;
   const [media, desktop, mobile] = await Promise.all([
@@ -107,30 +115,24 @@ async function slotState(env: Env, site: ReturnType<typeof adminSite>, key: stri
     bucket ? bucket.head(`images/${videoObjectKey(key, 'desktop')}`).catch(() => null) : null,
     bucket ? bucket.head(`images/${videoObjectKey(key, 'mobile')}`).catch(() => null) : null,
   ]);
-  const slot = media[key] ?? {};
-  return {
-    key,
+  return videoState(key, media[key], {
     // Has a FILE — which is what makes "show it again" possible.
-    hasFile:       !!desktop,
-    hasMobileFile: !!mobile,
-    // Is SHOWN — which is what a visitor sees.
-    showing:       slot.d === 'video',
-    showingMobile: slot.m === 'video',
-    size:          desktop?.size ?? 0,
-    mobileSize:    mobile?.size ?? 0,
-    type:          desktop?.httpMetadata?.contentType ?? '',
-    uploaded:      desktop?.uploaded ? new Date(desktop.uploaded).toISOString() : '',
-    fit:           slot.fit === 'contain' ? 'contain' : 'cover',
-    pos:           slot.pos ?? DEFAULT_POSITION,
-    rate:          slot.rate ?? 1,
-  };
+    hasFile:        !!desktop,
+    size:           desktop?.size ?? 0,
+    type:           desktop?.httpMetadata?.contentType ?? '',
+    uploaded:       desktop?.uploaded ? new Date(desktop.uploaded).toISOString() : '',
+    hasMobileFile:  !!mobile,
+    mobileSize:     mobile?.size ?? 0,
+    mobileType:     mobile?.httpMetadata?.contentType ?? '',
+    mobileUploaded: mobile?.uploaded ? new Date(mobile.uploaded).toISOString() : '',
+  });
 }
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (!(await checkAccess(request, env))) return json({ ok: false, error: 'Unauthorized' }, 401);
   const key  = new URL(request.url).searchParams.get('key') || '';
   const meta = PHOTO_CATALOGUE.find((p) => p.key === key);
-  if (!meta || !meta.video) return json({ ok: false, error: `Unknown video slot: ${key}` }, 400);
+  if (!meta || !canShowVideo(meta)) return json({ ok: false, error: `Unknown video slot: ${key}` }, 400);
   const site = photoSite(adminSite(request), key);
   return json({ ok: true, ...(await slotState(env, site, key)) });
 };
@@ -146,13 +148,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const key  = String(form.get('key') || '');
   const meta = PHOTO_CATALOGUE.find((p) => p.key === key);
-  if (!meta)       return json({ ok: false, error: `Unknown image key: ${key}` }, 400);
-  if (!meta.video) return json({ ok: false, error: `${meta.label} is not a slot that can show a video` }, 400);
+  if (!meta)               return json({ ok: false, error: `Unknown image key: ${key}` }, 400);
+  if (!canShowVideo(meta)) return json({ ok: false, error: `${meta.label} is not a slot that can show a video` }, 400);
 
   const variant: MediaVariant = String(form.get('variant') || '') === 'mobile' ? 'mobile' : 'desktop';
   if (variant === 'mobile' && !meta.mobile) {
     return json({ ok: false, error: `${meta.label} has no separate phone frame` }, 400);
   }
+  const isPhone = variant === 'mobile';
 
   const site   = photoSite(editing, key);
   const bucket = siteScope(env, site).images;
@@ -169,10 +172,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: true, ...(await slotState(env, site, key)), ...extra });
   };
 
+  /** A KV write that failed, said plainly — see editSlot() for why these are
+   *  never swallowed. */
+  const saveFailed = (err: unknown, prefix = 'Could not save') => {
+    console.error('[admin/images/video] KV write failed', err);
+    return json({ ok: false, error: `${prefix}: ${String((err as Error)?.message || err)}` }, 500);
+  };
+
   // ── Framing options ──────────────────────────────────────────────────────
-  // One record per slot, not per frame: the phone cut is a better crop of the
-  // same clip, not a separately-directed shot, so "how it sits in its frame"
-  // is one answer.
+  // One record per FRAME. A phone frame is a different shape from a desktop
+  // one, so the part of the clip worth keeping is usually different too.
   if (action === 'options') {
     const rawFit  = String(form.get('fit')  || '');
     const rawPos  = String(form.get('pos')  || '');
@@ -188,11 +197,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       if (!isRate(n)) return json({ ok: false, error: 'Speed must be between 0.25× and 2×' }, 400);
       opts.rate = n;
     }
-    try { await setMediaOptions(env, site, key, opts); }
-    catch (err) {
-      console.error('[admin/images/video] options save failed', err);
-      return json({ ok: false, error: `Could not save: ${String((err as Error).message || err)}` }, 500);
-    }
+    try { await setMediaOptions(env, site, key, opts, variant); }
+    catch (err) { return saveFailed(err); }
+    return finish();
+  }
+
+  // ── Phones: play whatever the desktop shows ──────────────────────────────
+  if (action === 'follow') {
+    if (!isPhone) return json({ ok: false, error: 'Only the phone frame can follow the desktop' }, 400);
+    try { await setPhoneMode(env, site, key, 'follow'); }
+    catch (err) { return saveFailed(err); }
     return finish();
   }
 
@@ -202,47 +216,26 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     if (!head) {
       return json({
         ok: false,
-        error: variant === 'mobile'
-          ? 'There is no phone cut to show — upload one first.'
+        error: isPhone
+          ? 'There is no phone video to show — upload one first.'
           : 'There is no video for this slot yet — upload one first.',
       }, 404);
     }
-    // A phone cut on its own is a slot that is a video on small screens and a
-    // photograph on large ones, which the page cannot decide before it renders
-    // — the same rule the upload path enforces, applied to the switch.
-    if (variant === 'mobile') {
-      const state = await slotState(env, site, key);
-      if (!state.showing) {
-        return json({ ok: false, error: 'Show the main video first — the phone cut replaces it on small screens.' }, 400);
-      }
-    }
     try {
-      await setMediaSlot(env, site, key, variant, true);
-      // Bringing the main video back brings its phone cut with it: hiding took
-      // the pair, so showing returns the pair, rather than leaving the owner to
-      // notice that phones are still on the photograph.
-      if (variant === 'desktop') {
-        const cut = await bucket.head(`images/${videoObjectKey(key, 'mobile')}`).catch(() => null);
-        if (cut) await setMediaSlot(env, site, key, 'mobile', true);
-      }
-    } catch (err) {
-      console.error('[admin/images/video] KV write failed', err);
-      return json({ ok: false, error: `Could not save: ${String((err as Error).message || err)}` }, 500);
-    }
+      if (isPhone) await setPhoneMode(env, site, key, 'video');
+      else         await setDesktopVideo(env, site, key, true);
+    } catch (err) { return saveFailed(err); }
     return finish();
   }
 
   // ── Go back to the photograph — the video file STAYS ─────────────────────
+  // Only this frame changes. Phones that follow the desktop follow it back to
+  // the photo; phones with a video of their own keep playing it.
   if (action === 'hide') {
     try {
-      await setMediaSlot(env, site, key, variant, false);
-      // Hiding the main video hides the phone cut with it: on its own the cut
-      // would be a phone-only video the page has no way to show (see below).
-      if (variant === 'desktop') await setMediaSlot(env, site, key, 'mobile', false);
-    } catch (err) {
-      console.error('[admin/images/video] KV write failed', err);
-      return json({ ok: false, error: `Could not save: ${String((err as Error).message || err)}` }, 500);
-    }
+      if (isPhone) await setPhoneMode(env, site, key, 'photo');
+      else         await setDesktopVideo(env, site, key, false);
+    } catch (err) { return saveFailed(err); }
     return finish();
   }
 
@@ -254,36 +247,17 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return json({ ok: false, error: 'Storage failed' }, 500);
     }
     try {
-      // Deleting the main video takes the portrait cut with it — on its own it
-      // would be a phone-only video the page has no way to show (see below) —
-      // and clears the framing settings, so the next upload starts clean.
-      if (variant === 'desktop') {
-        try { await bucket.delete(`images/${videoObjectKey(key, 'mobile')}`); }
-        catch (err) { console.warn('[admin/images/video] orphan cleanup failed', String(err)); }
-        await clearMediaSlot(env, site, key);
-      } else {
-        await setMediaSlot(env, site, key, 'mobile', false);
-      }
+      if (isPhone) await clearPhoneVideo(env, site, key);
+      else         await clearDesktopVideo(env, site, key);
     } catch (err) {
-      console.error('[admin/images/video] KV write failed', err);
-      return json({ ok: false, error: `Deleted the file, but the change could not be saved: ${String((err as Error).message || err)}` }, 500);
+      return saveFailed(err, 'Deleted the file, but the change could not be saved');
     }
     return finish();
   }
 
   // ── Upload ───────────────────────────────────────────────────────────────
-  // A slot shows a video because it HAS a desktop video; the portrait cut is a
-  // better frame for phones, not a second, independent decision. Allowing a
-  // phone-only video would mean a slot that is a video on one screen and a
-  // photograph on the other — which the page cannot decide before it renders,
-  // so it would have to ship both and throw one away.
-  if (variant === 'mobile') {
-    const hasDesktop = await bucket.head(`images/${videoObjectKey(key, 'desktop')}`).catch(() => null);
-    if (!hasDesktop) {
-      return json({ ok: false, error: 'Upload the main video first — the phone cut replaces it on small screens.' }, 400);
-    }
-  }
-
+  // Either frame can go first. A phone video uploaded on its own makes the
+  // slot a video on phones and leaves desktop on the photograph.
   type UploadedFile = { size: number; type?: string; name?: string; arrayBuffer(): Promise<ArrayBuffer> };
   const rawEntry = form.get('file') as unknown;
   if (rawEntry === null || typeof rawEntry === 'string' ||
@@ -325,14 +299,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return json({ ok: false, error: 'The video did not save. Please try again.' }, 500);
   }
 
-  try { await setMediaSlot(env, site, key, variant, true); }
-  catch (err) {
-    console.error('[admin/images/video] KV write failed', err);
-    return json({
-      ok: false,
-      error: `The video uploaded, but switching the slot to it failed: ${String((err as Error).message || err)}`,
-    }, 500);
+  try {
+    if (isPhone) await setPhoneMode(env, site, key, 'video');
+    else         await setDesktopVideo(env, site, key, true);
+  } catch (err) {
+    return saveFailed(err, 'The video uploaded, but switching the slot to it failed');
   }
 
-  return finish({ size: buffer.byteLength, type: detected });
+  return finish();
 };

@@ -20,7 +20,9 @@ import {
   readPopupConfig, popupActive, popupShowsImage, type ContentEnv,
 } from './data/content';
 import { readMenusOff, type MenuVisEnv } from './data/menu-visibility';
-import { readMediaMap, type MediaEnv, type MediaMap } from './data/media';
+import {
+  readMediaMap, frameModes, framingFor, DEFAULT_POSITION, type MediaEnv, type MediaMap,
+} from './data/media';
 import { readSections, sectionsToJson, type SectionEnv, type SectionMap } from './data/sections';
 import { siteFromRequest, withSiteParam } from './data/site';
 
@@ -48,7 +50,8 @@ type Env = PaletteEnv & ContentEnv & MenuVisEnv & MediaEnv & SectionEnv;
 //
 //   2. Not reading what a page cannot use. /reserve/ is standalone — no
 //      header, no footer, no menu embed, no entry popup — so the popup switch
-//      and the menu-visibility list are two reads it can never spend.
+//      and the menu-visibility list are two reads it can never spend. (Its two
+//      panels are photo slots like any other, so it DOES read the media map.)
 //
 // The memo is best-effort by nature: isolates are created and discarded at
 // Cloudflare's discretion, so a cold one simply reads through. Nothing depends
@@ -79,6 +82,58 @@ function isStandalonePage(request: { url: string }): boolean {
 function escAttr(v: string): string {
   return v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+const ENTITIES: Record<string, string> = { amp: '&', quot: '"', lt: '<', gt: '>', apos: "'" };
+
+/** An attribute's VALUE, decoded. HTMLRewriter hands attributes back exactly as
+ *  they sit in the source, entities and all, so copying one into new markup
+ *  without decoding it first escapes it twice.
+ *
+ *  That is not hypothetical: every rooftop URL carries `&site=rooftop`, which
+ *  the build writes as `&amp;site=rooftop`, which came out of escAttr() as
+ *  `&amp;amp;site=rooftop` — so the browser asked for `?amp;site=rooftop`, the
+ *  /videos route saw no venue, looked in Zahara's bucket and answered 404. The
+ *  rooftop hero video uploaded fine and never played, and its poster quietly
+ *  showed Zahara's photograph. Zahara's own URLs have no `&`, which is why only
+ *  the rooftop broke. */
+function attr(el: { getAttribute(name: string): string | null }, name: string): string {
+  const raw = el.getAttribute(name);
+  if (!raw) return '';
+  return raw.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ent: string) => {
+    if (ent[0] === '#') {
+      const code = ent[1] === 'x' || ent[1] === 'X' ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+    }
+    return ENTITIES[ent.toLowerCase()] ?? whole;
+  });
+}
+
+// ── Video slots: how a video sits in the page ───────────────────────────────
+// Global on purpose. The <video> is generated here, not by Astro, so it never
+// carries the scope attribute component styles are compiled against (the swap
+// copies the slot's scope attribute across for exactly that reason — see
+// below — but these rules have to hold on every page, including /reserve/,
+// which loads none of the site's stylesheets).
+//
+//  • A slot showing a video on ONE frame only keeps its still and lays the
+//    video over it, shown at its own breakpoint and nowhere else. The still is
+//    what the other frame shows, and on this frame it is the poster — once the
+//    video has a picture the still underneath is hidden, so a "fit whole" clip
+//    doesn't letterbox onto the photograph.
+//  • Framing is written onto the element as custom properties, one pair per
+//    frame, and applied here so the phone and the desktop can each keep a
+//    different part of the clip without the server knowing the screen.
+//
+// 600px is the phone breakpoint every <picture> and MediaVideo.astro use.
+const MEDIA_CSS =
+  '[data-media-is-video=desktop]>video,[data-media-is-video=mobile]>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}' +
+  '@media (max-width:600px){[data-media-is-video=desktop]>video{display:none!important}' +
+    '[data-media-is-video=mobile]:has(>video[data-video-ready])>:not(video){visibility:hidden}}' +
+  '@media (min-width:601px){[data-media-is-video=mobile]>video{display:none!important}' +
+    '[data-media-is-video=desktop]:has(>video[data-video-ready])>:not(video){visibility:hidden}}' +
+  'video[data-video-framed]{object-fit:var(--vf,cover)!important;object-position:var(--vp,50% 50%)!important}' +
+  '@media (max-width:600px){video[data-video-framed]{object-fit:var(--vf-m,var(--vf,cover))!important;' +
+    'object-position:var(--vp-m,var(--vp,50% 50%))!important}}';
 
 function memoised<T>(key: string, load: () => Promise<T>): Promise<T> {
   const hit = memos.get(key);
@@ -118,7 +173,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     memoised(`version:${site}`, () => readAssetVersion(ctx.env, site)),
     standalone ? Promise.resolve(null) : memoised(`popup:${site}`, () => readPopupConfig(ctx.env, site)),
     standalone ? Promise.resolve([] as string[]) : memoised(`menus:${site}`, () => readMenusOff(ctx.env, site)),
-    standalone ? Promise.resolve({} as MediaMap) : memoised(`media:${site}`, () => readMediaMap(ctx.env, site)),
+    memoised(`media:${site}`, () => readMediaMap(ctx.env, site)),
     standalone ? Promise.resolve({} as SectionMap) : memoised(`sections:${site}`, () => readSections(ctx.env, site)),
   ]);
 
@@ -183,53 +238,102 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
 
   // ── Stills → video, where the owner has uploaded one ────────────────────
   // The build shipped an <img> for every slot; the manifest says which of them
-  // are showing a video today. Doing the swap HERE, in the response, is what
-  // makes it free: the browser receives a <video> and never sees — let alone
-  // downloads — the photograph it replaced. A client-side swap would fetch
-  // both, on the very elements (hero, gallery) where that hurts most.
-  if (Object.keys(media).length) {
+  // are showing a video today, on which frame. Doing the swap HERE, in the
+  // response, is what makes it cheap: when both frames are video the browser
+  // receives a <video> and never sees — let alone downloads — the photograph
+  // it replaced. A client-side swap would fetch both, on the very elements
+  // (hero, gallery) where that hurts most.
+  //
+  // When only ONE frame is a video the still has to stay, because it is what
+  // the other frame shows. The video is added beside it and MEDIA_CSS decides
+  // which one each screen sees.
+  const anyVideo = Object.values(media).some((slot) => {
+    const m = frameModes(slot);
+    return m.desktop || m.mobile;
+  });
+  if (anyVideo) {
     res = new HTMLRewriter()
-      // The hero's LCP preload describes the STILL. When that slot is a video
-      // the still is never rendered, so the preload becomes a full-size
-      // download of an image nobody sees — and a high-priority one, on the
-      // exact request the page is racing.
+      .on('head', {
+        element(el) { el.append(`<style id="zahara-media">${MEDIA_CSS}</style>`, { html: true }); },
+      })
+      // The hero's LCP preload describes the STILL. When the slot is a video
+      // on both frames the still is never rendered, so the preload becomes a
+      // full-size download of an image nobody sees — and a high-priority one,
+      // on the exact request the page is racing. With a video on one frame
+      // only, the still is still the other frame's picture (and this one's
+      // poster), so the preload is still earning its keep.
       .on('link[data-hero-preload]', {
         element(el) {
-          const key = el.getAttribute('data-hero-preload');
-          if (key && media[key]?.d === 'video') el.remove();
+          const key   = el.getAttribute('data-hero-preload');
+          const modes = frameModes(key ? media[key] : undefined);
+          if (modes.desktop && modes.mobile) el.remove();
         },
       })
       .on('[data-media-slot]', {
         element(el) {
-          const key = el.getAttribute('data-media-slot');
-          if (!key || media[key]?.d !== 'video') return;
-          const src       = el.getAttribute('data-media-video') || '';
-          const srcMobile = media[key]?.m === 'video'
-            ? (el.getAttribute('data-media-video-mobile') || '') : '';
-          if (!src) return;
-          // The poster is the still this replaces, so the frame is filled from
-          // the already-cached image while the video's first bytes arrive.
-          const poster = el.getAttribute('data-media-poster') || '';
-          const cls    = el.getAttribute('data-media-class') || '';
-          // How the owner framed it in /admin/images. Only written when it is
-          // NOT the default, so an untouched slot ships the same markup it
-          // always did and the class's own object-fit still governs.
-          const slot  = media[key];
-          const style =
-            (slot.fit === 'contain' ? 'object-fit:contain;' : '') +
-            (slot.pos ? `object-position:${slot.pos};` : '');
-          el.setAttribute('data-media-is-video', '1');
-          el.setInnerContent(
-            `<video class="${escAttr(cls)}" playsinline muted loop autoplay preload="none"` +
+          const key   = el.getAttribute('data-media-slot');
+          const slot  = key ? media[key] : undefined;
+          const modes = frameModes(slot);
+          if (!slot || (!modes.desktop && !modes.mobile)) return;
+
+          const desktopSrc = attr(el, 'data-media-video');
+          if (!desktopSrc) return;
+          // A phone with its OWN video plays the phone file (the /videos route
+          // falls back to the desktop file if it's missing); a phone following
+          // the desktop plays the desktop file.
+          const mobileAttr = attr(el, 'data-media-video-mobile');
+          const phoneSrc   = slot.m === 'video' && mobileAttr ? mobileAttr : desktopSrc;
+          const cls        = attr(el, 'data-media-class');
+          const both       = modes.desktop && modes.mobile;
+          const only       = both ? '' : (modes.desktop ? 'desktop' : 'mobile');
+
+          // Component styles are compiled against a `data-astro-cid-*`
+          // attribute that only elements Astro rendered carry. Without it, a
+          // <video> put in a gallery frame matched none of the gallery's rules
+          // and sat at its natural size in the corner of the slide. The slot
+          // belongs to the same component, so its scope is the right one.
+          const scope = [...el.attributes]
+            .filter(([name]) => name.startsWith('data-astro-cid-'))
+            .map(([name]) => ` ${name}`)
+            .join('');
+
+          // How the owner framed it in /admin/images, per frame. Only written
+          // when some frame on show is NOT the default, so an untouched slot
+          // ships the same markup it always did and the class's own
+          // object-fit still governs.
+          const df = framingFor(slot, 'desktop');
+          const mf = framingFor(slot, 'mobile');
+          const custom = (f: { fit: string; pos: string }) => f.fit !== 'cover' || f.pos !== DEFAULT_POSITION;
+          const framed = (modes.desktop && custom(df)) || (modes.mobile && custom(mf));
+          const style  = framed
+            ? `--vf:${df.fit};--vp:${df.pos};--vf-m:${mf.fit};--vp-m:${mf.pos}` : '';
+
+          // Speed, per frame. The phone attribute is only needed where it
+          // differs, and then it is written even when it is 1, or a phone
+          // would inherit the desktop's slowed-down loop.
+          const rate  = (modes.desktop || !modes.mobile) ? df.rate : mf.rate;
+          const mrate = both && mf.rate !== df.rate ? mf.rate : null;
+
+          // The poster is the still this replaces, so a video on both frames
+          // fills from the already-cached image while its first bytes arrive.
+          // A one-frame video has no poster: the still is right there beneath
+          // it, and a poster would download on the frame that never shows it.
+          const poster = both ? attr(el, 'data-media-poster') : '';
+
+          el.setAttribute('data-media-is-video', both ? '1' : only);
+          const video =
+            `<video class="${escAttr(cls)}"${scope} playsinline muted loop autoplay preload="none"` +
             ` aria-hidden="true" tabindex="-1"` +
             (poster ? ` poster="${escAttr(poster)}"` : '') +
-            (style  ? ` style="${escAttr(style)}"` : '') +
-            (slot.rate ? ` data-video-rate="${escAttr(String(slot.rate))}"` : '') +
-            ` data-video-src="${escAttr(src)}"` +
-            (srcMobile ? ` data-video-src-mobile="${escAttr(srcMobile)}"` : '') +
-            `></video>`,
-            { html: true },
-          );
+            (framed ? ` data-video-framed style="${escAttr(style)}"` : '') +
+            (rate !== 1 ? ` data-video-rate="${escAttr(String(rate))}"` : '') +
+            (mrate !== null ? ` data-video-rate-mobile="${escAttr(String(mrate))}"` : '') +
+            (only ? ` data-video-only="${only}"` : '') +
+            ` data-video-src="${escAttr(only === 'mobile' ? phoneSrc : desktopSrc)}"` +
+            (both && phoneSrc !== desktopSrc ? ` data-video-src-mobile="${escAttr(phoneSrc)}"` : '') +
+            `></video>`;
+          if (both) el.setInnerContent(video, { html: true });
+          else      el.append(video, { html: true });
         },
       })
       .transform(res);

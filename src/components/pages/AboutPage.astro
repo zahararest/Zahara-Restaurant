@@ -57,7 +57,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
 
   {/* Band height (~50vh) → near-square mobile crop, not the full-screen tall default. */}
   <BleedPhoto lang={lang} photo={PHOTOS.contact} height="clamp(280px, 50vh, 480px)"
-              mobileCrop={[[640, 680], [820, 870], [1080, 1150]]} />
+              mobileCrop={[[640, 680], [820, 870], [1080, 1150]]} mediaKey="contact" />
 
   {/* ── Where we are ──────────────────────────────────────────────────── */}
   <section class="section-tight wrap">
@@ -116,7 +116,7 @@ const mapEmbed = `https://www.google.com/maps?q=${encoded}&output=embed`;
     <div class="wrap">
       <div class="photo-block">
         <div class="img-mask reveal-on-scroll">
-          <Photo src={PHOTOS.location.src} alt={PHOTOS.location.alt[lang]} aspect="4/5" />
+          <Photo src={PHOTOS.location.src} alt={PHOTOS.location.alt[lang]} aspect="4/5" mediaKey="location" />
         </div>
         <div class="photo-block__content stagger reveal-on-scroll">
           <p class="eyebrow" data-content-key="about.designEyebrow">{t.designEyebrow}</p>

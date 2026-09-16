@@ -27,9 +27,9 @@ const NOTE_WIDTHS = [520, 760, 1040] as const;
 // that make all three editable. `optional` marks the photo as one with no
 // shipped file — the same confirm-then-show dance the home gallery uses.
 const notes = [
-  { photo: PHOTOS.eventsExtra1, titleKey: 'events.extra1Title', bodyKey: 'events.extra1Body' },
-  { photo: PHOTOS.eventsExtra2, titleKey: 'events.extra2Title', bodyKey: 'events.extra2Body' },
-  { photo: PHOTOS.eventsExtra3, titleKey: 'events.extra3Title', bodyKey: 'events.extra3Body' },
+  { key: 'eventsExtra1', photo: PHOTOS.eventsExtra1, titleKey: 'events.extra1Title', bodyKey: 'events.extra1Body' },
+  { key: 'eventsExtra2', photo: PHOTOS.eventsExtra2, titleKey: 'events.extra2Title', bodyKey: 'events.extra2Body' },
+  { key: 'eventsExtra3', photo: PHOTOS.eventsExtra3, titleKey: 'events.extra3Title', bodyKey: 'events.extra3Body' },
 ];
 ---
 
@@ -73,7 +73,8 @@ const notes = [
     <div class="events-extras__notes">
       {notes.map((n) => (
         <article class="events-extras__note" data-extras-note data-filename={n.photo.src.split('/').pop()} hidden>
-          <div class="events-extras__note-photo">
+          <div class="events-extras__note-photo"
+               {...mediaSlot(n.key, n.photo.src, { poster: resized(n.photo.src, 760) })}>
             <img
               data-src={resized(n.photo.src, 760)}
               data-srcset={resizedSrcset(n.photo.src, NOTE_WIDTHS)}
@@ -129,12 +130,29 @@ const notes = [
     var notes = Array.prototype.slice.call(section.querySelectorAll('[data-extras-note]'));
     var slots = notes.concat(film ? [film] : []);
 
+    // What the middleware made of a slot: '1' a video on every screen,
+    // 'desktop' / 'mobile' a video on that frame only, '' a photograph.
+    var phone = window.matchMedia('(max-width: 600px)');
+    function videoKind(el) {
+      var frame = el.querySelector('[data-media-slot]');
+      return (frame && frame.dataset.mediaIsVideo) || '';
+    }
+    function videoOnThisScreen(kind) {
+      return kind === '1' || kind === (phone.matches ? 'mobile' : 'desktop');
+    }
+
     function promote(el) {
-      var frame = el.querySelector('[data-media-slot]') || el;
-      if (frame.dataset && frame.dataset.mediaIsVideo === '1') { el.hidden = false; reveal(); return; }
+      var kind = videoKind(el);
+      if (kind === '1') { el.hidden = false; reveal(); return; }
+      // A video for this screen fills the slot on its own; the photograph is
+      // still loaded, because it is the other screen's picture.
+      if (videoOnThisScreen(kind)) { el.hidden = false; reveal(); }
       var img = el.querySelector('img[data-src]');
       if (!img) return;
       img.addEventListener('load',  function () { el.hidden = false; reveal(); }, { once: true });
+      // A slot filled only by a one-frame video may have no photograph at all.
+      // Drop the broken image rather than leave its icon under the video.
+      if (kind) img.addEventListener('error', function () { img.remove(); }, { once: true });
       if (img.dataset.srcset) img.srcset = img.dataset.srcset;
       img.src = img.dataset.src;
     }
@@ -165,9 +183,7 @@ const notes = [
         var have = {};
         ((data && data.filenames) || []).forEach(function (f) { have[f] = true; });
         slots.forEach(function (el) {
-          var frame = el.querySelector('[data-media-slot]') || el;
-          var isVideo = frame.dataset && frame.dataset.mediaIsVideo === '1';
-          if (have[el.dataset.filename] || isVideo) { el.classList.add('has-photo'); promote(el); }
+          if (have[el.dataset.filename] || videoKind(el)) { el.classList.add('has-photo'); promote(el); }
         });
       })
       .catch(function () { /* leave the photographs out rather than risk 404s */ });
@@ -213,6 +229,7 @@ const notes = [
      frame rather than a tower — roughly a phone held up at arm's length. */
   .events-extras__film { margin: 0; display: grid; justify-items: center; gap: var(--space-2xs); }
   .events-extras__film-frame {
+    position: relative;   /* a one-frame video is laid over the still */
     inline-size: min(340px, 78vw);
     aspect-ratio: 9 / 16;
     overflow: hidden;
@@ -243,8 +260,9 @@ const notes = [
     align-items: start;
   }
   .events-extras__note { display: grid; gap: var(--space-2xs); }
-  .events-extras__note-photo { aspect-ratio: 4 / 5; overflow: hidden; background: var(--paper-card); }
-  .events-extras__note-photo img {
+  .events-extras__note-photo { position: relative; aspect-ratio: 4 / 5; overflow: hidden; background: var(--paper-card); }
+  .events-extras__note-photo img,
+  .events-extras__note-photo :global(video) {
     inline-size: 100%; block-size: 100%; object-fit: cover; display: block;
   }
   /* A note the owner wrote but hasn't photographed yet: drop the empty frame

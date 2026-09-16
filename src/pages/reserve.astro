@@ -24,9 +24,10 @@ import '../styles/font-faces.css';
 import '../styles/font-config.css';
 import '../styles/tokens.css';
 import ContentOverlay from '../components/ContentOverlay.astro';
+import MediaVideo from '../components/MediaVideo.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
-import { resized, resizedSrcset } from '../lib/photo';
+import { resized, resizedSrcset, mediaSlot } from '../lib/photo';
 
 // GA4 rides along as the secondary view — see the <script> at the foot of the
 // body for why it carries no consent banner of its own.
@@ -48,6 +49,7 @@ const VENUES = [
     name:    'זהרה',
     meta:    '',
     cta:     'הזמנת שולחן',
+    key:     'reserveZahara',
     photo:   PHOTOS.reserveZahara,
     // Latin-script names want a little less size than the Hebrew wordmark to
     // sit at the same optical weight.
@@ -60,6 +62,7 @@ const VENUES = [
     name:    'NUCHA ROOFTOP',
     meta:    '',
     cta:     'הזמנת שולחן',
+    key:     'reserveRooftop',
     photo:   PHOTOS.reserveRooftop,
     latin:   true,
   },
@@ -90,8 +93,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
   {/* The Zahara panel is the LCP on every viewport. Preload it at the exact
       responsive sizes the <img> asks for so it downloads during head parse. */}
+  {/* data-hero-preload lets the middleware drop this when the panel is a
+      video on every screen, so nobody downloads a photo that isn't shown. */}
   <link
-    rel="preload" as="image" fetchpriority="high"
+    rel="preload" as="image" fetchpriority="high" data-hero-preload={VENUES[0].key}
     href={resized(VENUES[0].photo.src, 1280)}
     imagesrcset={resizedSrcset(VENUES[0].photo.src, WIDTHS)}
     imagesizes={SIZES}
@@ -119,17 +124,21 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         data-venue={v.id}
         style={`--stagger:${i * 140}ms`}
       >
-        <img
-          class="venue__photo"
-          src={resized(v.photo.src, 1280)}
-          srcset={resizedSrcset(v.photo.src, WIDTHS)}
-          sizes={SIZES}
-          alt=""
-          width="1280" height="854"
-          loading="eager"
-          decoding="async"
-          fetchpriority={i === 0 ? 'high' : 'auto'}
-        />
+        {/* A media slot: /admin/images can put a video in either panel. */}
+        <span class="venue__media"
+              {...mediaSlot(v.key, v.photo.src, { poster: resized(v.photo.src, 1280), className: 'venue__photo' })}>
+          <img
+            class="venue__photo"
+            src={resized(v.photo.src, 1280)}
+            srcset={resizedSrcset(v.photo.src, WIDTHS)}
+            sizes={SIZES}
+            alt=""
+            width="1280" height="854"
+            loading="eager"
+            decoding="async"
+            fetchpriority={i === 0 ? 'high' : 'auto'}
+          />
+        </span>
         <span class="venue__scrim"></span>
         <span class="venue__body">
           <span class="venue__eyebrow" data-content-key={`reserve.${v.id}Eyebrow`}>{v.eyebrow}</span>
@@ -143,6 +152,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </a>
     ))}
   </main>
+
+  {/* Starts a panel video, if the owner has put one in either slot. */}
+  <MediaVideo />
 
   <style>
     /* ── Shell ─────────────────────────────────────────────────────────── */
@@ -236,6 +248,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       }
     }
 
+    /* The frame the photo (or the video standing in for it) sits in. It holds
+       the panel's back layer, so the scrim and the words stay above it. */
+    .venue__media {
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+    }
     .venue__photo {
       position: absolute;
       inset: 0;
@@ -245,7 +264,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       /* Documentary, not catalogue. */
       filter: saturate(.92);
       transition: transform 1.2s var(--ease-out);
-      z-index: -2;
     }
     .venue__scrim {
       position: absolute;

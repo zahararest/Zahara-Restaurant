@@ -237,23 +237,33 @@ const nextLabel = g.nextPhoto;
       film.querySelectorAll('.gallery-film__slide[data-optional]'));
 
     function promote(slide) {
-      // A slot the middleware turned into a video has no deferred <img> to
-      // promote — the media is already there and the confirm call only had to
-      // tell us the slot is filled at all. The flag sits on the inner media
-      // wrapper, which is the element the middleware actually rewrote.
+      // A slot the middleware turned into a video on every screen has no
+      // deferred <img> to promote — the media is already there and the confirm
+      // call only had to tell us the slot is filled at all. The flag sits on
+      // the inner media wrapper, which is the element the middleware rewrote.
       const media = slide.querySelector('[data-media-slot]');
-      if (media && media.dataset.mediaIsVideo === '1') {
+      const kind  = (media && media.dataset.mediaIsVideo) || '';
+      if (kind === '1') {
         slide.classList.remove('is-pending'); refreshMeta(); return;
       }
+      // A video on THIS screen's frame only: the slide is filled whatever the
+      // photograph does, and the photograph is still loaded for the other
+      // screen (and to sit under the video until its first frame arrives).
+      const videoHere = kind === (window.matchMedia('(max-width: 600px)').matches ? 'mobile' : 'desktop');
+      const keep = () => { slide.classList.remove('is-pending'); refreshMeta(); };
+      if (videoHere) keep();
       const img    = slide.querySelector('img');
       const source = slide.querySelector('source');
-      if (!img) { slide.remove(); refreshMeta(); return; }
+      if (!img) { if (!videoHere) { slide.remove(); refreshMeta(); } return; }
       // Move the deferred URLs into the live attributes → triggers the fetch.
       if (source && source.dataset.srcset) source.srcset = source.dataset.srcset;
       if (img.dataset.srcset) img.srcset = img.dataset.srcset;
       if (img.dataset.src)    img.src    = img.dataset.src;
-      const keep = () => { slide.classList.remove('is-pending'); refreshMeta(); };
-      const drop = () => { slide.remove(); refreshMeta(); };
+      // No photograph behind a video that fills the slide is fine — drop the
+      // broken image, keep the slide.
+      const drop = videoHere
+        ? () => { img.remove(); }
+        : () => { slide.remove(); refreshMeta(); };
       if (img.complete) { img.naturalWidth > 0 ? keep() : drop(); }
       else {
         img.addEventListener('load',  keep, { once: true });

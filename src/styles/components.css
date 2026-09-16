@@ -880,6 +880,24 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
     color-mix(in srgb, var(--shadow) 60%, transparent) 100%);
   pointer-events: none;
 }
+/* A video the owner put behind the text instead of the photo. It sits over
+   the ::before photo (same z-index, later in the tree) and under the ::after
+   wash, and gets the photo's own treatment so the text over it reads the same
+   whichever is showing. Empty — and so invisible — until the middleware puts a
+   <video> in it. */
+.section-on-photo__media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+.section-on-photo__media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: grayscale(1) brightness(0.55) contrast(1.08);
+}
 /* Transform-only so the drift is GPU-composited — animating background-position
    instead forced a full repaint of the 100vh image every frame, which (stacked
    under the info-strip + story-box backdrop-filters) stuttered badly on mobile.

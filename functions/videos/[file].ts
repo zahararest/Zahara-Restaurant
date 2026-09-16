@@ -17,7 +17,7 @@
 // its portrait cut. See functions/data/media.ts.
 
 import type { PagesFunction, R2Bucket, R2ObjectBody } from '@cloudflare/workers-types';
-import { FILENAME_TO_META, photoSite } from '../data/photos-map';
+import { FILENAME_TO_META, photoSite, canShowVideo } from '../data/photos-map';
 import { siteFromRequest, siteScope, type SiteBindings } from '../data/site';
 import { parseVideoFilename, videoObjectKey } from '../data/media';
 
@@ -79,14 +79,15 @@ export const onRequestGet: PagesFunction<SiteBindings> = async ({ params, env, r
   // its video can never point at different things. Catalogue filenames are all
   // .jpg; the ?? covers a future entry that isn't.
   const meta = FILENAME_TO_META[`${parsed.filename}.jpg`] ?? FILENAME_TO_META[parsed.filename];
-  if (!meta || !meta.video) return new Response('Not found', { status: 404 });
+  if (!meta || !canShowVideo(meta)) return new Response('Not found', { status: 404 });
 
   const scope  = siteScope(env, photoSite(siteFromRequest(request), meta.key));
   const bucket = scope.images as R2Bucket | null;
   if (!bucket) return new Response('Not found', { status: 404 });
 
-  // A phone asking for a portrait cut that was never uploaded falls back to
-  // the desktop video — the same courtesy /photos-m gives a still.
+  // A phone asking for a phone video that was never uploaded falls back to the
+  // desktop video — the same courtesy /photos-m gives a still. This is also how
+  // a phone that FOLLOWS the desktop plays the desktop clip.
   const keys = parsed.variant === 'mobile'
     ? [videoObjectKey(meta.key, 'mobile'), videoObjectKey(meta.key, 'desktop')]
     : [videoObjectKey(meta.key, 'desktop')];

@@ -15,16 +15,34 @@
 //
 //   `__media__` → { "hero": { "d": "video", "m": "video", "pos": "50% 35%" }, … }
 //
-//   d    — the desktop slot ('video' when the video is SHOWN there)
-//   m    — the phone slot   ('video' when the portrait cut is SHOWN there)
-//   fit  — 'contain' when the video should be shown whole rather than cropped
+//   d    — the desktop frame: 'video' when the video is SHOWN there
+//   m    — the phone frame, which is its OWN decision:
+//            (absent) follow the desktop — a video on desktop plays on phones
+//                     too, a photo on desktop is a photo on phones
+//            'video'  phones play the phone video, whatever desktop shows
+//            'photo'  phones show the photo, whatever desktop shows
+//   fit  — 'contain' when the desktop video is shown whole rather than cropped
 //   pos  — object-position ("50% 35%"), which part of the frame to keep
 //   rate — playback speed, when the owner has slowed or quickened the loop
+//   mfit / mpos / mrate — the same three for the PHONE frame. Each one that is
+//          absent falls back to the desktop value, which is how a phone that
+//          follows the desktop clip keeps the desktop framing until the owner
+//          frames it for phones. Unlike the desktop values these are stored
+//          even when they equal the defaults: "centre, cropped, normal speed"
+//          chosen for phones is a real choice, distinct from "same as desktop".
 //
 // A key that is absent means "still photograph", which is what every slot is
 // until someone uploads a video. The middleware turns this into a markup
 // rewrite (see functions/_middleware.ts), so the page ships the right element
-// the first time and the browser never fetches the one it isn't going to use.
+// the first time.
+//
+// ── Why phone and desktop can differ ───────────────────────────────────────
+// One page is served to every screen, so the server cannot know which frame a
+// visitor will see. When both frames are videos that doesn't matter: the still
+// is replaced outright and the browser picks the file. When only ONE frame is
+// a video, the still stays in the markup and the video is laid over it, shown
+// only at its breakpoint — the still is what the other frame shows, and it is
+// also the video's poster on its own frame. See functions/_middleware.ts.
 //
 // ── R2 layout ──────────────────────────────────────────────────────────────
 // A video never overwrites the still it replaces. They live side by side:
@@ -32,7 +50,7 @@
 //   images/{key}                 the desktop still
 //   images/{key}__mobile         the portrait still
 //   images/{key}__video          the desktop video
-//   images/{key}__video_mobile   the portrait video
+//   images/{key}__video_mobile   the phone video
 //
 // which is what makes "show the video" a reversible switch rather than a
 // destructive upload: remove the video and the photograph is still there.
@@ -43,7 +61,7 @@
 //   R2 has images/{key}__video   → a video has been uploaded for this slot
 //   manifest has d === 'video'   → visitors are seeing it right now
 //
-// Switching back to the photograph only clears the flag. The video stays in
+// Switching back to the photograph only changes the flag. The video stays in
 // the bucket, so "show it again" is one press rather than another upload —
 // which is the whole point of calling it a switch. Only an explicit "delete
 // the video" removes the file, and it says so before it does.
@@ -58,18 +76,22 @@ const KEY = '__media__';
 /** Which of a slot's two frames a piece of media belongs to. */
 export type MediaVariant = 'desktop' | 'mobile';
 
-/** One slot's state. Absent `d`/`m` mean "a still photograph is shown here";
- *  the rest is how the video sits in its frame, stored only when the owner has
- *  moved it off the defaults so an untouched slot stays an empty object. */
+/** One slot's state. Absent `d`/`m` mean "a still photograph is shown here"
+ *  (for `m`: "whatever the desktop shows"); the rest is how the video sits in
+ *  its frame, stored only when the owner has moved it off the defaults. */
 export interface MediaSlot {
   d?:    'video';
-  m?:    'video';
+  m?:    'video' | 'photo';
   /** 'contain' shows the whole frame (letterboxed); default is 'cover'. */
   fit?:  'contain';
   /** CSS object-position, e.g. "50% 35%". Default is dead centre. */
   pos?:  string;
   /** Playback speed, 0.25–2. Default 1. */
   rate?: number;
+  /** Phone framing — see the note at the top. Absent = same as desktop. */
+  mfit?:  'cover' | 'contain';
+  mpos?:  string;
+  mrate?: number;
 }
 export type MediaMap = Record<string, MediaSlot>;
 
@@ -115,11 +137,49 @@ export function parseVideoFilename(file: string): { filename: string; variant: M
   return { filename: m[1], variant: m[2] ? 'mobile' : 'desktop' };
 }
 
+/** Whether each frame of a slot is showing a video. The one place the "phones
+ *  follow the desktop unless told otherwise" rule is spelled out, so the
+ *  middleware, the admin and the gallery API can never disagree about it. */
+export function frameModes(slot: MediaSlot | undefined): { desktop: boolean; mobile: boolean } {
+  const desktop = slot?.d === 'video';
+  const mobile  = slot?.m === 'video' ? true : slot?.m === 'photo' ? false : desktop;
+  return { desktop, mobile };
+}
+
+/** What a phone is actually shown:
+ *    'own'     — the phone video
+ *    'desktop' — the desktop video (following it, or no phone file to play)
+ *    'photo'   — the still
+ *  File presence matters here because /videos falls back to the desktop file
+ *  when a phone file is asked for and missing. */
+export type PhoneMode = 'own' | 'desktop' | 'photo';
+export function phoneMode(slot: MediaSlot | undefined, hasFile: boolean, hasMobileFile: boolean): PhoneMode {
+  if (!frameModes(slot).mobile) return 'photo';
+  if (slot?.m === 'video') return hasMobileFile ? 'own' : (hasFile ? 'desktop' : 'photo');
+  return hasFile ? 'desktop' : 'photo';
+}
+
+/** Framing for one frame, with the phone falling back to the desktop value
+ *  field by field and both falling back to the defaults. */
+export function framingFor(slot: MediaSlot | undefined, variant: MediaVariant) {
+  const s = slot ?? {};
+  const dFit  = s.fit === 'contain' ? 'contain' : 'cover';
+  const dPos  = s.pos ?? DEFAULT_POSITION;
+  const dRate = s.rate ?? 1;
+  if (variant === 'desktop') return { fit: dFit, pos: dPos, rate: dRate } as const;
+  return {
+    fit:  (s.mfit ?? dFit) as 'cover' | 'contain',
+    pos:  s.mpos ?? dPos,
+    rate: s.mrate ?? dRate,
+  } as const;
+}
+
 /** True when a record still carries something worth storing. A slot whose
  *  video is hidden AND untouched is dropped, so the manifest stays as small as
  *  it was before any of this existed. */
 function meaningful(slot: MediaSlot): boolean {
-  return !!(slot.d || slot.m || slot.fit || slot.pos || slot.rate !== undefined);
+  return !!(slot.d || slot.m || slot.fit || slot.pos || slot.rate !== undefined ||
+            slot.mfit || slot.mpos || slot.mrate !== undefined);
 }
 
 function sanitise(input: unknown): MediaMap {
@@ -130,10 +190,13 @@ function sanitise(input: unknown): MediaMap {
     const raw  = v as MediaSlot;
     const slot: MediaSlot = {};
     if (raw.d === 'video') slot.d = 'video';
-    if (raw.m === 'video') slot.m = 'video';
+    if (raw.m === 'video' || raw.m === 'photo') slot.m = raw.m;
     if (raw.fit === 'contain') slot.fit = 'contain';
     if (isPosition(raw.pos) && raw.pos !== DEFAULT_POSITION) slot.pos = raw.pos;
     if (isRate(raw.rate) && raw.rate !== 1) slot.rate = raw.rate;
+    if (raw.mfit === 'cover' || raw.mfit === 'contain') slot.mfit = raw.mfit;
+    if (isPosition(raw.mpos)) slot.mpos = raw.mpos;
+    if (isRate(raw.mrate)) slot.mrate = raw.mrate;
     if (meaningful(slot)) out[k] = slot;
   }
   return out;
@@ -177,24 +240,45 @@ async function editSlot(
   await kv.put(KEY, JSON.stringify(map));
 }
 
-/** Show or hide the video in one of a slot's two frames. Hiding does NOT touch
- *  the file in R2 — see the note at the top of this module. */
-export async function setMediaSlot(
-  env: MediaEnv, site: Site, key: string, variant: MediaVariant, isVideo: boolean,
-): Promise<void> {
-  const field = variant === 'mobile' ? 'm' : 'd';
+/** Show or hide the DESKTOP video. The phone frame is left exactly as it is:
+ *  a phone following the desktop follows this change, a phone with its own
+ *  choice keeps it. Hiding does NOT touch the file in R2. */
+export async function setDesktopVideo(env: MediaEnv, site: Site, key: string, show: boolean): Promise<void> {
   await editSlot(env, site, key, (slot) => {
-    if (isVideo) slot[field] = 'video';
-    else delete slot[field];
+    if (show) slot.d = 'video';
+    else delete slot.d;
   });
 }
 
-/** Save how a slot's video sits in its frame. Values equal to the default are
- *  removed rather than stored, so "reset" leaves no trace. */
-export async function setMediaOptions(
-  env: MediaEnv, site: Site, key: string, opts: MediaOptions,
+/** Set what phones show. 'follow' clears the phone's own choice.
+ *
+ *  'photo' is only stored when it differs from following: with no desktop
+ *  video, following already means the photo, and storing it would quietly
+ *  keep phones on the photograph the next time a desktop video goes up — which
+ *  is not something the owner decided. */
+export async function setPhoneMode(
+  env: MediaEnv, site: Site, key: string, mode: 'video' | 'photo' | 'follow',
 ): Promise<void> {
   await editSlot(env, site, key, (slot) => {
+    if (mode === 'video') slot.m = 'video';
+    else if (mode === 'photo' && slot.d === 'video') slot.m = 'photo';
+    else delete slot.m;
+  });
+}
+
+/** Save how one frame's video sits in its frame. Desktop values equal to the
+ *  default are removed rather than stored; phone values are stored as given
+ *  (see the note at the top). */
+export async function setMediaOptions(
+  env: MediaEnv, site: Site, key: string, opts: MediaOptions, variant: MediaVariant = 'desktop',
+): Promise<void> {
+  await editSlot(env, site, key, (slot) => {
+    if (variant === 'mobile') {
+      if (opts.fit !== undefined)  slot.mfit = opts.fit === 'contain' ? 'contain' : 'cover';
+      if (opts.pos !== undefined && isPosition(opts.pos)) slot.mpos = opts.pos;
+      if (opts.rate !== undefined && isRate(opts.rate))   slot.mrate = opts.rate;
+      return;
+    }
     if (opts.fit !== undefined) {
       if (opts.fit === 'contain') slot.fit = 'contain';
       else delete slot.fit;
@@ -210,11 +294,31 @@ export async function setMediaOptions(
   });
 }
 
-/** Drop a slot's record entirely — used when its video file is deleted, so no
- *  framing settings linger to be silently reapplied to the next upload. */
-export async function clearMediaSlot(env: MediaEnv, site: Site, key: string): Promise<void> {
+/** The desktop video file was deleted: stop showing it and forget its framing,
+ *  so nothing lingers to be silently reapplied to the next upload.
+ *
+ *  The phone frame is independent and survives. If it inherits any framing
+ *  from the desktop, that framing is copied onto the phone first, so deleting
+ *  the desktop clip doesn't re-crop the phone one. A stored 'photo' choice
+ *  only meant "not the desktop video", which no longer exists, so it goes. */
+export async function clearDesktopVideo(env: MediaEnv, site: Site, key: string): Promise<void> {
   await editSlot(env, site, key, (slot) => {
-    for (const k of Object.keys(slot)) delete (slot as Record<string, unknown>)[k];
+    if (slot.m === 'video') {
+      const phone = framingFor(slot, 'mobile');
+      slot.mfit = phone.fit; slot.mpos = phone.pos; slot.mrate = phone.rate;
+    }
+    if (slot.m === 'photo') delete slot.m;
+    delete slot.d; delete slot.fit; delete slot.pos; delete slot.rate;
+  });
+}
+
+/** The phone video file was deleted: phones go back to following the desktop
+ *  (the photo, or the desktop clip if one is showing), and the framing chosen
+ *  for the deleted clip goes with it. */
+export async function clearPhoneVideo(env: MediaEnv, site: Site, key: string): Promise<void> {
+  await editSlot(env, site, key, (slot) => {
+    if (slot.m === 'video') delete slot.m;
+    delete slot.mfit; delete slot.mpos; delete slot.mrate;
   });
 }
 
@@ -222,3 +326,30 @@ export async function clearMediaSlot(env: MediaEnv, site: Site, key: string): Pr
 export function mediaToJson(map: MediaMap): string {
   return JSON.stringify(map).replace(/</g, '\\u003c');
 }
+
+/** Everything the admin needs to draw a slot's video controls, on either card.
+ *  Computed in ONE place so the page's first render and every later redraw
+ *  (from an endpoint response) read the same fields. */
+export interface VideoFiles {
+  hasFile: boolean;       size: number;       type: string;       uploaded: string;
+  hasMobileFile: boolean; mobileSize: number; mobileType: string; mobileUploaded: string;
+}
+export function videoState(key: string, slot: MediaSlot | undefined, files: VideoFiles) {
+  const modes   = frameModes(slot);
+  const desktop = framingFor(slot, 'desktop');
+  const phone   = framingFor(slot, 'mobile');
+  return {
+    key,
+    ...files,
+    // Is SHOWN — which is what a visitor sees.
+    showing:       modes.desktop,
+    phoneMode:     phoneMode(slot, files.hasFile, files.hasMobileFile),
+    /** The phone has a choice of its own, rather than following the desktop. */
+    phoneChoice:   slot?.m ?? '',
+    fit: desktop.fit, pos: desktop.pos, rate: desktop.rate,
+    mfit: phone.fit,  mpos: phone.pos,  mrate: phone.rate,
+    /** Phone framing is its own rather than borrowed from the desktop. */
+    phoneFramed:   !!(slot?.mfit || slot?.mpos || slot?.mrate !== undefined),
+  };
+}
+export type VideoState = ReturnType<typeof videoState>;

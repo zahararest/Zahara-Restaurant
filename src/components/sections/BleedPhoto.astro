@@ -16,11 +16,11 @@ export interface Props {
    *  is set). Defaults to a full-screen tall crop — pass a wider set for
    *  short bands so they don't request a too-tall image. */
   mobileCrop?: readonly (readonly [number, number])[];
-  /** The /admin/images catalogue key, when this band is a slot the owner may
-   *  put a VIDEO in. Passing it lets the middleware swap the still for a
-   *  <video>; without it the band is a photograph and nothing else. Only pass
-   *  it for a photo marked `video: true` in functions/data/photos-map.ts, or
-   *  the admin would offer a control with nothing on the page to act on. */
+  /** The /admin/images catalogue key of the photo in this band. Passing it
+   *  lets the middleware swap the still for a <video> when the owner has put
+   *  one in the slot; without it the band is a photograph and nothing else —
+   *  and the admin would offer a video control with nothing on the page to
+   *  act on, so pass it for every catalogued photo. */
   mediaKey?: string;
 }
 

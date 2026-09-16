@@ -17,6 +17,8 @@ export interface Props {
   cta2?:      { label: string; href: string; key?: string };
   /** Place the photo on the trailing edge (mirrored layout). */
   reverse?:   boolean;
+  /** The /admin/images catalogue key, so the photo can be a video. */
+  mediaKey?:  string;
   /** Optional admin-editable content keys (data-content-key). */
   eyebrowKey?:    string;
   headingKey?:    string;
@@ -24,7 +26,7 @@ export interface Props {
 }
 
 const { lang, photo, eyebrow, heading, paragraphs, cta, cta2, reverse = false,
-        eyebrowKey, headingKey, paragraphKeys } = Astro.props;
+        mediaKey, eyebrowKey, headingKey, paragraphKeys } = Astro.props;
 const classList = reverse ? 'photo-block photo-block--reverse' : 'photo-block';
 ---
 
@@ -32,7 +34,7 @@ const classList = reverse ? 'photo-block photo-block--reverse' : 'photo-block';
   <div class="wrap">
     <div class={classList}>
       <div class="reveal-on-scroll">
-        <Photo src={photo.src} alt={photo.alt[lang]} aspect="4/5" />
+        <Photo src={photo.src} alt={photo.alt[lang]} aspect="4/5" mediaKey={mediaKey} />
       </div>
       <div class="photo-block__content stagger reveal-on-scroll">
         <p class="eyebrow" data-content-key={eyebrowKey}>{eyebrow}</p>

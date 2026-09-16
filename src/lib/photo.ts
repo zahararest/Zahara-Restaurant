@@ -122,11 +122,11 @@ export function resizedMobileCoverSrcset(
 
 // ── Video slots ────────────────────────────────────────────────────────────
 //
-// Some full-frame slots (the hero, each gallery frame, the Events band) can
-// show a VIDEO instead of their still. The build always ships the still; the
-// root middleware swaps in a <video> for the slots the owner has uploaded one
-// for, using the URLs these helpers put on the element. See
-// functions/data/media.ts and src/components/MediaVideo.astro.
+// Every photo slot on the site can show a VIDEO instead of its still, on the
+// desktop frame, the phone frame, or both. The build always ships the still;
+// the root middleware swaps in (or lays over it) a <video> for the slots the
+// owner has uploaded one for, using the URLs these helpers put on the element.
+// See functions/data/media.ts and src/components/MediaVideo.astro.
 //
 // These URLs deliberately do NOT go through /cdn-cgi/image: that layer
 // transforms images, and handing it a video returns an error rather than a
@@ -143,11 +143,19 @@ export function videoSrc(src: string, variant: 'desktop' | 'mobile' = 'desktop')
 
 /** The attributes that mark an element as a swappable media slot. Spread onto
  *  the wrapper that holds the still; the middleware replaces its contents with
- *  a <video> when the manifest says this slot has one.
+ *  a <video> when the manifest says both frames show one, or adds the video
+ *  beside the still when only one frame does.
+ *
+ *  The wrapper must hold the still and NOTHING else (a caption beside it would
+ *  be replaced along with it), and it must be a positioned box the size of the
+ *  frame — or `display: contents` inside one — because a one-frame video is
+ *  laid over the still with `position: absolute; inset: 0`.
  *
  *  `poster` is the still the video replaces — the frame is filled from an
  *  image the browser has usually already fetched while the video's first bytes
- *  arrive, so the swap never shows a black box. */
+ *  arrive, so the swap never shows a black box. `mobile` is for slots with a
+ *  separate phone frame (`mobile: true` in functions/data/photos-map.ts); it
+ *  adds the URL of the phone video. */
 export function mediaSlot(
   key: string, src: string, opts: { poster: string; className?: string; mobile?: boolean },
 ): Record<string, string> {

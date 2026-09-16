@@ -2,11 +2,16 @@
 // Starts the videos the middleware swapped in for their stills.
 //
 // The <video> arrives from the server with NO src — only `data-video-src` and
-// (when the owner uploaded a portrait cut) `data-video-src-mobile`. One page is
+// (when phones play a different file) `data-video-src-mobile`. One page is
 // served to every screen, so the choice between the two can only be made here,
 // in the browser that knows how wide it is. Setting the src rather than
 // shipping it means exactly one file is ever fetched: no phone downloading a
 // landscape master to throw it away.
+//
+// A video that belongs to ONE frame only carries `data-video-only` ("desktop"
+// or "mobile"). It sits over the still, which is what the other frame shows,
+// and it is never loaded on the screen it isn't for — see MEDIA_CSS in
+// functions/_middleware.ts for the layout half of that.
 //
 // Everything else is restraint. These are atmosphere behind text, not media the
 // reader came for, so: muted and looping (a background video that makes noise
@@ -24,35 +29,44 @@
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     var phone  = window.matchMedia('(max-width: 600px)');
 
+    // Reduced motion: leave the poster (or the still beneath) showing. It is
+    // the photograph this video replaced, so the slot looks finished rather
+    // than empty — and no video bytes are fetched at all.
+    if (reduce.matches) return;
+
+    /** Is this video for the screen we're on? */
+    function active(v) {
+      var only = v.getAttribute('data-video-only');
+      return !only || (only === 'mobile') === phone.matches;
+    }
+
     function sourceFor(v) {
       var m = v.getAttribute('data-video-src-mobile');
       return (phone.matches && m) ? m : v.getAttribute('data-video-src');
     }
 
-    // Reduced motion: leave the poster showing. It is the still this video
-    // replaced, so the slot looks finished rather than empty — and no video
-    // bytes are fetched at all.
-    if (reduce.matches) return;
-
     // Put the photograph back. Dropping the source and reloading returns the
-    // element to its poster — the still this video replaced — so a clip the
-    // browser cannot show degrades to the picture it was standing in for
-    // rather than to a black rectangle.
+    // element to its poster — or, for a one-frame video, uncovers the still it
+    // sits on — so a clip the browser cannot show degrades to the picture it
+    // was standing in for rather than to a black rectangle.
     function giveUp(v) {
       v.dataset.videoFailed = '1';
+      v.removeAttribute('data-video-ready');
       v.removeAttribute('src');
       try { v.load(); } catch (e) {}
     }
 
-    // Speed, where the owner asked for one in /admin/images. Re-applied after
-    // every source change, since swapping src resets it in some browsers.
+    // Speed, where the owner asked for one in /admin/images — per frame, since
+    // a phone may be framed and timed differently. Re-applied after every
+    // source change, since swapping src resets it in some browsers.
     function applyRate(v) {
-      var rate = parseFloat(v.getAttribute('data-video-rate'));
-      if (rate > 0) { try { v.playbackRate = rate; } catch (e) {} }
+      var m    = v.getAttribute('data-video-rate-mobile');
+      var rate = parseFloat(phone.matches && m !== null ? m : v.getAttribute('data-video-rate')) || 1;
+      try { v.playbackRate = rate; } catch (e) {}
     }
 
     function load(v) {
-      if (v.dataset.videoLoaded || v.dataset.videoFailed) return;
+      if (v.dataset.videoLoaded || v.dataset.videoFailed || !active(v)) return;
       v.dataset.videoLoaded = '1';
       applyRate(v);
       v.src = sourceFor(v);
@@ -63,7 +77,10 @@
       // perfectly healthy readyState and fires no error — it just paints
       // nothing, which on a full-bleed hero reads as the site being broken.
       v.addEventListener('loadeddata', function () {
-        if (!v.videoWidth || !v.videoHeight) giveUp(v);
+        if (!v.videoWidth || !v.videoHeight) { giveUp(v); return; }
+        // Has a picture: the still beneath a one-frame video can step aside.
+        v.setAttribute('data-video-ready', '');
+        applyRate(v);
       }, { once: true });
     }
 
@@ -73,7 +90,7 @@
     // observer would not fire again on its own, since nothing moved.
     function want(v)  { return v.dataset.videoOnScreen === '1'; }
     function play(v)  {
-      if (!v.dataset.videoLoaded || v.dataset.videoFailed || document.hidden || !want(v)) return;
+      if (!v.dataset.videoLoaded || v.dataset.videoFailed || document.hidden || !want(v) || !active(v)) return;
       var p = v.play();
       if (p && p.catch) p.catch(function () {});
     }
@@ -81,13 +98,16 @@
 
     // Load on approach, play only while actually on screen. The hero is
     // already in view on load, so it starts immediately; a gallery frame five
-    // screens down costs nothing until it is nearly there.
+    // screens down costs nothing until it is nearly there. A video for the
+    // other frame is remembered as near but not loaded, so resizing across the
+    // breakpoint can start it without waiting for another scroll.
     if ('IntersectionObserver' in window) {
       var near = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {
           if (!e.isIntersecting) return;
+          e.target.dataset.videoNear = '1';
           load(e.target);
-          near.unobserve(e.target);
+          if (e.target.dataset.videoLoaded) near.unobserve(e.target);
           play(e.target);
         });
       }, { rootMargin: '400px 0px' });
@@ -99,7 +119,9 @@
       }, { threshold: 0.1 });
       Array.prototype.forEach.call(vids, function (v) { near.observe(v); onScreen.observe(v); });
     } else {
-      Array.prototype.forEach.call(vids, function (v) { v.dataset.videoOnScreen = '1'; load(v); play(v); });
+      Array.prototype.forEach.call(vids, function (v) {
+        v.dataset.videoOnScreen = '1'; v.dataset.videoNear = '1'; load(v); play(v);
+      });
     }
 
     // A backgrounded tab should not be decoding video.
@@ -107,13 +129,20 @@
       Array.prototype.forEach.call(vids, document.hidden ? pause : play);
     });
 
-    // Crossing the phone breakpoint after load changes which cut is right.
-    // Only re-point videos that already committed to a source.
+    // Crossing the phone breakpoint changes which cut is right, and whether a
+    // one-frame video belongs on screen at all.
     var onBreakpoint = function () {
       Array.prototype.forEach.call(vids, function (v) {
-        if (!v.dataset.videoLoaded || v.dataset.videoFailed) return;
-        var want = sourceFor(v);
-        if (want && v.getAttribute('src') !== want) { v.src = want; applyRate(v); play(v); }
+        if (v.dataset.videoFailed) return;
+        if (!active(v)) { pause(v); return; }
+        if (!v.dataset.videoLoaded) {
+          if (v.dataset.videoNear) { load(v); play(v); }
+          return;
+        }
+        var src = sourceFor(v);
+        if (src && v.getAttribute('src') !== src) v.src = src;
+        applyRate(v);
+        play(v);
       });
     };
     if (phone.addEventListener) phone.addEventListener('change', onBreakpoint);
