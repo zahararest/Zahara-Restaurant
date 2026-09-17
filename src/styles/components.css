@@ -1205,7 +1205,7 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
 }
 .a11y-toggle:hover {
   background: var(--accent);
-  color: var(--paper-on-photo);
+  color: var(--on-accent);
   border-color: var(--accent);
   transform: translateY(-2px);
 }
@@ -1384,7 +1384,7 @@ html.a11y-headings :is(h1,h2,h3,h4,h5,h6) {
   gap: 0.5rem;
   padding: 0.8rem 1.3rem;
   background: var(--accent);
-  color: var(--paper-on-photo);
+  color: var(--on-accent);
   border: 1px solid var(--accent);
   border-radius: 999px;
   font-family: var(--font-body);

@@ -234,7 +234,7 @@ const schema = {
   <head>
     <meta charset="UTF-8" />
     <!-- Google Tag Manager -->
-    <script is:inline>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    <script is:inline data-analytics>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
@@ -312,8 +312,8 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         Uses async loading so it never blocks first paint. */}
     {gtagId && (
       <>
-        <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gtagId}`}></script>
-        <script is:inline define:vars={{ gtagId, googleAdsId, gaMeasurementId }}>
+        <script is:inline data-analytics async src={`https://www.googletagmanager.com/gtag/js?id=${gtagId}`}></script>
+        <script is:inline data-analytics define:vars={{ gtagId, googleAdsId, gaMeasurementId }}>
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
 
@@ -477,8 +477,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           });
         }
 
+        // The colour editor caches each VENUE's palette under its own key and
+        // tags its broadcasts with the venue, so the rooftop palette being
+        // edited never paints Zahara's pages in the same browser (or back).
+        var VENUE = location.pathname.indexOf('/rooftop') === 0 ? 'rooftop' : 'zahara';
+        var PALETTE_KEY = VENUE === 'rooftop' ? 'zahara-color-overrides:rooftop' : 'zahara-color-overrides';
         try {
-          var paletteRaw = localStorage.getItem('zahara-color-overrides');
+          var paletteRaw = localStorage.getItem(PALETTE_KEY);
           if (paletteRaw) applyOverrides(JSON.parse(paletteRaw));
         } catch (_) { /* localStorage blocked or bad JSON — fine */ }
         syncThemeColor();
@@ -496,6 +501,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           bc.addEventListener('message', function (ev) {
             var d = ev && ev.data;
             if (!d) return;
+            if (d.site && d.site !== VENUE) return;   // another venue's palette
             if (d.type === 'reset') { clearAll(); return; }
             if (d.type === 'colors-changed') applyOverrides(d.overrides || {});
           });
@@ -519,7 +525,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   </head>
   <body>
     <!-- Google Tag Manager (noscript) -->
-    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WLNNDWCB"
+    <noscript data-analytics><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WLNNDWCB"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
     <a class="skip-link" href="#main">

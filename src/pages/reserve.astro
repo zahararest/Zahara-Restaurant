@@ -77,7 +77,7 @@ const SIZES  = '(min-width: 900px) 50vw, 100vw';
 <head>
   <meta charset="UTF-8" />
   <!-- Google Tag Manager -->
-  <script is:inline>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  <script is:inline data-analytics>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
@@ -104,7 +104,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 </head>
 <body>
   <!-- Google Tag Manager (noscript) -->
-  <Fragment set:html={`<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WLNNDWCB"
+  <Fragment set:html={`<noscript data-analytics><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WLNNDWCB"
 height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`} />
   <!-- End Google Tag Manager (noscript) -->
   {/* Every data-content-key below is editable in /admin/content → Reserve
@@ -413,8 +413,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       bonus view for visitors who already said yes. */}
   {gaMeasurementId && (
     <>
-      <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>
-      <script is:inline define:vars={{ gaMeasurementId }}>
+      <script is:inline data-analytics async src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}></script>
+      <script is:inline data-analytics define:vars={{ gaMeasurementId }}>
         window.dataLayer = window.dataLayer || [];
         function gtag(){ dataLayer.push(arguments); }
         gtag('consent', 'default', {
@@ -458,7 +458,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       It is sent at the first of: a venue choice, the page being hidden or
       unloaded, or a 15s dwell — whichever comes first, and only once.
       See functions/api/reserve-track.ts. */}
-  <script is:inline>
+  <script is:inline data-analytics>
     (function () {
       var ENDPOINT = '/api/reserve-track';
 

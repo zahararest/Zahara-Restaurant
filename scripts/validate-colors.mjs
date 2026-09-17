@@ -139,7 +139,9 @@ presetSpans.forEach((p, i) => {
   //  • tile-*        — the home menu tiles sit over a dark photo in every
   //                    theme, so they stay at their cream default regardless of
   //                    the palette (a preset overriding them would be wrong).
+  //  • on-accent     — picked per theme for contrast against its accent.
   const EXEMPT = new Set([
+    '--on-accent',
     '--events-band-from', '--events-band-to', '--events-band-text', '--events-band-num', '--events-band-divider',
     '--tile-label', '--tile-num',
     '--bg-wash-from', '--bg-wash-to', '--bg-glow',
@@ -148,6 +150,20 @@ presetSpans.forEach((p, i) => {
   const missing = editorTokens.filter((t) => !keys.has(t) && !EXEMPT.has(t));
   if (missing.length) warns.push(`PRESET "${p.name}" omits ${missing.length} non-derived token(s): ${missing.join(', ')}`);
 });
+
+// ── Check 3b: every preset has picker metadata, and every picker row a preset ─
+{
+  const metaStart = colorsAstro.indexOf('const PRESET_META');
+  const metaBody  = colorsAstro.slice(metaStart, colorsAstro.indexOf('];', metaStart));
+  const metaIds = new Set([...metaBody.matchAll(/id:\s*'([\w-]+)'/g)].map((m) => m[1]));
+  const presetIds = new Set(presetSpans.map((p) => p.name));
+  for (const id of presetIds) if (!metaIds.has(id)) errors.push(`PRESET "${id}" has no PRESET_META row — it would never show in the picker`);
+  for (const id of metaIds) if (!presetIds.has(id)) errors.push(`PRESET_META row "${id}" has no preset in PRESETS`);
+  for (const m of metaBody.matchAll(/\{[^}]*id:\s*'([\w-]+)'[^}]*\}/g)) {
+    if (!/mood:\s*'(lively|calm)'/.test(m[0])) errors.push(`PRESET_META "${m[1]}" needs mood: 'lively' | 'calm'`);
+    if (!/mode:\s*'(light|dark)'/.test(m[0])) errors.push(`PRESET_META "${m[1]}" needs mode: 'light' | 'dark'`);
+  }
+}
 
 // ── Check 4: the worker-side save allowlist must match the editor tokens ────
 // (functions/data/palette.ts can't import from src/, so it's a hand-kept copy.

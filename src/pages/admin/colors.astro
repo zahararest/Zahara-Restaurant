@@ -1,15 +1,29 @@
 ---
-// STAGING MODEL: editing a token paints :root immediately so the preview
-// updates live, but nothing is persisted until Save (⌘S). Discard reverts.
-// Presets live in the <script> below — they're static client-side data.
+// /admin/colors — the palette editor.
+//
+// HOW IT WORKS
+//   • The preview on the right is the REAL site (/, /menu/, …) in a frame,
+//     loaded with ?zp=1 so analytics skip it. The palette being edited is
+//     injected into that frame as the last <style> in its <head> — the same
+//     :root{…} + html[data-theme="dark"]{…} shape the live site gets from the
+//     middleware — so what the preview shows is exactly what visitors will see.
+//   • Nothing is published until Save (⌘S). Every change is one undo step.
+//   • "Show" finds every element that uses a colour by reading the frame's own
+//     stylesheets (including var() chains like --button-hover-color → --accent),
+//     outlines them and scrolls to them. Hover-only styles are forced on for the
+//     demo. If the colour isn't on the page being viewed, the preview moves to a
+//     page that has it (see `page` in src/data/admin-colors.ts).
+//   • Venues: each venue saves its own overrides. The rooftop's untouched
+//     colours inherit Zahara's saved palette on the live site, so the editor
+//     starts the rooftop from exactly that.
+//
+// The preset data below is checked by scripts/validate-colors.mjs — run it after
+// editing tokens, presets or PRESET_META.
 
 import '../../styles/admin-colors.css';
-import { groups, defaults, darkDefaults, scalarTokens } from '../../data/admin-colors';
+import { groups, defaults, darkDefaults } from '../../data/admin-colors';
 // The admin's section list, shared with the header every other /admin/* page
-// renders (functions/admin/chrome.ts). Only the DATA is shared: this page
-// can't use that header's CSS, because the palette it edits lives on :root —
-// where the shared chrome keeps its own tokens — so the chrome would repaint
-// itself as the owner drags a colour. Hence `--e-*` styling here, same links.
+// renders (functions/admin/chrome.ts).
 import { ADMIN_NAV } from '../../../functions/admin/chrome';
 
 // Admin is single-rooted at /admin (the venue is chosen by the site-switch
@@ -18,9 +32,6 @@ import { ADMIN_NAV } from '../../../functions/admin/chrome';
 if (import.meta.env.BASE_URL.startsWith('/rooftop')) {
   return Astro.redirect('/admin/colors/');
 }
-
-const TITLE = 'Color editor · Zahara';
-const scalars = [...scalarTokens];
 ---
 
 <!doctype html>
@@ -29,663 +40,423 @@ const scalars = [...scalarTokens];
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex, nofollow" />
-  <title>{TITLE}</title>
+  <title>Colours · Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-
 </head>
 <body>
 
-<header class="editor-top">
-  <nav class="editor-top__nav" aria-label="Admin sections">
-    <a class="editor-top__brand" href="/admin/"><span class="editor-top__venuename" data-venue-name>Zahara</span> · Admin</a>
-    {ADMIN_NAV.map((n) => (
-      <a class={`editor-top__navlink${n.id === 'colors' ? ' is-active' : ''}`}
-         href={n.href}
-         aria-current={n.id === 'colors' ? 'page' : undefined}>{n.label}</a>
-    ))}
-    <span class="editor-top__spacer"></span>
-    {/* Venue switch — mirrors the shared admin topbar; scopes which venue's
-        palette this editor loads + saves (via the zahara_admin_site cookie). */}
-    <div class="editor-venue" role="group" aria-label="Venue being edited">
-      <span style="font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--e-mut);margin-inline-end:.4rem;">Editing</span>
-      <button type="button" data-venue="zahara">Zahara</button>
-      <button type="button" data-venue="rooftop">Rooftop</button>
-    </div>
-    {/* Points at the venue being edited, like the shared header does — the
-        script below swaps it to /rooftop/ when the rooftop is selected. */}
-    <a class="editor-top__site" href="/" target="_blank" rel="noopener" data-view-site>View site ↗</a>
-  </nav>
-  <script is:inline>(function(){
-    var CK='zahara_admin_site';
-    function cur(){var m=document.cookie.match(/(?:^|;\s*)zahara_admin_site=(rooftop|zahara)/);return m?m[1]:'zahara';}
-    var now=cur();
-    // Tint the whole editor for the venue being edited (stripe + accent), and
-    // name it in the brand lockup — same signal as every other admin page.
-    document.documentElement.setAttribute('data-venue', now);
-    var nameEl=document.querySelector('[data-venue-name]');
-    if(nameEl) nameEl.textContent = now==='rooftop' ? 'Nucha Rooftop' : 'Zahara';
-    document.title = (now==='rooftop' ? 'Nucha Rooftop' : 'Zahara') + ' · Colors · Admin';
-    var siteEl=document.querySelector('[data-view-site]');
-    if(siteEl) siteEl.setAttribute('href', now==='rooftop' ? '/rooftop/' : '/');
-    document.querySelectorAll('.editor-venue [data-venue]').forEach(function(b){
-      var v=b.getAttribute('data-venue');
-      var on=v===now;
-      var venue=now==='rooftop'?'#1F6260':'#9C4621';
-      b.style.cssText='font:inherit;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:.35rem .8rem;cursor:pointer;border:1px solid '+venue+';background:'+(on?venue:'transparent')+';color:'+(on?'#fff':'#6f6457')+';';
-      b.addEventListener('click',function(){
-        if(v===cur())return;
-        document.cookie=CK+'='+v+';path=/admin;max-age=31536000;samesite=lax';
-        location.reload();
-      });
-    });
-  })();</script>
-
-  <div class="editor-top__tools">
-    <h1>Palette editor</h1>
-
-    <input type="search" class="top-search" data-search
-           placeholder="Search tokens…" aria-label="Search colour tokens" />
-
-    <button class="btn btn-top btn-top--ghost" type="button" data-preset-open>Presets…</button>
-
-    <div class="mode-toggle" role="group" aria-label="Edit light or dark palette">
-      <button type="button" class="mode-toggle__btn is-active" data-mode-btn="light" aria-pressed="true">☀ Light</button>
-      <button type="button" class="mode-toggle__btn" data-mode-btn="dark" aria-pressed="false">☾ Dark</button>
-    </div>
-
-    <label class="top-toggle-label">
-      <input type="checkbox" data-modified-only />
-      Modified only
-    </label>
-
-    <span class="editor-top__spacer"></span>
-
-    <button class="legibility-badge" type="button" data-legibility-badge hidden
-            title="Show the pairings where text would be hard to read"></button>
-    <span class="pending-badge" data-pending-badge hidden>0 unsaved</span>
-    <button class="btn btn-top btn-top--ghost btn-top--discard" type="button"
-            data-discard disabled title="Discard all unsaved changes">Discard</button>
-    <button class="btn btn-top btn-top--save" type="button"
-            data-save disabled title="Publish these colours to the live site (⌘S)">
-      Save<span class="kbd">⌘S</span>
-    </button>
-    <button class="btn btn-top btn-top--ghost" type="button" data-undo
-            title="Undo (⌘Z)" disabled>↶ Undo</button>
-    <button class="btn btn-top btn-top--ghost" type="button" data-reset>Reset all</button>
-    <button class="btn btn-top" type="button" data-export>Export CSS</button>
+<header class="topnav">
+  <a class="topnav__brand" href="/admin/"><span class="topnav__venuename" data-venue-name>Zahara</span> · Admin</a>
+  {ADMIN_NAV.map((n) => (
+    <a class={`topnav__link${n.id === 'colors' ? ' is-active' : ''}`}
+       href={n.href} aria-current={n.id === 'colors' ? 'page' : undefined}>{n.label}</a>
+  ))}
+  <span class="topnav__spacer"></span>
+  <div class="topnav__venue" role="group" aria-label="Venue being edited">
+    <span class="topnav__venue-label">Editing</span>
+    <span class="topnav__venue-btns">
+      <button type="button" data-venue-btn="zahara">Zahara</button>
+      <button type="button" data-venue-btn="rooftop">Rooftop</button>
+    </span>
   </div>
+  <a class="topnav__site" href="/" target="_blank" rel="noopener" data-view-site>View site ↗</a>
 </header>
+<script is:inline>(function () {
+  var m = document.cookie.match(/(?:^|;\s*)zahara_admin_site=(rooftop|zahara)/);
+  var now = m ? m[1] : 'zahara';
+  var name = now === 'rooftop' ? 'Nucha Rooftop' : 'Zahara';
+  // Tint the whole editor for the venue being edited before anything paints.
+  document.documentElement.setAttribute('data-venue', now);
+  document.title = name + ' · Colours · Admin';
+  var el = document.querySelector('[data-venue-name]'); if (el) el.textContent = name;
+  var site = document.querySelector('[data-view-site]'); if (site) site.setAttribute('href', now === 'rooftop' ? '/rooftop/' : '/');
+  document.querySelectorAll('[data-venue-btn]').forEach(function (b) {
+    var v = b.getAttribute('data-venue-btn');
+    b.classList.toggle('is-active', v === now);
+    b.addEventListener('click', function () {
+      if (v === now) return;
+      if (window.__zpDirty && window.__zpDirty() &&
+          !confirm('You have unsaved colour changes for ' + name + '. Switch venue and lose them?')) return;
+      window.__zpLeaving = true;
+      document.cookie = 'zahara_admin_site=' + v + ';path=/admin;max-age=31536000;samesite=lax';
+      location.reload();
+    });
+  });
+})();</script>
 
-<main class="layout">
-  <!-- ── Token list (left pane) ─────────────────────────────── -->
-  <section class="side" aria-label="Colour token editors">
-    <h2>Tokens</h2>
-    <p class="side__intro">
-      Changes preview live; nothing is saved until you press <strong>Save</strong>.
-      <span class="kbd">👁</span> flashes where a colour is used in the preview.
-    </p>
+<div class="bar">
+  <div class="bar__title">
+    <h1>Colours</h1>
+    <span class="bar__venue" data-venue-chip>Zahara</span>
+  </div>
+  <div class="seg" role="group" aria-label="Palette you are editing">
+    <button type="button" data-mode="light" aria-pressed="true">☀︎ Light</button>
+    <button type="button" data-mode="dark" aria-pressed="false">☾ Dark</button>
+  </div>
+  <p class="bar__hint">Visitors see <strong>dark</strong> unless they switch the site to light.</p>
+  <span class="bar__spacer"></span>
+  <button type="button" class="legib" data-legib hidden></button>
+  <div class="bar__group">
+    <button type="button" class="icon-btn" data-undo disabled title="Undo (⌘Z)" aria-label="Undo">
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5 3.5 8.5l4 4"/><path d="M3.5 8.5h8a5 5 0 0 1 0 10h-3"/></svg>
+    </button>
+    <button type="button" class="icon-btn" data-redo disabled title="Redo (⇧⌘Z)" aria-label="Redo">
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12.5 4.5 4 4-4 4"/><path d="M16.5 8.5h-8a5 5 0 0 0 0 10h3"/></svg>
+    </button>
+  </div>
+  <button type="button" class="btn" data-review title="See every change before saving">
+    Review changes <span class="btn__count" data-review-count hidden>0</span>
+  </button>
+  <button type="button" class="btn btn--primary" data-save disabled title="Publish to the live site (⌘S)">Save</button>
+  <div class="menu">
+    <button type="button" class="icon-btn" data-more aria-haspopup="menu" aria-expanded="false" aria-label="More" title="More">⋯</button>
+    <div class="menu__list" role="menu" data-more-menu hidden>
+      <button type="button" role="menuitem" data-action="legibility">Check legibility</button>
+      <button type="button" role="menuitem" data-action="export">Export as CSS</button>
+      <hr />
+      <button type="button" role="menuitem" data-action="reset-mode">Reset <span data-mode-word>light</span> to defaults</button>
+    </div>
+  </div>
+</div>
 
-    {groups.map((g) => (
-      <div class="group" data-group>
-        <div class="group__head" data-group-toggle>
-          <span class="group__toggle" aria-hidden="true">▾</span>
-          <div class="group__head-text">
-            <h3 class="group__title">{g.group}</h3>
-            <p class="group__intro" set:html={g.intro} />
-          </div>
+<main class="editor">
+  <section class="panel" aria-label="Palette controls">
+    <nav class="tabs" role="tablist" aria-label="Ways to change the palette">
+      <button type="button" role="tab" aria-selected="true" data-tab="themes">Themes</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="mix">Mix</button>
+      <button type="button" role="tab" aria-selected="false" data-tab="tune">Fine-tune</button>
+    </nav>
+
+    <div class="tabpanel" data-panel="themes" role="tabpanel">
+      <p class="lead">Start from a theme. <strong>Hover</strong> one to try it on the preview, <strong>click</strong> to use it. Nothing goes live until you save.</p>
+      <div class="chips" role="group" aria-label="Filter themes">
+        <button type="button" class="chip" data-mood="all" aria-pressed="true">All</button>
+        <button type="button" class="chip" data-mood="lively" aria-pressed="false">Lively</button>
+        <button type="button" class="chip" data-mood="calm" aria-pressed="false">Calm</button>
+      </div>
+      <div class="themes" data-themes></div>
+    </div>
+
+    <div class="tabpanel tabpanel--mix" data-panel="mix" role="tabpanel" hidden>
+      <p class="lead">Build a palette from parts of others. For each part, pick <strong>any colour group of any theme</strong> — a theme’s lines as your backgrounds, its accent as your text. The preview shows the result as you go.</p>
+      <div class="mix" data-mix></div>
+      <label class="check" style="margin-bottom:1rem">
+        <input type="checkbox" data-mix-derive checked />
+        Keep the page background and Events band matched
+      </label>
+      <div class="mixfoot" data-mix-foot hidden>
+        <div class="mixfoot__top">
+          <span class="mixfoot__count" data-mix-count></span>
+          <span class="mixfoot__warn" data-mix-warn></span>
+          <span class="bar__spacer"></span>
+          <button type="button" class="btn btn--link" data-mix-diff-toggle aria-expanded="false">See what changes</button>
         </div>
-        <div class="group__body">
-          {g.tokens.map((t) => (
-            <div class={`row${t.kind === 'scalar' ? ' row--scalar' : ''}`}
-                 data-row
-                 data-token={t.token}
-                 data-short={t.shortName}
-                 data-kind={t.kind || 'color'}
-                 data-default={t.def}
-                 data-default-dark={darkDefaults[t.token] || t.def}
-                 data-search-key={(t.label + ' ' + t.token + ' ' + (t.hint || '')).toLowerCase()}>
-              <div class="row__swatch-area">
-                <span class="row__dot" data-modified-dot title="Modified from default"></span>
-                {t.kind === 'scalar'
-                  ? <span class="row__scalar-glyph" aria-hidden="true">◑</span>
-                  : <input type="color" value={t.def} data-picker aria-label={`${t.label} colour picker`} />}
-              </div>
-
-              <div class="row__meta">
-                <div class="row__name">
-                  {t.label}
-                  <span class="row__contrast" data-contrast></span>
-                </div>
-                {t.hint && <div class="row__hint">{t.hint}</div>}
-                <div class="row__token-name"><code>{t.token}</code></div>
-                {t.kind === 'scalar' && (
-                  <input type="range" class="row__range" data-range
-                         min={t.min} max={t.max} step={t.step} value={t.def}
-                         aria-label={t.label} />
-                )}
-              </div>
-
-              <div class="row__controls">
-                {t.kind === 'scalar'
-                  ? <span class="row__unit" data-unit>{t.unit}</span>
-                  : <button class="row__btn" type="button" data-palette-btn
-                            title="Pick from current palette" aria-label="Pick from palette">▣</button>}
-                <input type="text" class="row__hex" data-hex value={t.def}
-                       maxlength={t.kind === 'scalar' ? '3' : '7'} inputmode={t.kind === 'scalar' ? 'numeric' : 'text'}
-                       autocomplete="off" spellcheck="false"
-                       aria-label={`${t.label} value`} />
-                <button class="row__btn row__btn--show" type="button" data-show
-                        title="Flash the preview elements this affects"
-                        aria-label="Highlight preview">👁</button>
-                <button class="row__btn" type="button" data-copy title="Copy value">⧉</button>
-                <button class="row__btn" type="button" data-reset-one title="Reset to default">↺</button>
-              </div>
-            </div>
-          ))}
+        <div class="diff" data-mix-diff hidden></div>
+        <div class="mixfoot__btns">
+          <button type="button" class="btn btn--ghost" data-mix-clear>Clear</button>
+          <button type="button" class="btn btn--primary" data-mix-apply>Apply to palette</button>
         </div>
       </div>
-    ))}
+    </div>
+
+    <div class="tabpanel" data-panel="tune" role="tabpanel" hidden>
+      <div class="tune__tools">
+        <input class="search" type="search" placeholder="Find a colour…" data-tune-search aria-label="Find a colour" />
+        <label class="check"><input type="checkbox" data-tune-changed /> Changed</label>
+      </div>
+      <p class="lead">Click a <strong>swatch</strong> to change it. Click a <strong>name</strong> to see where it’s used.</p>
+      <div data-tune></div>
+    </div>
   </section>
 
-  <!-- ── Preview pane (right pane) ──────────────────────────── -->
-  <aside class="preview-pane" aria-label="Live site preview">
-    <h2>Preview — EN site</h2>
-    <p class="preview-pane__intro">
-      Each block is a real part of the public site. Editing a colour flashes
-      the parts that use it.
-    </p>
-
-    <div class="sim" role="img" aria-label="Site colour preview">
-
-      <!-- SCROLL PROGRESS BAR -->
-      <div class="sim__progress preview-fragment" data-uses="accent,gold"
-           title="Scroll progress bar — uses --accent and --gold"></div>
-
-      <!-- NON-PHOTO HEADER (header on /menu/, /contact/, /location/) -->
-      <div class="sim__nav preview-fragment" data-uses="paper,rule-soft">
-        <span class="sim__nav-brand preview-fragment" data-uses="ink">ZAHARA</span>
-        <div class="sim__nav-links">
-          <span class="preview-fragment" data-uses="ink-soft">HOME</span>
-          <span class="preview-fragment" data-uses="ink-soft">LOCATION</span>
-          <span class="preview-fragment" data-uses="ink,accent">MENU</span>
-        </div>
-        <span class="sim__nav-reserve preview-fragment" data-uses="ink">Reserve</span>
+  <section class="stage" aria-label="Live preview">
+    <div class="stage__bar">
+      <div class="seg" role="tablist" aria-label="Page" data-pages></div>
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" data-lang="he" aria-pressed="true">עב</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
       </div>
-
-      <!-- PAGE surface -->
-      <div class="sim__page preview-fragment" data-uses="paper">
-
-        <!-- HERO with floating photo header -->
-        <div class="sim__hero">
-          <div class="sim__hero-bar">
-            <span class="sim__hero-brand preview-fragment" data-uses="paper-on-photo">ZAHARA</span>
-            <span class="sim__hero-navs preview-fragment" data-uses="paper-on-photo">HOME · LOCATION · MENU · CONTACT</span>
-            <span class="sim__hero-reserve preview-fragment" data-uses="paper-on-photo">Reserve</span>
-          </div>
-          <div class="sim__hero-body">
-            <p class="sim__hero-eyebrow preview-fragment" data-uses="paper-on-photo,accent">
-              CHEF RESTAURANT · JERUSALEM
-            </p>
-            <h3 class="sim__hero-title preview-fragment" data-uses="paper-on-photo">
-              A new kitchen, on Ben Sira.
-            </h3>
-            <div class="sim__hero-btns">
-              <span class="sim__hero-btn preview-fragment" data-uses="ink,paper">Reserve a table</span>
-              <span class="sim__hero-btn ghost preview-fragment" data-uses="paper-on-photo">See the menu</span>
-            </div>
-          </div>
+      <div class="seg" role="group" aria-label="Device">
+        <button type="button" data-device-btn="desktop" aria-pressed="true">Desktop</button>
+        <button type="button" data-device-btn="phone" aria-pressed="false">Phone</button>
+      </div>
+      <span class="stage__spacer"></span>
+      <div class="menu">
+        <button type="button" class="btn btn--small" data-overlays aria-haspopup="menu" aria-expanded="false">Show on page ▾</button>
+        <div class="menu__list" role="menu" data-overlays-menu hidden>
+          <p class="menu__note">Open parts of the site that normally appear on their own.</p>
+          <label><input type="checkbox" data-overlay="popup" /> Entry popup</label>
+          <label><input type="checkbox" data-overlay="consent" /> Cookie banner</label>
+          <label><input type="checkbox" data-overlay="a11y" /> Accessibility panel</label>
+          <label data-overlay-phone-only><input type="checkbox" data-overlay="menu" /> Phone menu</label>
+          <label><input type="checkbox" data-overlay="status" /> Form messages</label>
         </div>
-
-        <!-- INFO STRIP -->
-        <div class="sim__info-strip preview-fragment" data-uses="paper-deep,rule-soft">
-          <div class="sim__info-cell">
-            <span class="preview-fragment" data-uses="ink-muted">HOURS</span>
-            <strong class="preview-fragment" data-uses="ink">Mon–Thu · 18:00–23:00</strong>
-          </div>
-          <div class="sim__info-cell">
-            <span class="preview-fragment" data-uses="ink-muted">RESERVE</span>
-            <strong class="preview-fragment" data-uses="ink">077-303-4180</strong>
-          </div>
-        </div>
-
-        <!-- ISSUE STAMP -->
-        <div class="sim__issue preview-fragment" data-uses="paper-deep,ink-muted,rule-soft">
-          <span>VOLUME I · JERUSALEM · 2026</span>
-          <span class="sim__issue-rule preview-fragment" data-uses="accent"></span>
-          <span class="serif preview-fragment" data-uses="ink-soft">From the kitchen of Roi Achdut</span>
-        </div>
-
-        <!-- EDITORIAL SECTION -->
-        <div class="sim__article">
-          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">THE STORY</p>
-          <h3 class="sim__title preview-fragment" data-uses="ink">A new chapter, one kitchen.</h3>
-          <p class="sim__body preview-fragment" data-uses="ink-soft">
-            Roi cooks what arrived from the market that morning — sea bass,
-            blistered tomatoes, a leaf salad. The menu shifts weekly.
-            Wine list short, considered.
-          </p>
-          <div class="sim__btn-row">
-            <button class="sim__btn preview-fragment" type="button" data-uses="ink,paper">Reserve</button>
-            <button class="sim__btn ghost preview-fragment" type="button" data-uses="ink">Menu</button>
-          </div>
-        </div>
-
-        {/* MENU CATEGORY TABS — .menu-blend__tab. Text-only: the active tab is
-            --ink, the rest --ink-muted, with the sliding --accent indicator
-            underneath. There is no filled pill on the real site. */}
-        <div class="sim__tabs preview-fragment" data-uses="paper,rule-soft">
-          <span class="sim__tab is-active preview-fragment" data-uses="ink">Food</span>
-          <span class="sim__tab preview-fragment" data-uses="ink-muted">Cocktails</span>
-          <span class="sim__tab preview-fragment" data-uses="ink-muted">Wine</span>
-          <span class="sim__tab preview-fragment" data-uses="ink-muted">Desserts</span>
-          <span class="sim__tabs-indicator preview-fragment" data-uses="accent"></span>
-        </div>
-
-        <!-- STRONG RULE -->
-        <div class="sim__rule preview-fragment" data-uses="rule"></div>
-
-        <!-- MENU SECTION CARD — how the /menu/ page renders each section:
-             a paper-card gradient with a serif heading + accent underline,
-             ink item names, ink-soft descriptions, accent prices and a soft
-             gold corner ornament. -->
-        <div class="sim__menucard preview-fragment" data-uses="paper-card,paper,rule-soft,gold,accent">
-          <h4 class="sim__menucard-title preview-fragment" data-uses="ink,accent">Something to start</h4>
-          <div class="sim__menucard-row preview-fragment" data-uses="rule-soft">
-            <div class="sim__menucard-main">
-              <strong class="preview-fragment" data-uses="ink">Bread service</strong>
-              <span class="sim__menucard-desc preview-fragment" data-uses="ink-soft">sourdough, cultured butter, olive oil</span>
-            </div>
-            <span class="preview-fragment" data-uses="accent">32</span>
-          </div>
-          <div class="sim__menucard-row preview-fragment" data-uses="rule-soft">
-            <div class="sim__menucard-main">
-              <strong class="preview-fragment" data-uses="ink">Beef tartare</strong>
-              <span class="sim__menucard-desc preview-fragment" data-uses="ink-soft">smoked egg yolk, capers, toast</span>
-            </div>
-            <span class="preview-fragment" data-uses="accent">78</span>
-          </div>
-          <div class="sim__menucard-row preview-fragment" data-uses="rule-soft">
-            <div class="sim__menucard-main">
-              <strong class="preview-fragment" data-uses="ink">Sea-bass sashimi</strong>
-            </div>
-            <span class="preview-fragment" data-uses="accent">78</span>
-          </div>
-        </div>
-
-        <!-- SOFT RULE -->
-        <div class="sim__rule sim__rule--soft preview-fragment" data-uses="rule-soft"></div>
-
-        {/* PULL QUOTE — .pull-quote sits on the plain page background (no tint
-            of its own); the emphasised word is --accent. */}
-        <blockquote class="sim__quote preview-fragment" data-uses="ink">
-          <span class="preview-fragment" data-uses="ink">"We don't cook plates. We cook the </span>
-          <em class="preview-fragment" data-uses="accent">evening</em>
-          <span class="preview-fragment" data-uses="ink"> for people."</span>
-          <span class="sim__quote-attr preview-fragment" data-uses="ink-muted">Roi Achdut</span>
-        </blockquote>
-
-        {/* HOME MENU TILES — the menu tiles in the home "menu" section. They
-            sit over a dark photo in both themes, so both tokens stay light
-            regardless of the rest of the palette. */}
-        <div class="sim__tiles">
-          <div class="sim__tile">
-            <span class="sim__tile-num preview-fragment" data-uses="tile-num">01</span>
-            <span class="sim__tile-label preview-fragment" data-uses="tile-label">Food</span>
-          </div>
-          <div class="sim__tile">
-            <span class="sim__tile-num preview-fragment" data-uses="tile-num">02</span>
-            <span class="sim__tile-label preview-fragment" data-uses="tile-label">Wine</span>
-          </div>
-          <div class="sim__tile">
-            <span class="sim__tile-num preview-fragment" data-uses="tile-num">03</span>
-            <span class="sim__tile-label preview-fragment" data-uses="tile-label">Cocktails</span>
-          </div>
-        </div>
-
-        <!-- TOC -->
-        <div class="sim__toc">
-          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">ON THE MENU TONIGHT</p>
-          <div class="sim__toc-row">
-            <span class="preview-fragment" data-uses="accent">01</span>
-            <span class="preview-fragment" data-uses="ink">Something to start</span>
-            <span class="sim__toc-dots preview-fragment" data-uses="ink-faint"></span>
-            <span class="preview-fragment" data-uses="ink-soft">Openings from the kitchen</span>
-          </div>
-          <div class="sim__toc-row">
-            <span class="preview-fragment" data-uses="accent">02</span>
-            <span class="preview-fragment" data-uses="ink">Almost there</span>
-            <span class="sim__toc-dots preview-fragment" data-uses="ink-faint"></span>
-            <span class="preview-fragment" data-uses="ink-soft">Fish and meat from the market</span>
-          </div>
-        </div>
-
-        {/* EVENTS BENEFITS BAND — the four-up strip on /events/. Its own five
-            tokens, independent of the rest of the palette. */}
-        <div class="sim__band preview-fragment" data-uses="events-band-from,events-band-to">
-          <p class="sim__band-eyebrow preview-fragment" data-uses="events-band-text,events-band-num">WHY BOOK WITH US</p>
-          <div class="sim__band-grid preview-fragment" data-uses="events-band-divider">
-            <div class="sim__band-cell">
-              <span class="sim__band-num preview-fragment" data-uses="events-band-num">01</span>
-              <span class="sim__band-text preview-fragment" data-uses="events-band-text">Private room for intimate groups</span>
-            </div>
-            <div class="sim__band-cell">
-              <span class="sim__band-num preview-fragment" data-uses="events-band-num">02</span>
-              <span class="sim__band-text preview-fragment" data-uses="events-band-text">A menu built around your evening</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- CONTACT TOGGLE -->
-        <div class="sim__toggle preview-fragment" data-uses="paper-card,rule">
-          <span class="sim__toggle-btn is-active preview-fragment" data-uses="ink">General inquiry</span>
-          <span class="sim__toggle-btn preview-fragment" data-uses="ink-muted">Event inquiry</span>
-          <span class="sim__toggle-ind preview-fragment" data-uses="accent"></span>
-        </div>
-
-        <!-- REACH-US CARD -->
-        <div class="sim__reach preview-fragment" data-uses="paper-card,rule-soft" style="margin-top:0.5rem">
-          <p class="sim__eyebrow preview-fragment" data-uses="ink-muted,accent">OTHER WAYS TO REACH US</p>
-          <div class="sim__reach-row">
-            <span class="preview-fragment" data-uses="ink-muted">PHONE</span>
-            <a class="sim__reach-link preview-fragment" data-uses="ink,accent,accent-deep">077-303-4180</a>
-          </div>
-          <div class="sim__reach-row">
-            <span class="preview-fragment" data-uses="ink-muted">EMAIL</span>
-            <a class="sim__reach-link preview-fragment" data-uses="ink,accent,accent-deep">hello@zahara.rest</a>
-          </div>
-        </div>
-
-        <!-- SELECTION + FOCUS RING demos -->
-        <div class="sim__selection preview-fragment" data-uses="ink">
-          Normal text and
-          <mark class="sim__sel-mark preview-fragment" data-uses="accent-soft,ink">selected text highlight</mark>
-          back to normal.
-        </div>
-        <div class="sim__focus-demo">
-          <span class="preview-fragment" style="font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;font-family:'Inter',sans-serif;color:var(--ink-muted,#8A7E68);">Focus ring →</span>
-          <span class="sim__focus-ring preview-fragment" data-uses="accent,rule,ink">focused element</span>
-        </div>
-
-        <!-- SCROLLBAR demo -->
-        <div class="sim__scrollbar">
-          <div class="sim__sb-track preview-fragment" data-uses="paper-deep,rule-soft">
-            <div class="sim__sb-thumb preview-fragment" data-uses="accent,accent-deep"></div>
-          </div>
-          <span class="sim__sb-label preview-fragment" data-uses="ink-muted">Scrollbar</span>
-        </div>
-
-        <!-- FAINT METADATA -->
-        <p class="sim__faint preview-fragment" data-uses="ink-faint">
-          Last updated · 12 March 2026 · Zahara Restaurant
-        </p>
-
-        {/* FLOATING UI — same three viewport-pinned widgets the live
-            site shows in its bottom corners and inline-end edge. The
-            preview lays them out inline (not pinned) so they sit next
-            to the rest of the simulated sections; tokens consumed are
-            exactly the ones the real elements use. */}
-        <div class="sim__floating">
-          {/* Vertical scroll rail (E) — one tick per page section.
-              Active tick fills with --accent and the label fades in. */}
-          <div class="sim__rail" aria-label="Scroll rail preview">
-            <span class="sim__rail-tick preview-fragment" data-uses="ink-muted">
-              <span class="sim__rail-mark preview-fragment" data-uses="ink-muted"></span>
-              <span class="sim__rail-label preview-fragment" data-uses="ink-muted">OPEN</span>
-            </span>
-            <span class="sim__rail-tick is-active preview-fragment" data-uses="ink,accent">
-              <span class="sim__rail-mark preview-fragment" data-uses="accent"></span>
-              <span class="sim__rail-label preview-fragment" data-uses="ink">STORY</span>
-            </span>
-            <span class="sim__rail-tick preview-fragment" data-uses="ink-muted">
-              <span class="sim__rail-mark preview-fragment" data-uses="ink-muted"></span>
-              <span class="sim__rail-label preview-fragment" data-uses="ink-muted">KITCHEN</span>
-            </span>
-            <span class="sim__rail-tick preview-fragment" data-uses="ink-muted">
-              <span class="sim__rail-mark preview-fragment" data-uses="ink-muted"></span>
-              <span class="sim__rail-label preview-fragment" data-uses="ink-muted">MENU</span>
-            </span>
-            <span class="sim__rail-tick preview-fragment" data-uses="ink-muted">
-              <span class="sim__rail-mark preview-fragment" data-uses="ink-muted"></span>
-              <span class="sim__rail-label preview-fragment" data-uses="ink-muted">GALLERY</span>
-            </span>
-          </div>
-
-          {/* Bottom-corner widgets. The three do NOT share a treatment on the
-              live site, so each is drawn as it really is:
-                • a11y toggle    — paper-card disc, ink glyph, rule border
-                • scroll-to-top  — the solid button contract (ink / paper)
-                • reserve pill   — accent fill, paper-on-photo label */}
-          <div class="sim__corner-row">
-            <div class="sim__corner-cell">
-              <span class="sim__corner-btn sim__corner-btn--soft preview-fragment" data-uses="paper-card,ink,rule">♿</span>
-              <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">A11Y TOGGLE</span>
-            </div>
-            <div class="sim__corner-cell">
-              <span class="sim__corner-btn preview-fragment" data-uses="ink,paper">↑</span>
-              <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">SCROLL-TO-TOP</span>
-            </div>
-            <div class="sim__corner-cell">
-              <span class="sim__reserve-pill preview-fragment" data-uses="accent,paper-on-photo">Reserve</span>
-              <span class="sim__corner-caption preview-fragment" data-uses="ink-muted">FLOATING RESERVE</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- FORM STATUS -->
-        <div class="sim__status-row">
-          <div class="sim__status sim__status--ok preview-fragment" data-uses="ok">
-            ✓ Thanks — we'll be in touch within one business day.
-          </div>
-          <div class="sim__status sim__status--err preview-fragment" data-uses="err">
-            ✗ Network error. Please try again.
-          </div>
-        </div>
-
-        {/* ENTRY POPUP + COOKIE BANNER — the two overlays a first-time visitor
-            meets before anything else. Both are token-driven, so they follow
-            the palette; shown here inline rather than floating. */}
-        <div class="sim__overlays">
-          <div class="sim__popup preview-fragment" data-uses="paper-card,rule,shadow">
-            <p class="sim__popup-kicker preview-fragment" data-uses="ink-muted">ZAHARA</p>
-            <p class="sim__popup-title preview-fragment" data-uses="ink">Open for Sukkot</p>
-            <p class="sim__popup-body preview-fragment" data-uses="ink-soft">Seatings from 18:00, every evening of the holiday.</p>
-            <span class="sim__popup-btn preview-fragment" data-uses="ink,paper">Book a table</span>
-            <span class="sim__popup-close preview-fragment" data-uses="ink-muted">×</span>
-          </div>
-          <div class="sim__consent preview-fragment" data-uses="paper,rule-soft">
-            <span class="sim__consent-text preview-fragment" data-uses="ink-soft">We use cookies to measure how the site is used.</span>
-            <span class="sim__consent-btns">
-              <span class="sim__consent-btn preview-fragment" data-uses="ink,paper">Accept</span>
-              <span class="sim__consent-btn ghost preview-fragment" data-uses="ink">Decline</span>
-            </span>
-          </div>
-        </div>
-
-        {/* PAGE GROUND — the fixed wash + grain behind every page. Rendered
-            large so the gradient direction and grain are actually visible;
-            on the real site this sits behind all content. */}
-        <div class="sim__ground preview-fragment" data-uses="bg-wash-from,bg-wash-to,bg-wash-angle,bg-glow,bg-glow-strength,bg-grain-strength">
-          <span class="sim__ground-label preview-fragment" data-uses="ink-muted">PAGE BACKGROUND · wash · glow · grain</span>
-        </div>
-
-        <!-- FOOTER -->
-        <div class="sim__footer preview-fragment" data-uses="paper-deep,rule-soft">
-          <div class="sim__footer-grid">
-            <div class="sim__footer-block">
-              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">HOURS</span>
-              <span class="sim__footer-val preview-fragment" data-uses="ink">Mon–Thu 18:00–23:00</span>
-            </div>
-            <div class="sim__footer-block">
-              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">ADDRESS</span>
-              <span class="sim__footer-val preview-fragment" data-uses="ink">Ben Sira 6, Jerusalem</span>
-            </div>
-            <div class="sim__footer-block">
-              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">PHONE</span>
-              <a class="sim__footer-val preview-fragment" data-uses="ink,accent">077-303-4180</a>
-            </div>
-            <div class="sim__footer-block">
-              <span class="sim__footer-label preview-fragment" data-uses="ink-muted">RESERVE</span>
-              <a class="sim__footer-val preview-fragment" data-uses="ink,accent">Book a table</a>
-            </div>
-          </div>
-          <div class="sim__footer-bottom preview-fragment" data-uses="ink-muted,rule-soft">
-            <span class="preview-fragment" data-uses="ink-muted">© 2026 Zahara Restaurant</span>
-            <span class="preview-fragment" data-uses="ink-muted">Accessibility · Privacy</span>
-          </div>
-        </div>
-
-      </div><!-- /sim__page -->
-    </div><!-- /sim -->
-  </aside>
+      </div>
+      <button type="button" class="btn btn--small" data-compare title="Press and hold to see the colours that are live now">Hold: live colours</button>
+    </div>
+    <div class="stage__note" data-stage-note hidden></div>
+    <div class="stage__view" data-view>
+      <div class="stage__device" data-device>
+        <iframe data-frame title="Site preview" tabindex="0"></iframe>
+        <div class="hits" data-hits></div>
+      </div>
+      <div class="stage__loading" data-loading>Loading the preview…</div>
+      <div class="locator" data-locator hidden>
+        <span class="locator__dot"></span>
+        <span class="locator__text" data-loc-text></span>
+        <span class="locator__pos" data-loc-pos></span>
+        <button type="button" data-loc-prev aria-label="Previous place">‹</button>
+        <button type="button" data-loc-next aria-label="Next place">›</button>
+        <button type="button" data-loc-close aria-label="Stop showing">×</button>
+      </div>
+    </div>
+  </section>
 </main>
 
-<!-- Status toast -->
-<div class="toast" data-toast role="status" aria-live="polite"></div>
+<div class="scrim" data-scrim hidden></div>
 
-<!-- Palette popup (shared, repositioned by JS) -->
-<div class="palette-popup" hidden data-palette-popup role="listbox" aria-label="Pick from current palette">
-  <p class="palette-popup__title">Current palette</p>
-  <div class="palette-popup__grid" data-palette-grid></div>
-</div>
+<aside class="drawer" data-drawer hidden role="dialog" aria-label="Review changes" aria-modal="true">
+  <header class="drawer__head">
+    <h2>Review changes</h2>
+    <span class="bar__spacer"></span>
+    <button type="button" class="icon-btn" data-drawer-close aria-label="Close">×</button>
+  </header>
+  <div class="drawer__body" data-drawer-body></div>
+  <footer class="drawer__foot">
+    <button type="button" class="btn btn--ghost" data-discard>Discard all</button>
+    <span class="bar__spacer"></span>
+    <button type="button" class="btn btn--primary" data-drawer-save>Save</button>
+  </footer>
+</aside>
 
-<!-- Preset picker -->
-<div class="preset-modal" hidden data-preset-modal>
-  <div class="preset-modal__inner" role="dialog" aria-label="Load a preset theme" aria-modal="true">
-    <header class="preset-modal__head">
-      <div>
-        <h2>Presets</h2>
-        <p class="preset-modal__sub" data-preset-sub></p>
-      </div>
-      <div class="mode-toggle" role="group" aria-label="Show light or dark presets">
-        <button type="button" class="mode-toggle__btn is-active" data-preset-tab="light" aria-pressed="true">☀ Light</button>
-        <button type="button" class="mode-toggle__btn" data-preset-tab="dark" aria-pressed="false">☾ Dark</button>
-      </div>
-      <button class="btn btn-top btn-top--ghost" type="button" data-preset-close>Close</button>
-    </header>
-
-    {/* Mix mode turns each card's swatches into per-part checkboxes, so parts
-        of several presets can be combined into one palette before applying. */}
-    <div class="preset-modal__bar">
-      <label class="top-toggle-label">
-        <input type="checkbox" data-preset-mix />
-        Mix parts from several presets
-      </label>
-      <span class="preset-modal__hint" data-preset-hint>Click a preset to load it into the palette you're editing.</span>
-    </div>
-
-    <div class="preset-grid" data-preset-grid></div>
-
-    <footer class="preset-modal__foot" hidden data-preset-foot>
-      <div class="preset-recipe" data-preset-recipe></div>
-      <div class="preset-modal__foot-btns">
-        <button class="btn btn-top btn-top--ghost" type="button" data-preset-clear>Clear</button>
-        <button class="btn btn-top" type="button" data-preset-apply>Apply mix</button>
-      </div>
-    </footer>
+<div class="modal" data-export hidden role="dialog" aria-label="Export CSS" aria-modal="true">
+  <h2>Export as CSS</h2>
+  <p>Only needed to bake the palette into the code (<code>src/styles/tokens.css</code>). Saving already publishes it.</p>
+  <div class="seg" role="group" aria-label="What to export">
+    <button type="button" data-export-kind="full" aria-pressed="true">Whole palette</button>
+    <button type="button" data-export-kind="changed" aria-pressed="false">Changed from defaults</button>
+  </div>
+  <textarea readonly data-export-text></textarea>
+  <div class="modal__row">
+    <button type="button" class="btn btn--ghost" data-export-close>Close</button>
+    <button type="button" class="btn btn--primary" data-export-copy>Copy</button>
   </div>
 </div>
 
-<!-- Legibility report -->
-<div class="legibility-modal" hidden data-legibility-modal>
-  <div class="legibility-modal__inner" role="dialog" aria-label="Legibility check" aria-modal="true">
-    <header class="legibility-modal__head">
-      <div>
-        <h2>Legibility check</h2>
-        <p class="legibility-modal__sub">
-          Every place the site puts one of these colours on top of another. Anything below
-          4.5:1 is hard to read; below 3:1 it can vanish completely.
-        </p>
+<div class="cpop" data-cpop hidden role="dialog" aria-label="Change colour">
+  <div class="cpop__head"><strong data-cpop-title></strong><code data-cpop-token></code></div>
+  <p class="cpop__hint" data-cpop-hint></p>
+  <div class="cpop__pick">
+    <input class="cpop__color" type="color" data-cpop-color aria-label="Colour picker" />
+    <input class="cpop__hex" type="text" maxlength="7" spellcheck="false" autocomplete="off" data-cpop-hex aria-label="Hex value" />
+  </div>
+  <p class="cpop__contrast" data-cpop-contrast></p>
+  <p class="cpop__label">From this palette</p>
+  <div class="cpop__swatches" data-cpop-swatches></div>
+  <div class="cpop__actions">
+    <button type="button" class="btn btn--small" data-cpop-locate>Show where it’s used</button>
+    <button type="button" class="btn btn--small btn--ghost" data-cpop-reset>Reset</button>
+  </div>
+</div>
+
+<div class="srcpick" data-srcpick hidden role="dialog" aria-label="Choose colours">
+  <div class="srcpick__head">
+    <p class="srcpick__title" data-srcpick-title></p>
+    <p class="srcpick__sub">Pick a colour group from any theme. Adapt keeps your current brightness so text stays readable.</p>
+    <div class="srcpick__tools">
+      <input class="srcpick__search" type="search" placeholder="Search themes…" data-srcpick-search aria-label="Search themes" />
+      <div class="seg seg--small" role="group" aria-label="Which themes">
+        <button type="button" data-srcpick-scope="mode" aria-pressed="true">This mode</button>
+        <button type="button" data-srcpick-scope="all" aria-pressed="false">All</button>
       </div>
-      <button class="btn btn-top btn-top--ghost" type="button" data-legibility-close>Close</button>
-    </header>
-    <div class="legibility-list" data-legibility-list></div>
-  </div>
-</div>
-
-<!-- Export modal -->
-<div class="export-modal" hidden data-export-modal>
-  <div class="export-modal__inner">
-    <h2>Export CSS</h2>
-    <p>Only needed to bake the palette into the code. Paste this block into
-       <code>src/styles/tokens.css</code>; saving already applies it to the live site.</p>
-    <div class="export-modal__tabs">
-      <button class="export-tab is-active" type="button" data-export-tab="full">Full palette</button>
-      <button class="export-tab" type="button" data-export-tab="changed">Changed only</button>
-    </div>
-    <textarea data-export-textarea readonly></textarea>
-    <div class="export-modal__row">
-      <button class="btn btn-top btn-top--ghost" type="button" data-export-close>Close</button>
-      <button class="btn btn-top" type="button" data-export-copy>Copy to clipboard</button>
     </div>
   </div>
+  <div class="srcpick__list" data-srcpick-list></div>
 </div>
 
-<script is:inline define:vars={{ defaults, darkDefaults, scalars }}>
+<div class="toast" data-toast role="status" aria-live="polite"><span data-toast-text></span><button type="button" data-toast-action hidden></button></div>
+
+<script is:inline define:vars={{ groups, defaults, darkDefaults }}>
 (function () {
   'use strict';
 
-  // Tokens stored as a bare number (slider rows), not a hex.
-  const SCALARS = new Set(scalars);
-  const isScalar = (t) => SCALARS.has(t);
+  // ═══ TOKENS ════════════════════════════════════════════════════════════════
+  const TOKENS = groups.flatMap((g) => g.tokens.map((t) => Object.assign({ group: g.group, advanced: !!g.advanced }, t)));
+  const TOKEN = Object.fromEntries(TOKENS.map((t) => [t.token, t]));
+  const COLOR_TOKENS = TOKENS.filter((t) => t.kind !== 'scalar').map((t) => t.token);
+  const isScalar = (tk) => !!TOKEN[tk] && TOKEN[tk].kind === 'scalar';
+  const labelOf = (tk) => (TOKEN[tk] ? TOKEN[tk].label : tk);
 
-  // Below this ratio the two colours are so close the text effectively
-  // disappears (black-on-black is 1.0) — the one case worth interrupting for.
-  // Between here and the AA target is a quality warning, listed but not
-  // shouted about, so the owner is never trained to ignore a red badge.
+  // Below this ratio text effectively disappears — the one case worth shouting
+  // about. Between here and the AA target is a quiet "check this".
   const SEVERE_BELOW = 2;
 
-  // ── The pairings the SITE actually renders ────────────────────────────────
-  // Each entry is "this ink sits on that ground, here". A row's badge reports
-  // its WORST pairing and the legibility report lists every failure — so
-  // setting a button fill to black can't silently swallow its own label.
-  // Declared up here because the first renderMode() runs before the contrast
-  // section below is evaluated.
-  //   big:true → large/display text, where 3:1 is the AA threshold.
+  // Every place the SITE puts one colour on another (checked against the live
+  // stylesheets). big:true = large text or a graphic mark, where 3:1 is enough.
   const PAIRINGS = [
     { fg: '--ink',            bg: '--paper',            where: 'Headlines and body copy on the page' },
     { fg: '--ink-soft',       bg: '--paper',            where: 'Paragraph text on the page' },
-    { fg: '--ink-muted',      bg: '--paper',            where: 'Eyebrows, labels and metadata' },
-    { fg: '--ink',            bg: '--paper-card',       where: 'Text inside cards, forms and the popup' },
-    { fg: '--ink-soft',       bg: '--paper-card',       where: 'Descriptions inside cards' },
-    { fg: '--ink-muted',      bg: '--paper-deep',       where: 'Footer and info-strip labels' },
-    { fg: '--ink',            bg: '--paper-deep',       where: 'Footer values and info-strip figures' },
-    // Prices are large semibold and the accent rules are graphical marks, so
-    // 3:1 is their real target — the same carve-out WCAG gives large text and
-    // UI components. (The house accent is a ~2.7:1 gold on cream by design.)
-    { fg: '--accent',         bg: '--paper',            where: 'Menu prices and accent marks', big: true },
+    { fg: '--ink-muted',      bg: '--paper',            where: 'Labels above headings, captions' },
+    { fg: '--ink',            bg: '--paper-card',       where: 'Dish names inside menu cards, form text' },
+    { fg: '--ink-soft',       bg: '--paper-card',       where: 'Descriptions inside menu cards' },
+    { fg: '--ink-muted',      bg: '--paper-card',       where: 'Form labels and wine regions on cards' },
+    { fg: '--ink-muted',      bg: '--paper-deep',       where: 'Footer labels' },
+    { fg: '--ink',            bg: '--paper-deep',       where: 'Footer details' },
+    { fg: '--accent',         bg: '--paper',            where: 'Accent marks and links on the page', big: true },
     { fg: '--accent',         bg: '--paper-card',       where: 'Prices inside menu cards', big: true },
     { fg: '--accent-deep',    bg: '--paper',            where: 'Accent links on hover' },
-    { fg: '--ok',             bg: '--paper',            where: 'Form success message' },
-    { fg: '--err',            bg: '--paper',            where: 'Form error message' },
-    { fg: '--ink',            bg: '--accent-soft',      where: 'Selected (highlighted) text' },
-    // Solid buttons: the label is --paper on an --ink fill, and flips to
-    // --paper-on-photo on the --accent hover fill.
-    { fg: '--paper',          bg: '--ink',              where: 'Label inside solid dark buttons + scroll-to-top' },
-    { fg: '--paper-on-photo', bg: '--accent',           where: 'Button label on hover, and the floating Reserve pill' },
-    { fg: '--ink',            bg: '--paper-card',       where: 'Accessibility button glyph' },
-    // Over photography both stay fixed-light/fixed-dark by design, but the
-    // owner can still break the pair.
-    { fg: '--paper-on-photo', bg: '--shadow',           where: 'Hero text over the photo wash', big: true },
-    { fg: '--tile-label',     bg: '--shadow',           where: 'Home menu tile labels over their photo', big: true },
-    { fg: '--tile-num',       bg: '--shadow',           where: 'Home menu tile numerals over their photo' },
-    // The events band carries its own surfaces.
-    { fg: '--events-band-text', bg: '--events-band-from', where: 'Events benefit text (top of the band)' },
-    { fg: '--events-band-text', bg: '--events-band-to',   where: 'Events benefit text (bottom of the band)' },
-    { fg: '--events-band-num',  bg: '--events-band-from', where: 'Events benefit numerals', big: true },
-    // Body copy sits on the background wash wherever a section is transparent.
-    { fg: '--ink-soft',       bg: '--bg-wash-to',       where: 'Body copy over the background wash' },
+    { fg: '--ok',             bg: '--paper-card',       where: 'Contact form success message' },
+    { fg: '--err',            bg: '--paper-card',       where: 'Contact form error message' },
+    { fg: '--ink',            bg: '--accent-soft',      where: 'Selected text' },
+    { fg: '--paper',          bg: '--ink',              where: 'Label inside dark buttons' },
+    { fg: '--on-accent',      bg: '--accent',           where: 'Button labels on hover, floating Reserve button' },
+    { fg: '--paper-on-photo', bg: '--shadow',           where: 'Text over photos', big: true },
+    { fg: '--tile-label',     bg: '--shadow',           where: 'Home menu tile names', big: true },
+    { fg: '--events-band-text', bg: '--events-band-from', where: 'Events band text (top)', big: true },
+    { fg: '--events-band-text', bg: '--events-band-to',   where: 'Events band text (bottom)', big: true },
+    { fg: '--ink-soft',       bg: '--bg-wash-to',       where: 'Body text over the background wash' },
   ];
 
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // PRESETS — static client-side data. Each entry is a partial palette; tokens
-  // a preset omits (the events band, the page background) are DERIVED from its
-  // own surfaces/ink/accent when it's applied, so every preset lands on a
-  // complete, self-consistent palette.
-  // ────────────────────────────────────────────────────────────────────────────
+  // ═══ PRESETS ═══════════════════════════════════════════════════════════════
+  // Each preset is a partial palette. Tokens a preset omits (the Events band,
+  // the page background, text on accent, the menu tiles) are DERIVED from its
+  // own colours when applied, so every theme lands complete and harmonised.
   const PRESETS = {
+    // ── Lively themes — saturated, sunny, built for the rooftop but open to both venues.
+    //    Generated with contrast enforced for every pairing the editor checks.
+
+    // Sunset Terrace — peach + coral.
+    'sunset-terrace': {
+      '--paper': '#FFECE0', '--paper-deep': '#F9DDCA', '--paper-edge': '#E6C9B6', '--paper-card': '#FFF6F0', '--paper-on-photo': '#FDF1E9',
+      '--ink': '#22110B', '--ink-soft': '#523D35', '--ink-muted': '#775D4C', '--ink-faint': '#C1A492', '--rule': '#E7C6B1',
+      '--rule-soft': '#F5D7C4', '--accent': '#C63B20', '--accent-deep': '#9D2207', '--accent-soft': '#FFD2C8', '--on-accent': '#FDF1E9',
+      '--gold': '#E49921', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#0B0401',
+    },
+
+    // Citrus Spritz — lemon + Aperol orange.
+    'citrus-spritz': {
+      '--paper': '#F8F1CF', '--paper-deep': '#ECE4BD', '--paper-edge': '#D8D0A8', '--paper-card': '#FDF9E1', '--paper-on-photo': '#F7F4E5',
+      '--ink': '#201308', '--ink-soft': '#503E31', '--ink-muted': '#6B643F', '--ink-faint': '#B4AC85', '--rule': '#D8CFA1',
+      '--rule-soft': '#E7DFB6', '--accent': '#D55D00', '--accent-deep': '#A94800', '--accent-soft': '#FFD3BE', '--on-accent': '#201308',
+      '--gold': '#87B73A', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#080600',
+    },
+
+    // Aegean — sky + cobalt.
+    'aegean': {
+      '--paper': '#E0F4FF', '--paper-deep': '#CFE7F5', '--paper-edge': '#BAD4E2', '--paper-card': '#F0FAFF', '--paper-on-photo': '#EBF5FB',
+      '--ink': '#0C1626', '--ink-soft': '#364357', '--ink-muted': '#4B6877', '--ink-faint': '#96AFBD', '--rule': '#B6D3E3',
+      '--rule-soft': '#C9E3F1', '--accent': '#285CC2', '--accent-deep': '#134098', '--accent-soft': '#CDDFFF', '--on-accent': '#EBF5FB',
+      '--gold': '#E6B816', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#02070B',
+    },
+
+    // Flamingo — blush + hot pink.
+    'flamingo': {
+      '--paper': '#FFEAED', '--paper-deep': '#FAD9DE', '--paper-edge': '#E7C6CA', '--paper-card': '#FFF5F6', '--paper-on-photo': '#FEEFF1',
+      '--ink': '#201018', '--ink-soft': '#503B45', '--ink-muted': '#775A5F', '--ink-faint': '#C1A1A6', '--rule': '#E8C3C8',
+      '--rule-soft': '#F6D4D9', '--accent': '#C72B78', '--accent-deep': '#9D0F5B', '--accent-soft': '#FFCFDF', '--on-accent': '#FEEFF1',
+      '--gold': '#F68C36', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#0C0405',
+    },
+
+    // Mojito — mint + emerald.
+    'mojito': {
+      '--paper': '#DDF8E8', '--paper-deep': '#CDECDA', '--paper-edge': '#B9D8C6', '--paper-card': '#EAFDF2', '--paper-on-photo': '#EAF7EF',
+      '--ink': '#061A14', '--ink-soft': '#304840', '--ink-muted': '#4E6B5B', '--ink-faint': '#95B3A2', '--rule': '#B4D8C3',
+      '--rule-soft': '#C7E7D5', '--accent': '#007D4D', '--accent-deep': '#005D37', '--accent-soft': '#C4E8D2', '--on-accent': '#EAF7EF',
+      '--gold': '#9FC93E', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#010804',
+    },
+
+    // Lagoon — aqua + turquoise.
+    'lagoon': {
+      '--paper': '#D8F7F8', '--paper-deep': '#C8EBEC', '--paper-edge': '#B3D8D8', '--paper-card': '#E7FDFD', '--paper-on-photo': '#E8F7F7',
+      '--ink': '#011A21', '--ink-soft': '#2A4751', '--ink-muted': '#466B6C', '--ink-faint': '#8FB3B3', '--rule': '#AED7D8',
+      '--rule-soft': '#C2E6E7', '--accent': '#007A7B', '--accent-deep': '#005A5B', '--accent-soft': '#BCE8E8', '--on-accent': '#E8F7F7',
+      '--gold': '#F59926', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#000808',
+    },
+
+    // Berry Sorbet — lilac + berry.
+    'berry-sorbet': {
+      '--paper': '#FDE9FB', '--paper-deep': '#F1DBF0', '--paper-edge': '#DEC7DC', '--paper-card': '#FFF4FE', '--paper-on-photo': '#FAF0F9',
+      '--ink': '#1D1120', '--ink-soft': '#4C3C4F', '--ink-muted': '#725C71', '--ink-faint': '#B9A3B7', '--rule': '#DEC4DC',
+      '--rule-soft': '#EDD6EB', '--accent': '#A93085', '--accent-deep': '#831765', '--accent-soft': '#FBCFE9', '--on-accent': '#FAF0F9',
+      '--gold': '#F0986F', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#090409',
+    },
+
+    // Golden Hour — saffron + burnt orange.
+    'golden-hour': {
+      '--paper': '#FFEED0', '--paper-deep': '#F4E0BD', '--paper-edge': '#E1CDA8', '--paper-card': '#FFF7E8', '--paper-on-photo': '#FAF3E5',
+      '--ink': '#231107', '--ink-soft': '#533D30', '--ink-muted': '#73603F', '--ink-faint': '#BCA884', '--rule': '#E2CBA1',
+      '--rule-soft': '#F0DBB6', '--accent': '#BC4A00', '--accent-deep': '#903600', '--accent-soft': '#FFD3C1', '--on-accent': '#FAF3E5',
+      '--gold': '#DC7483', '--ok': '#21763C', '--err': '#AC312A', '--shadow': '#0A0500',
+    },
+
+    // Rooftop Neon — indigo + hot pink.
+    'rooftop-neon': {
+      '--paper': '#191231', '--paper-deep': '#221B3D', '--paper-edge': '#352F55', '--paper-card': '#282144', '--paper-on-photo': '#F3F2FF',
+      '--ink': '#F2EDFC', '--ink-soft': '#C0BBCA', '--ink-muted': '#918BBC', '--ink-faint': '#4F4B6C', '--rule': '#332C52',
+      '--rule-soft': '#262043', '--accent': '#F2569C', '--accent-deep': '#FF65A9', '--accent-soft': '#4E1C32', '--on-accent': '#191231',
+      '--gold': '#FCB442', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#03020C',
+    },
+
+    // Sunset Noir — plum + coral.
+    'sunset-noir': {
+      '--paper': '#2A0C1B', '--paper-deep': '#361424', '--paper-edge': '#4D2839', '--paper-card': '#3D1B2B', '--paper-on-photo': '#FFEEF5',
+      '--ink': '#FDECE8', '--ink-soft': '#CCB9B5', '--ink-muted': '#B38296', '--ink-faint': '#654553', '--rule': '#4A2536',
+      '--rule-soft': '#3B1929', '--accent': '#F5714E', '--accent-deep': '#FF815F', '--accent-soft': '#501F12', '--on-accent': '#2A0C1B',
+      '--gold': '#F1C45E', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#090104',
+    },
+
+    // Aperol Night — rust + vivid orange.
+    'aperol-night': {
+      '--paper': '#280D03', '--paper-deep': '#331609', '--paper-edge': '#4A291C', '--paper-card': '#3A1C0F', '--paper-on-photo': '#FFF0EA',
+      '--ink': '#F9EEE2', '--ink-soft': '#C7BCAF', '--ink-muted': '#B38776', '--ink-faint': '#63453A', '--rule': '#472619',
+      '--rule-soft': '#391A0E', '--accent': '#F97D14', '--accent-deep': '#FF9044', '--accent-soft': '#4B1F00', '--on-accent': '#280D03',
+      '--gold': '#F2E15F', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#0A0100',
+    },
+
+    // Midnight Lagoon — teal-navy + aqua.
+    'midnight-lagoon': {
+      '--paper': '#001C28', '--paper-deep': '#002634', '--paper-edge': '#0F3B4C', '--paper-card': '#012C3C', '--paper-on-photo': '#E8F6FD',
+      '--ink': '#E2F4F8', '--ink-soft': '#AEC2C6', '--ink-muted': '#6B9AAF', '--ink-faint': '#345563', '--rule': '#0C3849',
+      '--rule-soft': '#002B3A', '--accent': '#1ED1CD', '--accent-deep': '#38DEDA', '--accent-soft': '#003937', '--on-accent': '#001C28',
+      '--gold': '#FA8978', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#00040A',
+    },
+
+    // Velvet Magenta — wine + magenta.
+    'velvet-magenta': {
+      '--paper': '#26091F', '--paper-deep': '#311229', '--paper-edge': '#48253E', '--paper-card': '#381830', '--paper-on-photo': '#FDEFF8',
+      '--ink': '#FAEBF4', '--ink-soft': '#C8B8C2', '--ink-muted': '#B081A2', '--ink-faint': '#614257', '--rule': '#45223C',
+      '--rule-soft': '#37162E', '--accent': '#E867C3', '--accent-deep': '#F674D0', '--accent-soft': '#471B3A', '--on-accent': '#26091F',
+      '--gold': '#F0C374', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#080106',
+    },
+
+    // Ultramarine — deep blue + electric blue.
+    'ultramarine': {
+      '--paper': '#091538', '--paper-deep': '#111F44', '--paper-edge': '#23335D', '--paper-card': '#16254B', '--paper-on-photo': '#EEF4FF',
+      '--ink': '#E7F1FE', '--ink-soft': '#B5BFCC', '--ink-muted': '#7A91C6', '--ink-faint': '#3F4F73', '--rule': '#20305A',
+      '--rule-soft': '#15244A', '--accent': '#49A2FE', '--accent-deep': '#65AFFF', '--accent-soft': '#113153', '--on-accent': '#091538',
+      '--gold': '#EEE354', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#01030C',
+    },
+
+    // Jungle Night — deep green + lime.
+    'jungle-night': {
+      '--paper': '#001C0D', '--paper-deep': '#032715', '--paper-edge': '#173B28', '--paper-card': '#092D1B', '--paper-on-photo': '#EAF7EF',
+      '--ink': '#E9F4E7', '--ink-soft': '#B7C1B4', '--ink-muted': '#739E84', '--ink-faint': '#385544', '--rule': '#143925',
+      '--rule-soft': '#082B1A', '--accent': '#A2D94A', '--accent-deep': '#AEE659', '--accent-soft': '#223500', '--on-accent': '#001C0D',
+      '--gold': '#F689B4', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#000501',
+    },
+
+    // Tangerine Dream — aubergine + tangerine.
+    'tangerine-dream': {
+      '--paper': '#1E0D28', '--paper-deep': '#281633', '--paper-edge': '#3D2949', '--paper-card': '#2F1C39', '--paper-on-photo': '#F8F0FD',
+      '--ink': '#F6ECF9', '--ink-soft': '#C4B9C7', '--ink-muted': '#A087B0', '--ink-faint': '#564561', '--rule': '#3B2746',
+      '--rule-soft': '#2D1B38', '--accent': '#FF9132', '--accent-deep': '#FFA663', '--accent-soft': '#492100', '--on-accent': '#1E0D28',
+      '--gold': '#CEB6FC', '--ok': '#69BA7C', '--err': '#EA6B5E', '--shadow': '#060209',
+    },
+
+    // ── Calm themes
+
 
     // ── Light themes ──────────────────────────────────────────────────────────
 
@@ -1107,1041 +878,1457 @@ const scalars = [...scalarTokens];
     },
   };
 
-  // Which palette each preset was designed for, and its display name. Drives
-  // the light/dark tabs in the preset picker.
+  // ── STATE-independent preset metadata (validate-colors.mjs reads the block
+  //    above up to the STATE marker below).
+  // STATE
   const PRESET_META = [
-    { id: 'default',        mode: 'light', name: 'Default',            note: 'warm cream' },
-    { id: 'monochrome',     mode: 'light', name: 'Monochrome',         note: 'no accent hue' },
-    { id: 'terracotta',     mode: 'light', name: 'Terracotta',         note: 'the house accent' },
-    { id: 'forest',         mode: 'light', name: 'Forest',             note: 'deep green' },
-    { id: 'navy-light',     mode: 'light', name: 'Navy',               note: 'cream + navy' },
-    { id: 'linen',          mode: 'light', name: 'Linen',              note: 'crisp pale + navy' },
-    { id: 'rose-paper',     mode: 'light', name: 'Rose paper',         note: 'wine accent' },
-    { id: 'sage',           mode: 'light', name: 'Sage',               note: 'pale green + moss' },
-    { id: 'olive-gold',     mode: 'light', name: 'Olive & Gold',       note: 'green + gold' },
-    { id: 'sea-glass',      mode: 'light', name: 'Sea Glass',          note: 'aqua-green + teal' },
-    { id: 'fern-copper',    mode: 'light', name: 'Fern & Copper',      note: 'green + copper' },
-    { id: 'honey-sage',     mode: 'light', name: 'Honey & Sage',       note: 'green + honey gold' },
-    { id: 'lavender-haze',  mode: 'light', name: 'Lavender Haze',      note: 'light purple' },
-    { id: 'lilac-sage',     mode: 'light', name: 'Lilac & Sage',       note: 'purple + green' },
-    { id: 'wisteria',       mode: 'light', name: 'Wisteria',           note: 'lilac + blue-violet' },
-    { id: 'amethyst-cream', mode: 'light', name: 'Amethyst & Cream',   note: 'purple + gold' },
-    { id: 'blush',          mode: 'light', name: 'Blush',              note: 'soft rose' },
-    { id: 'harbor',         mode: 'light', name: 'Harbor',             note: 'blue-gray + slate-teal' },
-
-    { id: 'midnight',       mode: 'dark',  name: 'Midnight',           note: 'dark navy' },
-    { id: 'obsidian',       mode: 'dark',  name: 'Obsidian',           note: 'near-black + gold' },
-    { id: 'espresso',       mode: 'dark',  name: 'Espresso',           note: 'dark brown' },
-    { id: 'plum',           mode: 'dark',  name: 'Plum',               note: 'dark purple' },
-    { id: 'dusk-navy',      mode: 'dark',  name: 'Dusk Navy',          note: 'cool slate' },
-    { id: 'charcoal',       mode: 'dark',  name: 'Charcoal',           note: 'warm gray + rust' },
-    { id: 'moss',           mode: 'dark',  name: 'Moss',               note: 'dark green + gold' },
-    { id: 'wine',           mode: 'dark',  name: 'Wine',               note: 'deep aubergine' },
-    { id: 'cobalt-noir',    mode: 'dark',  name: 'Cobalt Noir',        note: 'ink + electric blue' },
-    { id: 'emerald-noir',   mode: 'dark',  name: 'Emerald Noir',       note: 'green + gold' },
-    { id: 'pine-gold',      mode: 'dark',  name: 'Pine & Gold',        note: 'green + gold' },
-    { id: 'deep-jade',      mode: 'dark',  name: 'Deep Jade',          note: 'teal-green' },
-    { id: 'teal-abyss',     mode: 'dark',  name: 'Teal Abyss',         note: 'electric teal' },
-    { id: 'violet-dusk',    mode: 'dark',  name: 'Violet Dusk',        note: 'purple + violet' },
-    { id: 'orchid-noir',    mode: 'dark',  name: 'Orchid Noir',        note: 'plum + orchid' },
-    { id: 'amethyst-dark',  mode: 'dark',  name: 'Amethyst Dark',      note: 'purple + gold' },
-    { id: 'indigo-night',   mode: 'dark',  name: 'Indigo Night',       note: 'indigo + periwinkle' },
-    { id: 'rosewood',       mode: 'dark',  name: 'Rosewood',           note: 'rose-brown + pink' },
-    { id: 'dark-frantzen',  mode: 'dark',  name: 'Frantzen',           note: 'blue' },
-    { id: 'dark-white',     mode: 'dark',  name: 'Stark',              note: 'black + white' },
+    { id: 'sunset-terrace', mode: 'light', mood: 'lively', name: 'Sunset Terrace', note: 'peach + coral' },
+    { id: 'citrus-spritz', mode: 'light', mood: 'lively', name: 'Citrus Spritz', note: 'lemon + Aperol orange' },
+    { id: 'aegean', mode: 'light', mood: 'lively', name: 'Aegean', note: 'sky + cobalt' },
+    { id: 'flamingo', mode: 'light', mood: 'lively', name: 'Flamingo', note: 'blush + hot pink' },
+    { id: 'mojito', mode: 'light', mood: 'lively', name: 'Mojito', note: 'mint + emerald' },
+    { id: 'lagoon', mode: 'light', mood: 'lively', name: 'Lagoon', note: 'aqua + turquoise' },
+    { id: 'berry-sorbet', mode: 'light', mood: 'lively', name: 'Berry Sorbet', note: 'lilac + berry' },
+    { id: 'golden-hour', mode: 'light', mood: 'lively', name: 'Golden Hour', note: 'saffron + burnt orange' },
+    { id: 'rooftop-neon', mode: 'dark', mood: 'lively', name: 'Rooftop Neon', note: 'indigo + hot pink' },
+    { id: 'sunset-noir', mode: 'dark', mood: 'lively', name: 'Sunset Noir', note: 'plum + coral' },
+    { id: 'aperol-night', mode: 'dark', mood: 'lively', name: 'Aperol Night', note: 'rust + vivid orange' },
+    { id: 'midnight-lagoon', mode: 'dark', mood: 'lively', name: 'Midnight Lagoon', note: 'teal-navy + aqua' },
+    { id: 'velvet-magenta', mode: 'dark', mood: 'lively', name: 'Velvet Magenta', note: 'wine + magenta' },
+    { id: 'ultramarine', mode: 'dark', mood: 'lively', name: 'Ultramarine', note: 'deep blue + electric blue' },
+    { id: 'jungle-night', mode: 'dark', mood: 'lively', name: 'Jungle Night', note: 'deep green + lime' },
+    { id: 'tangerine-dream', mode: 'dark', mood: 'lively', name: 'Tangerine Dream', note: 'aubergine + tangerine' },
+    { id: 'default',        mode: 'light', mood: 'calm', name: 'Zahara default',     note: 'the house palette' },
+    { id: 'monochrome',     mode: 'light', mood: 'calm', name: 'Monochrome',         note: 'no accent hue' },
+    { id: 'terracotta',     mode: 'light', mood: 'calm', name: 'Terracotta',         note: 'the house accent' },
+    { id: 'forest',         mode: 'light', mood: 'calm', name: 'Forest',             note: 'deep green' },
+    { id: 'navy-light',     mode: 'light', mood: 'calm', name: 'Navy',               note: 'cream + navy' },
+    { id: 'linen',          mode: 'light', mood: 'calm', name: 'Linen',              note: 'crisp pale + navy' },
+    { id: 'rose-paper',     mode: 'light', mood: 'calm', name: 'Rose paper',         note: 'wine accent' },
+    { id: 'sage',           mode: 'light', mood: 'calm', name: 'Sage',               note: 'pale green + moss' },
+    { id: 'olive-gold',     mode: 'light', mood: 'calm', name: 'Olive & Gold',       note: 'green + gold' },
+    { id: 'sea-glass',      mode: 'light', mood: 'calm', name: 'Sea Glass',          note: 'aqua-green + teal' },
+    { id: 'fern-copper',    mode: 'light', mood: 'calm', name: 'Fern & Copper',      note: 'green + copper' },
+    { id: 'honey-sage',     mode: 'light', mood: 'calm', name: 'Honey & Sage',       note: 'green + honey gold' },
+    { id: 'lavender-haze',  mode: 'light', mood: 'calm', name: 'Lavender Haze',      note: 'light purple' },
+    { id: 'lilac-sage',     mode: 'light', mood: 'calm', name: 'Lilac & Sage',       note: 'purple + green' },
+    { id: 'wisteria',       mode: 'light', mood: 'calm', name: 'Wisteria',           note: 'lilac + blue-violet' },
+    { id: 'amethyst-cream', mode: 'light', mood: 'calm', name: 'Amethyst & Cream',   note: 'purple + gold' },
+    { id: 'blush',          mode: 'light', mood: 'calm', name: 'Blush',              note: 'soft rose' },
+    { id: 'harbor',         mode: 'light', mood: 'calm', name: 'Harbor',             note: 'blue-gray + slate-teal' },
+    { id: 'midnight',       mode: 'dark',  mood: 'calm', name: 'Midnight',           note: 'dark navy' },
+    { id: 'obsidian',       mode: 'dark',  mood: 'calm', name: 'Obsidian',           note: 'near-black + gold' },
+    { id: 'espresso',       mode: 'dark',  mood: 'calm', name: 'Espresso',           note: 'dark brown' },
+    { id: 'plum',           mode: 'dark',  mood: 'calm', name: 'Plum',               note: 'dark purple' },
+    { id: 'dusk-navy',      mode: 'dark',  mood: 'calm', name: 'Dusk Navy',          note: 'cool slate' },
+    { id: 'charcoal',       mode: 'dark',  mood: 'calm', name: 'Charcoal',           note: 'warm gray + rust' },
+    { id: 'moss',           mode: 'dark',  mood: 'calm', name: 'Moss',               note: 'dark green + gold' },
+    { id: 'wine',           mode: 'dark',  mood: 'calm', name: 'Wine',               note: 'deep aubergine' },
+    { id: 'cobalt-noir',    mode: 'dark',  mood: 'calm', name: 'Cobalt Noir',        note: 'ink + electric blue' },
+    { id: 'emerald-noir',   mode: 'dark',  mood: 'calm', name: 'Emerald Noir',       note: 'green + gold' },
+    { id: 'pine-gold',      mode: 'dark',  mood: 'calm', name: 'Pine & Gold',        note: 'green + gold' },
+    { id: 'deep-jade',      mode: 'dark',  mood: 'calm', name: 'Deep Jade',          note: 'teal-green' },
+    { id: 'teal-abyss',     mode: 'dark',  mood: 'calm', name: 'Teal Abyss',         note: 'electric teal' },
+    { id: 'violet-dusk',    mode: 'dark',  mood: 'calm', name: 'Violet Dusk',        note: 'purple + violet' },
+    { id: 'orchid-noir',    mode: 'dark',  mood: 'calm', name: 'Orchid Noir',        note: 'plum + orchid' },
+    { id: 'amethyst-dark',  mode: 'dark',  mood: 'calm', name: 'Amethyst Dark',      note: 'purple + gold' },
+    { id: 'indigo-night',   mode: 'dark',  mood: 'calm', name: 'Indigo Night',       note: 'indigo + periwinkle' },
+    { id: 'rosewood',       mode: 'dark',  mood: 'calm', name: 'Rosewood',           note: 'rose-brown + pink' },
+    { id: 'dark-frantzen',  mode: 'dark',  mood: 'calm', name: 'Frantzen',           note: 'blue' },
+    { id: 'dark-white',     mode: 'dark',  mood: 'calm', name: 'Stark',              note: 'black + white' },
+    { id: 'default',        mode: 'dark',  mood: 'calm', name: 'Zahara default',     note: 'the house palette' },
   ];
 
-  // The parts a preset can contribute when mixing. Order = display order.
-  const PRESET_PARTS = [
-    { id: 'surfaces',  label: 'Surfaces',  tokens: ['--paper', '--paper-deep', '--paper-edge', '--paper-card', '--paper-on-photo'] },
-    { id: 'ink',       label: 'Text',      tokens: ['--ink', '--ink-soft', '--ink-muted', '--ink-faint'] },
-    { id: 'rules',     label: 'Lines',     tokens: ['--rule', '--rule-soft'] },
-    { id: 'accent',    label: 'Accent',    tokens: ['--accent', '--accent-deep', '--accent-soft'] },
-    { id: 'highlight', label: 'Highlight', tokens: ['--gold'] },
-    { id: 'status',    label: 'Status',    tokens: ['--ok', '--err'] },
-    { id: 'shadow',    label: 'Shadow',    tokens: ['--shadow'] },
+  // The parts of a palette the mixer works with, and the colour groups a theme
+  // offers as a source. `cap` limits how colourful an adapted part may get
+  // (OKLCH chroma), per mode, so tinted backgrounds stay backgrounds.
+  const ROLES = [
+    { id: 'surfaces',  label: 'Backgrounds', hint: 'Page, bands, cards',         tokens: ['--paper', '--paper-deep', '--paper-card', '--paper-edge'], cap: { light: 0.08, dark: 0.1 } },
+    { id: 'text',      label: 'Text',        hint: 'Headings down to labels',    tokens: ['--ink', '--ink-soft', '--ink-muted', '--ink-faint'],   cap: { light: 0.08, dark: 0.07 } },
+    { id: 'lines',     label: 'Lines',       hint: 'Borders and dividers',       tokens: ['--rule', '--rule-soft'],                                cap: { light: 0.12, dark: 0.12 } },
+    { id: 'accent',    label: 'Accent',      hint: 'Prices, links, buttons',     tokens: ['--accent', '--accent-deep', '--accent-soft'],           cap: { light: 0.35, dark: 0.35 } },
+    { id: 'highlight', label: 'Highlight',   hint: 'Progress bar, photo links',  tokens: ['--gold'],                                               cap: { light: 0.35, dark: 0.35 } },
+    { id: 'photos',    label: 'Over photos', hint: 'Text and shade on photos',   tokens: ['--paper-on-photo', '--shadow'],                         cap: { light: 0.04, dark: 0.04 } },
+    { id: 'status',    label: 'Messages',    hint: 'Form success and error',     tokens: ['--ok', '--err'],                                        cap: { light: 0.25, dark: 0.25 } },
   ];
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // STATE & STORAGE
-  //
-  // Source of truth is the server (KV via /api/palette). localStorage is a
-  // FAST CACHE so the editor doesn't blank-flash while the network round-trip
-  // happens — we hydrate from cache instantly, then reconcile against the
-  // server response a moment later.
-  // ────────────────────────────────────────────────────────────────────────────
-  const KEY        = 'zahara-color-overrides';
-  // Which venue this editor edits, from the admin site-switch cookie (set by the
-  // venue switch in the topbar / other /admin pages). The seed fetch is scoped
-  // to it so we never seed from Zahara and then save into rooftop; the save
-  // endpoint (/admin/colors/save) reads the same cookie server-side.
+  // ═══ COLOUR MATHS ══════════════════════════════════════════════════════════
+  function normHex(v) {
+    if (v == null) return null;
+    v = String(v).trim();
+    if (!v.startsWith('#')) v = '#' + v;
+    if (/^#[0-9a-fA-F]{3}$/.test(v)) v = '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+    return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : null;
+  }
+  function normScalar(tk, v) {
+    const n = Number(String(v).trim());
+    if (!Number.isFinite(n)) return null;
+    const t = TOKEN[tk];
+    return String(Math.round(Math.min(t.max, Math.max(t.min, n))));
+  }
+  const norm = (tk, v) => (isScalar(tk) ? normScalar(tk, v) : normHex(v));
+
+  function relLum(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255]
+      .map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); })
+      .reduce((s, c, i) => s + c * [0.2126, 0.7152, 0.0722][i], 0);
+  }
+  function contrast(a, b) {
+    const x = relLum(a), y = relLum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  }
+  const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  function toOklch(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = lin(n >> 16 & 255), g = lin(n >> 8 & 255), b = lin(n & 255);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+    const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+    let H = Math.atan2(B, A) * 180 / Math.PI; if (H < 0) H += 360;
+    return { L, C: Math.hypot(A, B), H };
+  }
+  function oklchToLinear(L, C, H) {
+    const a = C * Math.cos(H * Math.PI / 180), b = C * Math.sin(H * Math.PI / 180);
+    const l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
+    const m = Math.pow(L - 0.1055613458 * a - 0.0638541728 * b, 3);
+    const s = Math.pow(L - 0.0894841775 * a - 1.2914855480 * b, 3);
+    return [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s];
+  }
+  function fromOklch(L, C, H) {
+    const ok = (rgb) => rgb.every((v) => v >= -0.0005 && v <= 1.0005);
+    let rgb = oklchToLinear(L, C, H);
+    if (!ok(rgb)) {            // keep hue and lightness; give up chroma to fit sRGB
+      let lo = 0, hi = C;
+      for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (ok(oklchToLinear(L, mid, H))) lo = mid; else hi = mid; }
+      rgb = oklchToLinear(L, lo, H);
+    }
+    return '#' + rgb.map((v) => {
+      v = Math.min(1, Math.max(0, v));
+      const s = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+      return Math.round(s * 255).toString(16).padStart(2, '0');
+    }).join('').toUpperCase();
+  }
+
+  // ═══ STATE ═════════════════════════════════════════════════════════════════
   const ADMIN_SITE = (document.cookie.match(/(?:^|;\s*)zahara_admin_site=(rooftop|zahara)/) || [])[1] || 'zahara';
-  const SITE_Q     = ADMIN_SITE === 'rooftop' ? '?site=rooftop' : '';
-  const SERVER_GET = '/api/palette' + SITE_Q;
-  const SERVER_PUT = '/admin/colors/save';
-  const root       = document.documentElement;
-  const rows       = Array.from(document.querySelectorAll('[data-row]'));
+  const IS_ROOFTOP = ADMIN_SITE === 'rooftop';
+  const VENUE_NAME = IS_ROOFTOP ? 'Nucha Rooftop' : 'Zahara';
+  // The public site replays this cache in the owner's browser right after a
+  // save (BaseLayout pre-paint), one key per venue so they never cross.
+  const CACHE_KEY = IS_ROOFTOP ? 'zahara-color-overrides:rooftop' : 'zahara-color-overrides';
+  const MODES = ['light', 'dark'];
 
-  // Which palette we're editing: 'light' or 'dark'. The preview pane reflects
-  // this mode; Save persists BOTH. State shape everywhere is a pair:
-  //   { light: { '--token': '#hex', … }, dark: { … } }
+  const emptyPair = () => ({ light: {}, dark: {} });
+  const clonePair = (p) => ({ light: Object.assign({}, p.light), dark: Object.assign({}, p.dark) });
+  function toPair(raw) {
+    const out = emptyPair();
+    if (!raw || typeof raw !== 'object') return out;
+    const flat = Object.keys(raw).some((k) => k.indexOf('--') === 0);
+    const src = flat ? { light: raw } : raw;
+    MODES.forEach((mode) => {
+      const m = src[mode];
+      if (!m || typeof m !== 'object') return;
+      Object.keys(m).forEach((tk) => {
+        if (!TOKEN[tk]) return;
+        const v = norm(tk, m[tk]);
+        if (v != null) out[mode][tk] = v;
+      });
+    });
+    return out;
+  }
+
+  // What an untouched token shows, per mode: the code defaults — and for the
+  // rooftop, Zahara's saved palette on top (the live site inherits it).
+  const CODE = { light: {}, dark: {} };
+  TOKENS.forEach((t) => {
+    CODE.light[t.token] = norm(t.token, defaults[t.token]);
+    CODE.dark[t.token] = norm(t.token, darkDefaults[t.token] != null ? darkDefaults[t.token] : defaults[t.token]);
+  });
+  let inherited = emptyPair();     // rooftop: Zahara's saved overrides
+  let saved = emptyPair();         // this venue's overrides as saved
+  let current = emptyPair();       // … including unsaved edits
+  let draft = null;                // { mode, map, source: 'theme'|'mix', label } — preview only
+  let comparing = false;           // holding "live colours"
   let activeMode = 'light';
 
-  let bc = null;
-  try { bc = new BroadcastChannel('zahara-colors'); } catch (_) {}
+  const base = (mode, tk) => (inherited[mode][tk] != null ? inherited[mode][tk] : CODE[mode][tk]);
+  const resolved = (mode, tk) => (current[mode][tk] != null ? current[mode][tk] : base(mode, tk));
+  const savedValue = (mode, tk) => (saved[mode][tk] != null ? saved[mode][tk] : base(mode, tk));
+  function shown(mode, tk) {
+    if (comparing) return savedValue(mode, tk);
+    if (draft && draft.mode === mode && draft.map[tk] != null) return draft.map[tk];
+    return resolved(mode, tk);
+  }
+  function setOverride(mode, tk, value) {
+    if (value == null || value === base(mode, tk)) delete current[mode][tk];
+    else current[mode][tk] = value;
+  }
+  function pendingList() {
+    const out = [];
+    MODES.forEach((mode) => TOKENS.forEach((t) => {
+      if (resolved(mode, t.token) !== savedValue(mode, t.token)) out.push({ mode, tk: t.token });
+    }));
+    return out;
+  }
+  window.__zpDirty = () => pendingList().length > 0;
 
-  // ── Pair helpers ────────────────────────────────────────────────────────────
-  function emptyPair() { return { light: {}, dark: {} }; }
-  function clonePair(p) { return { light: Object.assign({}, p.light), dark: Object.assign({}, p.dark) }; }
+  function readCache() { try { return toPair(JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')); } catch (_) { return emptyPair(); } }
+  function writeCache(p) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(p)); } catch (_) {} }
 
-  // Normalise any stored / fetched value into the pair shape, migrating an
-  // old flat { '--token':'#hex' } record (light only).
-  function toPair(raw) {
-    const pair = emptyPair();
-    if (!raw || typeof raw !== 'object') return pair;
-    const looksFlat = Object.keys(raw).some((k) => k.indexOf('--') === 0);
-    const src = looksFlat ? { light: raw } : raw;
-    ['light', 'dark'].forEach((mode) => {
-      const m = src[mode];
-      if (m && typeof m === 'object') {
-        for (const t in m) {
-          if (t.indexOf('--') !== 0) continue;
-          const v = m[t];
-          if (typeof v !== 'string' && typeof v !== 'number') continue;
-          pair[mode][t] = _norm(t, v);
-        }
-      }
+  // ═══ HISTORY — every user action is ONE undo step ═════════════════════════
+  const undoStack = [], redoStack = [];
+  /** Apply [{mode, tk, value}] as one step. `merge` folds a stream of inputs
+   *  (dragging a picker or a slider) into the step it started. */
+  function commit(label, changes, opts) {
+    opts = opts || {};
+    const top = undoStack[undoStack.length - 1];
+    const merging = opts.merge && top && top.merge === opts.merge && Date.now() - top.at < 1500;
+    const tx = merging ? top : { label, items: [], merge: opts.merge || null, at: Date.now() };
+    let changed = false;
+    changes.forEach((c) => {
+      const v = norm(c.tk, c.value);
+      if (v == null || v === resolved(c.mode, c.tk)) return;
+      const existing = tx.items.find((i) => i.mode === c.mode && i.tk === c.tk);
+      const before = current[c.mode][c.tk];
+      setOverride(c.mode, c.tk, v);
+      if (existing) existing.after = current[c.mode][c.tk];
+      else tx.items.push({ mode: c.mode, tk: c.tk, before, after: current[c.mode][c.tk] });
+      changed = true;
     });
-    return pair;
+    if (!changed) return false;
+    tx.at = Date.now();
+    if (!merging) { undoStack.push(tx); if (undoStack.length > 150) undoStack.shift(); }
+    redoStack.length = 0;
+    refresh();
+    return tx;
   }
-
-  // Uppercase for hexes, plain integer string for scalars. Everything
-  // downstream compares values with ===, so normalising in one place keeps
-  // "modified?" and "pending?" honest.
-  function _norm(token, v) {
-    return isScalar(token) ? String(v).trim() : String(v).toUpperCase();
-  }
-
-  function defaultFor(mode, token) {
-    const v = (mode === 'dark' ? darkDefaults[token] : defaults[token]) || defaults[token] || '';
-    return _norm(token, v);
-  }
-  function rowDefault(row) {
-    return _norm(row.dataset.token, activeMode === 'dark' ? row.dataset.defaultDark : row.dataset.default);
-  }
-  function curMap() { return currentState[activeMode]; }
-  function resolved(mode, token) {
-    return _norm(token, currentState[mode][token] || defaultFor(mode, token));
-  }
-
-  function loadCache() {
-    try { return toPair(JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return emptyPair(); }
-  }
-  function writeCache(o) {
-    try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (_) {}
-  }
-
-  // savedState: last value confirmed against the SERVER.
-  // currentState: live state including unsaved edits.
-  // Start optimistically from the cache; reconcile with the server below.
-  let savedState   = loadCache();
-  let currentState = clonePair(savedState);
-  let serverSyncedAt = 0;  // becomes >0 once /api/palette has returned
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // UI REFS
-  // ────────────────────────────────────────────────────────────────────────────
-  const toastEl      = document.querySelector('[data-toast]');
-  const undoBtn      = document.querySelector('[data-undo]');
-  const saveBtn      = document.querySelector('[data-save]');
-  const discardBtn   = document.querySelector('[data-discard]');
-  const pendingBadge = document.querySelector('[data-pending-badge]');
-  // Looked up here rather than beside the legibility code below: the first
-  // renderMode() runs before that block is evaluated, and would otherwise hit
-  // these consts in their temporal dead zone.
-  const legBadge     = document.querySelector('[data-legibility-badge]');
-  const legModal     = document.querySelector('[data-legibility-modal]');
-  const legList      = document.querySelector('[data-legibility-list]');
-
-  // ── Render the active mode onto :root + the rows ──────────────────────────────
-  // We ALWAYS set an explicit value for every token (never removeProperty):
-  // the admin page carries no data-theme attribute, so relying on the cascade
-  // would fall back to the LIGHT default even while editing dark.
-  function renderMode() {
-    rows.forEach((row) => {
-      const val = resolved(activeMode, row.dataset.token);
-      root.style.setProperty(row.dataset.token, val);
-      _syncRowUI(row, val, { skipHistory: true });
+  function restore(items, key) {
+    items.forEach((i) => {
+      const v = i[key];
+      if (v == null) delete current[i.mode][i.tk]; else current[i.mode][i.tk] = v;
     });
-    _refreshAllContrast();
-    _updatePendingUI();
+  }
+  function undo() {
+    const tx = undoStack.pop(); if (!tx) return;
+    restore(tx.items.slice().reverse(), 'before'); redoStack.push(tx);
+    showModeOf(tx); refresh(); toast('Undid: ' + tx.label);
+  }
+  function redo() {
+    const tx = redoStack.pop(); if (!tx) return;
+    restore(tx.items, 'after'); undoStack.push(tx);
+    showModeOf(tx); refresh(); toast('Redid: ' + tx.label);
+  }
+  function showModeOf(tx) {
+    const modes = new Set(tx.items.map((i) => i.mode));
+    if (!modes.has(activeMode) && modes.size === 1) setMode([...modes][0]);
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // INIT — render cached state immediately (zero flash), then reconcile
-  // against the canonical server state.
-  // ────────────────────────────────────────────────────────────────────────────
-  renderMode();
+  // ═══ DOM REFS ══════════════════════════════════════════════════════════════
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const el = {
+    undo: $('[data-undo]'), redo: $('[data-redo]'), save: $('[data-save]'),
+    review: $('[data-review]'), reviewCount: $('[data-review-count]'), legib: $('[data-legib]'),
+    more: $('[data-more]'), moreMenu: $('[data-more-menu]'), modeWord: $('[data-mode-word]'),
+    themes: $('[data-themes]'), mix: $('[data-mix]'), mixFoot: $('[data-mix-foot]'),
+    mixCount: $('[data-mix-count]'), mixWarn: $('[data-mix-warn]'), mixDiff: $('[data-mix-diff]'),
+    mixDiffToggle: $('[data-mix-diff-toggle]'), mixDerive: $('[data-mix-derive]'),
+    tune: $('[data-tune]'), tuneSearch: $('[data-tune-search]'), tuneChanged: $('[data-tune-changed]'),
+    pages: $('[data-pages]'), view: $('[data-view]'), device: $('[data-device]'), frame: $('[data-frame]'),
+    hits: $('[data-hits]'), loading: $('[data-loading]'), note: $('[data-stage-note]'),
+    locator: $('[data-locator]'), locText: $('[data-loc-text]'), locPos: $('[data-loc-pos]'),
+    overlays: $('[data-overlays]'), overlaysMenu: $('[data-overlays-menu]'), compare: $('[data-compare]'),
+    scrim: $('[data-scrim]'), drawer: $('[data-drawer]'), drawerBody: $('[data-drawer-body]'),
+    exportModal: $('[data-export]'), exportText: $('[data-export-text]'),
+    cpop: $('[data-cpop]'), srcpick: $('[data-srcpick]'), srcList: $('[data-srcpick-list]'),
+    srcSearch: $('[data-srcpick-search]'), srcTitle: $('[data-srcpick-title]'),
+    toast: $('[data-toast]'), toastText: $('[data-toast-text]'), toastAction: $('[data-toast-action]'),
+  };
+  $('[data-venue-chip]').textContent = VENUE_NAME;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  // Fire-and-forget reconciliation. We deliberately don't `await` this at
-  // the top level — the editor renders from cache immediately, and the
-  // server response slides values into place a moment later.
-  (async function reconcileWithServer() {
-    let serverPair;
-    try {
-      const res = await fetch(SERVER_GET, { cache: 'no-store', credentials: 'same-origin' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      serverPair = toPair(await res.json());
-    } catch (err) {
-      console.warn('[colors] /api/palette failed — staying on cached state', err);
-      return;
+  // ═══ TOAST ═════════════════════════════════════════════════════════════════
+  let toastTimer = null;
+  function toast(msg, action) {
+    el.toastText.textContent = msg;
+    if (action) {
+      el.toastAction.hidden = false; el.toastAction.textContent = action.label;
+      el.toastAction.onclick = () => { action.run(); el.toast.classList.remove('is-on'); };
+    } else { el.toastAction.hidden = true; el.toastAction.onclick = null; }
+    el.toast.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.toast.classList.remove('is-on'), action ? 5000 : 2400);
+  }
+
+  // ═══ LEGIBILITY ════════════════════════════════════════════════════════════
+  function failures(mode, overlay) {
+    const val = (tk) => (overlay && overlay[tk] != null ? overlay[tk] : resolved(mode, tk));
+    const out = [];
+    PAIRINGS.forEach((p) => {
+      const fg = val(p.fg), bg = val(p.bg);
+      if (!fg || !bg || fg[0] !== '#' || bg[0] !== '#') return;
+      const ratio = contrast(fg, bg), min = p.big ? 3 : 4.5;
+      if (ratio < min) out.push({ mode, fg: p.fg, bg: p.bg, fgHex: fg, bgHex: bg, ratio, min, where: p.where, severe: ratio < SEVERE_BELOW });
+    });
+    return out.sort((a, b) => a.ratio - b.ratio);
+  }
+  /** Walk a colour towards black or white until it reads on `bg`, keeping its hue. */
+  function fixToward(hex, bg, ratio) {
+    const toWhite = relLum(bg) < 0.5, o = toOklch(hex);
+    for (let i = 0; i <= 60; i++) {
+      const L = toWhite ? o.L + (1 - o.L) * i / 60 : o.L * (1 - i / 60);
+      const cand = fromOklch(L, o.C, o.H);
+      if (contrast(cand, bg) >= ratio) return cand;
     }
-    serverSyncedAt = Date.now();
+    return toWhite ? '#FFFFFF' : '#000000';
+  }
+  /** The worst pairing a token takes part in, for its row. */
+  function worstFor(mode, tk) {
+    let worst = null;
+    PAIRINGS.forEach((p) => {
+      if (p.fg !== tk && p.bg !== tk) return;
+      const fg = resolved(mode, p.fg), bg = resolved(mode, p.bg);
+      if (!fg || !bg || fg[0] !== '#' || bg[0] !== '#') return;
+      const ratio = contrast(fg, bg), min = p.big ? 3 : 4.5;
+      if (!worst || ratio / min < worst.ratio / worst.min) worst = { ratio, min, other: p.fg === tk ? p.bg : p.fg };
+    });
+    return worst;
+  }
 
-    // Server is canonical for savedState. Pending edits stay pending.
-    savedState = serverPair;
-    writeCache(savedState);
+  // ═══ REFRESH ═══════════════════════════════════════════════════════════════
+  let paintRaf = 0;
+  function schedulePaint() { if (!paintRaf) paintRaf = requestAnimationFrame(() => { paintRaf = 0; paintFrame(); }); }
+  function refresh() {
+    schedulePaint();
+    const pending = pendingList();
+    el.save.disabled = pending.length === 0;
+    el.reviewCount.hidden = pending.length === 0;
+    el.reviewCount.textContent = String(pending.length);
+    el.undo.disabled = undoStack.length === 0;
+    el.redo.disabled = redoStack.length === 0;
+    el.undo.title = undoStack.length ? 'Undo: ' + undoStack[undoStack.length - 1].label + ' (⌘Z)' : 'Undo (⌘Z)';
+    el.redo.title = redoStack.length ? 'Redo: ' + redoStack[redoStack.length - 1].label + ' (⇧⌘Z)' : 'Redo (⇧⌘Z)';
+    const fails = failures(activeMode), severe = fails.filter((f) => f.severe).length;
+    el.legib.hidden = fails.length === 0;
+    el.legib.classList.toggle('is-severe', severe > 0);
+    el.legib.textContent = severe ? severe + ' unreadable' : fails.length + ' hard to read';
+    renderTune(); markCurrentTheme(); renderMix();
+    if (!el.drawer.hidden) renderDrawer();
+    if (!el.cpop.hidden && cpopToken) syncCpop();
+  }
 
-    // If the user hasn't started editing yet, bring currentState in line with
-    // the server so the picker UI matches what's actually saved.
-    if (history.length === 0) {
-      currentState = clonePair(savedState);
-      renderMode();
-    } else {
-      _refreshAllDots();
-      _updatePendingUI();
+  // ═══ LOAD ══════════════════════════════════════════════════════════════════
+  async function fetchPalette(site) {
+    const res = await fetch('/api/palette' + (site === 'rooftop' ? '?site=rooftop' : ''), { cache: 'no-store', credentials: 'same-origin' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return toPair(await res.json());
+  }
+  saved = readCache();
+  current = clonePair(saved);
+  (async function load() {
+    try {
+      const [own, zahara] = await Promise.all([fetchPalette(ADMIN_SITE), IS_ROOFTOP ? fetchPalette('zahara') : null]);
+      if (zahara) inherited = zahara;
+      saved = own;
+      if (!undoStack.length) current = clonePair(saved);
+      writeCache(saved);
+      refresh();
+    } catch (err) {
+      console.warn('[colors] could not load the saved palette', err);
+      toast('Couldn’t reach the server — showing the last palette this browser saw.');
     }
   })();
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // UNDO HISTORY
-  // ────────────────────────────────────────────────────────────────────────────
-  const history = [];
-
-  function _pushHistory(token, from, to) {
-    history.push({ mode: activeMode, token, from, to });
-    if (history.length > 50) history.shift();
-    undoBtn.disabled = false;
-  }
-
-  function undo() {
-    const last = history.pop();
-    if (!last) { undoBtn.disabled = true; return; }
-    if (last.mode !== activeMode) setMode(last.mode);
-    applyToken(last.token, last.from, { silent: true });
-    if (history.length === 0) undoBtn.disabled = true;
-  }
-
-  undoBtn.addEventListener('click', undo);
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // PENDING TRACKING
-  // ────────────────────────────────────────────────────────────────────────────
-  function isPendingIn(mode, token) {
-    const cur = _norm(token, currentState[mode][token] || defaultFor(mode, token));
-    const sav = _norm(token, savedState[mode][token]   || defaultFor(mode, token));
-    return cur !== sav;
-  }
-  function _isPending(token) { return isPendingIn(activeMode, token); }
-
-  // Counts rows that differ from saved in EITHER mode, so the Save button
-  // and "N unsaved" badge reflect edits made across both palettes.
-  function _countPending() {
-    return rows.filter((r) =>
-      isPendingIn('light', r.dataset.token) || isPendingIn('dark', r.dataset.token)
-    ).length;
-  }
-
-  function _updatePendingUI() {
-    const n = _countPending();
-    if (n > 0) {
-      pendingBadge.textContent = n + ' unsaved';
-      pendingBadge.hidden = false;
-    } else {
-      pendingBadge.hidden = true;
-    }
-    saveBtn.disabled    = n === 0;
-    discardBtn.disabled = n === 0;
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // SAVE — POST currentState to the server. Server is canonical; only on a
-  // 2xx do we update savedState (so a network failure leaves the editor
-  // still showing "N unsaved" and the user can retry).
-  // ────────────────────────────────────────────────────────────────────────────
+  // ═══ SAVE / DISCARD ════════════════════════════════════════════════════════
   let saving = false;
-
+  let bc = null; try { bc = new BroadcastChannel('zahara-colors'); } catch (_) {}
   async function save() {
-    if (saving) return;
-    if (_countPending() === 0) return;
+    if (saving || !pendingList().length) return;
     saving = true;
-    const label = saveBtn.textContent;
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving…';
-
+    el.save.disabled = true; el.save.textContent = 'Saving…';
     try {
-      const res = await fetch(SERVER_PUT, {
-        method:      'POST',
-        headers:     { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body:        JSON.stringify(currentState),
+      const res = await fetch('/admin/colors/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+        body: JSON.stringify(current),
       });
       if (!res.ok) {
         let msg = 'HTTP ' + res.status;
         try { msg = (await res.json()).error || msg; } catch (_) {}
         throw new Error(msg);
       }
-      savedState = clonePair(currentState);
-      writeCache(savedState);
-      if (bc) bc.postMessage({ type: 'colors-changed', overrides: savedState });
-      showToast('Saved to server ✓');
+      saved = clonePair(current);
+      writeCache(saved);
+      if (bc) bc.postMessage({ type: 'colors-changed', site: ADMIN_SITE, overrides: saved });
+      toast('Saved — ' + VENUE_NAME + ' shows these colours within a minute.');
+      closeDrawer();
     } catch (err) {
       console.error('[colors] save failed', err);
-      showToast('Save failed: ' + err.message);
+      toast('Save failed: ' + err.message);
     } finally {
-      saving = false;
-      saveBtn.textContent = label;
-      _updatePendingUI();
-      _refreshAllDots();
+      saving = false; el.save.textContent = 'Save'; refresh();
     }
   }
-
-  saveBtn.addEventListener('click', save);
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // DISCARD
-  // ────────────────────────────────────────────────────────────────────────────
-  function discard() {
-    // Revert both palettes to the last saved state and repaint the active mode.
-    currentState = clonePair(savedState);
-    renderMode();
-    history.length = 0;
-    undoBtn.disabled = true;
-    showToast('Changes discarded');
+  function discardAll() {
+    const items = pendingList();
+    if (!items.length) return;
+    commit('Discard changes', items.map((i) => ({ mode: i.mode, tk: i.tk, value: savedValue(i.mode, i.tk) })));
+    toast('Changes discarded', { label: 'Undo', run: undo });
   }
-
-  discardBtn.addEventListener('click', () => {
-    if (_countPending() === 0 || !confirm('Discard all unsaved changes?')) return;
-    discard();
+  window.addEventListener('beforeunload', (e) => {
+    if (window.__zpLeaving || !pendingList().length) return;
+    e.preventDefault(); e.returnValue = '';
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // APPLY TOKEN — applies to :root immediately (preview updates), tracks
-  // the change as "pending" but does NOT write to localStorage.
-  // ────────────────────────────────────────────────────────────────────────────
-  function applyToken(token, value, opts) {
-    opts = opts || {};
-    const row = rows.find((r) => r.dataset.token === token);
-    if (!row) return;
-    const normalised = isScalar(token) ? _normaliseScalar(row, value) : _normaliseHex(value);
-    if (normalised == null) return;
-
-    const modeDefault = rowDefault(row);
-    const prev = _norm(token, curMap()[token] || modeDefault);
-    if (!opts.silent && prev !== normalised) {
-      _pushHistory(token, prev, normalised);
-    }
-
-    // Track override-vs-default in state, but ALWAYS paint :root explicitly
-    // (the admin page has no data-theme, so removeProperty would fall back to
-    // the light default even in dark mode).
-    if (normalised === modeDefault) delete curMap()[token];
-    else                            curMap()[token] = normalised;
-    root.style.setProperty(token, normalised);
-
-    _syncRowUI(row, normalised, opts);
-    _refreshAllContrast();
-    if (!opts.silent) _highlight(token);
-    _updatePendingUI();
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // SYNC ROW UI (picker + hex + dots)
-  // ────────────────────────────────────────────────────────────────────────────
-  function _syncRowUI(row, value, opts) {
-    opts = opts || {};
-    const picker = row.querySelector('[data-picker]');   // colour rows only
-    const range  = row.querySelector('[data-range]');    // scalar rows only
-    const hexEl  = row.querySelector('[data-hex]');
-    const dot    = row.querySelector('[data-modified-dot]');
-
-    if (picker && picker.value.toUpperCase() !== value) picker.value = value;
-    if (range && range.value !== value && document.activeElement !== range) range.value = value;
-    if (!opts.skipHexSync && document.activeElement !== hexEl) {
-      hexEl.value = value;
-    }
-    hexEl.classList.remove('is-invalid');
-
-    // Dot: orange = modified from the active mode's default; blue = unsaved.
-    const isModified = value !== rowDefault(row);
-    const isPend     = _isPending(row.dataset.token);
-    dot.classList.toggle('is-modified', isModified && !isPend);
-    dot.classList.toggle('is-pending',  isPend);
-    dot.title = isPend ? 'Unsaved change' : (isModified ? 'Modified from default' : '');
-  }
-
-  function _refreshAllDots() {
-    rows.forEach((row) => {
-      const val = resolved(activeMode, row.dataset.token);
-      _syncRowUI(row, val, { skipHexSync: true, skipHistory: true });
-    });
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // WIRE EACH ROW
-  // ────────────────────────────────────────────────────────────────────────────
-  rows.forEach((row) => {
-    const token    = row.dataset.token;
-    const picker   = row.querySelector('[data-picker]');
-    const range    = row.querySelector('[data-range]');
-    const hexEl    = row.querySelector('[data-hex]');
-    const showBtn  = row.querySelector('[data-show]');
-    const copyBtn  = row.querySelector('[data-copy]');
-    const resetBtn = row.querySelector('[data-reset-one]');
-    const parse    = (v) => (isScalar(token) ? _normaliseScalar(row, v) : _normaliseHex(v));
-
-    if (picker) picker.addEventListener('input', () => applyToken(token, picker.value));
-    // Dragging a slider fires a stream of inputs; collapse them into one
-    // history entry so a single drag is one undo, not fifty.
-    if (range) {
-      range.addEventListener('input', () => applyToken(token, range.value, { silent: true }));
-      range.addEventListener('change', () => applyToken(token, range.value));
-    }
-
-    let hexTimer = null;
-    hexEl.addEventListener('input', () => {
-      const v = parse(hexEl.value);
-      if (v == null) { hexEl.classList.add('is-invalid'); return; }
-      hexEl.classList.remove('is-invalid');
-      clearTimeout(hexTimer);
-      hexTimer = setTimeout(() => applyToken(token, v), 160);
-    });
-    hexEl.addEventListener('blur', () => {
-      const v = parse(hexEl.value);
-      hexEl.value = v == null ? resolved(activeMode, token) : v;
-      hexEl.classList.remove('is-invalid');
-    });
-    hexEl.addEventListener('focus', () => hexEl.select());
-
-    showBtn.addEventListener('click', () => {
-      _highlight(token);
-      showBtn.classList.remove('is-pulsing');
-      requestAnimationFrame(() => showBtn.classList.add('is-pulsing'));
-      setTimeout(() => showBtn.classList.remove('is-pulsing'), 1300);
-    });
-
-    copyBtn.addEventListener('click', async () => {
-      const val = resolved(activeMode, token);
-      try { await navigator.clipboard.writeText(val); } catch (_) {}
-      showToast('Copied ' + val);
-    });
-
-    resetBtn.addEventListener('click', () => {
-      applyToken(token, rowDefault(row));
-    });
-  });
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // MODE TOGGLE (light / dark)
-  // ────────────────────────────────────────────────────────────────────────────
+  // ═══ MODE ══════════════════════════════════════════════════════════════════
   function setMode(mode) {
-    if (mode !== 'light' && mode !== 'dark') return;
+    if (mode === activeMode) return;
     activeMode = mode;
-    document.querySelectorAll('[data-mode-btn]').forEach((b) => {
-      const on = b.dataset.modeBtn === mode;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-    renderMode();   // repaint :root + rows + contrast for the new mode
-    _applyFilter(); // "modified only" is mode-sensitive
+    if (draft && draft.mode !== mode) { draft = null; hideNote(); }
+    $$('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    el.modeWord.textContent = mode;
+    clearLocate();
+    lockTheme();
+    renderThemes();
+    refresh();
   }
-  document.querySelectorAll('[data-mode-btn]').forEach((b) => {
-    b.addEventListener('click', () => setMode(b.dataset.modeBtn));
+  $$('[data-mode]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+  // ═══ PREVIEW FRAME ═════════════════════════════════════════════════════════
+  const PAGES = [
+    { id: 'home',    label: 'Home',    path: '/' },
+    { id: 'menu',    label: 'Menu',    path: '/menu/' },
+    { id: 'events',  label: 'Events',  path: '/events/' },
+    { id: 'about',   label: 'About',   path: '/about/' },
+    // One portal for both venues, always dark, always Zahara's palette.
+    { id: 'reserve', label: 'Reserve', path: '/reserve/', zaharaOnly: true },
+  ];
+  const DESKTOP_W = 1280, PHONE_W = 390;
+  let page = 'home', lang = 'he', device = 'desktop';
+  let fwin = null, fdoc = null, frameReady = false, paletteStyle = null, stateStyle = null, themeObserver = null;
+  let pendingLocate = null, stageScale = 1;
+  const ownerThemePref = (() => { try { return localStorage.getItem('zahara-theme'); } catch (_) { return null; } })();
+
+  const pageAvailable = (id) => !(IS_ROOFTOP && (PAGES.find((p) => p.id === id) || {}).zaharaOnly);
+  function pageUrl(id, hash) {
+    const p = PAGES.find((x) => x.id === id);
+    const venue = IS_ROOFTOP && !p.zaharaOnly ? '/rooftop' : '';
+    const langPart = lang === 'en' && id !== 'reserve' ? '/en' : '';
+    return venue + langPart + p.path + '?zp=1' + (hash || '');
+  }
+  function renderPageTabs() {
+    el.pages.innerHTML = PAGES.filter((p) => pageAvailable(p.id)).map((p) =>
+      '<button type="button" role="tab" data-page="' + p.id + '" aria-selected="' + (p.id === page) + '">' + p.label + '</button>').join('');
+  }
+  el.pages.addEventListener('click', (e) => { const b = e.target.closest('[data-page]'); if (b) loadPage(b.dataset.page); });
+  function loadPage(id, hash) {
+    if (!pageAvailable(id)) return;
+    page = id; frameReady = false; clearLocate();
+    el.loading.classList.remove('is-done');
+    el.frame.src = pageUrl(id, hash);
+    renderPageTabs();
+    $$('[data-overlay]').forEach((c) => { c.checked = false; });
+    if (id === 'reserve' && activeMode === 'light') showNote('The reserve portal is always dark — switch to <strong>Dark</strong> to see changes to it.');
+    else if (draft) showDraftNote(); else hideNote();
+  }
+  $$('[data-lang]').forEach((b) => b.addEventListener('click', () => {
+    lang = b.dataset.lang;
+    $$('[data-lang]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    loadPage(page);
+  }));
+  $$('[data-device-btn]').forEach((b) => b.addEventListener('click', () => {
+    device = b.dataset.deviceBtn;
+    $$('[data-device-btn]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    $('[data-overlay-phone-only]').hidden = device !== 'phone';
+    layoutStage();
+    // The page lays itself out for the new width; breakpoint rules change which
+    // styles apply, so the usage index is rebuilt on the next "show".
+    usage = null; clearLocate();
+  }));
+
+  /** Size the frame to a real desktop or phone width and scale it to fit. */
+  function layoutStage() {
+    const w = device === 'phone' ? PHONE_W : DESKTOP_W;
+    const vw = el.view.clientWidth, vh = el.view.clientHeight;
+    const pad = device === 'phone' ? 24 : 0;
+    const scale = Math.min(1, (vw - pad * 2) / w);
+    const h = device === 'phone' ? Math.min((vh - pad * 2) / scale, 860) : vh / scale;
+    stageScale = scale;
+    el.device.classList.toggle('is-phone', device === 'phone');
+    el.device.style.width = w + 'px';
+    el.device.style.height = h + 'px';
+    el.device.style.transform = 'scale(' + scale + ')';
+    el.device.style.left = Math.max(0, (vw - w * scale) / 2) + 'px';
+    el.device.style.top = (device === 'phone' ? pad : 0) + 'px';
+    el.hits.style.setProperty('--scale', String(scale));
+    positionHits();
+  }
+  new ResizeObserver(layoutStage).observe(el.view);
+
+  // Styles the editor adds inside the frame. Overlays that pop up on their own
+  // (entry popup, cookie banner) stay out of the way unless asked for.
+  const HELPER_CSS =
+    'html:not([data-zp-popup]) #zahara-announce{display:none!important}' +
+    'html[data-zp-popup] #zahara-announce{opacity:1!important}' +
+    'html:not([data-zp-consent]) #zahara-consent{display:none!important}';
+
+  el.frame.addEventListener('load', () => {
+    try { fwin = el.frame.contentWindow; fdoc = el.frame.contentDocument; } catch (_) { fwin = fdoc = null; }
+    // The frame's initial about:blank load is not a page.
+    if (!fdoc || !fdoc.head || fwin.location.href === 'about:blank') { fdoc = null; return; }
+    // Follow in-frame navigation (a tab, a link we let through) to the right tab.
+    const path = fwin.location.pathname.replace(/^\/rooftop/, '').replace(/^\/en(?=\/)/, '');
+    const match = PAGES.find((p) => p.path === path || p.path === path + '/');
+    if (match && match.id !== page) { page = match.id; renderPageTabs(); }
+    const helper = fdoc.createElement('style'); helper.id = 'zp-helper'; helper.textContent = HELPER_CSS;
+    stateStyle = fdoc.createElement('style'); stateStyle.id = 'zp-states';
+    paletteStyle = fdoc.createElement('style'); paletteStyle.id = 'zp-palette';
+    fdoc.head.append(helper, stateStyle, paletteStyle);
+    lockTheme();
+    guardFrame();
+    usage = null;
+    frameReady = true;
+    paintFrame();
+    fwin.addEventListener('scroll', () => requestAnimationFrame(positionHits), { passive: true });
+    fwin.addEventListener('resize', () => { usage = null; }, { passive: true });
+    setTimeout(() => el.loading.classList.add('is-done'), 120);
+    if (pendingLocate) { const t = pendingLocate; pendingLocate = null; setTimeout(() => locate(t, { arrived: true }), 900); }
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // RESET ALL — resets the ACTIVE mode's tokens to their defaults.
-  // ────────────────────────────────────────────────────────────────────────────
-  document.querySelector('[data-reset]').addEventListener('click', () => {
-    if (!confirm('Reset every token in ' + activeMode + ' mode to its default? This marks them as unsaved.')) return;
-    rows.forEach((r) => { delete curMap()[r.dataset.token]; });
-    renderMode();
-    history.length = 0;
-    undoBtn.disabled = true;
-    showToast('Reset ' + activeMode + ' to defaults (not yet saved)');
+  function frameTheme() { return page === 'reserve' ? 'dark' : activeMode; }
+  /** Keep the frame in the palette being edited — the site's own theme button
+   *  would otherwise flip it (and the owner's own site preference with it). */
+  function lockTheme() {
+    if (!fdoc) return;
+    const html = fdoc.documentElement;
+    if (html.getAttribute('data-theme') !== frameTheme()) html.setAttribute('data-theme', frameTheme());
+    if (themeObserver) themeObserver.disconnect();
+    themeObserver = new fwin.MutationObserver(() => {
+      if (html.getAttribute('data-theme') === frameTheme()) return;
+      html.setAttribute('data-theme', frameTheme());
+      try {
+        if (ownerThemePref == null) localStorage.removeItem('zahara-theme');
+        else localStorage.setItem('zahara-theme', ownerThemePref);
+      } catch (_) {}
+      toast('The preview follows the palette you’re editing — use Light / Dark at the top.');
+    });
+    themeObserver.observe(html, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  /** Links move the preview between its pages; forms never send. */
+  function guardFrame() {
+    fdoc.addEventListener('click', (e) => {
+      const a = e.target.closest && e.target.closest('a[href]');
+      if (!a) return;
+      const href = a.getAttribute('href') || '';
+      if (href.charAt(0) === '#') return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      let url; try { url = new URL(a.href); } catch (_) { return; }
+      if (url.origin !== location.origin) { toast('Links to other sites don’t open from the preview.'); return; }
+      const path = url.pathname.replace(/^\/rooftop/, '').replace(/^\/en(?=\/)/, '');
+      const target = PAGES.find((p) => p.path === path || p.path === path + '/');
+      if (target && pageAvailable(target.id)) loadPage(target.id, url.hash);
+      else toast('That page isn’t part of the preview.');
+    }, true);
+    fdoc.addEventListener('submit', (e) => {
+      e.preventDefault(); e.stopImmediatePropagation();
+      toast('Forms don’t send from the preview.');
+    }, true);
+  }
+
+  function paletteCss() {
+    const body = (mode) => TOKENS.map((t) => t.token + ':' + shown(mode, t.token)).join(';');
+    return ':root{' + body('light') + '}html[data-theme="dark"]{' + body('dark') + '}';
+  }
+  function paintFrame() {
+    if (!frameReady || !fdoc || !paletteStyle) return;
+    const css = paletteCss();
+    if (paletteStyle.textContent !== css) paletteStyle.textContent = css;
+    // Stay the LAST style in <head>, so it beats the saved palette the page
+    // came with — including one a save broadcasts into it later.
+    if (fdoc.head.lastElementChild !== paletteStyle) fdoc.head.appendChild(paletteStyle);
+    const html = fdoc.documentElement;
+    if (html.getAttribute('data-theme') !== frameTheme()) html.setAttribute('data-theme', frameTheme());
+    requestAnimationFrame(positionHits);
+  }
+
+  // Hold to compare with what's live.
+  const startCompare = () => { comparing = true; el.compare.classList.add('is-holding'); paintFrame(); };
+  const endCompare = () => { if (!comparing) return; comparing = false; el.compare.classList.remove('is-holding'); paintFrame(); };
+  el.compare.addEventListener('pointerdown', startCompare);
+  ['pointerup', 'pointerleave', 'pointercancel', 'blur'].forEach((ev) => el.compare.addEventListener(ev, endCompare));
+  el.compare.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); startCompare(); } });
+  el.compare.addEventListener('keyup', endCompare);
+
+  // Overlays the site shows on its own terms.
+  function setOverlay(kind, on) {
+    if (!fdoc) return false;
+    const html = fdoc.documentElement;
+    if (kind === 'popup') {
+      html.toggleAttribute('data-zp-popup', on);
+      const root = fdoc.getElementById('zahara-announce');
+      if (root) { root.hidden = !on; root.classList.toggle('is-open', on); }
+      return !!root;
+    }
+    if (kind === 'consent') {
+      html.toggleAttribute('data-zp-consent', on);
+      const c = fdoc.getElementById('zahara-consent');
+      if (c) { c.hidden = !on; c.classList.toggle('is-visible', on); }
+      return !!c;
+    }
+    if (kind === 'a11y') {
+      const panel = fdoc.getElementById('a11y-panel'), btn = fdoc.querySelector('[data-a11y-toggle]');
+      if (panel && btn && panel.hidden === on) btn.click();
+      return !!panel;
+    }
+    if (kind === 'menu') {
+      const drawer = fdoc.getElementById('mobile-nav'), burger = fdoc.querySelector('.burger');
+      if (drawer && burger && drawer.classList.contains('is-open') !== on) burger.click();
+      return !!drawer;
+    }
+    if (kind === 'status') {
+      const s = fdoc.getElementById('form-status');
+      if (!s) return false;
+      if (on) { s.className = 'form-status ok'; s.textContent = '✓ ' + (lang === 'he' ? 'תודה — נחזור אליכם בקרוב.' : 'Thanks — we’ll be in touch soon.'); }
+      else { s.className = 'form-status'; s.textContent = ''; }
+      return true;
+    }
+    return false;
+  }
+  function toggleMenu(btn, list, open) {
+    const want = open == null ? list.hidden : open;
+    list.hidden = !want; btn.setAttribute('aria-expanded', String(want));
+  }
+  el.overlays.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(el.overlays, el.overlaysMenu); });
+  el.overlaysMenu.addEventListener('change', (e) => {
+    const c = e.target.closest('[data-overlay]'); if (!c) return;
+    if (!setOverlay(c.dataset.overlay, c.checked)) {
+      c.checked = false;
+      toast(c.dataset.overlay === 'status' ? 'Form messages are on the About and Events pages.' : 'That isn’t on this page.');
+    }
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // PRESETS
-  //
-  // Applying a preset always produces a COMPLETE palette. Tokens the preset
-  // doesn't carry are derived from the ones it does, so the events band and
-  // the page background harmonise with the theme being loaded instead of
-  // lingering from whatever was applied before.
-  // ────────────────────────────────────────────────────────────────────────────
-  function derivedFrom(palette) {
-    const pick = (tk) => (palette[tk] != null ? palette[tk] : defaultFor(activeMode, tk));
-    return {
-      '--events-band-from':    pick('--paper-deep'),
-      '--events-band-to':      pick('--paper'),
-      '--events-band-text':    pick('--ink-soft'),
-      '--events-band-num':     pick('--accent'),
-      '--events-band-divider': pick('--rule'),
-      '--bg-wash-from':        pick('--paper'),
-      '--bg-wash-to':          pick('--paper-deep'),
-      '--bg-glow':             pick('--accent'),
+  // ═══ WHERE IS IT USED ══════════════════════════════════════════════════════
+  let usage = null;           // Map token → [{ rule, selectors }]
+  let loc = null;             // { tk, hits, i, stateEls }
+  let locTimer = null;
+
+  /** Split `a, b:is(c, d)` at top-level commas only. */
+  function splitTop(text, sep) {
+    const out = []; let depth = 0, quote = null, start = 0;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (quote) { if (ch === quote && text[i - 1] !== '\\') quote = null; continue; }
+      if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === sep && depth === 0) { out.push(text.slice(start, i)); start = i + 1; }
+    }
+    out.push(text.slice(start));
+    return out.map((s) => s.trim()).filter(Boolean);
+  }
+  const VAR_RE = /var\(\s*(--[\w-]+)/g;
+  function buildUsage() {
+    const rules = [];
+    const walk = (list) => {
+      for (const r of list) {
+        if (r.selectorText != null && r.style) rules.push(r);
+        else if (r.media && r.cssRules) { if (fwin.matchMedia(r.media.mediaText).matches) walk(r.cssRules); }
+        else if (r.cssRules) walk(r.cssRules);
+      }
     };
-  }
-
-  /** Apply a full token map (preset or mix) across every editable row. */
-  function applyPalette(palette, label) {
-    const derived = derivedFrom(palette);
-    rows.forEach((row) => {
-      const tk = row.dataset.token;
-      // Sliders carry no colour identity — a preset must not reset the
-      // owner's grain/glow strengths behind their back.
-      if (isScalar(tk)) return;
-      const val = (palette[tk] != null) ? palette[tk]
-                : (derived[tk] != null) ? derived[tk]
-                : defaultFor(activeMode, tk);
-      applyToken(tk, val);
-    });
-    showToast(label + ' → ' + activeMode + ' (not saved)');
-  }
-
-  // ── Preset picker modal ─────────────────────────────────────────────────────
-  const presetModal  = document.querySelector('[data-preset-modal]');
-  const presetGrid   = document.querySelector('[data-preset-grid]');
-  const presetSub    = document.querySelector('[data-preset-sub]');
-  const presetHint   = document.querySelector('[data-preset-hint]');
-  const presetMixChk = document.querySelector('[data-preset-mix]');
-  const presetFoot   = document.querySelector('[data-preset-foot]');
-  const presetRecipe = document.querySelector('[data-preset-recipe]');
-
-  let presetTab = 'light';
-  // The mix under construction: { partId: presetId }.
-  let mixRecipe = {};
-
-  // Swatches shown on each card, in reading order: the two surfaces, the
-  // three inks, then accent and highlight — enough to recognise a theme.
-  const CARD_SWATCHES = ['--paper', '--paper-deep', '--ink', '--ink-soft', '--ink-muted', '--accent', '--gold'];
-
-  function presetValue(id, token) {
-    const p = PRESETS[id];
-    if (!p) return '#000000';
-    if (p[token] != null) return p[token];
-    // `default: defaults` covers everything, so this only fires for a preset
-    // that genuinely omits the token — fall back to its mode's default.
-    return defaultFor(PRESET_META.find((m) => m.id === id).mode, token) || '#000000';
-  }
-
-  function renderPresetGrid() {
-    const list = PRESET_META.filter((m) => m.mode === presetTab);
-    const mixing = presetMixChk.checked;
-    presetGrid.innerHTML = list.map((m) => {
-      const dots = CARD_SWATCHES
-        .map((tk) => '<span class="preset-card__dot" style="background:' + presetValue(m.id, tk) + '"></span>')
-        .join('');
-      const parts = mixing ? PRESET_PARTS.map((part) =>
-        '<button type="button" class="preset-part' + (mixRecipe[part.id] === m.id ? ' is-on' : '') + '"' +
-        ' data-mix-preset="' + m.id + '" data-mix-part="' + part.id + '">' + part.label + '</button>'
-      ).join('') : '';
-      return '' +
-        '<div class="preset-card' + (mixing ? ' is-mixing' : '') + '">' +
-          '<button type="button" class="preset-card__main" data-preset-pick="' + m.id + '">' +
-            '<span class="preset-card__dots">' + dots + '</span>' +
-            '<span class="preset-card__name">' + m.name + '</span>' +
-            '<span class="preset-card__note">' + m.note + '</span>' +
-          '</button>' +
-          (mixing ? '<div class="preset-card__parts">' + parts + '</div>' : '') +
-        '</div>';
-    }).join('');
-  }
-
-  function renderRecipe() {
-    const entries = Object.entries(mixRecipe);
-    presetFoot.hidden = !presetMixChk.checked || entries.length === 0;
-    if (presetFoot.hidden) return;
-    presetRecipe.innerHTML = entries.map(([partId, presetId]) => {
-      const part = PRESET_PARTS.find((p) => p.id === partId);
-      const meta = PRESET_META.find((m) => m.id === presetId);
-      return '<span class="preset-recipe__chip"><strong>' + part.label + '</strong> ← ' + meta.name + '</span>';
-    }).join('');
-  }
-
-  function syncPresetChrome() {
-    presetSub.textContent = 'Loads into your ' + activeMode + ' palette. Nothing is saved until you press Save.';
-    presetHint.textContent = presetMixChk.checked
-      ? 'Pick which part each preset contributes, then Apply mix. Parts you leave unset stay as they are.'
-      : "Click a preset to load it into the palette you're editing.";
-    document.querySelectorAll('[data-preset-tab]').forEach((b) => {
-      const on = b.dataset.presetTab === presetTab;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-  }
-
-  function openPresetModal() {
-    // Default the tab to the palette being edited — loading a dark preset
-    // into the light palette is almost always a mistake.
-    presetTab = activeMode;
-    syncPresetChrome();
-    renderPresetGrid();
-    renderRecipe();
-    presetModal.hidden = false;
-  }
-  function closePresetModal() { presetModal.hidden = true; }
-
-  document.querySelector('[data-preset-open]').addEventListener('click', openPresetModal);
-  document.querySelector('[data-preset-close]').addEventListener('click', closePresetModal);
-  presetModal.addEventListener('click', (e) => { if (e.target === presetModal) closePresetModal(); });
-
-  document.querySelectorAll('[data-preset-tab]').forEach((b) => {
-    b.addEventListener('click', () => {
-      presetTab = b.dataset.presetTab;
-      syncPresetChrome();
-      renderPresetGrid();
-    });
-  });
-
-  presetMixChk.addEventListener('change', () => {
-    if (!presetMixChk.checked) mixRecipe = {};
-    syncPresetChrome();
-    renderPresetGrid();
-    renderRecipe();
-  });
-
-  presetGrid.addEventListener('click', (e) => {
-    const part = e.target.closest('[data-mix-part]');
-    if (part) {
-      const { mixPart, mixPreset } = part.dataset;
-      // Clicking the part already assigned to this preset unassigns it.
-      if (mixRecipe[mixPart] === mixPreset) delete mixRecipe[mixPart];
-      else mixRecipe[mixPart] = mixPreset;
-      renderPresetGrid();
-      renderRecipe();
-      return;
+    for (const sheet of Array.from(fdoc.styleSheets)) {
+      const owner = sheet.ownerNode && sheet.ownerNode.id;
+      if (owner === 'zp-palette' || owner === 'zp-helper' || owner === 'zp-states') continue;
+      let list; try { list = sheet.cssRules; } catch (_) { continue; }   // cross-origin fonts
+      walk(list);
     }
-    const pick = e.target.closest('[data-preset-pick]');
-    if (!pick) return;
-    const id = pick.dataset.presetPick;
-    if (presetMixChk.checked) {
-      // In mix mode the card body assigns EVERY part to this preset — a fast
-      // "start from this one, then swap a part or two".
-      PRESET_PARTS.forEach((p) => { mixRecipe[p.id] = id; });
-      renderPresetGrid();
-      renderRecipe();
-      return;
-    }
-    applyPalette(PRESETS[id], PRESET_META.find((m) => m.id === id).name);
-    closePresetModal();
-  });
-
-  document.querySelector('[data-preset-clear]').addEventListener('click', () => {
-    mixRecipe = {};
-    renderPresetGrid();
-    renderRecipe();
-  });
-
-  document.querySelector('[data-preset-apply]').addEventListener('click', () => {
-    const merged = {};
-    Object.entries(mixRecipe).forEach(([partId, presetId]) => {
-      PRESET_PARTS.find((p) => p.id === partId).tokens.forEach((tk) => {
-        merged[tk] = presetValue(presetId, tk);
+    const aliases = new Map(), uses = [];
+    rules.forEach((rule) => {
+      splitTop(rule.style.cssText, ';').forEach((decl) => {
+        const i = decl.indexOf(':'); if (i < 1) return;
+        const prop = decl.slice(0, i).trim(), val = decl.slice(i + 1);
+        const vars = []; let m; VAR_RE.lastIndex = 0;
+        while ((m = VAR_RE.exec(val))) vars.push(m[1]);
+        if (!vars.length) return;
+        if (prop.indexOf('--') === 0) {
+          const set = aliases.get(prop) || new Set(); vars.forEach((v) => set.add(v)); aliases.set(prop, set);
+        } else uses.push({ rule, vars });
       });
     });
-    // Tokens belonging to a part the owner DIDN'T choose keep their current
-    // value rather than snapping back to the default — a mix is additive, not
-    // a reset. Tokens outside every part (the events band, the page
-    // background) are deliberately left absent so applyPalette re-derives them
-    // from the merged surfaces; filling them in here would freeze them at the
-    // previous theme's values.
-    const partTokens = new Set(PRESET_PARTS.flatMap((p) => p.tokens));
-    partTokens.forEach((tk) => {
-      if (merged[tk] == null) merged[tk] = resolved(activeMode, tk);
+    const memo = new Map();
+    const resolve = (v, seen) => {
+      if (TOKEN[v]) return [v];
+      if (memo.has(v)) return memo.get(v);
+      if (seen.has(v)) return [];
+      seen.add(v);
+      const out = new Set();
+      (aliases.get(v) || []).forEach((a) => resolve(a, seen).forEach((t) => out.add(t)));
+      const arr = Array.from(out); memo.set(v, arr); return arr;
+    };
+    const index = new Map();
+    uses.forEach((u) => {
+      const toks = new Set();
+      u.vars.forEach((v) => resolve(v, new Set()).forEach((t) => toks.add(t)));
+      toks.forEach((t) => { if (!index.has(t)) index.set(t, new Set()); index.get(t).add(u.rule); });
     });
-    applyPalette(merged, 'Mixed palette');
-    mixRecipe = {};
-    renderPresetGrid();
-    renderRecipe();
-    closePresetModal();
-  });
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // SEARCH / FILTER
-  // ────────────────────────────────────────────────────────────────────────────
-  const searchInput      = document.querySelector('[data-search]');
-  const modifiedOnlyChk  = document.querySelector('[data-modified-only]');
-
-  function _applyFilter() {
-    const q    = searchInput.value.trim().toLowerCase();
-    const mOnly = modifiedOnlyChk.checked;
-    rows.forEach((r) => {
-      const matchQ = !q || r.dataset.searchKey.includes(q);
-      const matchM = !mOnly || (curMap()[r.dataset.token] !== undefined &&
-                                curMap()[r.dataset.token].toUpperCase() !== rowDefault(r));
-      r.classList.toggle('is-hidden', !(matchQ && matchM));
-    });
-    document.querySelectorAll('[data-group]').forEach((g) => {
-      const visible = g.querySelectorAll('[data-row]:not(.is-hidden)').length;
-      g.style.display = visible ? '' : 'none';
-    });
+    return index;
   }
 
-  searchInput.addEventListener('input', _applyFilter);
-  modifiedOnlyChk.addEventListener('change', _applyFilter);
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // GROUP COLLAPSE / EXPAND
-  // ────────────────────────────────────────────────────────────────────────────
-  document.querySelectorAll('[data-group-toggle]').forEach((toggle) => {
-    toggle.addEventListener('click', () => {
-      toggle.closest('[data-group]').classList.toggle('is-collapsed');
-    });
-  });
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // PALETTE POPUP
-  // ────────────────────────────────────────────────────────────────────────────
-  const palettePopup = document.querySelector('[data-palette-popup]');
-  const paletteGrid  = document.querySelector('[data-palette-grid]');
-  let activePaletteRow = null;
-
-  function _openPalettePopup(btn, targetRow) {
-    activePaletteRow = targetRow;
-
-    // Populate swatches with all current COLOUR token values (scalars have
-    // no swatch to offer).
-    paletteGrid.innerHTML = '';
-    rows.forEach((r) => {
-      const tk  = r.dataset.token;
-      if (isScalar(tk)) return;
-      const val = resolved(activeMode, tk);
-      const label = r.querySelector('.row__name').firstChild.textContent.trim();
-      const sw = document.createElement('button');
-      sw.className = 'palette-swatch';
-      sw.style.background = val;
-      sw.title = label + '\n' + val;
-      sw.setAttribute('data-swatch-value', val);
-      sw.setAttribute('aria-label', label + ': ' + val);
-      paletteGrid.appendChild(sw);
-    });
-
-    // Position near button
-    const rect = btn.getBoundingClientRect();
-    const top  = rect.bottom + window.scrollY + 4;
-    const left = Math.min(rect.left + window.scrollX, window.innerWidth - 230);
-    palettePopup.style.top  = top  + 'px';
-    palettePopup.style.left = left + 'px';
-    palettePopup.hidden = false;
+  const STATE_RE = /:(hover|focus-visible|focus-within|focus|active)(?![\w-])/g;
+  const PSEUDO_EL_RE = /::?(before|after|marker|placeholder|first-line|first-letter|backdrop)(?![\w-])/g;
+  function cleanSelector(sel) {
+    if (/::selection/.test(sel)) return { css: '', kind: 'selection' };
+    if (/::-webkit-scrollbar/.test(sel)) return { css: '', kind: 'scrollbar' };
+    STATE_RE.lastIndex = 0;
+    const state = STATE_RE.test(sel); STATE_RE.lastIndex = 0;
+    const css = sel.replace(STATE_RE, '').replace(PSEUDO_EL_RE, '').trim();
+    if (!css || /[>+~]$/.test(css)) return { css: '', kind: state ? 'state' : null };
+    return { css, kind: state ? 'state' : null, raw: sel };
   }
-
-  rows.forEach((row) => {
-    const btn = row.querySelector('[data-palette-btn]');   // scalar rows have none
-    if (!btn) return;
-    btn.addEventListener('click', function (e) {
-      if (!palettePopup.hidden && activePaletteRow === row) {
-        palettePopup.hidden = true; activePaletteRow = null; return;
+  // Scroll-reveal wrappers start transparent and fade in as they're reached —
+  // their contents ARE on the page, so transparency there doesn't count.
+  const REVEAL_SEL = '.reveal-on-scroll, [data-word-reveal], [data-line-reveal], .fade-up, .stagger, .menu-tiles__item, .reveal--off';
+  function visibleRect(node) {
+    const r = node.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;
+    if (r.right <= 0 || r.left >= fwin.innerWidth) return null;
+    const cs = fwin.getComputedStyle(node);
+    if (cs.visibility === 'hidden' || cs.display === 'none') return null;
+    // Transparent and not waiting on a reveal: hidden for real (the floating
+    // Reserve button before the page is scrolled, an inactive gallery slide).
+    for (let n = node; n && n.nodeType === 1; n = n.parentElement) {
+      if (parseFloat(fwin.getComputedStyle(n).opacity) < 0.05) {
+        if (n.matches(REVEAL_SEL) || n.closest(REVEAL_SEL)) break;
+        return null;
       }
-      _openPalettePopup(this, row);
-      e.stopPropagation();
+    }
+    return r;
+  }
+  function isPinned(node) {
+    for (let n = node; n && n.nodeType === 1; n = n.parentElement) {
+      const p = fwin.getComputedStyle(n).position;
+      if (p === 'fixed' || p === 'sticky') return true;
+    }
+    return false;
+  }
+
+  function collect(tk) {
+    if (!usage) usage = buildUsage();
+    const rules = usage.get(tk) || new Set();
+    const hits = new Map(), hidden = [], clones = new Set(), special = { selection: false, scrollbar: false, page: false };
+    rules.forEach((rule) => {
+      splitTop(rule.selectorText, ',').forEach((sel) => {
+        const c = cleanSelector(sel);
+        if (c.kind === 'selection') { special.selection = true; return; }
+        if (c.kind === 'scrollbar') { special.scrollbar = true; return; }
+        if (!c.css) return;
+        let nodes; try { nodes = fdoc.querySelectorAll(c.css); } catch (_) { return; }
+        nodes.forEach((node) => {
+          if (node === fdoc.documentElement || node === fdoc.body) { special.page = true; return; }
+          if (!visibleRect(node)) { hidden.push(node); return; }
+          const prev = hits.get(node);
+          if (!prev || (prev.state && !c.kind)) hits.set(node, { node, state: c.kind === 'state' });
+          if (c.kind === 'state') {
+            clones.add(c.raw.replace(STATE_RE, '[data-zp-state]') + '{' + rule.style.cssText + '}');
+          }
+        });
+      });
     });
+    return { hits: Array.from(hits.values()), hidden, clones: Array.from(clones), special };
+  }
+
+  /** Bring hidden uses into view: a menu tab, a wine type, an overlay, or the
+   *  buttons that only appear once the page is scrolled. Returns how long to
+   *  wait before looking again (0 = nothing to try). */
+  function reveal(nodes) {
+    for (const node of nodes) {
+      if (node.matches('.floating-reserve, .scroll-top') && fwin.scrollY < fwin.innerHeight * 1.2) {
+        fwin.scrollTo({ top: fwin.innerHeight * 1.4 });
+        return 700;
+      }
+      const panel = node.closest('[role="tabpanel"][id]');
+      if (panel) {
+        const tab = fdoc.querySelector('[aria-controls="' + panel.id + '"]');
+        if (tab && tab.getAttribute('aria-selected') !== 'true') { tab.click(); return 1100; }
+      }
+      const wine = node.closest('[data-wine-group][hidden]');
+      if (wine) {
+        const chip = fdoc.querySelector('[data-wine-chip="' + wine.getAttribute('data-wine-group') + '"]');
+        if (chip) { chip.click(); return 500; }
+      }
+      if (node.closest('#zahara-announce')) { setOverlay('popup', true); $('[data-overlay="popup"]').checked = true; return 400; }
+      if (node.closest('#zahara-consent')) { setOverlay('consent', true); $('[data-overlay="consent"]').checked = true; return 400; }
+      if (node.closest('#a11y-panel')) { setOverlay('a11y', true); $('[data-overlay="a11y"]').checked = true; return 400; }
+    }
+    return 0;
+  }
+
+  async function locate(tk, opts) {
+    opts = opts || {};
+    if (!frameReady) { pendingLocate = tk; return; }
+    clearLocate();
+    if (tk === '--ok' || tk === '--err') {
+      const s = fdoc.getElementById('form-status');
+      if (s) {
+        s.className = 'form-status ' + (tk === '--ok' ? 'ok' : 'err');
+        s.textContent = tk === '--ok'
+          ? '✓ ' + (lang === 'he' ? 'תודה — נחזור אליכם בקרוב.' : 'Thanks — we’ll be in touch soon.')
+          : '✗ ' + (lang === 'he' ? 'משהו השתבש, נסו שוב.' : 'Something went wrong — please try again.');
+        usage = null;
+      }
+    }
+    let res = collect(tk);
+    if (!res.hits.length && res.hidden.length && !opts.revealed) {
+      const wait = reveal(res.hidden);
+      if (wait) { usage = null; await new Promise((r) => setTimeout(r, wait)); return locate(tk, Object.assign({}, opts, { revealed: true })); }
+    }
+    // The menu page builds each category only when its tab opens — try the
+    // other tabs before giving up (the wine list's separators, cocktail cards).
+    if (!res.hits.length && page === 'menu' && !res.special.selection) {
+      const tried = opts.tabs || [];
+      const tab = $$('.menu-tab[data-tab-id]', fdoc).find((t) => t.getAttribute('aria-selected') !== 'true' && !tried.includes(t.dataset.tabId));
+      if (tab && tried.length < 4) {
+        showLocator(labelOf(tk) + ' — looking in the ' + tab.textContent.trim() + ' tab…', 0, 0);
+        tab.click();
+        await new Promise((r) => setTimeout(r, 1400));
+        usage = null;
+        return locate(tk, Object.assign({}, opts, { tabs: tried.concat(tab.dataset.tabId), revealed: false }));
+      }
+    }
+    if (!res.hits.length && !res.special.selection && !opts.arrived) {
+      const home = TOKEN[tk] && TOKEN[tk].page;
+      if (home && home !== 'any' && home !== page && pageAvailable(home)) {
+        pendingLocate = tk;
+        showLocator(labelOf(tk) + ' — opening the ' + home + ' page…', 0, 0);
+        loadPage(home);
+        return;
+      }
+    }
+    // Hover-only uses: force the hover style on for the demo.
+    if (res.clones.length) {
+      stateStyle.textContent = res.clones.join('\n');
+      res.hits.forEach((h) => { if (h.state) h.node.setAttribute('data-zp-state', ''); });
+    }
+    if (res.special.selection) selectDemo();
+    const y = (n) => n.getBoundingClientRect().top + fwin.scrollY;
+    const hits = res.hits.sort((a, b) => (isPinned(a.node) - isPinned(b.node)) || (y(a.node) - y(b.node)));
+    loc = { tk, hits, i: 0 };
+    if (!hits.length) {
+      const why = res.special.selection ? 'Shown on the selected text in the preview.'
+        : res.special.scrollbar ? 'Used by the scrollbar at the right edge of the preview.'
+        : res.special.page ? 'Used by the background behind the whole page.'
+        : 'Not visible on this page. ' + (TOKEN[tk] ? TOKEN[tk].hint : '');
+      showLocator(labelOf(tk) + ': ' + why, 0, 0);
+      armLocTimer(7000);
+      return;
+    }
+    // Start from the first use at or below where the owner is looking.
+    const top = fwin.scrollY;
+    const start = hits.findIndex((h) => !isPinned(h.node) && y(h.node) >= top - 10);
+    loc.i = start < 0 ? 0 : start;
+    drawHits(); focusHit(loc.i);
+    const extra = [res.clones.length ? 'incl. hover' : '', res.special.page ? 'and the page background' : ''].filter(Boolean).join(', ');
+    showLocator(labelOf(tk) + ' · ' + hits.length + (hits.length === 1 ? ' place' : ' places') + (extra ? ' (' + extra + ')' : ''), loc.i + 1, hits.length);
+    armLocTimer(9000);
+  }
+  function selectDemo() {
+    const target = fdoc.querySelector('main p, .page-intro p, p');
+    if (!target) return;
+    try { fwin.focus(); fwin.getSelection().selectAllChildren(target); } catch (_) {}
+    const r = target.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > fwin.innerHeight) fwin.scrollTo({ top: fwin.scrollY + r.top - 120, behavior: 'smooth' });
+  }
+  function drawHits() {
+    el.hits.innerHTML = '';
+    if (!loc) return;
+    loc.hits.slice(0, 80).forEach((h, i) => {
+      const box = document.createElement('div');
+      box.className = 'hit'; box.dataset.i = String(i);
+      if (h.state) { const tag = document.createElement('span'); tag.className = 'hit__tag'; tag.textContent = 'on hover'; box.appendChild(tag); }
+      el.hits.appendChild(box);
+      h.box = box;
+    });
+    positionHits();
+  }
+  function positionHits() {
+    if (!loc || !fwin) return;
+    loc.hits.forEach((h) => {
+      if (!h.box) return;
+      const r = h.node.getBoundingClientRect();
+      Object.assign(h.box.style, { left: (r.left - 3) + 'px', top: (r.top - 3) + 'px', width: (r.width + 6) + 'px', height: (r.height + 6) + 'px' });
+    });
+  }
+  function focusHit(i) {
+    if (!loc || !loc.hits.length) return;
+    loc.i = (i + loc.hits.length) % loc.hits.length;
+    loc.hits.forEach((h, n) => h.box && h.box.classList.toggle('is-focus', n === loc.i));
+    const node = loc.hits[loc.i].node, r = node.getBoundingClientRect(), vh = fwin.innerHeight;
+    if (!isPinned(node) && (r.top < 60 || r.bottom > vh - 60)) {
+      fwin.scrollTo({ top: Math.max(0, fwin.scrollY + r.top - Math.max(80, (vh - r.height) / 2)), behavior: 'smooth' });
+    }
+    el.locPos.textContent = (loc.i + 1) + ' / ' + loc.hits.length;
+    armLocTimer(9000);
+  }
+  function showLocator(text, pos, total) {
+    el.locator.hidden = false;
+    el.locText.textContent = text;
+    el.locPos.textContent = total ? pos + ' / ' + total : '';
+    $('[data-loc-prev]').hidden = $('[data-loc-next]').hidden = total < 2;
+  }
+  function armLocTimer(ms) { clearTimeout(locTimer); locTimer = setTimeout(clearLocate, ms); }
+  function clearLocate() {
+    clearTimeout(locTimer);
+    el.hits.innerHTML = ''; el.locator.hidden = true;
+    if (fdoc) {
+      $$('[data-zp-state]', fdoc).forEach((n) => n.removeAttribute('data-zp-state'));
+      if (stateStyle) stateStyle.textContent = '';
+    }
+    loc = null;
+  }
+  $('[data-loc-prev]').addEventListener('click', () => focusHit(loc ? loc.i - 1 : 0));
+  $('[data-loc-next]').addEventListener('click', () => focusHit(loc ? loc.i + 1 : 0));
+  $('[data-loc-close]').addEventListener('click', clearLocate);
+  el.locator.addEventListener('pointerenter', () => clearTimeout(locTimer));
+
+  // ═══ NOTE STRIP (previews that aren't applied yet) ═════════════════════════
+  function showNote(html, buttons) {
+    el.note.hidden = false;
+    el.note.innerHTML = '<span>' + html + '</span>';
+    (buttons || []).forEach((b) => {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn btn--small' + (b.ghost ? ' btn--ghost' : '');
+      btn.textContent = b.label; btn.addEventListener('click', b.run);
+      el.note.appendChild(btn);
+    });
+    requestAnimationFrame(layoutStage);
+  }
+  function hideNote() { if (!el.note.hidden) { el.note.hidden = true; requestAnimationFrame(layoutStage); } }
+  function showDraftNote() {
+    if (!draft) return hideNote();
+    if (draft.source === 'theme') showNote('Previewing <strong>' + esc(draft.label) + '</strong> — click the card to use it.');
+    else showNote('Previewing your mix (not applied yet).', [
+      { label: 'Apply', run: applyMix }, { label: 'Clear', ghost: true, run: clearMix },
+    ]);
+  }
+
+  // ═══ THEMES ════════════════════════════════════════════════════════════════
+  let mood = 'all';
+  const presetMeta = (id) => PRESET_META.find((m) => m.id === id);
+
+  /** Text on an accent fill: keep the theme's cream label where it reads,
+   *  otherwise whichever of cream and dark reads better. */
+  function onAccentFor(map, mode) {
+    const cream = map['--paper-on-photo'], darkText = mode === 'dark' ? map['--paper'] : map['--ink'];
+    if (!cream || !map['--accent']) return cream;
+    if (contrast(cream, map['--accent']) >= 4.5) return cream;
+    return contrast(darkText, map['--accent']) > contrast(cream, map['--accent']) ? darkText : cream;
+  }
+  /** The parts every theme is derived to fill: the Events band, the page
+   *  background and text on accent follow the theme's own colours. */
+  function deriveInto(map, mode) {
+    map['--events-band-from'] = map['--paper-deep'];
+    map['--events-band-to'] = map['--paper'];
+    map['--events-band-text'] = map['--ink-soft'];
+    map['--events-band-num'] = map['--accent'];
+    map['--events-band-divider'] = map['--rule'];
+    map['--bg-wash-from'] = map['--paper'];
+    map['--bg-wash-to'] = map['--paper-deep'];
+    map['--bg-glow'] = map['--accent'];
+    if (!map.__keepOnAccent) map['--on-accent'] = onAccentFor(map, mode);
+    delete map.__keepOnAccent;
+    return map;
+  }
+  /** A theme's complete colour map for `mode` (never touches sliders). */
+  function presetMap(id, mode) {
+    const p = PRESETS[id] || {};
+    const map = {};
+    COLOR_TOKENS.forEach((tk) => {
+      map[tk] = id === 'default' ? CODE[mode][tk] : (p[tk] != null ? normHex(p[tk]) : base(mode, tk));
+    });
+    if (id === 'default') return map;
+    map.__keepOnAccent = p['--on-accent'] != null;
+    return deriveInto(map, mode);
+  }
+  function renderThemes() {
+    const list = PRESET_META
+      .filter((m) => m.mode === activeMode && (mood === 'all' || m.mood === mood))
+      .sort((a, b) => (a.mood === b.mood ? 0 : a.mood === 'lively' ? -1 : 1));
+    let html = '', lastMood = null;
+    list.forEach((m) => {
+      if (mood === 'all' && m.mood !== lastMood) {
+        html += '<p class="themes__heading">' + (m.mood === 'lively' ? 'Lively' : 'Calm') + '</p>';
+        lastMood = m.mood;
+      }
+      const c = presetMap(m.id, activeMode);
+      const vars = [['p', '--paper'], ['pd', '--paper-deep'], ['pc', '--paper-card'], ['i', '--ink'], ['is', '--ink-soft'],
+        ['im', '--ink-muted'], ['r', '--rule'], ['rs', '--rule-soft'], ['a', '--accent'], ['oa', '--on-accent'], ['g', '--gold'],
+        ['op', '--paper-on-photo'], ['sh', '--shadow']].map(([k, tk]) => '--' + k + ':' + c[tk]).join(';');
+      html += '<button type="button" class="theme" data-preset="' + m.id + '">' +
+        '<span class="mock" style="' + vars + '">' +
+          '<span class="mock__gold"></span>' +
+          '<span class="mock__nav"><i></i><b></b></span>' +
+          '<span class="mock__hero"><i></i><b></b></span>' +
+          '<span class="mock__body"><span class="mock__text"><span class="mock__eyebrow"></span><span class="mock__h"></span>' +
+            '<span class="mock__p"></span><span class="mock__p"></span><span class="mock__p"></span>' +
+            '<span class="mock__btns"><span class="mock__btn"></span><span class="mock__pill"></span></span></span>' +
+            '<span class="mock__card"><span class="mock__row"><i></i><b></b></span><span class="mock__row"><i></i><b></b></span><span class="mock__row"><i></i><b></b></span></span>' +
+          '</span>' +
+        '</span>' +
+        '<span class="theme__name">' + esc(m.name) + '</span>' +
+        '<span class="theme__note">' + esc(m.note) + '</span>' +
+      '</button>';
+    });
+    el.themes.innerHTML = html || '<p class="lead">No themes here.</p>';
+    markCurrentTheme();
+  }
+  function markCurrentTheme() {
+    $$('.theme', el.themes).forEach((card) => {
+      const map = presetMap(card.dataset.preset, activeMode);
+      const on = ROLES.every((r) => r.tokens.every((tk) => map[tk] === resolved(activeMode, tk)));
+      card.classList.toggle('is-current', on);
+      let badge = card.querySelector('.theme__badge');
+      if (on && !badge) { badge = document.createElement('span'); badge.className = 'theme__badge'; badge.textContent = 'In use'; card.appendChild(badge); }
+      if (!on && badge) badge.remove();
+    });
+  }
+  $$('[data-mood]').forEach((b) => b.addEventListener('click', () => {
+    mood = b.dataset.mood;
+    $$('[data-mood]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderThemes();
+  }));
+  let hoverTimer = null, hoverId = null;
+  function previewTheme(id) {
+    if (!id) {
+      if (draft && draft.source === 'theme') { draft = null; hideNote(); schedulePaint(); if (mixHasParts()) previewMix(); }
+      return;
+    }
+    const meta = presetMeta(id);
+    const map = presetMap(id, activeMode);
+    draft = { mode: activeMode, map, source: 'theme', label: meta.name };
+    showDraftNote(); schedulePaint();
+  }
+  el.themes.addEventListener('pointerover', (e) => {
+    const card = e.target.closest('[data-preset]');
+    const id = card ? card.dataset.preset : null;
+    if (id === hoverId) return;
+    hoverId = id; clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => previewTheme(id), id ? 120 : 220);
+  });
+  el.themes.addEventListener('pointerleave', () => { hoverId = null; clearTimeout(hoverTimer); hoverTimer = setTimeout(() => previewTheme(null), 150); });
+  el.themes.addEventListener('focusin', (e) => { const c = e.target.closest('[data-preset]'); if (c) previewTheme(c.dataset.preset); });
+  el.themes.addEventListener('focusout', () => setTimeout(() => { if (!el.themes.contains(document.activeElement)) previewTheme(null); }, 0));
+  el.themes.addEventListener('click', (e) => {
+    const card = e.target.closest('[data-preset]'); if (!card) return;
+    const meta = presetMeta(card.dataset.preset), map = presetMap(card.dataset.preset, activeMode);
+    draft = null; hideNote();
+    const tx = commit('Theme: ' + meta.name, COLOR_TOKENS.map((tk) => ({ mode: activeMode, tk, value: map[tk] })));
+    toast(tx ? meta.name + ' is now your ' + activeMode + ' palette (not saved yet).' : meta.name + ' is already in use.',
+      tx ? { label: 'Undo', run: undo } : null);
   });
 
-  paletteGrid.addEventListener('click', (e) => {
-    const sw = e.target.closest('.palette-swatch');
-    if (!sw || !activePaletteRow) return;
-    applyToken(activePaletteRow.dataset.token, sw.dataset.swatchValue);
-    palettePopup.hidden = true;
-    activePaletteRow = null;
+  // ═══ MIX ═══════════════════════════════════════════════════════════════════
+  let mix = {};                // roleId → { preset: id|'current', group: roleId, fit: 'adapt'|'exact' }
+  const mixHasParts = () => Object.keys(mix).length > 0;
+  function sourceColors(pick) {
+    const role = ROLES.find((r) => r.id === pick.group);
+    const map = pick.preset === 'current' ? null : presetMap(pick.preset, activeMode);
+    return role.tokens.map((tk) => (map ? map[tk] : resolved(activeMode, tk)));
+  }
+  /** Map a source group's colours onto a part's tokens, dark to light. */
+  function fitRole(role, colors, fit) {
+    const mode = activeMode;
+    const targets = role.tokens.map((tk) => ({ tk, hex: resolved(mode, tk), o: toOklch(resolved(mode, tk)) })).sort((a, b) => a.o.L - b.o.L);
+    const src = colors.map((hex) => ({ hex, o: toOklch(hex) })).sort((a, b) => a.o.L - b.o.L);
+    const out = {};
+    targets.forEach((t, i) => {
+      let s;
+      if (targets.length === 1) s = src.reduce((best, c) => (c.o.C > best.o.C ? c : best), src[0]);
+      else s = src[src.length === 1 ? 0 : Math.round(i * (src.length - 1) / (targets.length - 1))];
+      if (fit === 'exact') out[t.tk] = s.hex;
+      else {
+        const hue = s.o.C < 0.015 ? t.o.H : s.o.H;
+        out[t.tk] = fromOklch(t.o.L, Math.min(s.o.C, role.cap[mode]), hue);
+      }
+    });
+    return out;
+  }
+  function mixDraftMap() {
+    const out = {};
+    ROLES.forEach((role) => {
+      const pick = mix[role.id]; if (!pick) return;
+      Object.assign(out, fitRole(role, sourceColors(pick), pick.fit));
+    });
+    if (el.mixDerive.checked && (mix.surfaces || mix.text || mix.accent || mix.lines)) {
+      const full = {};
+      COLOR_TOKENS.forEach((tk) => { full[tk] = out[tk] != null ? out[tk] : resolved(activeMode, tk); });
+      deriveInto(full, activeMode);
+      ['--events-band-from', '--events-band-to', '--events-band-text', '--events-band-num', '--events-band-divider',
+       '--bg-wash-from', '--bg-wash-to', '--bg-glow', '--on-accent'].forEach((tk) => { out[tk] = full[tk]; });
+    } else if (mix.accent) {
+      const full = {}; COLOR_TOKENS.forEach((tk) => { full[tk] = out[tk] != null ? out[tk] : resolved(activeMode, tk); });
+      out['--on-accent'] = onAccentFor(full, activeMode);
+    }
+    Object.keys(out).forEach((tk) => { if (out[tk] === resolved(activeMode, tk)) delete out[tk]; });
+    return out;
+  }
+  function previewMix() {
+    if (!mixHasParts()) { if (draft && draft.source === 'mix') { draft = null; hideNote(); schedulePaint(); } return; }
+    draft = { mode: activeMode, map: mixDraftMap(), source: 'mix', label: 'Your mix' };
+    showDraftNote(); schedulePaint();
+  }
+  function groupLabel(id) { return (ROLES.find((r) => r.id === id) || {}).label || id; }
+  function sourceName(pick) { return pick.preset === 'current' ? 'Your palette' : (presetMeta(pick.preset) || {}).name || pick.preset; }
+  function swatches(list, cls) { return list.map((hex) => '<span class="sw ' + (cls || '') + '" style="background:' + hex + '"></span>').join(''); }
+  function renderMix() {
+    if (!el.mix) return;
+    const draftMap = draft && draft.source === 'mix' ? draft.map : {};
+    el.mix.innerHTML = ROLES.map((role) => {
+      const pick = mix[role.id];
+      const now = role.tokens.map((tk) => draftMap[tk] || resolved(activeMode, tk));
+      return '<div class="mixrow' + (pick ? ' is-set' : '') + '" data-role="' + role.id + '">' +
+        '<div class="mixrow__head"><span><span class="mixrow__name">' + role.label + '</span><br><span class="mixrow__hint">' + role.hint + '</span></span>' +
+          '<span class="mixrow__strip">' + swatches(now) + '</span></div>' +
+        '<div class="mixrow__src">' +
+          '<button type="button" class="srcbtn" data-src-open="' + role.id + '">' +
+            (pick ? '<span class="srcgroup__sw">' + swatches(sourceColors(pick), 'sw--sm') + '</span><span class="srcbtn__label"><strong>' + esc(sourceName(pick)) + '</strong> · ' + groupLabel(pick.group) + '</span>'
+                  : '<span class="srcbtn__label">Keep as is — choose colours…</span>') +
+            '<span class="srcbtn__caret">▾</span></button>' +
+          (pick ? '<div class="seg seg--small" role="group" aria-label="How to use them">' +
+              '<button type="button" data-fit="adapt" aria-pressed="' + (pick.fit === 'adapt') + '" title="Use their hue, keep your brightness">Adapt</button>' +
+              '<button type="button" data-fit="exact" aria-pressed="' + (pick.fit === 'exact') + '" title="Use the exact colours">Exact</button></div>' +
+            '<button type="button" class="x-btn" data-src-clear aria-label="Stop mixing ' + role.label + '">×</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    const map = mixHasParts() ? mixDraftMap() : {};
+    const keys = Object.keys(map);
+    el.mixFoot.hidden = !mixHasParts();
+    el.mixCount.textContent = keys.length ? keys.length + (keys.length === 1 ? ' colour changes' : ' colours change') : 'No colours change';
+    const fails = failures(activeMode, map);
+    const worse = fails.filter((f) => !failures(activeMode).some((g) => g.fg === f.fg && g.bg === f.bg)).length;
+    el.mixWarn.textContent = worse ? '⚠ ' + worse + ' new hard-to-read pairing' + (worse === 1 ? '' : 's') : '';
+    el.mixDiff.innerHTML = keys.map((tk) =>
+      '<div class="diff__row"><span class="diff__label">' + esc(labelOf(tk)) + '</span><span class="diff__vals">' +
+        swatches([resolved(activeMode, tk)]) + '<span class="diff__arrow">→</span>' + swatches([map[tk]]) + '</span></div>').join('');
+    el.mixDiffToggle.hidden = !keys.length;
+  }
+  function setMixPart(roleId, pick) {
+    if (pick) mix[roleId] = pick; else delete mix[roleId];
+    renderMix(); previewMix();
+  }
+  function applyMix() {
+    const map = mixDraftMap();
+    draft = null; hideNote();
+    const tx = commit('Mix', Object.keys(map).map((tk) => ({ mode: activeMode, tk, value: map[tk] })));
+    mix = {}; renderMix();
+    toast(tx ? 'Mix applied to your ' + activeMode + ' palette (not saved yet).' : 'Nothing to change.', tx ? { label: 'Undo', run: undo } : null);
+  }
+  function clearMix() { mix = {}; draft = null; hideNote(); renderMix(); schedulePaint(); }
+  el.mix.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-role]'); if (!row) return;
+    const role = row.dataset.role;
+    if (e.target.closest('[data-src-open]')) { openSrcPick(role, e.target.closest('[data-src-open]')); return; }
+    if (e.target.closest('[data-src-clear]')) { setMixPart(role, null); return; }
+    const fitBtn = e.target.closest('[data-fit]');
+    if (fitBtn && mix[role]) setMixPart(role, Object.assign({}, mix[role], { fit: fitBtn.dataset.fit }));
+  });
+  el.mixDerive.addEventListener('change', () => { renderMix(); previewMix(); });
+  $('[data-mix-apply]').addEventListener('click', applyMix);
+  $('[data-mix-clear]').addEventListener('click', clearMix);
+  el.mixDiffToggle.addEventListener('click', () => {
+    const open = el.mixDiff.hidden; el.mixDiff.hidden = !open;
+    el.mixDiffToggle.setAttribute('aria-expanded', String(open));
+    el.mixDiffToggle.textContent = open ? 'Hide changes' : 'See what changes';
   });
 
-  document.addEventListener('click', (e) => {
-    if (!palettePopup.hidden && !palettePopup.contains(e.target)) {
-      palettePopup.hidden = true; activePaletteRow = null;
+  // Source picker
+  let srcRole = null, srcScope = 'mode';
+  function openSrcPick(roleId, anchor) {
+    srcRole = roleId;
+    el.srcTitle.textContent = 'Colours for ' + groupLabel(roleId);
+    el.srcSearch.value = '';
+    renderSrcPick();
+    el.srcpick.hidden = false;
+    const r = anchor.getBoundingClientRect(), w = el.srcpick.offsetWidth, h = el.srcpick.offsetHeight;
+    el.srcpick.style.left = Math.min(r.left, innerWidth - w - 12) + 'px';
+    el.srcpick.style.top = Math.max(12, Math.min(r.bottom + 6, innerHeight - h - 12)) + 'px';
+    el.srcSearch.focus();
+  }
+  function closeSrcPick() { el.srcpick.hidden = true; srcRole = null; }
+  function renderSrcPick() {
+    const q = el.srcSearch.value.trim().toLowerCase();
+    const pick = mix[srcRole];
+    const entries = [{ id: 'current', name: 'Your palette', note: 'as it is now' }]
+      .concat(PRESET_META.filter((m) => srcScope === 'all' || m.mode === activeMode))
+      .filter((m) => !q || (m.name + ' ' + m.note).toLowerCase().includes(q));
+    el.srcList.innerHTML = entries.map((m) => {
+      const groupsHtml = ROLES.map((role) => {
+        const colors = sourceColors({ preset: m.id, group: role.id });
+        const on = pick && pick.preset === m.id && pick.group === role.id;
+        return '<button type="button" class="srcgroup' + (on ? ' is-on' : '') + '" data-src-preset="' + m.id + '" data-src-group="' + role.id + '" title="' + esc(m.name) + ' · ' + role.label + '">' +
+          '<span class="srcgroup__sw">' + swatches(colors, 'sw--sm') + '</span>' + role.label + '</button>';
+      }).join('');
+      return '<div class="srcpal"><span class="srcpal__name">' + esc(m.name) + ' <span>' + esc(m.note || '') + (m.mode && srcScope === 'all' ? ' · ' + m.mode : '') + '</span></span>' +
+        '<div class="srcpal__groups">' + groupsHtml + '</div></div>';
+    }).join('') || '<p class="lead" style="padding:.5rem">No themes match.</p>';
+  }
+  el.srcSearch.addEventListener('input', renderSrcPick);
+  $$('[data-srcpick-scope]').forEach((b) => b.addEventListener('click', () => {
+    srcScope = b.dataset.srcpickScope;
+    $$('[data-srcpick-scope]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderSrcPick();
+  }));
+  el.srcList.addEventListener('click', (e) => {
+    const g = e.target.closest('[data-src-group]'); if (!g || !srcRole) return;
+    const sameGroup = g.dataset.srcGroup === srcRole;
+    setMixPart(srcRole, { preset: g.dataset.srcPreset, group: g.dataset.srcGroup, fit: sameGroup ? 'exact' : 'adapt' });
+    closeSrcPick();
+  });
+
+  // ═══ FINE-TUNE ═════════════════════════════════════════════════════════════
+  function tuneRow(t) {
+    const val = resolved(activeMode, t.token);
+    const pend = val !== savedValue(activeMode, t.token);
+    const inh = IS_ROOFTOP && current[activeMode][t.token] == null && inherited[activeMode][t.token] != null;
+    const tags = [];
+    if (pend) tags.push('<span class="tag tag--pend">unsaved</span>');
+    if (inh) tags.push('<span class="tag tag--inh" title="Not set for the rooftop — it shows Zahara’s colour">from Zahara</span>');
+    if (t.kind === 'scalar') {
+      return '<div class="trow trow--scalar' + (pend ? ' is-pending' : '') + '" data-row="' + t.token + '">' +
+        '<div><button type="button" class="trow__main" data-locate="' + t.token + '"><span class="trow__label">' + esc(t.label) + '</span>' +
+        '<span class="trow__hint">' + esc(t.hint || '') + '</span></button>' +
+        '<input class="trow__range" type="range" min="' + t.min + '" max="' + t.max + '" step="' + t.step + '" value="' + val + '" data-range="' + t.token + '" aria-label="' + esc(t.label) + '" /></div>' +
+        '<div class="trow__side"><span class="trow__num">' + val + (t.unit || '') + '</span><span class="trow__tags">' + tags.join('') + '</span></div>' +
+      '</div>';
+    }
+    const w = worstFor(activeMode, t.token);
+    if (w && w.ratio < w.min) tags.push('<span class="tag ' + (w.ratio < SEVERE_BELOW ? 'tag--bad' : 'tag--warn') + '" title="Against ' + esc(labelOf(w.other)) + ': ' + w.ratio.toFixed(1) + ':1, needs ' + w.min + ':1">' + w.ratio.toFixed(1) + ':1</span>');
+    return '<div class="trow' + (pend ? ' is-pending' : '') + '" data-row="' + t.token + '">' +
+      '<button type="button" class="trow__swatch" style="--c:' + val + '" data-swatch="' + t.token + '" aria-label="Change ' + esc(t.label) + '"></button>' +
+      '<button type="button" class="trow__main" data-locate="' + t.token + '" title="Show where it’s used"><span class="trow__label">' + esc(t.label) + '</span>' +
+      '<span class="trow__hint">' + esc(t.hint || '') + '</span></button>' +
+      '<div class="trow__side"><code class="trow__value">' + val + '</code><span class="trow__tags">' + tags.join('') + '</span></div>' +
+    '</div>';
+  }
+  let moreOpen = false;
+  function renderTune() {
+    if (document.activeElement && document.activeElement.matches && document.activeElement.matches('[data-range]')) {
+      // Mid-drag: update the readout only, don't rebuild the slider under the pointer.
+      const tk = document.activeElement.dataset.range, row = document.activeElement.closest('[data-row]');
+      if (row) row.querySelector('.trow__num').textContent = resolved(activeMode, tk) + (TOKEN[tk].unit || '');
+      return;
+    }
+    const q = el.tuneSearch.value.trim().toLowerCase(), onlyChanged = el.tuneChanged.checked;
+    const match = (t) => (!q || (t.label + ' ' + t.token + ' ' + (t.hint || '') + ' ' + t.group).toLowerCase().includes(q)) &&
+      (!onlyChanged || resolved(activeMode, t.token) !== base(activeMode, t.token) || resolved(activeMode, t.token) !== savedValue(activeMode, t.token));
+    const groupHtml = (g) => {
+      const rows = g.tokens.map((t) => TOKEN[t.token]).filter(match);
+      if (!rows.length) return '';
+      return '<section class="tgroup"><div class="tgroup__head"><h3 class="tgroup__title">' + esc(g.group) + '</h3></div>' +
+        '<p class="tgroup__intro">' + esc(g.intro) + '</p><div class="tgroup__rows">' + rows.map(tuneRow).join('') + '</div></section>';
+    };
+    const main = groups.filter((g) => !g.advanced).map(groupHtml).join('');
+    const adv = groups.filter((g) => g.advanced).map(groupHtml).join('');
+    const openAdv = moreOpen || !!q || onlyChanged;
+    el.tune.innerHTML = (main || adv ? main : '<p class="lead">Nothing matches.</p>') +
+      (adv ? '<details class="more-groups"' + (openAdv ? ' open' : '') + ' data-more-groups><summary>Page background and Events band</summary>' + adv + '</details>' : '');
+  }
+  el.tune.addEventListener('toggle', (e) => { if (e.target.matches('[data-more-groups]')) moreOpen = e.target.open; }, true);
+  el.tuneSearch.addEventListener('input', renderTune);
+  el.tuneChanged.addEventListener('change', renderTune);
+  el.tune.addEventListener('click', (e) => {
+    const sw = e.target.closest('[data-swatch]');
+    if (sw) { openCpop(sw.dataset.swatch, sw); return; }
+    const target = e.target.closest('[data-locate]');
+    if (target) locate(target.dataset.locate);
+  });
+  el.tune.addEventListener('input', (e) => {
+    const r = e.target.closest('[data-range]'); if (!r) return;
+    commit(labelOf(r.dataset.range), [{ mode: activeMode, tk: r.dataset.range, value: r.value }], { merge: 'range:' + r.dataset.range });
+  });
+
+  // Colour popover
+  let cpopToken = null, cpopLocated = false;
+  const cp = {
+    title: $('[data-cpop-title]'), token: $('[data-cpop-token]'), hint: $('[data-cpop-hint]'), color: $('[data-cpop-color]'),
+    hex: $('[data-cpop-hex]'), contrast: $('[data-cpop-contrast]'), swatches: $('[data-cpop-swatches]'), reset: $('[data-cpop-reset]'),
+  };
+  function openCpop(tk, anchor) {
+    cpopToken = tk; cpopLocated = false;
+    const t = TOKEN[tk];
+    cp.title.textContent = t.label; cp.token.textContent = tk; cp.hint.textContent = t.hint || '';
+    syncCpop();
+    el.cpop.hidden = false;
+    const r = anchor.getBoundingClientRect(), w = el.cpop.offsetWidth, h = el.cpop.offsetHeight;
+    el.cpop.style.left = Math.min(r.right + 10, innerWidth - w - 12) + 'px';
+    el.cpop.style.top = Math.max(12, Math.min(r.top - 10, innerHeight - h - 12)) + 'px';
+    cp.hex.focus(); cp.hex.select();
+  }
+  function syncCpop() {
+    const tk = cpopToken, val = resolved(activeMode, tk);
+    if (cp.color.value.toUpperCase() !== val) cp.color.value = val;
+    if (document.activeElement !== cp.hex) cp.hex.value = val;
+    const w = worstFor(activeMode, tk);
+    cp.contrast.textContent = w ? 'Against ' + labelOf(w.other) + ': ' + w.ratio.toFixed(1) + ':1 (needs ' + w.min + ':1)' : '';
+    cp.contrast.classList.toggle('is-bad', !!w && w.ratio < w.min);
+    const seen = new Set();
+    cp.swatches.innerHTML = COLOR_TOKENS.map((x) => resolved(activeMode, x)).filter((hex) => !seen.has(hex) && seen.add(hex))
+      .map((hex) => '<button type="button" style="background:' + hex + '" data-pick="' + hex + '" title="' + hex + '"></button>').join('');
+    const def = base(activeMode, tk);
+    cp.reset.disabled = val === def;
+    cp.reset.textContent = IS_ROOFTOP && inherited[activeMode][tk] != null ? 'Use Zahara’s' : 'Reset to default';
+  }
+  function closeCpop() { el.cpop.hidden = true; cpopToken = null; }
+  function cpopSet(value, merge) {
+    if (!cpopToken) return;
+    commit(labelOf(cpopToken), [{ mode: activeMode, tk: cpopToken, value }], merge ? { merge: 'cpop:' + cpopToken } : null);
+    if (!cpopLocated) { cpopLocated = true; locate(cpopToken); }
+  }
+  cp.color.addEventListener('input', () => cpopSet(cp.color.value, true));
+  cp.hex.addEventListener('input', () => {
+    const v = normHex(cp.hex.value);
+    cp.hex.classList.toggle('is-invalid', !v);
+    if (v) cpopSet(v, true);
+  });
+  cp.hex.addEventListener('blur', () => { cp.hex.classList.remove('is-invalid'); if (cpopToken) cp.hex.value = resolved(activeMode, cpopToken); });
+  cp.swatches.addEventListener('click', (e) => { const b = e.target.closest('[data-pick]'); if (b) cpopSet(b.dataset.pick, false); });
+  $('[data-cpop-locate]').addEventListener('click', () => cpopToken && locate(cpopToken));
+  cp.reset.addEventListener('click', () => cpopSet(base(activeMode, cpopToken), false));
+
+  // ═══ REVIEW DRAWER ═════════════════════════════════════════════════════════
+  function openDrawer(focus) {
+    renderDrawer(); el.scrim.hidden = false; el.drawer.hidden = false;
+    if (focus === 'legibility') { const s = el.drawerBody.querySelector('[data-leg-section]'); if (s) s.scrollIntoView(); }
+  }
+  function closeDrawer() { el.scrim.hidden = true; el.drawer.hidden = true; }
+  function renderDrawer() {
+    const items = pendingList();
+    let html = '';
+    if (!items.length) html += '<p class="drawer__empty">No unsaved changes — the preview matches the live site.</p>';
+    MODES.forEach((mode) => {
+      const list = items.filter((i) => i.mode === mode);
+      if (!list.length) return;
+      html += '<section class="drawer__section"><h3>' + (mode === 'light' ? '☀︎ Light' : '☾ Dark') + ' palette · ' + list.length + '</h3>' +
+        list.map((i) => {
+          const from = savedValue(mode, i.tk), to = resolved(mode, i.tk);
+          const vals = isScalar(i.tk)
+            ? '<span>' + from + ' → ' + to + (TOKEN[i.tk].unit || '') + '</span>'
+            : swatches([from]) + '<code>' + from + '</code><span class="diff__arrow">→</span>' + swatches([to]) + '<code>' + to + '</code>';
+          return '<div class="change"><span class="change__label">' + esc(labelOf(i.tk)) + '<small>' + esc(TOKEN[i.tk].group) + '</small></span>' +
+            '<span class="change__vals">' + vals + '</span>' +
+            '<span><button type="button" class="btn btn--small btn--link" data-drawer-show="' + i.tk + '" data-mode-of="' + mode + '">Show</button>' +
+            '<button type="button" class="btn btn--small btn--link" data-drawer-revert="' + i.tk + '" data-mode-of="' + mode + '">Revert</button></span></div>';
+        }).join('') + '</section>';
+    });
+    const fails = failures('light').concat(failures('dark'));
+    html += '<section class="drawer__section" data-leg-section><h3>Legibility</h3>' +
+      (fails.length ? fails.map((f, n) => {
+        const fix = fixToward(f.fgHex, f.bgHex, f.min);
+        return '<div class="leg' + (f.severe ? ' is-severe' : '') + '"><span class="leg__sample" style="background:' + f.bgHex + ';color:' + f.fgHex + '">Aa</span>' +
+          '<span><span class="leg__where">' + esc(f.where) + '</span><br><span class="leg__pair">' + (f.mode === 'light' ? '☀︎ ' : '☾ ') +
+          esc(labelOf(f.fg)) + ' on ' + esc(labelOf(f.bg)) + ' · ' + f.ratio.toFixed(2) + ':1, needs ' + f.min + ':1</span></span>' +
+          '<button type="button" class="btn btn--small" data-leg-fix="' + n + '" title="Set ' + esc(labelOf(f.fg)) + ' to ' + fix + '">' + swatches([fix], 'sw--sm') + ' Fix</button></div>';
+      }).join('') : '<p class="leg__ok">Every pairing reads clearly in both palettes. ✓</p>') + '</section>';
+    el.drawerBody.innerHTML = html;
+    el.drawerBody._fails = fails;
+    const saveBtn = $('[data-drawer-save]');
+    saveBtn.disabled = !items.length || saving;
+    saveBtn.textContent = items.length ? 'Save ' + items.length + ' change' + (items.length === 1 ? '' : 's') : 'Save';
+    $('[data-discard]').disabled = !items.length;
+  }
+  el.drawerBody.addEventListener('click', (e) => {
+    const show = e.target.closest('[data-drawer-show]');
+    if (show) { setMode(show.dataset.modeOf); closeDrawer(); locate(show.dataset.drawerShow); return; }
+    const rev = e.target.closest('[data-drawer-revert]');
+    if (rev) { const mode = rev.dataset.modeOf, tk = rev.dataset.drawerRevert; commit('Revert ' + labelOf(tk), [{ mode, tk, value: savedValue(mode, tk) }]); return; }
+    const fix = e.target.closest('[data-leg-fix]');
+    if (fix) {
+      const f = el.drawerBody._fails[Number(fix.dataset.legFix)];
+      commit('Fix ' + labelOf(f.fg), [{ mode: f.mode, tk: f.fg, value: fixToward(f.fgHex, f.bgHex, f.min) }]);
     }
   });
+  el.review.addEventListener('click', () => openDrawer());
+  el.legib.addEventListener('click', () => openDrawer('legibility'));
+  $('[data-drawer-close]').addEventListener('click', closeDrawer);
+  el.scrim.addEventListener('click', () => { closeDrawer(); el.exportModal.hidden = true; });
+  $('[data-drawer-save]').addEventListener('click', save);
+  $('[data-discard]').addEventListener('click', discardAll);
+  el.save.addEventListener('click', save);
+  el.undo.addEventListener('click', undo);
+  el.redo.addEventListener('click', redo);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // KEYBOARD SHORTCUTS
-  // ────────────────────────────────────────────────────────────────────────────
+  // ═══ MORE MENU + EXPORT ════════════════════════════════════════════════════
+  el.more.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(el.more, el.moreMenu); });
+  let exportKind = 'full';
+  function exportCss() {
+    const sel = activeMode === 'dark' ? 'html[data-theme="dark"]' : ':root';
+    const lines = TOKENS.filter((t) => exportKind === 'full' || resolved(activeMode, t.token) !== CODE[activeMode][t.token])
+      .map((t) => '  ' + (t.token + ':').padEnd(24) + resolved(activeMode, t.token) + ';');
+    return lines.length ? sel + ' {\n' + lines.join('\n') + '\n}' : '/* Nothing differs from the defaults. */';
+  }
+  el.moreMenu.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-action]'); if (!b) return;
+    toggleMenu(el.more, el.moreMenu, false);
+    if (b.dataset.action === 'legibility') openDrawer('legibility');
+    if (b.dataset.action === 'export') { el.exportText.value = exportCss(); el.scrim.hidden = false; el.exportModal.hidden = false; }
+    if (b.dataset.action === 'reset-mode') {
+      const tx = commit('Reset ' + activeMode + ' to defaults', TOKENS.map((t) => ({ mode: activeMode, tk: t.token, value: base(activeMode, t.token) })));
+      toast(tx ? 'The ' + activeMode + ' palette is back to ' + (IS_ROOFTOP ? 'Zahara’s colours' : 'the defaults') + ' (not saved yet).' : 'Already at the defaults.', tx ? { label: 'Undo', run: undo } : null);
+    }
+  });
+  $$('[data-export-kind]').forEach((b) => b.addEventListener('click', () => {
+    exportKind = b.dataset.exportKind;
+    $$('[data-export-kind]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    el.exportText.value = exportCss();
+  }));
+  $('[data-export-close]').addEventListener('click', () => { el.exportModal.hidden = true; el.scrim.hidden = true; });
+  $('[data-export-copy]').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(el.exportText.value); toast('Copied'); } catch (_) { el.exportText.select(); }
+  });
+
+  // ═══ TABS ══════════════════════════════════════════════════════════════════
+  function setTab(id) {
+    $$('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === id)));
+    $$('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== id; });
+    closeCpop(); closeSrcPick();
+    if (id === 'mix') previewMix();
+    else if (draft && draft.source === 'mix') showDraftNote();
+  }
+  $$('[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+  // ═══ GLOBAL KEYS + CLICK-AWAY ══════════════════════════════════════════════
+  document.addEventListener('pointerdown', (e) => {
+    if (!el.cpop.hidden && !el.cpop.contains(e.target) && !e.target.closest('[data-swatch]')) closeCpop();
+    if (!el.srcpick.hidden && !el.srcpick.contains(e.target) && !e.target.closest('[data-src-open]')) closeSrcPick();
+    if (!el.moreMenu.hidden && !el.moreMenu.contains(e.target) && e.target !== el.more) toggleMenu(el.more, el.moreMenu, false);
+    if (!el.overlaysMenu.hidden && !el.overlaysMenu.contains(e.target) && e.target !== el.overlays) toggleMenu(el.overlays, el.overlaysMenu, false);
+  });
   document.addEventListener('keydown', (e) => {
     const meta = e.metaKey || e.ctrlKey;
-    if (meta && !e.shiftKey && e.key === 's') {
-      e.preventDefault();
-      if (_countPending() > 0) save();
-    }
-    if (meta && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-      e.preventDefault();
-      undo();
-    }
+    const typing = e.target.matches && e.target.matches('input[type="text"], input[type="search"], textarea');
+    if (meta && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+    if (meta && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
     if (e.key === 'Escape') {
-      palettePopup.hidden = true;
-      activePaletteRow = null;
-      if (!exportModal.hidden)   exportModal.hidden = true;
-      if (!presetModal.hidden)   closePresetModal();
-      if (!legModal.hidden)      legModal.hidden = true;
+      if (!el.cpop.hidden) closeCpop();
+      else if (!el.srcpick.hidden) closeSrcPick();
+      else if (!el.exportModal.hidden) { el.exportModal.hidden = true; el.scrim.hidden = true; }
+      else if (!el.drawer.hidden) closeDrawer();
+      else if (loc) clearLocate();
     }
   });
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // CONTRAST
-  // ────────────────────────────────────────────────────────────────────────────
-  function _relLum(hex) {
-    const m = hex.replace('#','').match(/.{2}/g);
-    if (!m) return 0;
-    const [r, g, b] = m.map((s) => {
-      let c = parseInt(s, 16) / 255;
-      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  }
-  function _contrastRatio(a, b) {
-    const la = _relLum(a), lb = _relLum(b);
-    const [lo, hi] = la > lb ? [lb, la] : [la, lb];
-    return (hi + 0.05) / (lo + 0.05);
-  }
-
-  // (PAIRINGS is declared at the top of this IIFE — the first renderMode()
-  // reads it before this point in the file.)
-
-  /** Every failing pairing in a mode, worst first.
-   *  Token names and resolved hexes are kept under SEPARATE keys — the Fix
-   *  button needs the token to call applyToken, and the sample swatch needs
-   *  the hex. */
-  function _failures(mode) {
-    const out = [];
-    PAIRINGS.forEach((p) => {
-      const fgHex = resolved(mode, p.fg);
-      const bgHex = resolved(mode, p.bg);
-      if (!fgHex || !bgHex || fgHex[0] !== '#' || bgHex[0] !== '#') return;
-      const ratio = _contrastRatio(fgHex, bgHex);
-      const min = p.big ? 3 : 4.5;
-      if (ratio < min) {
-        out.push({
-          fgToken: p.fg, bgToken: p.bg, where: p.where,
-          fgHex, bgHex, ratio, min, severe: ratio < SEVERE_BELOW,
-        });
-      }
-    });
-    return out.sort((a, b) => a.ratio - b.ratio);
-  }
-
-  function _refreshAllContrast() {
-    // Per-row badge = the worst pairing that row's token takes part in.
-    const worst = {};
-    PAIRINGS.forEach((p) => {
-      const fg = resolved(activeMode, p.fg);
-      const bg = resolved(activeMode, p.bg);
-      if (!fg || !bg || fg[0] !== '#' || bg[0] !== '#') return;
-      const ratio = _contrastRatio(fg, bg);
-      [p.fg, p.bg].forEach((tk) => {
-        if (!worst[tk] || ratio < worst[tk].ratio) worst[tk] = { ratio, min: p.big ? 3 : 4.5, other: tk === p.fg ? p.bg : p.fg };
-      });
-    });
-
-    rows.forEach((row) => {
-      const badge = row.querySelector('[data-contrast]');
-      const w = worst[row.dataset.token];
-      if (!w) { badge.textContent = ''; badge.className = 'row__contrast'; badge.title = ''; return; }
-      let band;
-      if      (w.ratio < SEVERE_BELOW) band = 'lo';
-      else if (w.ratio < w.min)        band = 'warn';
-      else if (w.ratio >= 7)           band = 'aaa';
-      else                             band = 'aa';
-      badge.textContent = w.ratio.toFixed(1) + ':1';
-      badge.className   = 'row__contrast row__contrast--' + band;
-      badge.title = 'Worst pairing: against ' + w.other + ' (needs ' + w.min + ':1)';
-    });
-
-    _refreshLegibility();
-  }
-
-  // ── Legibility report (DOM refs live up in the UI REFS block) ───────────────
-  function _refreshLegibility() {
-    const fails  = _failures(activeMode);
-    const severe = fails.filter((f) => f.severe).length;
-    // Only an invisible-text pairing gets the loud badge; the softer warnings
-    // wait quietly inside the report.
-    legBadge.hidden = severe === 0 && fails.length === 0;
-    legBadge.classList.toggle('is-severe', severe > 0);
-    legBadge.textContent = severe > 0
-      ? severe + (severe === 1 ? ' text is invisible' : ' texts are invisible')
-      : fails.length + ' to check';
-    if (!legModal.hidden) _renderLegibility();
-  }
-
-  /** Darken or lighten `hex` until it clears `ratio` against `bg`. Walks
-   *  towards whichever end (black or white) the background isn't, so the
-   *  suggestion keeps the owner's hue instead of snapping to a preset. */
-  function _fixToward(hex, bg, ratio) {
-    const bgLum = _relLum(bg);
-    const toWhite = bgLum < 0.5;
-    const m = hex.replace('#', '').match(/.{2}/g).map((s) => parseInt(s, 16));
-    for (let step = 0; step <= 100; step++) {
-      const t = step / 100;
-      const rgb = m.map((c) => Math.round(toWhite ? c + (255 - c) * t : c * (1 - t)));
-      const cand = '#' + rgb.map((c) => c.toString(16).padStart(2, '0')).join('').toUpperCase();
-      if (_contrastRatio(cand, bg) >= ratio) return cand;
-    }
-    return toWhite ? '#FFFFFF' : '#000000';
-  }
-
-  function _renderLegibility() {
-    const fails = _failures(activeMode);
-    if (!fails.length) {
-      legList.innerHTML = '<p class="legibility-ok">Everything reads clearly in ' + activeMode + ' mode. ✓</p>';
-      return;
-    }
-    legList.innerHTML = fails.map((f, i) => {
-      const fix = _fixToward(f.fgHex, f.bgHex, f.min);
-      return '' +
-        '<div class="legibility-row' + (f.severe ? ' is-severe' : '') + '">' +
-          '<span class="legibility-row__sample" style="background:' + f.bgHex + ';color:' + f.fgHex + '">Aa</span>' +
-          '<span class="legibility-row__meta">' +
-            '<span class="legibility-row__where">' + f.where + '</span>' +
-            '<span class="legibility-row__pair">' +
-              (f.severe ? '<strong class="legibility-row__flag">Invisible</strong> ' : '') +
-              '<code>' + f.fgToken + '</code> on <code>' + f.bgToken + '</code> · ' +
-              f.ratio.toFixed(2) + ':1, needs ' + f.min + ':1</span>' +
-          '</span>' +
-          '<span class="legibility-row__fix">' +
-            '<span class="legibility-row__swatch" style="background:' + fix + '"></span>' +
-            // Name the token being changed: the fix always lightens/darkens
-            // the FOREGROUND, which isn't always the one the owner just
-            // edited, and silently moving a different colour is confusing.
-            '<button type="button" class="btn btn-top btn-top--ghost" data-leg-fix="' + i + '"' +
-              ' title="Sets ' + f.fgToken + ' to ' + fix + '"' +
-              ' data-leg-token="' + f.fgToken + '" data-leg-value="' + fix + '">Fix ' +
-              f.fgToken.replace(/^--/, '') + '</button>' +
-          '</span>' +
-        '</div>';
-    }).join('');
-  }
-
-  legBadge.addEventListener('click', () => {
-    _renderLegibility();
-    legModal.hidden = false;
-  });
-  document.querySelector('[data-legibility-close]').addEventListener('click', () => { legModal.hidden = true; });
-  legModal.addEventListener('click', (e) => { if (e.target === legModal) legModal.hidden = true; });
-  legList.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-leg-fix]');
-    if (!btn) return;
-    applyToken(btn.dataset.legToken, btn.dataset.legValue);
-    _renderLegibility();
-  });
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // HIGHLIGHT PREVIEW FRAGMENTS
-  // ────────────────────────────────────────────────────────────────────────────
-  let highlightTimer = null;
-
-  function _highlight(token) {
-    const short = token.replace(/^--/, '');
-    document.querySelectorAll('.preview-fragment.is-highlighted')
-      .forEach((el) => el.classList.remove('is-highlighted'));
-    requestAnimationFrame(() => {
-      document.querySelectorAll('.preview-fragment').forEach((el) => {
-        const uses = (el.dataset.uses || '').split(',').map((s) => s.trim());
-        if (uses.includes(short)) el.classList.add('is-highlighted');
-      });
-    });
-    clearTimeout(highlightTimer);
-    highlightTimer = setTimeout(() => {
-      document.querySelectorAll('.preview-fragment.is-highlighted')
-        .forEach((el) => el.classList.remove('is-highlighted'));
-    }, 1600);
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // TOAST
-  // ────────────────────────────────────────────────────────────────────────────
-  let toastTimer = null;
-  function showToast(msg) {
-    toastEl.textContent = msg;
-    toastEl.classList.add('is-visible');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove('is-visible'), 1800);
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // EXPORT MODAL
-  // ────────────────────────────────────────────────────────────────────────────
-  const exportModal    = document.querySelector('[data-export-modal]');
-  const exportTextarea = document.querySelector('[data-export-textarea]');
-  let exportMode = 'full';
-
-  function _buildCss(which) {
-    // Exports the ACTIVE mode, wrapped in the selector it ships under:
-    //   light → :root { … }    dark → html[data-theme="dark"] { … }
-    const sel = activeMode === 'dark' ? 'html[data-theme="dark"]' : ':root';
-    const lines = [];
-    rows.forEach((row) => {
-      const token = row.dataset.token;
-      const value = resolved(activeMode, token);
-      if (which === 'changed' && value === rowDefault(row)) return;
-      lines.push('  ' + token.padEnd(22) + ': ' + value + ';');
-    });
-    if (which === 'changed' && lines.length === 0) return '/* No changes from default */';
-    return sel + ' {\n' + lines.join('\n') + '\n}';
-  }
-
-  document.querySelector('[data-export]').addEventListener('click', () => {
-    exportTextarea.value = _buildCss(exportMode);
-    exportModal.hidden = false;
-    exportTextarea.select();
-  });
-
-  document.querySelectorAll('[data-export-tab]').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      exportMode = tab.dataset.exportTab;
-      document.querySelectorAll('[data-export-tab]').forEach((t) =>
-        t.classList.toggle('is-active', t === tab));
-      exportTextarea.value = _buildCss(exportMode);
-    });
-  });
-
-  document.querySelector('[data-export-close]').addEventListener('click', () => {
-    exportModal.hidden = true;
-  });
-
-  document.querySelector('[data-export-copy]').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(exportTextarea.value); }
-    catch (_) { exportTextarea.select(); exportTextarea.setSelectionRange(0, 99999); }
-    const btn = document.querySelector('[data-export-copy]');
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 1400);
-  });
-
-  exportModal.addEventListener('click', (e) => {
-    if (e.target === exportModal) exportModal.hidden = true;
-  });
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // HELPERS
-  // ────────────────────────────────────────────────────────────────────────────
-  function _normaliseHex(v) {
-    if (!v) return null;
-    v = String(v).trim();
-    if (!v.startsWith('#')) v = '#' + v;
-    if (v.length === 4) v = '#' + v[1]+v[1] + v[2]+v[2] + v[3]+v[3];
-    if (!/^#[0-9a-fA-F]{6}$/.test(v)) return null;
-    return v.toUpperCase();
-  }
-
-  /** Clamp a slider value to its row's declared min/max. Returns a plain
-   *  integer string — the same shape the server stores and the CSS reads. */
-  function _normaliseScalar(row, v) {
-    const n = Number(String(v).trim());
-    if (!Number.isFinite(n)) return null;
-    const range = row.querySelector('[data-range]');
-    const lo = range ? Number(range.min) : 0;
-    const hi = range ? Number(range.max) : 100;
-    return String(Math.round(Math.min(hi, Math.max(lo, n))));
-  }
-
+  // ═══ START ═════════════════════════════════════════════════════════════════
+  renderPageTabs();
+  renderThemes();
+  refresh();
+  layoutStage();
+  loadPage('home');
 })();
 </script>
 </body>

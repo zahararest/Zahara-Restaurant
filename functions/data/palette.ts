@@ -40,7 +40,7 @@ export const ALLOWED_TOKENS: ReadonlySet<string> = new Set([
   '--paper', '--paper-deep', '--paper-edge', '--paper-card', '--paper-on-photo',
   '--ink',   '--ink-soft',   '--ink-muted',  '--ink-faint',
   '--rule',  '--rule-soft',
-  '--accent','--accent-deep','--accent-soft',
+  '--accent','--accent-deep','--accent-soft', '--on-accent',
   '--gold',
   '--ok',    '--err',
   '--shadow',
@@ -111,9 +111,12 @@ export function sanitisePalettePair(input: unknown): PalettePair {
 async function readPaletteFrom(target: PaletteTarget | null): Promise<PalettePair> {
   if (!target) return { light: {}, dark: {} };
   try {
-    // cacheTtl=600: palette changes at most once per admin session; cache at
-    // the Cloudflare edge for 10 minutes to avoid a KV read on every page load.
-    const raw = await target.kv.get(target.key, { type: 'json', cacheTtl: 600 });
+    // cacheTtl=60 (KV's minimum). This used to be 600, which meant a saved
+    // palette could take ten minutes to reach the site — and the colour editor,
+    // reloaded after a save, could read the OLD palette back and show the new
+    // one as lost. The middleware's own 30 s memo already absorbs traffic, so
+    // the shorter edge cache costs next to nothing.
+    const raw = await target.kv.get(target.key, { type: 'json', cacheTtl: 60 });
     return sanitisePalettePair(raw);
   } catch {
     return { light: {}, dark: {} };

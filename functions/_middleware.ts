@@ -427,6 +427,17 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
       .transform(res);
   }
 
+  // ── Colour-editor preview ────────────────────────────────────────────────
+  // /admin/colors shows the REAL pages in a frame, loaded with ?zp=1. Those
+  // loads are the owner looking at a palette, not visitors: drop every script
+  // marked data-analytics (Tag Manager, gtag, the reserve-portal beacon) so
+  // they are never counted as traffic.
+  if (new URL(ctx.request.url).searchParams.get('zp') === '1') {
+    res = new HTMLRewriter()
+      .on('[data-analytics]', { element(el) { el.remove(); } })
+      .transform(res);
+  }
+
   // Stamp the asset version onto every resized-image URL. This requires
   // buffering the HTML (a few tens of KB), which is fine for page documents.
   let html = await res.text();

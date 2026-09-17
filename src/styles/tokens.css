@@ -61,6 +61,10 @@
   --accent:         #A88947;
   --accent-deep:    #7A6231;
   --accent-soft:    #EAE0BD;
+  /* Text and icons sitting ON an accent fill — button hover, the floating
+     Reserve pill, the accessibility button's hover. A lively theme with a
+     bright accent needs a dark label here; the house gold keeps cream. */
+  --on-accent:      #F4ECCF;
   --gold:           #B69A52;
   --ok:             #4F6B47;
   --err:            #A53623;
@@ -147,7 +151,7 @@
   --button-color: var(--paper);
   --button-border: var(--ink);
   --button-hover-background: var(--accent);
-  --button-hover-color: var(--paper-on-photo);
+  --button-hover-color: var(--on-accent);
   --button-hover-border: var(--accent);
 
   /* Ghost button — outline only. Stays transparent over its container
@@ -209,6 +213,7 @@ html[data-theme="dark"] {
   --accent:         #C8A050;
   --accent-deep:    #A8853A;
   --accent-soft:    #2A2018;
+  --on-accent:      #F4ECCF;
   --gold:           #D0B468;
   --ok:             #5BA670;
   --err:            #E07060;
