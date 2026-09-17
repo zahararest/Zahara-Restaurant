@@ -109,6 +109,19 @@ const STYLE = String.raw`
   .choice__opt input:disabled + span { opacity: .6; }
   .choice__note { margin: .45rem 0 0; font-size: .74rem; color: var(--muted); max-inline-size: 58ch; }
 
+  /* One block per device, for a section computers and phones show differently. */
+  .devices { display: grid; gap: .5rem; margin: .8rem 0 0; }
+  .device {
+    display: grid; grid-template-columns: 1fr auto; gap: .3rem 1rem; align-items: center;
+    padding: .7rem .8rem .75rem; background: var(--paper); border: 1px solid var(--line-soft);
+    border-inline-start: 3px solid var(--ok); transition: background .15s, border-color .15s;
+  }
+  .device.is-off { background: var(--deep); border-inline-start-color: var(--edge); }
+  .device__name { margin: 0; font-size: .7rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--soft); }
+  .device__note { grid-column: 1 / -1; margin: 0; font-size: .74rem; color: var(--muted); max-inline-size: 58ch; }
+  .device .choice { grid-column: 1 / -1; margin: .3rem 0 0; background: var(--card); }
+  .device.is-off .choice { opacity: .5; }
+
   @media (max-width: 560px) {
     main { padding-inline: 1rem; }
     .sec { grid-template-columns: 1.8rem 1fr; }
@@ -121,41 +134,71 @@ function renderPage(site: Site, layout: HomeLayout, other: HomeLayout): string {
   const venue     = VENUE_NAME[site];
   const otherName = otherSite === 'rooftop' ? 'the rooftop' : 'Zahara';
   const homeHref  = site === 'rooftop' ? '/rooftop/' : '/';
-  const shown     = HOME_SECTIONS.filter((s) => !layout.off.includes(s.id)).length;
 
-  const rows = HOME_SECTIONS.map((s, i) => {
-    const isOff   = layout.off.includes(s.id);
-    const num     = String(i + 1).padStart(2, '0');
-    const gallery = 'gallery' in s ? s.gallery : null;
-    const single  = layout.single.includes(s.id);
+  /** Is this section on the page anywhere? A per-device section counts as
+   *  shown while either device still shows it. */
+  const shownAnywhere = (l: HomeLayout, id: string) =>
+    id === 'gallery' ? (!l.off.includes('gallery') || !l.single.includes('hero')) : !l.off.includes(id);
+  const shown = HOME_SECTIONS.filter((s) => s.locked || shownAnywhere(layout, s.id)).length;
 
-    // What the other venue does with this section, in the same words.
-    const otherBits: string[] = [];
-    if (!s.locked) otherBits.push(other.off.includes(s.id) ? 'hidden' : 'shown');
-    if (gallery)   otherBits.push((other.single.includes(s.id) ? gallery.single : gallery.gallery).toLowerCase());
+  const switchHtml = (attrs: string, on: boolean, aria: string) => `
+           <label class="switch${on ? '' : ' is-off'}">
+             <input type="checkbox" ${attrs}${on ? ' checked' : ''} aria-label="${esc(aria)}" />
+             <span class="switch__track" aria-hidden="true"></span>
+             <span data-home-state>${on ? 'Shown' : 'Hidden'}</span>
+           </label>`;
 
-    const side = s.locked
-      ? `<span class="sec__lock">Always shown</span>`
-      : `<label class="switch${isOff ? ' is-off' : ''}">
-           <input type="checkbox" data-home-toggle="${esc(s.id)}"${isOff ? '' : ' checked'}
-                  aria-label="Show ${esc(s.label)} on the ${esc(venue)} home page" />
-           <span class="switch__track" aria-hidden="true"></span>
-           <span data-home-state>${isOff ? 'Hidden' : 'Shown'}</span>
-         </label>`;
-
-    const choice = !gallery ? '' : `
+  const choiceHtml = (id: string, c: { label: string; gallery: string; single: string; note: string }, single: boolean) => `
           <div class="choice">
-            <div class="choice__head" role="radiogroup" aria-label="${esc(s.label)} · ${esc(gallery.label)}">
-              <span class="choice__label">${esc(gallery.label)}</span>
+            <div class="choice__head" role="radiogroup" aria-label="${esc(c.label)}">
+              <span class="choice__label">${esc(c.label)}</span>
               <span class="choice__opts">
-                <label class="choice__opt"><input type="radio" name="single-${esc(s.id)}" value="gallery"
-                       data-home-choice="${esc(s.id)}"${single ? '' : ' checked'} /><span>${esc(gallery.gallery)}</span></label>
-                <label class="choice__opt"><input type="radio" name="single-${esc(s.id)}" value="single"
-                       data-home-choice="${esc(s.id)}"${single ? ' checked' : ''} /><span>${esc(gallery.single)}</span></label>
+                <label class="choice__opt"><input type="radio" name="single-${esc(id)}" value="gallery"
+                       data-home-choice="${esc(id)}"${single ? '' : ' checked'} /><span>${esc(c.gallery)}</span></label>
+                <label class="choice__opt"><input type="radio" name="single-${esc(id)}" value="single"
+                       data-home-choice="${esc(id)}"${single ? ' checked' : ''} /><span>${esc(c.single)}</span></label>
               </span>
             </div>
-            <p class="choice__note">${esc(gallery.note)}</p>
+            <p class="choice__note">${esc(c.note)}</p>
           </div>`;
+
+  const rows = HOME_SECTIONS.map((s, i) => {
+    const num     = String(i + 1).padStart(2, '0');
+    const devices = 'devices' in s ? s.devices : null;
+    const isOff   = !s.locked && !shownAnywhere(layout, s.id);
+
+    let side = '';
+    let body = '';
+    let otherText = '';
+
+    if (s.locked) {
+      side = `<span class="sec__lock">Always shown</span>`;
+    } else if (devices) {
+      // The gallery: one block per device, each with its own switch. The
+      // computer block also chooses gallery or single photo.
+      const deskOn  = !layout.off.includes(s.id);
+      const phoneOn = !layout.single.includes('hero');
+      body = `
+          <div class="devices">
+            <div class="device${deskOn ? '' : ' is-off'}" data-device="desktop">
+              <p class="device__name">${esc(devices.desktop.label)}</p>
+              ${switchHtml(`data-home-toggle="${esc(s.id)}"`, deskOn, `Show the gallery on computers and tablets at ${venue}`)}
+              <p class="device__note">${esc(devices.desktop.note)}</p>
+              ${choiceHtml(s.id, devices.desktop.choice, layout.single.includes(s.id))}
+            </div>
+            <div class="device${phoneOn ? '' : ' is-off'}" data-device="phone">
+              <p class="device__name">${esc(devices.phone.label)}</p>
+              ${switchHtml('data-home-phone-gallery', phoneOn, `Show the gallery on phones at ${venue}`)}
+              <p class="device__note">${esc(devices.phone.note)}</p>
+            </div>
+          </div>`;
+      const oDesk = other.off.includes(s.id)
+        ? 'hidden' : (other.single.includes(s.id) ? devices.desktop.choice.single : devices.desktop.choice.gallery).toLowerCase();
+      otherText = `computers: ${oDesk} · phones: ${other.single.includes('hero') ? 'hidden' : 'shown'}`;
+    } else {
+      side = switchHtml(`data-home-toggle="${esc(s.id)}"`, !isOff, `Show ${s.label} on the ${venue} home page`);
+      otherText = other.off.includes(s.id) ? 'hidden' : 'shown';
+    }
 
     return `
       <li class="sec${isOff ? ' is-off' : ''}${s.locked ? ' is-locked' : ''}" data-home-row="${esc(s.id)}">
@@ -163,8 +206,8 @@ function renderPage(site: Site, layout: HomeLayout, other: HomeLayout): string {
         <div class="sec__body">
           <h2 class="sec__title">${esc(s.label)}</h2>
           <p class="sec__note">${esc(s.note)}</p>
-          ${choice}
-          <p class="sec__other">At ${esc(otherName)}: <b>${esc(otherBits.join(' · ') || 'shown')}</b></p>
+          ${body}
+          ${otherText ? `<p class="sec__other">At ${esc(otherName)}: <b>${esc(otherText)}</b></p>` : ''}
           <p class="sec__status" data-home-status role="status"></p>
         </div>
         <div class="sec__side">${side}</div>
@@ -199,29 +242,45 @@ function renderPage(site: Site, layout: HomeLayout, other: HomeLayout): string {
   (function () {
     var boxes   = Array.prototype.slice.call(document.querySelectorAll('[data-home-toggle]'));
     var radios  = Array.prototype.slice.call(document.querySelectorAll('[data-home-choice]'));
-    var inputs  = boxes.concat(radios);
+    // The phone gallery switch — "hidden" is stored as the phone rotation at the
+    // top of the page showing a single photo (see functions/data/home-sections.ts).
+    var phone   = document.querySelector('[data-home-phone-gallery]');
+    var inputs  = boxes.concat(radios, phone ? [phone] : []);
+    var rows    = Array.prototype.slice.call(document.querySelectorAll('[data-home-row]'));
     var count   = document.querySelector('[data-home-count]');
-    var total   = ${HOME_SECTIONS.length};
 
     /** The layout exactly as the controls show it. */
     function current() {
+      var single = radios.filter(function (r) { return r.checked && r.value === 'single'; })
+                         .map(function (r) { return r.getAttribute('data-home-choice'); });
+      if (phone && !phone.checked) single.push('hero');
       return {
         off: boxes.filter(function (b) { return !b.checked; })
                   .map(function (b) { return b.getAttribute('data-home-toggle'); }),
-        single: radios.filter(function (r) { return r.checked && r.value === 'single'; })
-                      .map(function (r) { return r.getAttribute('data-home-choice'); }),
+        single: single,
       };
     }
 
     function paint() {
-      boxes.forEach(function (box) {
-        var on = box.checked;
-        box.closest('[data-home-row]').classList.toggle('is-off', !on);
-        var label = box.closest('.switch');
+      inputs.forEach(function (input) {
+        if (input.type !== 'checkbox') return;
+        var on = input.checked;
+        var label = input.closest('.switch');
         label.classList.toggle('is-off', !on);
         label.querySelector('[data-home-state]').textContent = on ? 'Shown' : 'Hidden';
+        var device = input.closest('[data-device]');
+        if (device) device.classList.toggle('is-off', !on);
       });
-      if (count) count.textContent = String(total - current().off.length);
+      // A section is off only when every switch it has is off — the gallery
+      // stays "shown" while either device still shows it.
+      var shown = 0;
+      rows.forEach(function (row) {
+        var own = Array.prototype.slice.call(row.querySelectorAll('input[type="checkbox"]'));
+        var on  = !own.length || own.some(function (b) { return b.checked; });
+        row.classList.toggle('is-off', !on);
+        if (on) shown++;
+      });
+      if (count) count.textContent = String(shown);
     }
 
     /** Set every control from a layout — the one the server STORED, so the
@@ -232,6 +291,7 @@ function renderPage(site: Site, layout: HomeLayout, other: HomeLayout): string {
         var single = layout.single.indexOf(r.getAttribute('data-home-choice')) !== -1;
         r.checked = (r.value === 'single') === single;
       });
+      if (phone) phone.checked = layout.single.indexOf('hero') === -1;
       paint();
     }
 
@@ -266,7 +326,16 @@ function renderPage(site: Site, layout: HomeLayout, other: HomeLayout): string {
           saved = { off: data.off, single: data.single };
           apply(saved);
           var msg;
-          if (input.type === 'checkbox') {
+          var device = input.closest('[data-device]');
+          if (input === phone) {
+            msg = input.checked
+              ? 'Phones: shown — the top of the page rotates through the gallery photos.'
+              : 'Phones: hidden — phones show just the top photo.';
+          } else if (input.type === 'checkbox' && device) {
+            msg = input.checked
+              ? 'Computers & tablets: shown.'
+              : 'Computers & tablets: hidden — removed from the page. Phones are not affected.';
+          } else if (input.type === 'checkbox') {
             msg = input.checked ? 'Shown — visitors will see it.' : 'Hidden — removed from the page.';
           } else {
             msg = input.value === 'single' ? 'Saved — a single photo.' : 'Saved — a gallery.';

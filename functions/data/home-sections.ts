@@ -13,6 +13,20 @@
 //   single — gallery places showing ONE photo: "hero" (the phone rotation at
 //            the top of the page) and "gallery" (the gallery section)
 //
+// ── The gallery is two things ──────────────────────────────────────────────
+// Computers and phones don't see the same gallery. On a computer (or tablet)
+// it is the full-screen gallery SECTION. On a phone that section is hidden by
+// design (HomePage.astro, ≤600px) and the gallery is instead the photos the
+// top of the page rotates through. So the panel offers the gallery one switch
+// per device, and each maps onto a different, independent part of the record:
+//
+//   computers & tablets hidden   → "gallery" in `off`
+//   computers & tablets 1 photo  → "gallery" in `single`
+//   phones hidden                → "hero"    in `single` (just the top photo)
+//
+// Neither touches the other, and — like everything here — each venue has its
+// own record, so Zahara and the rooftop never affect each other.
+//
 // Absent means everything is shown, as a gallery — which is what both venues
 // looked like before this existed, so nothing changes until the owner does.
 //
@@ -42,13 +56,7 @@ export const HOME_SECTIONS = [
   {
     id: 'hero', locked: true,
     label: 'Top of the page',
-    note:  'The full-screen photo (or video) with the name and the booking button. Always shown — it is the first thing every visitor sees, and it carries the page title.',
-    gallery: {
-      label: 'On phones',
-      gallery: 'Rotating gallery',
-      single:  'Single photo',
-      note:    'A gallery rotates through the Hero and the first four gallery photos, with arrows. A single photo keeps just the Hero. Computers always show the Hero alone.',
-    },
+    note:  'The full-screen photo (or video) with the name and the booking button. Always shown — it is the first thing every visitor sees, and it carries the page title. On phones it can also rotate through the gallery photos: that is the phone gallery, switched under Gallery below.',
   },
   {
     id: 'info', locked: false,
@@ -78,12 +86,22 @@ export const HOME_SECTIONS = [
   {
     id: 'gallery', locked: false,
     label: 'Gallery',
-    note:  'The full-screen photo gallery. Whether the top of the page rotates through these photos on phones is set above, under “Top of the page”.',
-    gallery: {
-      label: 'Show as',
-      gallery: 'Gallery',
-      single:  'Single photo',
-      note:    'A gallery shows every gallery photo with arrows, moving on by itself. A single photo shows only “Gallery 1” from Images, full screen and still.',
+    note:  'Computers and phones show the gallery in different places, so each has its own switch — turning one off never changes the other.',
+    devices: {
+      desktop: {
+        label: 'Computers & tablets',
+        note:  'The full-screen gallery section, with arrows, moving on by itself.',
+        choice: {
+          label:   'Show as',
+          gallery: 'Gallery',
+          single:  'Single photo',
+          note:    'A single photo shows only “Gallery 1” from Images, full screen and still.',
+        },
+      },
+      phone: {
+        label: 'Phones',
+        note:  'On phones the gallery is the photos rotating at the top of the page, with arrows (the gallery section itself is never shown on phones). Hidden: phones show just the top photo, still.',
+      },
     },
   },
   {
@@ -96,8 +114,9 @@ export const HOME_SECTIONS = [
 export type HomeSectionId = (typeof HOME_SECTIONS)[number]['id'];
 
 const SWITCHABLE = new Set<string>(HOME_SECTIONS.filter((s) => !s.locked).map((s) => s.id));
-/** The places that can be a gallery or a single photo. */
-const GALLERIES  = new Set<string>(HOME_SECTIONS.filter((s) => 'gallery' in s).map((s) => s.id));
+/** The places that can be a gallery or a single photo — the `data-gallery-place`
+ *  values on the page. "hero" is the phone gallery (see the note at the top). */
+const GALLERIES  = new Set<string>(['hero', 'gallery']);
 
 export interface HomeLayout {
   /** Sections switched off, in page order. */
