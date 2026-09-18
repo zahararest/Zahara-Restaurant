@@ -22,6 +22,14 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
 ---
 
 <section class="section-tight ig-section reveal-on-scroll">
+  {/* The ground behind the widget — deeper paper, a pool of the page's own
+      ambient glow, and two cross-fading blurred copies of whatever frame is in
+      the box. Decorative only; see the .ig-ground styles below. */}
+  <div class="ig-ground" aria-hidden="true">
+    <img class="ig-ground__bleed" data-ig-bleed alt="" decoding="async" referrerpolicy="no-referrer" />
+    <img class="ig-ground__bleed" data-ig-bleed alt="" decoding="async" referrerpolicy="no-referrer" />
+  </div>
+
   <div class="wrap">
     <div class="section-head">
       <p class="eyebrow eyebrow--center" data-content-key="home.igEyebrow">{t.igEyebrow}</p>
@@ -76,6 +84,33 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     const reelsScroll = document.querySelector('[data-ig-reels-scroll]');
     if (!feature) return;
 
+    // The two blurred colour layers behind the section (see .ig-ground).
+    const bleeds = Array.prototype.slice.call(document.querySelectorAll('[data-ig-bleed]'));
+    let bleedTop = 0;                   // which layer is currently showing
+
+    // Point the ground at the frame the box is showing. The incoming layer
+    // only takes over once its image has decoded, so a slow frame never blanks
+    // the wash — the outgoing one simply holds until the swap.
+    function setBleed(src) {
+      if (bleeds.length < 2 || !src) return;
+      const cur  = bleeds[bleedTop];
+      const next = bleeds[(bleedTop + 1) % bleeds.length];
+      if (cur.dataset.src === src || next.dataset.src === src) return;
+      next.dataset.src = src;
+      next.onload = () => {
+        if (next.dataset.src !== src) return;   // a later frame already won
+        next.classList.add('is-on');
+        cur.classList.remove('is-on');
+        bleedTop = (bleedTop + 1) % bleeds.length;
+      };
+      next.onerror = () => { next.dataset.src = ''; };
+      next.src = src;
+    }
+    // Nothing to bleed from (no feed, expired CDN URL) — back to plain ground.
+    function clearBleed() {
+      bleeds.forEach((b) => { b.classList.remove('is-on'); b.dataset.src = ''; });
+    }
+
     const escAttr = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
     const escHtml = (s) => String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -118,6 +153,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     }
 
     function renderFallback() {
+      clearBleed();
       feature.innerHTML =
         '<a class="ig-box ig-box--cta" href="' + escAttr(instagramUrl) + '"' +
         ' target="_blank" rel="noopener noreferrer" data-track="instagram_click" aria-label="' + escAttr(t.igFollow) + '">' +
@@ -241,6 +277,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
         idx = (i + frames.length) % frames.length;
         const f = frames[idx];
         img.src = f.image;
+        setBleed(f.image);
         currentHref = f.permalink || instagramUrl;
         if (timeEl) timeEl.textContent = timeAgo(f.timestamp);
         // Stories: bars left of the current frame read as watched, the rest
@@ -387,9 +424,110 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   /* Quiet "follow us" moment near the foot of the page — a single small box,
      not a full editorial section. */
   section.ig-section {
+    position: relative;
+    isolation: isolate;
     overflow: hidden;
     padding-block: var(--space-l) var(--space-m);
   }
+  /* The content rides above the ground layer below. */
+  .ig-section > .wrap { position: relative; z-index: 1; }
+
+  /* ── The ground ──────────────────────────────────────────────────
+     This section used to sit on bare page wash, which made it read as the
+     same flat slab as the footer right beneath it. It gets its own ground
+     instead, in three layers:
+
+       1. a pool of deeper paper that dissolves into the page at the top and
+          lands on exactly --paper-deep at the foot — the footer's opening
+          tone — so neither edge shows a seam;
+       2. a soft pool of the page's own ambient glow behind the box, so the
+          little story card reads as lit rather than pasted on;
+       3. two cross-fading, heavily blurred copies of whatever frame is in the
+          box, so the section takes its colour from its own photography and
+          shifts as the stories advance (the real story viewer does the same).
+
+     Every colour is an existing token, so the owner's palette — and the
+     "Page background" glow controls in /admin/colors — drive this too. */
+  .ig-ground {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* Both scalars ride on the owner's own glow strength, so turning the page
+       atmosphere down in /admin/colors turns this down with it. */
+    --ig-glow: calc(var(--bg-glow-strength) * 3.2%);
+    --ig-vignette: 12%;
+    background:
+      /* the lit pool behind the box */
+      radial-gradient(58% 50% at 50% 44%,
+        color-mix(in srgb, var(--bg-glow) var(--ig-glow), transparent) 0%,
+        transparent 70%),
+      /* corners fall away, so the middle reads as lit rather than filled */
+      radial-gradient(130% 92% at 50% 44%,
+        transparent 38%,
+        color-mix(in srgb, var(--shadow) var(--ig-vignette), transparent) 100%),
+      /* deeper paper, landing on the footer's opening tone */
+      linear-gradient(180deg,
+        color-mix(in srgb, var(--paper-deep) 70%, var(--paper)) 0%,
+        var(--paper-deep) 58%,
+        var(--paper-deep) 100%);
+    /* Dissolve the top edge into whatever sits above (usually the gallery's
+       full-bleed photography). A hard top line would just swap one stripe for
+       another. */
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 16%);
+    mask-image: linear-gradient(180deg, transparent 0%, #000 16%);
+  }
+  /* A dark page is already close to the alcove's own tone, so it takes a
+     quieter pool and a deeper falloff to read as a lit room. */
+  html[data-theme="dark"] .ig-ground {
+    --ig-glow: calc(var(--bg-glow-strength) * 2.4%);
+    --ig-vignette: 14%;
+  }
+  /* Where the browser can clip one axis only, run the ground on down through
+     the footer's top margin as well, so the page keeps descending into the
+     footer instead of stepping back up to flat paper for 8rem first. The
+     Instagram section is always the last one on the home page. */
+  @supports (overflow-x: clip) {
+    section.ig-section { overflow-x: clip; overflow-y: visible; }
+    .ig-ground { inset-block-end: calc(-1 * var(--space-2xl)); }
+  }
+
+  /* Colour bled from the current frame. Blurring a SMALL box and scaling the
+     result up gives the same wash as a ~120px blur across the section at a
+     fraction of the paint cost, and the images are already in cache — they're
+     the very ones the box is showing. Two layers so frames cross-fade. */
+  .ig-ground__bleed {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 50%;
+    width: 200px;
+    height: 200px;
+    margin-block-start: -100px;
+    margin-inline-start: -100px;
+    object-fit: cover;
+    opacity: 0;
+    /* Saturated a touch so a quiet frame still tints the paper; the pool is
+       so diffuse that this reads as warmth, not as a filter on a photo. */
+    filter: blur(20px) saturate(1.6);
+    transform: scale(6);
+    transition: opacity 1.2s var(--ease-out);
+    /* A pool of colour in the middle of the paper, not a photograph behind
+       the section — so it fades out well before the edges. */
+    -webkit-mask-image: radial-gradient(closest-side, #000 18%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 18%, transparent 100%);
+    /* Light paper takes the photo as ink; a dark page takes it as light. */
+    --ig-bleed: 1;
+    mix-blend-mode: soft-light;
+  }
+  .ig-ground__bleed.is-on { opacity: var(--ig-bleed); }
+  html[data-theme="dark"] .ig-ground__bleed {
+    --ig-bleed: 0.26;
+    mix-blend-mode: screen;
+  }
+  /* Max-contrast mode flattens the page to plain white — atmosphere is
+     texture, not information, so it goes the way the page grain does. */
+  html.a11y-contrast .ig-ground { display: none; }
   .ig-section .section-head { margin-block-end: var(--space-m); }
   .ig-section .eyebrow { margin-block-end: 0.35rem; }
   .ig-section .display { font-size: var(--step-2); margin: 0; }
@@ -434,6 +572,12 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
       0 14px 36px -10px rgba(0, 0, 0, 0.6),
       0 0 0 1px rgba(255, 255, 255, 0.08);
   }
+  /* The two paper-only states sit on --paper-deep ground now, so they'd read
+     as a hole rather than a card. Raise them one surface step — which also
+     keeps --ink-muted on the fallback well clear of AA. */
+  .ig-box--skeleton,
+  .ig-box--cta { background: var(--paper-card); }
+
   /* The whole media box is the link to Instagram now. */
   .ig-box--media { cursor: pointer; }
   .ig-box--media:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -676,9 +820,13 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     padding: 0 0 2px;
     transition: color 0.2s ease, border-color 0.2s ease;
   }
+  /* Accent marks the state on the RULE, not on the word: gold type on paper
+     is a ~2.7:1 pair, and the deeper ground here would push it lower still.
+     This is also how the rest of the site spends the accent — on the
+     underline, the eyebrow rule, the price. */
   .ig-reels-toggle:hover,
   .ig-reels-toggle[aria-expanded="true"] {
-    color: var(--accent);
+    color: var(--ink);
     border-block-end-color: var(--accent);
   }
   .ig-reels-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -749,7 +897,10 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     font-size: var(--step--1);
     letter-spacing: 0.08em;
     text-decoration: none;
-    color: var(--ink-muted);
+    /* One step up the ink scale from the old --ink-muted: this line sits on
+       the deeper ground now (same surface as the footer, which uses --ink for
+       its own links), and --ink-muted on --paper-deep only just clears AA. */
+    color: var(--ink-soft);
     transition: color 0.2s;
   }
   .ig-follow__link:hover { color: var(--ink); }
@@ -757,6 +908,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   .ig-follow__label { font-size: 0.8em; }
 
   @media (prefers-reduced-motion: reduce) {
+    .ig-ground__bleed { transition: none; }
     .ig-box--skeleton .ig-box__img::after { animation: none; }
     .ig-box--media .ig-box__img { animation: none; }
     .ig-box--media:hover .ig-box__img,

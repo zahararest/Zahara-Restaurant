@@ -10,6 +10,8 @@
 //                'follow'  (phone only) show whatever the desktop shows
 //                'delete'  remove the video file for good
 //                'options' save fit / position / speed for this frame
+//                'copy'    reuse a video already uploaded elsewhere:
+//                          `from` (catalogue key) + `fromVariant`
 //   file     — video/mp4 or video/webm, ≤ MAX_BYTES (upload only)
 //
 // The two frames are independent: a phone can play a video over a desktop
@@ -253,6 +255,65 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       return saveFailed(err, 'Deleted the file, but the change could not be saved');
     }
     return finish();
+  }
+
+  // ── Reuse a video that is already in the bucket ──────────────────────────
+  // The same idea as "Choose existing" for stills (see images/apply.ts): a clip
+  // that is already up shouldn't have to travel again from a phone on hotel
+  // wifi to sit in a second frame — which is exactly what the hero usually
+  // wants, the same loop on desktop and on phones, framed differently.
+  //
+  // The bytes are COPIED, not shared: every frame keeps its own object, so
+  // deleting the video on one slot can never empty another. Cheap enough —
+  // R2 to R2 inside one datacentre, and the ceiling is 40 MB.
+  if (action === 'copy') {
+    const fromKey  = String(form.get('from') || '');
+    const fromMeta = PHOTO_CATALOGUE.find((p) => p.key === fromKey);
+    const fromVariant: MediaVariant = String(form.get('fromVariant') || '') === 'mobile' ? 'mobile' : 'desktop';
+    if (!fromMeta || !canShowVideo(fromMeta)) {
+      return json({ ok: false, error: `Unknown video to copy: ${fromKey}` }, 400);
+    }
+    if (fromKey === key && fromVariant === variant) {
+      return json({ ok: false, error: 'That is this frame’s own video.' }, 400);
+    }
+    // Shared slots keep their files in Zahara's bucket whichever venue is being
+    // edited, so the SOURCE bucket is resolved from the source key — copying a
+    // shared clip into a rooftop slot reads from one bucket and writes to
+    // another.
+    const fromBucket = siteScope(env, photoSite(editing, fromKey)).images;
+    if (!fromBucket) return json({ ok: false, error: 'IMAGES binding missing for this venue' }, 500);
+
+    const src = await fromBucket.get(`images/${videoObjectKey(fromKey, fromVariant)}`).catch(() => null);
+    if (!src) {
+      return json({
+        ok: false,
+        error: `${fromMeta.label} has no ${fromVariant === 'mobile' ? 'phone ' : ''}video any more — ` +
+               'reload the page to see what is actually there.',
+      }, 404);
+    }
+
+    const buffer = new Uint8Array(await src.arrayBuffer());
+    // It passed the format checks on its way in; re-reading the brands costs a
+    // few bytes and means a file that somehow got in another way can't spread.
+    const detected = detectVideoType(buffer);
+    if (!detected) return json({ ok: false, error: 'That stored file is not a video we can serve' }, 415);
+
+    try {
+      await bucket.put(`images/${objectKey}`, buffer, { httpMetadata: { contentType: detected } });
+    } catch (err) {
+      console.error('[admin/images/video] R2 copy put failed', err);
+      return json({ ok: false, error: 'Storage failed' }, 500);
+    }
+    const copied = await bucket.head(`images/${objectKey}`).catch(() => null);
+    if (!copied) return json({ ok: false, error: 'The video did not save. Please try again.' }, 500);
+
+    try {
+      if (isPhone) await setPhoneMode(env, site, key, 'video');
+      else         await setDesktopVideo(env, site, key, true);
+    } catch (err) {
+      return saveFailed(err, 'The video was copied, but switching the slot to it failed');
+    }
+    return finish({ copiedFrom: fromMeta.label });
   }
 
   // ── Upload ───────────────────────────────────────────────────────────────

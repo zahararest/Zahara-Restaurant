@@ -577,6 +577,9 @@ const STYLE = `
     text-transform: uppercase;
     color: #1a1410;
   }
+  /* The shared .btn grows to fill a flex row, which in a modal header made
+     "Close" a third of the width. Headers are not toolbars. */
+  .picker__head .btn { flex: 0 0 auto; }
   .picker__sub { margin: 0; font-size: 0.8rem; color: #6f6457; }
   .picker__sub em { font-style: normal; font-weight: 600; color: #9C4621; }
   .picker__grid {
@@ -616,6 +619,51 @@ const STYLE = `
   .picker__status { margin: 0; min-height: 1.1em; font-size: 0.78rem; color: #4f6b47; }
   .picker__status--err { color: #a53623; }
   .picker__empty { color: #6f6457; font-size: 0.82rem; padding: 1rem 0; }
+
+  /* ── Video picker (reuse a clip already uploaded) ──────────────── */
+  /* Bigger tiles than the photo picker: these play, and a 140px tile of
+     moving footage tells the owner nothing. */
+  .picker__panel--wide { width: min(1040px, 100%); }
+  .vpick__grid { grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); }
+  .vpick__media {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #ece3d0 center / cover no-repeat;
+    overflow: hidden;
+  }
+  .vpick__media video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .vpick__tag {
+    position: absolute;
+    inset-block-start: 0.35rem;
+    inset-inline-start: 0.35rem;
+    z-index: 1;
+    background: rgba(26, 20, 16, 0.78);
+    color: #F4EDDF;
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.4rem;
+  }
+  .vpick__tag--err {
+    inset-inline-start: auto;
+    inset-inline-end: 0.35rem;
+    background: #a53623;
+  }
+  .vpick__where { font-size: 0.68rem; color: #6f6457; }
+  .vpick__size  { font-size: 0.66rem; color: #9a8d77; letter-spacing: 0.04em; }
+  .vpick__here {
+    font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #9C4621; font-weight: 600;
+  }
 
   /* ── Editor modal ────────────────────────────────────────────── */
   .editor {
@@ -891,6 +939,14 @@ const SCRIPT = `
       return 'other';
     }
 
+    /** "Has a video" is not a badge state — a frame can hold a video and still
+     *  be showing its photograph — so it is read off the thumbnail, which the
+     *  video code keeps current on every switch. */
+    function cardHasVideo(card) {
+      const zone = card.querySelector('[data-thumb-zone]');
+      return !!(zone && zone.dataset.hasVideo === '1');
+    }
+
     function applySearch() {
       const q = (searchInput && searchInput.value || '').trim().toLowerCase();
       const v = activeView();
@@ -905,7 +961,8 @@ const SCRIPT = `
         group.querySelectorAll('[data-photo-card]').forEach((card) => {
           const hay = card.dataset.search || '';
           const matchQ = !q || hay.indexOf(q) !== -1;
-          const matchF = activeFilter === 'all' || cardState(card) === activeFilter;
+          const matchF = activeFilter === 'all'
+            || (activeFilter === 'video' ? cardHasVideo(card) : cardState(card) === activeFilter);
           card.classList.toggle('is-hidden', !(matchQ && matchF));
           if (matchQ && matchF) shown++;
         });
@@ -1074,6 +1131,153 @@ const SCRIPT = `
       });
     }
 
+    // ── Video picker (reuse a clip already uploaded) ──────────────────
+    // A video only ever existed inside the card it was uploaded on: there was
+    // no way to see what the site already had, and the only way to put the
+    // same loop in a second frame was to upload the file again. This lists
+    // every clip in the venue — playing, so they are recognisable — and copies
+    // the chosen one into the frame that asked.
+    //
+    // window.VIDEO_LIBRARY is the server's list (see images.ts). It is kept up
+    // to date in the browser from every video response, so a clip uploaded in
+    // one card can be reused in another without reloading the page.
+    const vpick      = document.getElementById('vpicker');
+    const vpickGrid  = document.getElementById('vpicker-grid');
+    const vpickTitle = document.getElementById('vpicker-title');
+    const vpickStat  = document.getElementById('vpicker-status');
+    const vpickClose = document.getElementById('vpicker-close');
+    let vpickCtx = null;
+
+    function fmtMB(b) { return (Math.round((b || 0) / 1024 / 1024 * 10) / 10) + ' MB'; }
+
+    /** Every uploaded clip EXCEPT the one this frame is already playing —
+     *  offering a frame its own video would be a no-op with a progress bar. */
+    function videoLibFor(key, variant) {
+      const out = [];
+      (window.VIDEO_LIBRARY || []).forEach((it) => {
+        ['desktop', 'mobile'].forEach((vr) => {
+          const info = it[vr];
+          if (!info) return;
+          if (it.key === key && vr === variant) return;
+          out.push({
+            key: it.key, label: it.label, group: it.group, poster: it.poster,
+            variant: vr, file: vr === 'mobile' ? it.fileMobile : it.fileDesktop,
+            size: info.size, type: info.type, uploaded: info.uploaded,
+            here: it.key === key,
+          });
+        });
+      });
+      // Newest first: the clip the owner just uploaded is the one they are most
+      // likely reaching for, and the slot's other frame sits at the top.
+      out.sort((a, b) => (a.here === b.here ? String(b.uploaded || '').localeCompare(String(a.uploaded || '')) : (a.here ? -1 : 1)));
+      return out;
+    }
+
+    // Buttons that only make sense once something is uploaded. They live on
+    // every card, so an upload anywhere has to re-ask all of them.
+    const VIDEO_PICK_BTNS = [];
+    function refreshVideoPickButtons() {
+      VIDEO_PICK_BTNS.forEach((fn) => { try { fn(); } catch (e) {} });
+    }
+    /** Fold a slot's freshly reported state back into the library. */
+    window.ZAHARA_VIDEO_LIB_SYNC = function (key, st) {
+      const it = (window.VIDEO_LIBRARY || []).find((e) => e.key === key);
+      if (it) {
+        it.desktop = st.hasFile       ? { size: st.size, type: st.type, uploaded: st.uploaded } : null;
+        it.mobile  = st.hasMobileFile ? { size: st.mobileSize, type: st.mobileType, uploaded: st.mobileUploaded } : null;
+      }
+      refreshVideoPickButtons();
+    };
+
+    function setVpickStatus(msg, err) {
+      if (!vpickStat) return;
+      vpickStat.textContent = msg || '';
+      vpickStat.classList.toggle('picker__status--err', !!err);
+    }
+    function closeVideoPicker() {
+      if (!vpick) return;
+      vpick.classList.remove('is-open');
+      vpick.setAttribute('aria-hidden', 'true');
+      // Stop the decoders: a dozen looping clips left running behind a closed
+      // modal is a hot laptop and nothing else.
+      if (vpickGrid) {
+        Array.prototype.slice.call(vpickGrid.querySelectorAll('video')).forEach((el) => {
+          try { el.pause(); el.removeAttribute('src'); el.load(); } catch (e) {}
+        });
+        vpickGrid.innerHTML = '';
+      }
+      vpickCtx = null;
+      setVpickStatus('');
+    }
+    if (vpickClose) vpickClose.addEventListener('click', closeVideoPicker);
+    if (vpick) vpick.addEventListener('click', (e) => { if (e.target === vpick) closeVideoPicker(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && vpick && vpick.classList.contains('is-open')) closeVideoPicker();
+    });
+
+    window.ZAHARA_PICK_VIDEO = function (opts) {
+      if (!vpick || !vpickGrid) return;
+      vpickCtx = opts;
+      if (vpickTitle) {
+        vpickTitle.textContent = 'Choose an existing video for · ' + (opts.label || opts.key);
+      }
+      const lib = videoLibFor(opts.key, opts.variant);
+      if (!lib.length) {
+        vpickGrid.innerHTML = '<p class="picker__empty">No videos uploaded yet. ' +
+          'Upload one on any slot and it will be offered here from then on.</p>';
+      } else {
+        vpickGrid.innerHTML = lib.map((it) => {
+          const src    = '/videos/' + it.file + '?t=' + encodeURIComponent(it.uploaded || '') + (window.ADMIN_SITE_SUFFIX || '');
+          const poster = it.poster + '?t=' + (window.PICK_VERSION || '') + (window.ADMIN_SITE_SUFFIX || '');
+          const tag    = it.variant === 'mobile' ? '<span class="vpick__tag">Phone video</span>' : '';
+          const where  = it.here
+            ? '<span class="vpick__here">This slot · ' + (it.variant === 'mobile' ? 'phone frame' : 'desktop frame') + '</span>'
+            : '<span class="vpick__where">' + escA(it.group || '') + '</span>';
+          return '<button type="button" class="picker__item vpick__item" ' +
+                   'data-from="' + escA(it.key) + '" data-from-variant="' + escA(it.variant) + '">' +
+            '<span class="vpick__media" style="background-image:url(' + escA(poster) + ')">' +
+              tag +
+              '<video muted loop playsinline preload="metadata" poster="' + escA(poster) + '" src="' + escA(src) + '"></video>' +
+            '</span>' +
+            '<span class="picker__item-meta">' +
+              '<span class="picker__item-label">' + escA(it.label) + '</span>' +
+              where +
+              '<span class="vpick__size">' + fmtMB(it.size) +
+                (it.type ? ' · ' + escA(String(it.type).replace('video/', '').toUpperCase()) : '') +
+              '</span>' +
+            '</span>' +
+          '</button>';
+        }).join('');
+      }
+      setVpickStatus('');
+      vpick.classList.add('is-open');
+      vpick.setAttribute('aria-hidden', 'false');
+      // Only once the modal is actually on screen, or the observer that starts
+      // playback would look at a hidden grid and decide nothing is visible.
+      requestAnimationFrame(() => {
+        Array.prototype.slice.call(vpickGrid.querySelectorAll('video')).forEach(watchVideo);
+      });
+    };
+
+    if (vpickGrid) {
+      vpickGrid.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.vpick__item');
+        if (!btn || !vpickCtx) return;
+        const ctx   = vpickCtx;
+        const items = vpickGrid.querySelectorAll('.vpick__item');
+        items.forEach((b) => { b.disabled = true; });
+        setVpickStatus('Copying the video into this frame…', false);
+        try {
+          await ctx.onCopy(btn.dataset.from, btn.dataset.fromVariant);
+          closeVideoPicker();
+        } catch (err) {
+          setVpickStatus(String(err.message || err), true);
+          // …except the ones that already proved they cannot play.
+          items.forEach((b) => { b.disabled = b.classList.contains('is-broken'); });
+        }
+      });
+    }
+
     // ── Shared upload helper (canvas blob OR File) ────────────────────
     window.ZAHARA_UPLOAD = async function (key, fileOrBlob, filename, variant) {
       const fd = new FormData();
@@ -1133,6 +1337,20 @@ const SCRIPT = `
         if (note) {
           note.classList.add('card__video-note--err');
           note.textContent = why;
+        }
+        // Same failure inside the reuse picker: the tile would otherwise fall
+        // back to the still and look like a perfectly good clip, and the owner
+        // would copy an unplayable file into a second frame.
+        const tile = v.closest('.vpick__item');
+        if (tile && !tile.querySelector('.vpick__tag--err')) {
+          tile.disabled = true;
+          tile.classList.add('is-broken');
+          tile.title = why;
+          const media = tile.querySelector('.vpick__media') || tile;
+          const tag = document.createElement('span');
+          tag.className = 'vpick__tag vpick__tag--err';
+          tag.textContent = 'Will not play';
+          media.appendChild(tag);
         }
       }
 
@@ -1198,6 +1416,7 @@ const SCRIPT = `
       const optionalNote = card.querySelector('[data-optional-note]');
       const videoFile    = card.querySelector('[data-input-video]');
       const videoBtn     = card.querySelector('[data-btn-video]');
+      const videoPickBtn = card.querySelector('[data-btn-video-pick]');
       const videoHideBtn = card.querySelector('[data-btn-video-hide]');
       const videoShowBtn = card.querySelector('[data-btn-video-show]');
       const videoFollowBtn = card.querySelector('[data-btn-video-follow]');
@@ -1691,11 +1910,47 @@ const SCRIPT = `
         const peers = (window.ZAHARA_VIDEO_CARDS = window.ZAHARA_VIDEO_CARDS || {});
         (peers[key] = peers[key] || []).push(applyState);
         function applyEverywhere(st) {
+          // The reuse picker offers what the bucket holds, so it learns about
+          // an upload or a deletion from the same answer the cards redraw from.
+          if (window.ZAHARA_VIDEO_LIB_SYNC) window.ZAHARA_VIDEO_LIB_SYNC(key, st);
           (peers[key] || []).forEach((apply) => apply(st));
           try { new BroadcastChannel('zahara-images').postMessage({ key: key, action: 'video' }); } catch (_) {}
         }
 
         videoBtn.addEventListener('click', () => { if (videoFile) videoFile.click(); });
+
+        // ── Reuse a clip that is already on the site ────────────────────────
+        // Hidden while there is nothing to reuse — on a fresh site that is
+        // every card, and a button that can only ever open an empty list is
+        // just noise. Re-asked whenever the library changes.
+        if (videoPickBtn) {
+          const myVariant = isMobile ? 'mobile' : 'desktop';
+          VIDEO_PICK_BTNS.push(() => {
+            videoPickBtn.hidden = videoLibFor(key, myVariant).length === 0;
+          });
+          videoPickBtn.addEventListener('click', () => {
+            window.ZAHARA_PICK_VIDEO({
+              key: key, variant: myVariant, label: label + (isMobile ? ' · phone' : ''),
+              onCopy: async (from, fromVariant) => {
+                setBusy('Copying video…');
+                try {
+                  const fd = new FormData();
+                  fd.append('action', 'copy');
+                  fd.append('from', from);
+                  fd.append('fromVariant', fromVariant);
+                  const st = await postVideo(fd);
+                  applyEverywhere(st);
+                  setStatus('Copied “' + (st.copiedFrom || from) + '” into this frame' +
+                            (isMobile ? ' for phones' : '') + '. ' +
+                            'It is a separate copy — deleting the original leaves this one alone. ' +
+                            'The live page can take up to half a minute to catch up.', false);
+                } finally {
+                  setBusy('');
+                }
+              },
+            });
+          });
+        }
 
         if (videoFile) videoFile.addEventListener('change', async () => {
           const f = videoFile.files && videoFile.files[0];
@@ -2750,6 +3005,7 @@ const SCRIPT = `
 
     // Default view + initial chrome. The tabs are built first so applySearch
     // has a page to filter to (it would otherwise hide everything).
+    refreshVideoPickButtons();
     buildPageTabs();
     applySearch();
     updateCount();
@@ -2913,6 +3169,7 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
           <input class="card__file" type="file" data-input-video accept="video/mp4,video/webm,video/quicktime" />
           <div class="card__row">
             <button class="btn btn--ghost" type="button" data-btn-video>${isMobile ? 'Use a video on phones…' : 'Use a video instead…'}</button>
+            <button class="btn btn--ghost" type="button" data-btn-video-pick hidden>Choose existing video…</button>
             <button class="btn btn--ghost" type="button" data-btn-video-hide hidden>Back to the photo</button>
             <button class="btn btn--ghost" type="button" data-btn-video-show hidden>${isMobile ? 'Show the phone video' : 'Show the video'}</button>
             ${isMobile ? '<button class="btn btn--ghost" type="button" data-btn-video-follow hidden>Use the desktop video</button>' : ''}
@@ -3142,6 +3399,33 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       .map((p) => ({ key: p.key, filename: p.filename, label: p.label, group: p.group, has: overrideSet.has(p.key) })),
   );
 
+  // Every video the venue has, both frames — the stock for "use a video I've
+  // already uploaded", and the only place the owner can see the whole set at
+  // once. A video otherwise lives in a bucket under one slot's name and is
+  // invisible until you scroll to that card.
+  //
+  // Slots with nothing uploaded are listed too, with both frames null: the
+  // browser fills them in as videos are added, so the picker stays right
+  // without a reload.
+  const videoLibraryJson = JSON.stringify(
+    PHOTO_CATALOGUE.filter((p) => canShowVideo(p)).map((p) => {
+      const d = videoFiles.get(p.key);
+      const m = videoMobileFiles.get(p.key);
+      const info = (f: FileInfo | undefined) =>
+        f ? { size: f.size, type: f.type, uploaded: f.uploaded } : null;
+      return {
+        key:         p.key,
+        label:       p.label,
+        group:       PHOTO_GROUPS[p.group] ?? p.group,
+        poster:      `/photos/${p.filename}`,
+        fileDesktop: videoFilename(p.filename, 'desktop'),
+        fileMobile:  videoFilename(p.filename, 'mobile'),
+        desktop:     info(d),
+        mobile:      info(m),
+      };
+    }),
+  ).replace(/</g, '\\u003c');
+
   const labelOf = (key: string) => PHOTO_CATALOGUE.find((p) => p.key === key)?.label ?? key;
 
   let missingCount = 0;
@@ -3231,6 +3515,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
         <button type="button" class="filter-chip is-active" data-filter="all">All photos</button>
         <button type="button" class="filter-chip" data-filter="attention">Needs a photo</button>
         <button type="button" class="filter-chip" data-filter="mine">Replaced by you</button>
+        <button type="button" class="filter-chip" data-filter="video">Has a video</button>
       </div>
     </div>
 
@@ -3252,7 +3537,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
       here plays on phones too until you choose something else for them on the
       <strong>Mobile</strong> tab, where a photo can also have a phone-only
       video. <strong>Back to the photo</strong> is a switch, not a delete: the
-      video stays saved and <strong>Show the video</strong> brings it back. Use an
+      video stays saved and <strong>Show the video</strong> brings it back.
+      <strong>Choose existing video</strong> shows every clip on the site,
+      playing, and copies the one you pick into that frame — so the same loop
+      can run in two places without uploading it twice. Use an
       <strong>H.264 MP4</strong>; an iPhone recording in its default HEVC format
       plays on the phone and nowhere else. Changes can take up to half a minute
       to appear on the live site.
@@ -3398,8 +3686,27 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     </div>
   </div>
 
+  <!-- Video picker modal — the clips already uploaded, playing, so the owner
+       picks the one they recognise rather than a filename. -->
+  <div class="picker" id="vpicker" aria-hidden="true">
+    <div class="picker__panel picker__panel--wide" role="dialog" aria-label="Choose an existing video">
+      <header class="picker__head">
+        <h2 class="picker__title" id="vpicker-title">Choose an existing video</h2>
+        <button type="button" class="btn btn--ghost" id="vpicker-close">Close</button>
+      </header>
+      <p class="picker__sub">
+        Every video on the site, playing. Pick one and it is copied into this
+        frame — the original stays where it is, and the two are separate from
+        then on.
+      </p>
+      <div class="picker__grid vpick__grid" id="vpicker-grid"></div>
+      <p class="picker__status" id="vpicker-status"></p>
+    </div>
+  </div>
+
   <script>
     window.PICK_LIBRARY = ${libraryJson};
+    window.VIDEO_LIBRARY = ${videoLibraryJson};
     window.PICK_VERSION = ${v};
     // Suffix appended to every preview URL so admin thumbnails show the venue
     // currently being edited (rooftop → its own image, else the Zahara/static
