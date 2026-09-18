@@ -427,7 +427,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    padding-block: var(--space-l) var(--space-m);
+    padding-block: var(--space-l);
   }
   /* The content rides above the ground layer below. */
   .ig-section > .wrap { position: relative; z-index: 1; }
@@ -484,14 +484,12 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     --ig-glow: calc(var(--bg-glow-strength) * 2.4%);
     --ig-vignette: 14%;
   }
-  /* Where the browser can clip one axis only, run the ground on down through
-     the footer's top margin as well, so the page keeps descending into the
-     footer instead of stepping back up to flat paper for 8rem first. The
-     Instagram section is always the last one on the home page. */
-  @supports (overflow-x: clip) {
-    section.ig-section { overflow-x: clip; overflow-y: visible; }
-    .ig-ground { inset-block-end: calc(-1 * var(--space-2xl)); }
-  }
+  /* The page's usual 8rem run-up to the footer would now read as a band of
+     empty colour between the handle and the rule, so the section hands
+     straight over: its own bottom padding, then the footer's --space-xl top
+     padding, with both grounds already on the same tone. The Instagram
+     section is always the last one on the home page. */
+  main:has(.ig-section) + .site-footer { margin-block-start: 0; }
 
   /* Colour bled from the current frame. Blurring a SMALL box and scaling the
      result up gives the same wash as a ~120px blur across the section at a
