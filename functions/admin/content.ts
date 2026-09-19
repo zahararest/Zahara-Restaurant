@@ -30,7 +30,8 @@ import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
 import { SHRINK_JS } from './shrink';
 import {
-  CONTENT_GROUPS, CONTENT_PAGES, readContentForEditor, defaultTokens, defaultAlignFor, styleFor,
+  CONTENT_GROUPS, CONTENT_PAGES, readContentForEditor, readContentOwn,
+  defaultTokens, defaultAlignFor, styleFor,
   readPopupConfigOwn, popupActive, POPUP_IMAGE_OBJECT, type PopupConfig,
   type ContentEnv, type ContentMap, type ContentField, type ContentGroup,
   type ContentAlign, type FieldRole, type PageId,
@@ -236,6 +237,21 @@ const STYLE = String.raw`
     margin-block-end: .9rem;
   }
   .fld.is-dirty { border-color: var(--accent); }
+  /* "from Zahara" — this venue is inheriting, and the live page shows the
+     text quoted here rather than what the box below it is showing. */
+  .inherit {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+    margin: 0 0 .45rem; padding: .4rem .55rem;
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    border-radius: 4px; font-size: .76rem; color: var(--soft);
+  }
+  .inherit__tag {
+    font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent); white-space: nowrap;
+  }
+  .inherit__text { font-style: normal; color: var(--ink); quotes: '\201C' '\201D'; }
+  .inherit[hidden] { display: none; }
   .fld__head {
     display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap;
     padding: .7rem .85rem; border-bottom: 1px solid var(--line-soft);
@@ -942,6 +958,22 @@ const SCRIPT = String.raw`
     msgEl.textContent = text || '';
     msgEl.classList.toggle('savebar__msg--err', !!err);
   }
+  // "Edit it here" on an inherited field: drop Zahara's text into the box so it
+  // can be edited as the rooftop's own. Marking it dirty is what makes the next
+  // save store it — until then the field is still inheriting.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-use-inherited]');
+    if (!btn) return;
+    var col = btn.closest('[data-col]');
+    var pv  = col && col.querySelector('.pv');
+    if (!pv) return;
+    pv.innerHTML = btn.getAttribute('data-html') || '';
+    pv.dispatchEvent(new Event('input', { bubbles: true }));
+    var note = btn.closest('[data-inherit]');
+    if (note) note.hidden = true;
+    pv.focus();
+  });
+
   function collect() {
     var map = {};
     fields.forEach(function (f) { map[f.getAttribute('data-key')] = entryOf(f); });
@@ -1245,7 +1277,51 @@ function placeholder(f: ContentField, lang: 'he' | 'en'): string {
 
 /** One language's column: its own formatting bar, its own preview box, its
  *  own state line. Nothing here is shared with the other language. */
-function columnHtml(f: ContentField, lang: 'he' | 'en', value: ContentMap[string]): string {
+/** What the ROOFTOP is really showing for this language right now.
+ *
+ *  The rooftop's boxes are filled from its OWN store, so a field it has never
+ *  edited shows the built-in default — NOT the Zahara copy the live rooftop
+ *  page actually displays (readContent() falls back to Zahara per key and per
+ *  language). That gap is invisible and it makes the editor look broken: the
+ *  owner searches for the words on the page, finds nothing, edits the box that
+ *  looks right, and the page does not change.
+ *
+ *  So when this venue inherits, say so — and offer the inherited text as a
+ *  one-click starting point. Adopting it marks the field dirty, which is what
+ *  turns it into the rooftop's OWN copy on the next save. Nothing is prefilled
+ *  silently: an untouched box still stores nothing and keeps inheriting. */
+function inheritHtml(
+  f: ContentField, lang: 'he' | 'en',
+  value: ContentMap[string], inherited?: ContentMap[string],
+): string {
+  if (!inherited) return '';                       // editing Zahara — nothing to inherit
+  if (value?.[lang] !== undefined) return '';      // this venue has its own copy
+  const from = inherited[lang];
+  if (from === undefined) return '';               // Zahara hasn't edited it either
+  // Inheriting a value that IS the built-in default tells the owner nothing.
+  if (from === (f[lang] ?? '') || from === defaultTokens(f.key, lang)) return '';
+  const label = from === ''
+    ? 'Zahara hides this, so the rooftop hides it too.'
+    : 'The rooftop shows Zahara\u2019s text here:';
+  const preview = from === '' ? '' :
+    `<q class="inherit__text">${esc(plain(from).slice(0, 160))}</q>`;
+  return `
+        <p class="inherit" data-inherit>
+          <span class="inherit__tag">from Zahara</span>
+          <span class="inherit__label">${label}</span>
+          ${preview}
+          <button type="button" class="mini" data-use-inherited
+                  data-html="${esc(renderRich(from))}"
+                  title="Copy it into this box so you can edit it as the rooftop\u2019s own">
+            ${from === '' ? 'Give the rooftop its own' : 'Edit it here'}
+          </button>
+        </p>`;
+}
+
+function columnHtml(
+  f: ContentField, lang: 'he' | 'en', value: ContentMap[string],
+  inherited?: ContentMap[string],
+): string {
   const role  = f.role ?? 'body';
   const text  = value?.[lang] ?? f[lang] ?? '';
   const st    = styleFor(value, lang);
@@ -1282,6 +1358,7 @@ function columnHtml(f: ContentField, lang: 'he' | 'en', value: ContentMap[string
             <button type="button" class="fb" data-fmt="clear" title="Remove bold / italic / underline" aria-label="Clear formatting">T×</button>
           </div>
         </div>
+        ${inheritHtml(f, lang, value, inherited)}
         <div class="stage${f.onPhoto ? ' stage--photo' : ''}${role === 'popupTitle' || role === 'popupBody' ? ' stage--card' : ''}">
           <div class="pv pv--${role}" contenteditable="true" role="textbox" aria-multiline="true"
                aria-label="${esc(f.label)} — ${lang === 'he' ? 'Hebrew' : 'English'}"
@@ -1301,7 +1378,10 @@ function columnHtml(f: ContentField, lang: 'he' | 'en', value: ContentMap[string
       </section>`;
 }
 
-function fieldHtml(f: ContentField, value: ContentMap[string], page: PageId, groupTitle: string): string {
+function fieldHtml(
+  f: ContentField, value: ContentMap[string], page: PageId, groupTitle: string,
+  inherited?: ContentMap[string],
+): string {
   const role = f.role ?? 'body';
   const search = [
     f.label, f.hint ?? '', f.key, plain(f.he ?? ''), plain(f.en ?? ''),
@@ -1324,17 +1404,18 @@ function fieldHtml(f: ContentField, value: ContentMap[string], page: PageId, gro
         </div>
       </header>
       <div class="fld__cols">
-        ${columnHtml(f, 'he', value)}
-        ${columnHtml(f, 'en', value)}
+        ${columnHtml(f, 'he', value, inherited)}
+        ${columnHtml(f, 'en', value, inherited)}
       </div>
     </article>`;
 }
 
-function groupHtml(g: ContentGroup, overrides: ContentMap): string {
+function groupHtml(g: ContentGroup, overrides: ContentMap, inheritable?: ContentMap): string {
   const live    = g.fields.filter((f) => !f.retired);
   const retired = g.fields.filter((f) => f.retired);
   const crumb   = `${CONTENT_PAGES.find((p) => p.id === g.page)?.label ?? ''} · ${g.title}`;
-  const render  = (f: ContentField) => fieldHtml(f, overrides[f.key], g.page, crumb);
+  const render  = (f: ContentField) =>
+    fieldHtml(f, overrides[f.key], g.page, crumb, inheritable?.[f.key] ?? (inheritable ? {} : undefined));
 
   // Copy whose section isn't built any more is kept (nothing is ever thrown
   // away) but folded out of the way, clearly labelled.
@@ -1536,10 +1617,16 @@ export async function renderEditor(
   // The venue being edited (site-switch cookie). Prefill from its OWN store so
   // the save/diff compares against code defaults, never the other venue's copy.
   const site = adminSite(request);
-  const [overrides, popupCfg, palette, sectionsOn] = await Promise.all([
+  const [overrides, popupCfg, palette, sectionsOn, zaharaOwn] = await Promise.all([
     readContentForEditor(env, site), readPopupConfigOwn(env, site), readPalette(env, site),
     readSections(env, site),
+    // What the rooftop INHERITS. The boxes above are still filled from its own
+    // store (so the save/diff keeps comparing against code defaults), but a
+    // field it hasn't edited is showing Zahara's copy on the live page, and the
+    // editor has to say so — see inheritHtml().
+    site === 'rooftop' ? readContentOwn(env, 'zahara') : Promise.resolve(null),
   ]);
+  const inheritable = zaharaOwn ?? undefined;
 
   // Is a popup photo actually stored right now for THIS venue? (head avoids
   // downloading it.) The Events-page PDF is NOT probed here any more — it is
@@ -1591,7 +1678,7 @@ export async function renderEditor(
         ${p.note ? `<p class="panel__note">${esc(p.note)}</p>` : ''}
       </header>
       ${tools ? `<div class="panel__tools">${tools}</div>` : ''}
-      ${CONTENT_GROUPS.filter((g) => g.page === p.id).map((g) => groupHtml(g, overrides)).join('')}
+      ${CONTENT_GROUPS.filter((g) => g.page === p.id).map((g) => groupHtml(g, overrides, inheritable)).join('')}
     </section>`;
   }).join('');
 
