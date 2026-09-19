@@ -1,6 +1,7 @@
 ---
 import { pick, home as copy, global as globals } from '../../data/i18n';
 import { RESTAURANT }              from '../../data/restaurant';
+import { VENUE } from '../../lib/venue';
 import { path }                    from '../../lib/paths';
 import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
 import type { Lang }               from '../../data/i18n';
@@ -135,7 +136,7 @@ const HERO_QUALITY = 70;
     </h1>
     <!-- <p class="hero-bleed__lede fade-up" set:html={t.heroLede} /> -->
     <div class="btn-row fade-up">
-      <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener"
+      <a class="btn" href={VENUE.reserveUrl} target="_blank" rel="noopener"
          data-hero-reserve data-content-key="home.heroCtaReserve">{t.heroCtaReserve}</a>
       <a class="btn btn--ghost" href={path('menu', lang)}
          data-content-key="home.heroCtaMenu">{t.heroCtaMenu}</a>

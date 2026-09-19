@@ -1,6 +1,7 @@
 ---
 import { pick, header as labels } from '../data/i18n';
 import { RESTAURANT }              from '../data/restaurant';
+import { VENUE } from '../lib/venue';
 import { path, altLangHref, NAV_ORDER, type RouteKey, type NavKey } from '../lib/paths';
 import { SITE_ID }                 from '../lib/base';
 import type { Lang }               from '../data/i18n';
@@ -192,7 +193,7 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
         {onRooftop ? t.brandText : t.rooftop}
       </a>
     )}
-    <a class="btn" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener">{t.reserve}</a>
+    <a class="btn" href={VENUE.reserveUrl} target="_blank" rel="noopener">{t.reserve}</a>
     <div class="mobile-nav__social">
       <a href={RESTAURANT.instagram} target="_blank" rel="noopener" aria-label="Instagram" data-track="instagram_click">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">

@@ -8,4 +8,7 @@ Disallow: /api/
 # should stay crawlable for Google Images).
 Disallow: /cdn-cgi/l/
 
+# Two venues, two sitemaps: Zahara at the root and Nucha Rooftop under
+# /rooftop. Both are built from the same source and both should be indexed.
 Sitemap: https://zahara.rest/sitemap-index.xml
+Sitemap: https://zahara.rest/rooftop/sitemap-index.xml

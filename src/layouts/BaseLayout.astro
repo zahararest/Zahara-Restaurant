@@ -12,7 +12,8 @@ import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
 import type { PhotoEntry } from '../data/photos';
 import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../lib/photo';
-import { BASE, withBase } from '../lib/base';
+import { BASE, IS_ROOFTOP, withBase } from '../lib/base';
+import { VENUE, venuePhotoUrl } from '../lib/venue';
 import { pick, layout as labels, header as headerLabels } from '../data/i18n';
 
 // ── Analytics / Ads — opt-in via Cloudflare Pages environment variables ──
@@ -65,10 +66,8 @@ const {
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
 
-const description = Astro.props.description || t.defaultDescription;
-const keywords    = t.keywords;
-const brandName   = RESTAURANT.name[lang];
-const fullTitle   = seoTitle || `${title} — ${brandName}`;
+const brandName   = VENUE.name[lang];
+const keywords    = IS_ROOFTOP ? VENUE.keywords[lang] : t.keywords;
 const reserveLabel = pick(headerLabels, lang).reserve;
 
 // Astro.url.pathname includes the venue base ('/rooftop/…') on the rooftop
@@ -82,6 +81,18 @@ const altRel  = lang === 'he'
   : (relPath.replace(/^\/en/, '') || '/');
 const altPath = withBase(altRel);
 
+// The rooftop is its own venue, so it must not inherit Zahara's keyword-led
+// titles and descriptions — those name the restaurant, which is why /rooftop
+// could not be found on its own name. Zahara keeps every per-page string the
+// pages already pass; the rooftop gets its own (see src/lib/venue.ts).
+const isHome = relPath === '/' || relPath === '/en/' || relPath === '/en';
+const fullTitle = IS_ROOFTOP
+  ? (isHome ? VENUE.seoTitle[lang] : `${title} — ${brandName}`)
+  : (seoTitle || `${title} — ${brandName}`);
+const description = IS_ROOFTOP
+  ? (isHome ? VENUE.description[lang] : VENUE.fallbackDescription[lang])
+  : (Astro.props.description || t.defaultDescription);
+
 const origin   = Astro.url.origin;
 // Venue root — 'https://zahara.rest/' or 'https://zahara.rest/rooftop/'. Schema
 // @ids and page URLs hang off this so each venue describes itself separately.
@@ -90,15 +101,16 @@ const root     = origin + withBase('/');
 // fallback points at the same page's default version, not the home page.
 const heHref   = lang === 'he' ? Astro.url.href : new URL(altPath, origin).href;
 const heroUrl  = new URL(PHOTOS.hero.src, origin).href;
+// The link-preview photo. Rooftop links previewed as Zahara because /photos is
+// a ROOT route: without ?site=rooftop it serves Zahara's bucket.
+const ogImageUrl = venuePhotoUrl(VENUE.ogPhoto, origin);
 const imageUrls = [PHOTOS.hero, PHOTOS.moodDining, PHOTOS.contact]
   .map((p) => new URL(p.src, origin).href);
 
 // A @graph so the page can describe the restaurant (primary), the website,
 // AND its sister restaurant Angelica — they're run by the same team, and the
 // cross-reference helps the page surface for "Angelica" searches too.
-const schema = {
-  '@context': 'https://schema.org',
-  '@graph': [
+const graph: any[] = [
     {
       '@type':       'Restaurant',
       '@id':         `${root}#restaurant`,
@@ -167,7 +179,7 @@ const schema = {
         '@type': 'ReserveAction',
         target: {
           '@type':        'EntryPoint',
-          urlTemplate:    RESTAURANT.reservationUrl,
+          urlTemplate:    VENUE.reserveUrl,
           inLanguage:     lang === 'he' ? 'he-IL' : 'en-US',
           actionPlatform: [
             'http://schema.org/DesktopWebPlatform',
@@ -201,11 +213,11 @@ const schema = {
     {
       '@type':       'WebSite',
       '@id':         `${root}#website`,
-      name:          'Zahara',
-      alternateName: ['זהרה', 'מסעדת זהרה'],
+      name:          VENUE.siteName,
+      alternateName: IS_ROOFTOP ? VENUE.alternateNames : ['זהרה', 'מסעדת זהרה'],
       url:           root,
       inLanguage:    lang === 'he' ? 'he-IL' : 'en-US',
-      publisher:     { '@id': `${root}#restaurant` },
+      publisher:     { '@id': `${root}#${IS_ROOFTOP ? 'venue' : 'restaurant'}` },
     },
     // Main site sections, declared explicitly. Google generates sitelinks
     // algorithmically — this list plus the crawlable header nav, per-page
@@ -225,7 +237,72 @@ const schema = {
           url:  `${root}${lang === 'he' ? '' : 'en/'}about/` },
       ],
     },
-  ],
+  ];
+
+// The rooftop describes ITSELF. Zahara's node asserts kosher, a cuisine, a
+// chef and opening hours — none of which anyone has confirmed for the bar, so
+// the rooftop node carries only what its own pages and address establish. It
+// also drops the Angelica cross-reference (that is the restaurant's family,
+// not the bar's) and points the ReserveAction at the rooftop's own Tabit page.
+const rooftopPrimary = {
+  '@type':       VENUE.schemaType,
+  '@id':         `${root}#venue`,
+  name:          VENUE.name.en,
+  alternateName: VENUE.alternateNames,
+  description:   VENUE.fallbackDescription[lang],
+  url:           root,
+  image:         [ogImageUrl],
+  logo:          `${origin}/favicon.svg`,
+  address: {
+    '@type':         'PostalAddress',
+    streetAddress:   RESTAURANT.address.streetAddress,
+    addressLocality: RESTAURANT.address.city,
+    addressRegion:   'Jerusalem District',
+    addressCountry:  RESTAURANT.address.country,
+  },
+  geo: {
+    '@type':    'GeoCoordinates',
+    latitude:   RESTAURANT.geo.lat,
+    longitude:  RESTAURANT.geo.lng,
+  },
+  areaServed:          { '@type': 'City', name: 'Jerusalem', alternateName: 'ירושלים' },
+  telephone:           `+972-${RESTAURANT.phone.display.replace(/^0/, '')}`,
+  email:               RESTAURANT.email,
+  acceptsReservations: 'True',
+  currenciesAccepted:  'ILS',
+  keywords,
+  hasMenu:             `${root}menu/`,
+  hasMap:              `https://maps.google.com/?q=${encodeURIComponent(RESTAURANT.address.maps)}`,
+  isPartOf: {
+    '@type':       'Hotel',
+    name:          RESTAURANT.hotel.en,
+    alternateName: ['מלון נוצ׳ה', 'מלון נוצה', 'נוצה', 'Nucha Hotel', 'Nucha Hotel Jerusalem'],
+    '@id':         `${root}#hotel`,
+  },
+  potentialAction: {
+    '@type': 'ReserveAction',
+    target: {
+      '@type':        'EntryPoint',
+      urlTemplate:    VENUE.reserveUrl,
+      inLanguage:     lang === 'he' ? 'he-IL' : 'en-US',
+      actionPlatform: [
+        'http://schema.org/DesktopWebPlatform',
+        'http://schema.org/IOSPlatform',
+        'http://schema.org/AndroidPlatform',
+      ],
+    },
+    result: {
+      '@type': 'FoodEstablishmentReservation',
+      name:    lang === 'he' ? 'הזמנת מקום' : 'Table reservation',
+    },
+  },
+  mainEntityOfPage: root,
+};
+
+// Rooftop: its own entity replaces Zahara's + Angelica's two nodes.
+const schema = {
+  '@context': 'https://schema.org',
+  '@graph': IS_ROOFTOP ? [rooftopPrimary, ...graph.slice(2)] : graph,
 };
 ---
 
@@ -291,13 +368,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     <meta property="og:url"            content={Astro.url.href} />
     <meta property="og:locale"         content={lang === 'he' ? 'he_IL' : 'en_US'} />
     <meta property="og:locale:alternate" content={lang === 'he' ? 'en_US' : 'he_IL'} />
-    <meta property="og:site_name"      content="Zahara" />
-    <meta property="og:image"          content={new URL(PHOTOS.hero.src, Astro.url.origin).href} />
-    <meta property="og:image:alt"      content={PHOTOS.hero.alt[lang]} />
+    <meta property="og:site_name"      content={VENUE.siteName} />
+    <meta property="og:image"          content={ogImageUrl} />
+    <meta property="og:image:alt"      content={VENUE.ogPhoto.alt[lang]} />
     <meta name="twitter:card"          content="summary_large_image" />
     <meta name="twitter:title"         content={fullTitle} />
     <meta name="twitter:description"   content={description} />
-    <meta name="twitter:image"         content={new URL(PHOTOS.hero.src, Astro.url.origin).href} />
+    <meta name="twitter:image"         content={ogImageUrl} />
 
     <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
 
@@ -550,7 +627,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     {/* Persistent floating Reserve CTA — the primary action, lifted out of
         the header so it's always one tap away. Sits at the inline-end
         corner; the scroll-to-top button stacks above it once it appears. */}
-    <a class="floating-reserve" href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" aria-label={reserveLabel}>
+    <a class="floating-reserve" href={VENUE.reserveUrl} target="_blank" rel="noopener" aria-label={reserveLabel}>
       <svg class="floating-reserve__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <rect x="3" y="4" width="18" height="17" rx="2" />
@@ -615,7 +692,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         "Key events" in GA4 → Admin → Events to count them as conversions /
         import to Ads. */}
     {gtagId && (
-      <script is:inline define:vars={{ reserveUrl: RESTAURANT.reservationUrl }}>
+      <script is:inline define:vars={{ reserveUrl: VENUE.reserveUrl }}>
         (function () {
           window.dataLayer = window.dataLayer || [];
           function gtag(){ dataLayer.push(arguments); }

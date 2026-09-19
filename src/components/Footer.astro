@@ -1,6 +1,7 @@
 ---
 import { pick, footer as labels } from '../data/i18n';
 import { RESTAURANT }              from '../data/restaurant';
+import { VENUE } from '../lib/venue';
 import { path }                    from '../lib/paths';
 import type { Lang }               from '../data/i18n';
 
@@ -43,7 +44,7 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
 
       <div class="footer-block">
         <h2 data-content-key="footer.reserveTitle">{t.reserve}</h2>
-        <a href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-content-key="footer.reserveTabit">Tabit ↗</a>
+        <a href={VENUE.reserveUrl} target="_blank" rel="noopener" data-content-key="footer.reserveTabit">Tabit ↗</a>
         <a href={path('menu', lang)} data-content-key="footer.menuLink">{t.menuLink}</a>
       </div>
     </div>

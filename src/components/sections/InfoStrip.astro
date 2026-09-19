@@ -1,6 +1,7 @@
 ---
 import { pick, home as copy } from '../../data/i18n';
 import { RESTAURANT }          from '../../data/restaurant';
+import { VENUE } from '../../lib/venue';
 import { PHOTOS }              from '../../data/photos';
 import { path }                from '../../lib/paths';
 import { SITE_QUERY }          from '../../lib/base';
@@ -33,7 +34,7 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
       <div class="info-strip__cell">
         <div class="meta-block__label" data-content-key="info.reservLabel">{t.infoReservLabel}</div>
         <a class="meta-block__value"   href={`tel:${dial}`} data-content-key="info.reservValue">{display}</a>
-        <a class="info-strip__sub"     href={RESTAURANT.reservationUrl} target="_blank" rel="noopener" data-content-key="info.reservTabit">{t.infoTabit}</a>
+        <a class="info-strip__sub"     href={VENUE.reserveUrl} target="_blank" rel="noopener" data-content-key="info.reservTabit">{t.infoTabit}</a>
       </div>
 
       <div class="info-strip__cell info-strip__cell--kosher" data-kosher-cell>
