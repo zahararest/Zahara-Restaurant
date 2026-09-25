@@ -46,6 +46,9 @@ export const header = {
 
 export const footer = {
   hours:         { he: 'שעות פעילות',           en: 'Hours'             },
+  // Superseded by VENUE.hours (src/lib/venue.ts): the footer and info strip
+  // print the hours of the venue whose page it is, not the restaurant's. Kept
+  // because /admin/content still shows these as the field's default text.
   weekdays:      { he: 'ב׳–ה׳ · 18:00–22:00',    en: 'Mon–Thu · 18:00–22:00' },
   closedNote:    { he: 'סגור בשישי ובשבת',      en: 'Closed Fri & Sat'   },
   hotelNote:     { he: "במלון נוצ׳ה, רחוב בן סירא 16", en: 'Inside Nucha Hotel, Ben Sira 16 Street' },
@@ -150,6 +153,7 @@ export const home = {
   homeChapterDessertTocLine:   { he: 'הסיום הקשה ביותר של הערב.', en: 'The sweetest end of the night.' },
 
   infoHoursLabel:   { he: 'שעות',              en: 'Hours'        },
+  // Superseded by VENUE.hours — see the note on `weekdays` above.
   infoHoursValue:   { he: 'ב׳–ה׳ · 18:00–22:00', en: 'Mon–Thu · 18:00–22:00' },
   infoAddressLabel: { he: 'כתובת',             en: 'Address'      },
   infoAddressValue: { he: '16 בן סירא, ירושלים', en: 'Ben Sira 16 St, Jerusalem' },
@@ -322,6 +326,13 @@ export const eventsPage = {
     he: 'אירועים פרטיים ועסקיים במסעדת זהרה, ירושלים — תפריטי שף כשרים, קבלות פנים וערבי אירוח במלון נוצ׳ה, מהצוות שמאחורי אנג׳ליקה.',
     en: 'Private and corporate events at Zahara, Jerusalem — kosher chef menus, receptions and hosted evenings at Nucha Hotel, from the team behind Angelica.',
   },
+
+  // ── "Events we have hosted" — the gallery band (EventsGallery.astro) ─────
+  // The heading ships written so the band reads properly the moment a first
+  // photograph is uploaded; the captions ship blank, because only the owner
+  // knows what each evening was. All four are editable in /admin/content.
+  galleryEyebrow: { he: 'מתוך הערבים שלנו',  en: 'From our evenings'    },
+  galleryHeading: { he: 'אירועים שהתארחו אצלנו.', en: 'Evenings we have hosted.' },
 };
 
 export const accessibilityPage = {
@@ -626,6 +637,13 @@ export const contact = {
   formHeadingGeneral: { he: 'מה נוכל לעזור?',      en: "How can we help?"          },
   formHeadingEvent:   { he: 'ספרו לנו על הערב.',    en: 'Tell us about the night.'  },
 
+  // A field the visitor MUST fill in carries the marker below beside its
+  // label, and the note explains what the marker means. Only the three
+  // fields we need in order to reply are mandatory — name, phone, email.
+  requiredMark: { he: '*', en: '*' },
+  requiredNote: { he: '* שדות חובה',   en: '* Required fields' },
+  optionalMark: { he: 'לא חובה',        en: 'optional'          },
+
   fieldName:    { he: 'שם מלא',         en: 'Full name'         },
   fieldPhone:   { he: 'טלפון',          en: 'Phone'             },
   fieldEmail:   { he: 'אימייל',         en: 'Email'             },
@@ -652,12 +670,24 @@ export const contact = {
   submitEvent:   { he: 'שליחת פנייה',  en: 'Send inquiry' },
 
   statusSending:    { he: 'שולח...',                                              en: 'Sending...'                                    },
-  statusSuccess:    { he: 'הפנייה התקבלה. נחזור אליכם תוך יום עסקים.',           en: "Thanks. We'll get back to you within one business day." },
   statusErrNetwork: { he: 'שגיאת רשת. נסו שוב.',                                  en: 'Network error. Please try again.'              },
   statusErrGeneral: { he: 'שגיאה בשליחה. נסו שוב או חייגו אלינו.',               en: 'Something went wrong. Please try again or call us.' },
   statusErrEmail:   { he: 'כתובת אימייל לא תקינה. בדקו ונסו שוב.',               en: 'Please enter a valid email address.'           },
-  statusErrWhen:    { he: 'בחרו זמן לאירוע — בוקר, צהריים או ערב.',              en: 'Please choose a time of day — morning, afternoon or evening.' },
   statusErrRequired:{ he: 'נא למלא את השדות המסומנים.',                          en: 'Please fill in the highlighted fields.' },
+
+  // ── The confirmation that replaces the form once it has been sent ────────
+  // A status line under the button was too quiet for something as consequential
+  // as handing over your event: people re-sent, or left unsure. The form now
+  // gives way to this, in its own place on the page, and says exactly when a
+  // reply is coming.
+  sentEyebrow: { he: 'הפנייה נשלחה',  en: 'Message sent' },
+  sentTitle:   { he: 'תודה — קיבלנו את הפנייה.', en: 'Thank you — we have your message.' },
+  sentBody: {
+    he: 'נחזור אליכם בהקדם האפשרי, ולכל המאוחר תוך 48 שעות בימי עבודה — ראשון עד חמישי.',
+    en: 'We will reply as soon as we can, and within 48 hours at the latest on working days — Sunday to Thursday.',
+  },
+  sentAgain:   { he: 'שליחת פנייה נוספת', en: 'Send another message' },
+  sentClose:   { he: 'סגירה',             en: 'Close'                },
 
   benefitPrivate: { he: 'חדר פרטי לקבוצות אינטימיות',     en: 'Private room for intimate groups' },
   benefitChef:    { he: 'התפריט נבנה אישית עם השף',        en: 'Menu built personally with the chef' },

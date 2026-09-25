@@ -33,6 +33,7 @@ import { pick, home as copy } from '../../data/i18n';
 import { PHOTOS, MENU_CATEGORY_PHOTOS } from '../../data/photos';
 import type { PhotoEntry } from '../../data/photos';
 import { path } from '../../lib/paths';
+import { VENUE, venueCopy } from '../../lib/venue';
 import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
 import { menuHe } from '../../data/menu-he';
 import type { Lang } from '../../data/i18n';
@@ -234,7 +235,12 @@ const emptyLabel = t.emptyLabel;
              className: 'section-on-photo__video',
            })}></div>
       <div class="home-slot" data-home-section="info"><InfoStrip lang={lang} /></div>
-      <div class="story-scene__body wrap" data-home-section="story">
+      {/* Zahara's story — Angelica, the chef, the kosher kitchen, "sharing is
+          caring". None of it is true of another venue, so on one the shared
+          copy does not describe (VENUE.ownCopy) every string below ships
+          EMPTY and `data-empty-hide` removes the band entirely. Write that
+          venue's own words in /admin/content and it returns, filled in. */}
+      <div class="story-scene__body wrap" data-home-section="story" data-empty-hide>
         {/* Two transparent glass boxes over the photo. Box A (the approach)
             is open by default but closable; box B (the story) is closed by
             default and collapses to just its title until opened. Both reveal
@@ -243,17 +249,17 @@ const emptyLabel = t.emptyLabel;
           <div class="story-box story-box--toggle reveal-on-scroll" data-story-box>
             <button class="story-box__head" type="button" aria-expanded="false" aria-controls="story-approach">
               <span class="story-box__heading">
-                <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{t.storyEyebrow}</span>
-                <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={t.storyHeading} />
+                <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyEyebrow">{venueCopy(t.storyEyebrow)}</span>
+                <span class="display story-box__title" data-content-key="home.storyHeading" data-content-html set:html={venueCopy(t.storyHeading)} />
               </span>
               <span class="story-box__cue" aria-hidden="true">
                 <span class="story-box__icon"></span>
               </span>
             </button>
-            <div class="story-box__reveal" id="story-approach" role="region" aria-label={t.storyHeading}>
+            <div class="story-box__reveal" id="story-approach" role="region" aria-label={venueCopy(t.storyHeading) || t.storyEyebrow}>
               <div class="story-box__text">
-                <p data-content-key="home.storyP1" data-content-html set:html={t.storyP1} />
-                <p data-content-key="home.storyP2" data-content-html set:html={t.storyP2} />
+                <p data-content-key="home.storyP1" data-content-html set:html={venueCopy(t.storyP1)} />
+                <p data-content-key="home.storyP2" data-content-html set:html={venueCopy(t.storyP2)} />
               </div>
             </div>
           </div>
@@ -261,17 +267,20 @@ const emptyLabel = t.emptyLabel;
           <div class="story-box story-box--toggle  is-open reveal-on-scroll"  data-story-box>
             <button class="story-box__head" type="button" aria-expanded="true" aria-controls="story-more">
               <span class="story-box__heading">
-                <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyMoreEyebrow">{t.storyMoreEyebrow}</span>
-                <span class="display story-box__title" data-content-key="home.storyMoreTitle">{t.storyMoreTitle}</span>
+                <span class="eyebrow eyebrow--on-photo" data-content-key="home.storyMoreEyebrow">{venueCopy(t.storyMoreEyebrow)}</span>
+                <span class="display story-box__title" data-content-key="home.storyMoreTitle">{venueCopy(t.storyMoreTitle)}</span>
               </span>
               <span class="story-box__cue" aria-hidden="true">
-                <span class="story-box__cue-text" data-content-key="home.storyReadMore">{t.storyReadMore}</span>
+                {/* A UI label ("Read more"), not something the venue says about itself —
+    data-empty-ignore keeps it from making an otherwise empty band look
+    written. See the self-emptying script in BaseLayout. */}
+<span class="story-box__cue-text" data-content-key="home.storyReadMore" data-empty-ignore>{t.storyReadMore}</span>
                 <span class="story-box__icon"></span>
               </span>
             </button>
-            <div class="story-box__reveal" id="story-more" role="region" aria-label={t.storyMoreTitle}>
+            <div class="story-box__reveal" id="story-more" role="region" aria-label={venueCopy(t.storyMoreTitle) || t.storyMoreEyebrow}>
               <div class="story-box__text">
-                <p data-content-key="home.storyP3" data-content-html set:html={t.storyP3} />
+                <p data-content-key="home.storyP3" data-content-html set:html={venueCopy(t.storyP3)} />
               </div>
             </div>
           </div>
@@ -550,9 +559,15 @@ const emptyLabel = t.emptyLabel;
 
    
    
+  {/* The feed reads ONE Instagram account, through a single Meta token
+      (functions/api/instagram.ts). Until the rooftop has a token of its own,
+      rendering this band on its home page would fill it with the
+      restaurant's posts — see VENUE.igFeed in src/lib/venue.ts. */}
+  {VENUE.igFeed && (
   <div data-section-name={sec.instagram} data-home-section="instagram">
     <InstagramFeed lang={lang} />
   </div>
+  )}
 
  
 </BaseLayout>

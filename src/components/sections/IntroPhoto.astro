@@ -37,6 +37,8 @@ const INTRO_MOBILE_COVER = [[640, 850], [820, 1090], [1080, 1440]] as const;
          poster: resized(photo.src, 1800),
          className: 'intro-photo__img',
          mobile: true,
+         // The menu pages open on this band — it is their LCP element.
+         eager: true,
        }) : {})}>
     <picture>
       <source

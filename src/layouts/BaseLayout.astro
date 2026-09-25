@@ -11,9 +11,12 @@ import AnnouncementPopup from '../components/AnnouncementPopup.astro';
 import { RESTAURANT } from '../data/restaurant';
 import { PHOTOS } from '../data/photos';
 import type { PhotoEntry } from '../data/photos';
-import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../lib/photo';
+import {
+  resized, resizedSrcset, resizedMobileCoverSrcset,
+  HERO_WIDTHS, HERO_MOBILE_COVER, HERO_QUALITY,
+} from '../lib/photo';
 import { BASE, IS_ROOFTOP, withBase } from '../lib/base';
-import { VENUE, venuePhotoUrl } from '../lib/venue';
+import { VENUE, venuePhotoUrl, venueOgImageUrl, OG_IMAGE_W, OG_IMAGE_H } from '../lib/venue';
 import { pick, layout as labels, header as headerLabels } from '../data/i18n';
 
 // ── Analytics / Ads — opt-in via Cloudflare Pages environment variables ──
@@ -53,6 +56,16 @@ export interface Props {
    *  then never rendered, and preloading it is a full-size download of an
    *  image nobody sees, on the LCP path of all places. */
   heroImageKey?:   string;
+  /** The frame parameters the hero is actually RENDERED with, when they are
+   *  not HeroBleed's. A preload only works if its URL matches the <img>
+   *  byte-for-byte, so a page whose LCP is a BleedPhoto band (the Events
+   *  page) passes that band's widths, phone crop and quality here. */
+  heroWidths?:     readonly number[];
+  heroMobileCrop?: readonly (readonly [number, number])[];
+  heroQuality?:    number;
+  /** The persistent floating "Reserve" button. On by default; pages where
+   *  booking a table is not the action being asked for turn it off. */
+  floatingReserve?: boolean;
 }
 
 const {
@@ -62,6 +75,10 @@ const {
   transparentHeader = false,
   heroImage,
   heroImageKey,
+  heroWidths     = HERO_WIDTHS,
+  heroMobileCrop = HERO_MOBILE_COVER,
+  heroQuality    = HERO_QUALITY,
+  floatingReserve = true,
 } = Astro.props;
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
@@ -101,9 +118,13 @@ const root     = origin + withBase('/');
 // fallback points at the same page's default version, not the home page.
 const heHref   = lang === 'he' ? Astro.url.href : new URL(altPath, origin).href;
 const heroUrl  = new URL(PHOTOS.hero.src, origin).href;
-// The link-preview photo. Rooftop links previewed as Zahara because /photos is
-// a ROOT route: without ?site=rooftop it serves Zahara's bucket.
-const ogImageUrl = venuePhotoUrl(VENUE.ogPhoto, origin);
+// The link-preview photo, cropped to the card ratio and cache-busted — see
+// venueOgImageUrl. Rooftop links previewed as Zahara because /photos is a ROOT
+// route: without ?site=rooftop it serves Zahara's bucket.
+const ogImageUrl = venueOgImageUrl(VENUE, origin);
+// The same photo UNCROPPED, for structured data: Google wants the largest
+// image we have, not a card crop.
+const schemaImageUrl = venuePhotoUrl(VENUE.ogPhoto, origin);
 const imageUrls = [PHOTOS.hero, PHOTOS.moodDining, PHOTOS.contact]
   .map((p) => new URL(p.src, origin).href);
 
@@ -156,12 +177,14 @@ const graph: any[] = [
         alternateName:  RESTAURANT.chef.he,
         jobTitle:       lang === 'he' ? 'שף' : 'Chef',
       },
-      openingHoursSpecification: [{
+      // One entry per distinct range — a venue whose Thursday runs later than
+      // its Tuesday cannot be described by a single opens/closes pair.
+      openingHoursSpecification: VENUE.hours.spec.map((r) => ({
         '@type':    'OpeningHoursSpecification',
-        dayOfWeek:  [...RESTAURANT.hours.days],
-        opens:      RESTAURANT.hours.opens,
-        closes:     RESTAURANT.hours.closes,
-      }],
+        dayOfWeek:  [...r.days],
+        opens:      r.opens,
+        closes:     r.closes,
+      })),
       isPartOf:  {
         '@type':       'Hotel',
         name:          RESTAURANT.hotel.en,
@@ -172,7 +195,7 @@ const graph: any[] = [
       },
       // Official profiles — strengthens entity recognition (knowledge panel)
       // and ties the site to the restaurant's social presence.
-      sameAs:    [RESTAURANT.instagram, RESTAURANT.facebook].filter(Boolean),
+      sameAs:    [VENUE.instagram, VENUE.facebook].filter(Boolean),
       // Lets Google surface a "Reserve a table" action that deep-links to the
       // Tabit booking page — a high-value affordance for local restaurant search.
       potentialAction: {
@@ -239,11 +262,13 @@ const graph: any[] = [
     },
   ];
 
-// The rooftop describes ITSELF. Zahara's node asserts kosher, a cuisine, a
-// chef and opening hours — none of which anyone has confirmed for the bar, so
-// the rooftop node carries only what its own pages and address establish. It
-// also drops the Angelica cross-reference (that is the restaurant's family,
-// not the bar's) and points the ReserveAction at the rooftop's own Tabit page.
+// The rooftop describes ITSELF. Zahara's node asserts kosher, a cuisine and a
+// chef — none of which anyone has confirmed for the bar — so the rooftop node
+// carries only what its own pages and address establish. It drops the Angelica
+// cross-reference (that is the restaurant's family, not the bar's), points the
+// ReserveAction at the rooftop's own Tabit page, and links its OWN social
+// profiles: `sameAs` pointing at the restaurant's Instagram was telling Google
+// the two venues were one entity.
 const rooftopPrimary = {
   '@type':       VENUE.schemaType,
   '@id':         `${root}#venue`,
@@ -251,7 +276,7 @@ const rooftopPrimary = {
   alternateName: VENUE.alternateNames,
   description:   VENUE.fallbackDescription[lang],
   url:           root,
-  image:         [ogImageUrl],
+  image:         [schemaImageUrl],
   logo:          `${origin}/favicon.svg`,
   address: {
     '@type':         'PostalAddress',
@@ -266,11 +291,19 @@ const rooftopPrimary = {
     longitude:  RESTAURANT.geo.lng,
   },
   areaServed:          { '@type': 'City', name: 'Jerusalem', alternateName: 'ירושלים' },
-  telephone:           `+972-${RESTAURANT.phone.display.replace(/^0/, '')}`,
-  email:               RESTAURANT.email,
+  telephone:           `+972-${VENUE.phone.display.replace(/^0/, '')}`,
+  email:               VENUE.email,
+  // The bar's own nights, confirmed by the owner — not the kitchen's.
+  openingHoursSpecification: VENUE.hours.spec.map((r) => ({
+    '@type':    'OpeningHoursSpecification',
+    dayOfWeek:  [...r.days],
+    opens:      r.opens,
+    closes:     r.closes,
+  })),
   acceptsReservations: 'True',
   currenciesAccepted:  'ILS',
   keywords,
+  sameAs:              [VENUE.instagram, VENUE.facebook].filter(Boolean),
   hasMenu:             `${root}menu/`,
   hasMap:              `https://maps.google.com/?q=${encodeURIComponent(RESTAURANT.address.maps)}`,
   isPartOf: {
@@ -310,13 +343,15 @@ const schema = {
 <html lang={lang} dir={dir}>
   <head>
     <meta charset="UTF-8" />
-    <!-- Google Tag Manager -->
-    <script is:inline data-analytics>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-WLNNDWCB');</script>
-    <!-- End Google Tag Manager -->
+    {/* Google Tag Manager + the Google tag — see the deferred loader at the
+        end of <head>. Only the dataLayer and Consent Mode defaults run here;
+        no tag is FETCHED until the visitor has actually engaged with the page.
+        Measured on /events/: the tags and what they pull in (Tag Manager, the
+        Google tag, the Meta pixel, Google's first-party measurement endpoint)
+        were ~1.1 MB and ~1.5 s of main-thread work landing in the middle of
+        the LCP window — a mobile Lighthouse score of 55 against 96 for the
+        same page with them blocked. Loading them a moment later costs no
+        measurement for anyone who stays (see ANALYTICS_IDLE_MS below). */}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="generator" content={Astro.generator} />
     {/* Favicons: a raster .ico/.png fallback for crawlers + engines that don't
@@ -335,13 +370,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         reliably (it was intermittently slipping past the metric window). */}
     {heroImage && (
       <>
-        {/* quality 70 must match HeroBleed.astro's HERO_QUALITY exactly, or
-            the preload URL won't match the <picture> and the bytes are wasted. */}
+        {/* The widths, crop and quality come from the caller (defaulting to
+            HeroBleed's) so these URLs match the rendered <picture> exactly.
+            They are the same helpers the component itself calls — see the
+            shared constants in src/lib/photo.ts. */}
         <link rel="preload" as="image" fetchpriority="high" data-hero-preload={heroImageKey}
-              imagesrcset={resizedMobileCoverSrcset(heroImage.src, [[640, 1180], [820, 1500], [1080, 1980]], 70)}
+              imagesrcset={resizedMobileCoverSrcset(heroImage.src, heroMobileCrop, heroQuality)}
               imagesizes="100vw" media="(max-width: 600px)" />
         <link rel="preload" as="image" fetchpriority="high" data-hero-preload={heroImageKey}
-              imagesrcset={resizedSrcset(heroImage.src, [800, 1200, 1800, 2400], 70)}
+              imagesrcset={resizedSrcset(heroImage.src, heroWidths, heroQuality)}
               imagesizes="100vw" media="(min-width: 601px)" />
       </>
     )}
@@ -370,11 +407,15 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     <meta property="og:locale:alternate" content={lang === 'he' ? 'en_US' : 'he_IL'} />
     <meta property="og:site_name"      content={VENUE.siteName} />
     <meta property="og:image"          content={ogImageUrl} />
+    <meta property="og:image:width"    content={String(OG_IMAGE_W)} />
+    <meta property="og:image:height"   content={String(OG_IMAGE_H)} />
+    <meta property="og:image:type"     content="image/jpeg" />
     <meta property="og:image:alt"      content={VENUE.ogPhoto.alt[lang]} />
     <meta name="twitter:card"          content="summary_large_image" />
     <meta name="twitter:title"         content={fullTitle} />
     <meta name="twitter:description"   content={description} />
     <meta name="twitter:image"         content={ogImageUrl} />
+    <meta name="twitter:image:alt"     content={VENUE.ogPhoto.alt[lang]} />
 
     <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
 
@@ -384,12 +425,23 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       <meta name="google-site-verification" content={gscVerification} />
     )}
 
-    {/* Google tag (Ads + Analytics) — loaded only when PUBLIC_GOOGLE_ADS_ID or
-        PUBLIC_GA_MEASUREMENT_ID is set as a Cloudflare Pages build variable.
-        Uses async loading so it never blocks first paint. */}
+    {/* Google tag (Ads + Analytics) + Tag Manager.
+        ──────────────────────────────────────────────────────────────────────
+        The dataLayer, Consent Mode and every `gtag(...)` call the site makes
+        run HERE, during head parse, exactly as before — they are queue pushes
+        onto a plain array and cost nothing. What is deferred is the DOWNLOAD
+        of the tag libraries, which the loader below performs on first
+        engagement or shortly after load. Because the queue is already filled
+        by then, no event is lost: gtag.js and gtm.js replay the dataLayer
+        from the beginning when they arrive.
+
+        The trade-off, stated plainly: a visitor who leaves within
+        ANALYTICS_IDLE_MS of load without touching the page is not counted.
+        That is the price of the tags not competing with the photographs for
+        the network and the main thread. Lower the constant to trade score
+        back for those bounces. */}
     {gtagId && (
       <>
-        <script is:inline data-analytics async src={`https://www.googletagmanager.com/gtag/js?id=${gtagId}`}></script>
         <script is:inline data-analytics define:vars={{ gtagId, googleAdsId, gaMeasurementId }}>
           window.dataLayer = window.dataLayer || [];
           function gtag(){dataLayer.push(arguments);}
@@ -423,6 +475,73 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           gtag('js', new Date());
           if (googleAdsId) gtag('config', googleAdsId);
           if (gaMeasurementId && gaMeasurementId !== googleAdsId) gtag('config', gaMeasurementId);
+
+          // Tag Manager's own bootstrap push. GTM reads this to report how
+          // long its container took to load; keeping it here (rather than in
+          // the loader) means that number is measured from page start, which
+          // is what it means everywhere else.
+          dataLayer.push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+
+          // ── The deferred fetch ──────────────────────────────────────────
+          // Whichever comes first: the visitor engages with the page, or the
+          // page has been loaded and quiet for ANALYTICS_IDLE_MS.
+          (function () {
+            var ANALYTICS_IDLE_MS = 3000;
+            // Split deliberately. A pointer or key press is unambiguously the
+            // visitor, and capture sees it even if something stops it from
+            // propagating. Scrolling is NOT: scroll events do not bubble, but
+            // a capture-phase listener on window sees every element's scroll
+            // too — the Instagram rail advancing itself was enough to load
+            // every tag 200ms into the home page, which is the whole problem
+            // this was written to avoid. So scrolling is watched on the window
+            // alone, and only a real page scroll counts.
+            var TOUCH  = ['pointerdown', 'keydown', 'touchstart'];
+            var SCROLL = ['scroll', 'wheel'];
+            var fired  = false;
+
+            function onScroll() { if (window.scrollY > 0) load(); }
+
+            function load() {
+              if (fired) return;
+              fired = true;
+              TOUCH.forEach(function (e) { removeEventListener(e, load, true); });
+              SCROLL.forEach(function (e) { removeEventListener(e, onScroll); });
+              [
+                'https://www.googletagmanager.com/gtag/js?id=' + gtagId,
+                'https://www.googletagmanager.com/gtm.js?id=GTM-WLNNDWCB',
+              ].forEach(function (src) {
+                var j = document.createElement('script');
+                j.async = true;
+                j.src   = src;
+                // Marked like the rest, so the /admin/colors preview (?zp=1)
+                // keeps stripping analytics — it removes [data-analytics]
+                // from the HTML, and this attribute carries that forward to
+                // the nodes the loader creates.
+                j.setAttribute('data-analytics', '');
+                document.head.appendChild(j);
+              });
+            }
+
+            TOUCH.forEach(function (e) {
+              addEventListener(e, load, { capture: true, once: true, passive: true });
+            });
+            SCROLL.forEach(function (e) {
+              addEventListener(e, onScroll, { passive: true });
+            });
+
+            // Quiet path: ANALYTICS_IDLE_MS after load, then the first idle
+            // moment — so the fetch never lands on top of work the browser is
+            // already doing. The inner timeout is a backstop for a page that
+            // never goes idle (a looping animation, a busy embed).
+            function arm() {
+              setTimeout(function () {
+                if ('requestIdleCallback' in window) requestIdleCallback(load, { timeout: 2000 });
+                else load();
+              }, ANALYTICS_IDLE_MS);
+            }
+            if (document.readyState === 'complete') arm();
+            else addEventListener('load', arm, { once: true });
+          })();
         </script>
       </>
     )}
@@ -626,7 +745,13 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     {/* Persistent floating Reserve CTA — the primary action, lifted out of
         the header so it's always one tap away. Sits at the inline-end
-        corner; the scroll-to-top button stacks above it once it appears. */}
+        corner; the scroll-to-top button stacks above it once it appears.
+
+        Not on every page: the Events page asks the reader for an event
+        inquiry, and a button booking a table for two is a different,
+        competing action sitting on top of that form. Pass
+        floatingReserve={false} wherever the page has its own ask. */}
+    {floatingReserve && (
     <a class="floating-reserve" href={VENUE.reserveUrl} target="_blank" rel="noopener" aria-label={reserveLabel}>
       <svg class="floating-reserve__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -635,6 +760,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </svg>
       <span class="floating-reserve__label">{reserveLabel}</span>
     </a>
+    )}
     <script is:inline>
       (function () {
         var fr = document.querySelector('.floating-reserve');
@@ -662,6 +788,32 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         so an overridden heading is in place BEFORE the word-reveal splitter
         measures it. Shared with /reserve/, which has no BaseLayout. */}
     <ContentOverlay />
+
+    {/* Self-emptying bands. A section marked `data-empty-hide` is removed when
+        none of its editable copy has any words in it — which happens on a
+        venue the shared copy does not describe (VENUE.ownCopy) and whose
+        owner has not yet written its own. Placed immediately AFTER the overlay
+        so it judges the copy the visitor will actually read, including the
+        owner's saved overrides, not the blanks the build shipped.
+
+        An empty band is honest: the alternative was the rooftop telling
+        visitors it was the restaurant's younger sister. Write anything for
+        one of its fields in /admin/content and the band returns. */}
+    <script is:inline>
+      (function () {
+        var bands = document.querySelectorAll('[data-empty-hide]');
+        for (var i = 0; i < bands.length; i++) {
+          // Structural UI labels inside the band ("Read more") say nothing
+          // about the venue, so they must not count as the band being written.
+          var keyed = bands[i].querySelectorAll('[data-content-key]:not([data-empty-ignore])');
+          var written = false;
+          for (var j = 0; j < keyed.length && !written; j++) {
+            if (keyed[j].textContent.trim()) written = true;
+          }
+          if (!written) bands[i].hidden = true;
+        }
+      })();
+    </script>
 
     {/* Starts any slot the middleware turned from a still into a video (the
         hero, a gallery frame, the Events band). Inert on a page with none. */}

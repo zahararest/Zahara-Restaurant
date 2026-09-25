@@ -39,12 +39,26 @@ export default defineConfig({
     sitemap({
       // Exclude admin, API, and alternate menu paths now redirected
       filter: (url) => {
-        const p = new URL(url).pathname;
+        // Compare on the path WITHOUT the venue base. Every rule below was
+        // written as a root path, so on the rooftop build (base '/rooftop')
+        // none of them matched: its sitemap was publishing /rooftop/admin/
+        // and /rooftop/reserve/ to Google, which are exactly the two pages
+        // the rules exist to keep out.
+        const full = new URL(url).pathname;
+        const p = BASE && full.startsWith(BASE) ? (full.slice(BASE.length) || '/') : full;
+
         // /reserve/ is the unlisted venue portal — handed out directly (bio
         // link, QR, ads), never crawled or linked. See src/pages/reserve.astro.
+        //
+        // The rooftop also drops /events/: the page is built for both venues
+        // from one source, but the rooftop does not take event enquiries, so
+        // it is unlinked (src/lib/paths.ts), redirected (public/_redirects)
+        // and must not be offered to crawlers either.
+        const rooftopEvents = BASE === '/rooftop' && /^\/(en\/)?events\/?$/.test(p);
         return !p.startsWith('/admin') &&
                !p.startsWith('/api/') &&
-               !p.startsWith('/reserve');
+               !p.startsWith('/reserve') &&
+               !rooftopEvents;
       },
       // Custom priority / changefreq per section
       customPages: [],

@@ -3,7 +3,10 @@ import { pick, home as copy, global as globals } from '../../data/i18n';
 import { RESTAURANT }              from '../../data/restaurant';
 import { VENUE } from '../../lib/venue';
 import { path }                    from '../../lib/paths';
-import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
+import {
+  resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot,
+  HERO_WIDTHS, HERO_MOBILE_COVER, HERO_QUALITY,
+} from '../../lib/photo';
 import type { Lang }               from '../../data/i18n';
 import type { PhotoEntry }         from '../../data/photos';
 
@@ -26,15 +29,10 @@ const scrollLabel = g.scrollToNext;
 const prevLabel   = g.previousPhoto;
 const nextLabel   = g.nextPhoto;
 
-const HERO_WIDTHS = [800, 1200, 1800, 2400] as const;
 // Phone portrait crops for the rotating gallery frames — same shape the LCP
-// hero uses, so the rotation never jumps aspect ratio.
-const MOBILE_COVER = [[640, 1180], [820, 1500], [1080, 1980]] as const;
-// The hero is the LCP image — shave its weight with a slightly lower AVIF
-// quality (78→70 ≈ 113KB→~80KB on mobile) for a faster mobile LCP. Kept in
-// sync with the preload in BaseLayout.astro, which MUST emit identical URLs
-// or the preloaded bytes are wasted and the image downloads twice.
-const HERO_QUALITY = 70;
+// hero uses, so the rotation never jumps aspect ratio. The widths, crops and
+// quality come from src/lib/photo.ts, which BaseLayout's preload reads too.
+const MOBILE_COVER = HERO_MOBILE_COVER;
 ---
 
 <section class="hero-bleed" aria-label="Zahara">
@@ -51,6 +49,7 @@ const HERO_QUALITY = 70;
            poster: resized(photo.src, 1800, HERO_QUALITY),
            className: 'hero-bleed__img',
            mobile: true,
+           eager: true,
          })}>
       <picture>
         {/* Phones get a tall portrait crop (subject-aware) so the wide photo
@@ -124,7 +123,9 @@ const HERO_QUALITY = 70;
   )}
 
   <div class="hero-bleed__inner">
-    <p class="eyebrow eyebrow--on-photo fade-up" data-content-key="home.heroEyebrow">{t.heroEyebrow}</p>
+    {/* A venue the shared copy does not describe prints its own name and
+        kicker — the rooftop's hero read "מסעדת שף · ירושלים / זהרה Zahara". */}
+    <p class="eyebrow eyebrow--on-photo fade-up" data-content-key="home.heroEyebrow">{VENUE.hero ? VENUE.hero.eyebrow[lang] : t.heroEyebrow}</p>
     <h1
       class="display hero-bleed__title"
       data-word-reveal
@@ -132,7 +133,7 @@ const HERO_QUALITY = 70;
       data-word-reveal-step="0.08"
     >
       <span data-content-key="home.heroHeadline">{t.heroHeadline}</span>
-      <span class="hero-bleed__title-mark" data-content-key="home.heroTitleMark">{t.heroTitleMark}</span>
+      <span class="hero-bleed__title-mark" data-content-key="home.heroTitleMark">{VENUE.hero ? VENUE.hero.mark[lang] : t.heroTitleMark}</span>
     </h1>
     <!-- <p class="hero-bleed__lede fade-up" set:html={t.heroLede} /> -->
     <div class="btn-row fade-up">

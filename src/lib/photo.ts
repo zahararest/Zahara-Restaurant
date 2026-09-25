@@ -54,6 +54,31 @@ export const ASSET_VERSION_TOKEN = '__ZASSETV__';
 // its URLs are byte-for-byte unchanged.
 import { SITE_QUERY_AMP } from './base';
 
+// ── Shared frame parameters ────────────────────────────────────────────────
+//
+// The widths, phone crops and quality a full-bleed frame is served at. They
+// live here because TWO places have to agree on them exactly: the component
+// that renders the <picture>, and BaseLayout's `rel=preload` for the LCP
+// image. A preload whose URL differs from the <img> by so much as a quality
+// digit is not a preload — it is a second, wasted download of the largest
+// image on the page. Keeping the numbers in one module makes that class of
+// bug impossible rather than merely commented against.
+
+/** The home hero (HeroBleed). */
+export const HERO_WIDTHS       = [800, 1200, 1800, 2400] as const;
+export const HERO_MOBILE_COVER = [[640, 1180], [820, 1500], [1080, 1980]] as const;
+/** The hero is the LCP image — a slightly lower AVIF quality (78→70 ≈
+ *  113KB→~80KB on mobile) buys a faster mobile LCP at no visible cost. */
+export const HERO_QUALITY      = 70;
+
+/** Any other full-bleed band (BleedPhoto). Finer width steps so a ~1400px
+ *  band picks 1400 rather than the 1800 variant. */
+export const BLEED_WIDTHS       = [800, 1100, 1400, 1700, 2100, 2560] as const;
+/** Default phone crop for a FULL-SCREEN band — same shape as the hero. A
+ *  short band passes its own wider pairs so it doesn't request a too-tall
+ *  image (see the Events page). */
+export const BLEED_MOBILE_COVER = HERO_MOBILE_COVER;
+
 /** Return a Cloudflare-resized URL for an image in /photos/.
  *  Pass the original src exactly as it appears in PHOTOS — the helper
  *  takes care of the URL massaging. Width is a max-width hint; quality
@@ -157,7 +182,8 @@ export function videoSrc(src: string, variant: 'desktop' | 'mobile' = 'desktop')
  *  separate phone frame (`mobile: true` in functions/data/photos-map.ts); it
  *  adds the URL of the phone video. */
 export function mediaSlot(
-  key: string, src: string, opts: { poster: string; className?: string; mobile?: boolean },
+  key: string, src: string,
+  opts: { poster: string; className?: string; mobile?: boolean; eager?: boolean },
 ): Record<string, string> {
   return {
     'data-media-slot':  key,
@@ -165,5 +191,9 @@ export function mediaSlot(
     ...(opts.mobile ? { 'data-media-video-mobile': videoSrc(src, 'mobile') } : {}),
     'data-media-poster': opts.poster,
     'data-media-class':  opts.className ?? '',
+    // Above the fold: this frame is the first thing on screen, so its video
+    // gets preload="auto" and starts downloading during head parse instead of
+    // waiting to be scrolled near. Everything else stays lazy.
+    ...(opts.eager ? { 'data-media-eager': '' } : {}),
   };
 }

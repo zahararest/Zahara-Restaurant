@@ -353,6 +353,9 @@
   font-weight: 400;
 }
 .footer-block a:hover { color: var(--accent); }
+/* A note the venue has nothing to say in — the rooftop's "closed on" line —
+   collapses rather than leaving a gap in the column. */
+.footer-block .footer-note:empty { display: none; }
 .footer-block .footer-note {
   color: var(--ink-muted);
   font-size: var(--step--1);
@@ -467,6 +470,76 @@
 }
 .form-status.ok  { color: var(--ok); }
 .form-status.err { color: var(--err); }
+
+/* ── Required fields ─────────────────────────────────────────────────────
+   One accent asterisk beside the label, and a muted line under the three
+   mandatory fields explaining it. No badge, no "required" pill: the mark
+   is the same one every paper form has used for a century. */
+.field__req {
+  color: var(--accent);
+  /* The label is uppercase with wide tracking; an asterisk inherits the
+     tracking as a gap before nothing, so pull it back against the word. */
+  margin-inline-start: -0.14em;
+  font-weight: 700;
+}
+.form__required-note {
+  margin: 0;
+  font-size: var(--step--2);
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+/* ── The sent confirmation ───────────────────────────────────────────────
+   Takes the form's place inside the same card. The form is hidden rather
+   than removed, so "send another message" brings it straight back with no
+   re-render and no scroll jump. */
+.form-card.is-sent .form,
+.form-card.is-sent .form-card__head { display: none; }
+
+.form-sent {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: var(--space-2xs);
+  padding-block: clamp(1rem, 4vw, 2.25rem);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+}
+.form-sent[hidden] { display: none; }
+.form-sent.is-in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .form-sent { transition: none; transform: none; }
+}
+/* Hairline · diamond · hairline — the same quiet ornament the Events
+   opening band and the announcement card use. */
+.form-sent__ornament {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.9rem; margin-block: 0.35rem 0.15rem;
+}
+.form-sent__ornament::before,
+.form-sent__ornament::after {
+  content: ''; width: 2.75rem; height: 1px;
+  background: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.form-sent__ornament i {
+  width: 5px; height: 5px; background: var(--accent); transform: rotate(45deg);
+}
+.form-sent__title {
+  margin: 0;
+  font-size: var(--step-3);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.018em;
+}
+.form-sent__body {
+  margin: 0;
+  max-inline-size: 46ch;
+  font-size: var(--step-0);
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.form-sent__again { margin-block-start: var(--space-s); }
 
 .benefits {
   list-style: none;
@@ -947,6 +1020,10 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
 /* The story switched off for this venue but the info strip kept: the scene is
    then just that band over the photo, not a full screen with nothing in it. */
 .story-scene[data-home-off~="story"] { min-height: 0; }
+/* `display: grid` below would beat the UA's [hidden]{display:none}, so a band
+   emptied by the self-emptying script (BaseLayout) has to say so explicitly —
+   otherwise a venue with no story of its own keeps a full viewport of nothing. */
+.story-scene__body[hidden] { display: none !important; }
 .story-scene__body {
   flex: 0 0 auto;
   height: 100vh;

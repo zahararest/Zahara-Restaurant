@@ -1,7 +1,7 @@
 ---
 import { pick, footer as labels } from '../data/i18n';
 import { RESTAURANT }              from '../data/restaurant';
-import { VENUE } from '../lib/venue';
+import { VENUE, venueCopy } from '../lib/venue';
 import { path }                    from '../lib/paths';
 import type { Lang }               from '../data/i18n';
 
@@ -10,8 +10,10 @@ export interface Props { lang?: Lang }
 const { lang = 'he' } = Astro.props;
 const t        = pick(labels, lang);
 const year     = new Date().getFullYear();
-const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
-const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
+// Phone, inbox and socials come from VENUE — on /rooftop these are the bar's.
+// The street address stays RESTAURANT's: both venues are the same building.
+const dial     = lang === 'he' ? VENUE.phone.dialHe    : VENUE.phone.dialEn;
+const phoneTxt = lang === 'he' ? VENUE.phone.display    : VENUE.phone.intlDisplay;
 ---
 
 <footer class="site-footer">
@@ -19,8 +21,14 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
     <div class="footer-grid stagger">
       <div class="footer-block">
         <h2 data-content-key="footer.hoursTitle">{t.hours}</h2>
-        <p data-content-key="footer.weekdays">{t.weekdays}</p>
-        <p class="footer-note" data-content-key="footer.closedNote">{t.closedNote}</p>
+        {/* The venue's own nights — VENUE.hours, not the shared i18n line,
+            which is the restaurant's. Still overridable per venue in
+            /admin/content → Footer · Hours. */}
+        <p data-content-key="footer.weekdays">{VENUE.hours[lang]}</p>
+        {/* "Closed Fri & Sat" is only meaningful for a venue open Mon–Thu.
+            The rooftop's line already names its three nights, so it ships
+            without this and the empty <p> collapses. */}
+        <p class="footer-note" data-content-key="footer.closedNote">{venueCopy(t.closedNote)}</p>
         <p class="footer-note" data-content-key="footer.hotelNote">{t.hotelNote}</p>
       </div>
 
@@ -31,15 +39,17 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
             the same string, so they are deliberately NOT admin copy: editing
             the words would silently disagree with where the link goes. */}
         <a href={`tel:${dial}`}>{phoneTxt}</a>
-        <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a>
+        <a href={`mailto:${VENUE.email}`}>{VENUE.email}</a>
         <a href={path('about', lang)}>{RESTAURANT.address[lang]}</a>
       </div>
 
       <div class="footer-block">
         <h2 data-content-key="footer.followTitle">{t.follow}</h2>
-        <a href={RESTAURANT.instagram} target="_blank" rel="noopener" data-content-key="footer.instagram">{t.instagram}</a>
-        <a href={RESTAURANT.whatsapp}  target="_blank" rel="noopener" data-content-key="footer.whatsapp">{t.whatsapp}</a>
-        <a href={RESTAURANT.facebook}  target="_blank" rel="noopener" data-content-key="footer.facebook">{t.facebook}</a>
+        <a href={VENUE.instagram} target="_blank" rel="noopener" data-content-key="footer.instagram">{t.instagram}</a>
+        <a href={VENUE.whatsapp}  target="_blank" rel="noopener" data-content-key="footer.whatsapp">{t.whatsapp}</a>
+        {VENUE.facebook && (
+        <a href={VENUE.facebook}  target="_blank" rel="noopener" data-content-key="footer.facebook">{t.facebook}</a>
+        )}
       </div>
 
       <div class="footer-block">
@@ -53,7 +63,7 @@ const phoneTxt = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.
       {/* The year and the restaurant name are computed, so only the rights
           phrase is editable — wrapping the whole line would let an edit erase
           the copyright notice by accident. */}
-      <span>© {year} {RESTAURANT.name[lang]} — <span data-content-key="footer.rights">{t.rights}</span></span>
+      <span>© {year} {VENUE.name[lang]} — <span data-content-key="footer.rights">{t.rights}</span></span>
       <span class="footer-bottom__links">
         <a href={path('accessibility', lang)} style="margin-inline-end: 1rem;"
            data-content-key="footer.accessibility">{t.accessibility}</a>

@@ -149,12 +149,19 @@ function attr(el: { getAttribute(name: string): string | null }, name: string): 
 //    different part of the clip without the server knowing the screen.
 //
 // 600px is the phone breakpoint every <picture> and MediaVideo.astro use.
+// The still under a ONE-frame video is hidden from the first paint, not once
+// the clip is ready. Waiting for `data-video-ready` meant the frame opened on
+// the photograph and then cut to the video — the same flash the poster caused
+// on both-frame slots. The still comes back only if the video gives up
+// (`data-video-failed`), or if the visitor asked for reduced motion, in which
+// case the photograph IS the intended picture.
 const MEDIA_CSS =
   '[data-media-is-video=desktop]>video,[data-media-is-video=mobile]>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}' +
   '@media (max-width:600px){[data-media-is-video=desktop]>video{display:none!important}' +
-    '[data-media-is-video=mobile]:has(>video[data-video-ready])>:not(video){visibility:hidden}}' +
+    '[data-media-is-video=mobile]:has(>video:not([data-video-failed]))>:not(video){visibility:hidden}}' +
   '@media (min-width:601px){[data-media-is-video=mobile]>video{display:none!important}' +
-    '[data-media-is-video=desktop]:has(>video[data-video-ready])>:not(video){visibility:hidden}}' +
+    '[data-media-is-video=desktop]:has(>video:not([data-video-failed]))>:not(video){visibility:hidden}}' +
+  '@media (prefers-reduced-motion:reduce){[data-media-is-video]>:not(video){visibility:visible!important}}' +
   'video[data-video-framed]{object-fit:var(--vf,cover)!important;object-position:var(--vp,50% 50%)!important}' +
   '@media (max-width:600px){video[data-video-framed]{object-fit:var(--vf-m,var(--vf,cover))!important;' +
     'object-position:var(--vp-m,var(--vp,50% 50%))!important}}';
@@ -402,17 +409,38 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
           const rate  = (modes.desktop || !modes.mobile) ? df.rate : mf.rate;
           const mrate = both && mf.rate !== df.rate ? mf.rate : null;
 
-          // The poster is the still this replaces, so a video on both frames
-          // fills from the already-cached image while its first bytes arrive.
-          // A one-frame video has no poster: the still is right there beneath
-          // it, and a poster would download on the frame that never shows it.
-          const poster = both ? attr(el, 'data-media-poster') : '';
+          // ── No poster. Ever. ──────────────────────────────────────────
+          // A poster is the photograph this video replaced, and the browser
+          // paints it the moment it arrives — so a slot the owner turned into
+          // a video opened on the photo and then cut to the clip, and if the
+          // video never loaded it stayed on the photo indefinitely. Both read
+          // as the site being broken.
+          //
+          // So the photograph is not shipped at all. It stays on the wrapper
+          // as data-media-poster and MediaVideo.astro puts it back in exactly
+          // two cases: the visitor asked for reduced motion, or the video
+          // failed to play. A photograph as a fallback, never as a pre-roll.
+          //
+          // ── …and a real `src` where one file serves both screens ──────────
+          // The src was left off so the browser could not fetch a cut meant
+          // for the other screen. That reasoning only applies when the two
+          // frames play DIFFERENT files; when they play the same one there is
+          // nothing to choose, and withholding the src only meant the video
+          // could not start until JavaScript had run — the "photo, and then
+          // maybe a video" everyone was seeing. With the src in the markup the
+          // browser starts it during parse, and a visitor with no JavaScript
+          // at all gets the video rather than a still.
+          const oneFile = both && phoneSrc === desktopSrc;
+          const eager   = el.hasAttribute('data-media-eager');
 
           el.setAttribute('data-media-is-video', both ? '1' : only);
           const video =
-            `<video class="${escAttr(cls)}"${scope} playsinline muted loop autoplay preload="none"` +
+            `<video class="${escAttr(cls)}"${scope} playsinline muted loop autoplay` +
+            // preload=auto on an above-the-fold frame; elsewhere the browser's
+            // own autoplay heuristics hold the bytes until it is near.
+            ` preload="${oneFile && eager ? 'auto' : 'none'}"` +
+            (oneFile ? ` src="${escAttr(desktopSrc)}"` : '') +
             ` aria-hidden="true" tabindex="-1"` +
-            (poster ? ` poster="${escAttr(poster)}"` : '') +
             (framed ? ` data-video-framed style="${escAttr(style)}"` : '') +
             (rate !== 1 ? ` data-video-rate="${escAttr(String(rate))}"` : '') +
             (mrate !== null ? ` data-video-rate-mobile="${escAttr(String(mrate))}"` : '') +

@@ -1,12 +1,14 @@
 ---
 // Starts the videos the middleware swapped in for their stills.
 //
-// The <video> arrives from the server with NO src — only `data-video-src` and
-// (when phones play a different file) `data-video-src-mobile`. One page is
-// served to every screen, so the choice between the two can only be made here,
-// in the browser that knows how wide it is. Setting the src rather than
-// shipping it means exactly one file is ever fetched: no phone downloading a
-// landscape master to throw it away.
+// Where the two frames play DIFFERENT files the <video> arrives with no src —
+// only `data-video-src` and `data-video-src-mobile`. One page is served to
+// every screen, so that choice can only be made here, in the browser that
+// knows how wide it is; setting the src rather than shipping it means exactly
+// one file is ever fetched, with no phone downloading a landscape master to
+// throw it away. Where ONE file serves both screens there is nothing to
+// choose, so the server ships the src itself and the browser starts during
+// parse — this script then only paces and frames what is already playing.
 //
 // A video that belongs to ONE frame only carries `data-video-only` ("desktop"
 // or "mobile"). It sits over the still, which is what the other frame shows,
@@ -17,9 +19,13 @@
 // reader came for, so: muted and looping (a background video that makes noise
 // is a bug), `playsinline` so iOS doesn't hijack the screen into fullscreen,
 // paused when off-screen or when the tab is hidden so it costs nothing to
-// scroll past, and never started at all under prefers-reduced-motion — where
-// the poster still, which is the photograph the video replaced, is the whole
-// point of having kept it.
+// scroll past, and never started at all under prefers-reduced-motion.
+//
+// The photograph a video replaced is NOT shipped as the poster — a poster is
+// painted the instant it arrives, which made every video slot open on the
+// still and then cut to the clip. It waits on the wrapper as
+// `data-media-poster`, and this script restores it in exactly two cases:
+// reduced motion, and a video that cannot play.
 ---
 <script is:inline>
   (function () {
@@ -29,10 +35,52 @@
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     var phone  = window.matchMedia('(max-width: 600px)');
 
-    // Reduced motion: leave the poster (or the still beneath) showing. It is
-    // the photograph this video replaced, so the slot looks finished rather
-    // than empty — and no video bytes are fetched at all.
-    if (reduce.matches) return;
+    /** The photograph this video replaced. It is no longer shipped as the
+     *  video's poster — see the note in functions/_middleware.ts — so it lives
+     *  on the wrapper until one of the two cases below calls for it. */
+    function photo(v) {
+      var slot = v.parentElement;
+      return (slot && slot.getAttribute('data-media-poster')) || '';
+    }
+
+    /** Put the photograph back. Used for reduced motion and for a video that
+     *  cannot play — the only two times a still is the right answer. */
+    function showPhoto(v) {
+      var src = photo(v);
+      if (src && v.getAttribute('poster') !== src) v.setAttribute('poster', src);
+    }
+
+    // Reduced motion: the photograph IS the picture.
+    //
+    // Restoring the poster is not enough on its own any more. Where one file
+    // serves both screens the server ships `src` and `autoplay`, so the
+    // browser has already STARTED the clip by the time this runs — the very
+    // thing that makes the video instant for everyone else. So stop it, drop
+    // the source and reload, which returns the element to its poster and ends
+    // the download. (A one-frame video still has its photograph underneath;
+    // MEDIA_CSS uncovers that under reduced motion.)
+    if (reduce.matches) {
+      Array.prototype.forEach.call(vids, function (v) {
+        showPhoto(v);
+        try { v.pause(); } catch (e) {}
+        v.removeAttribute('autoplay');
+        if (v.getAttribute('src')) {
+          v.removeAttribute('src');
+          try { v.load(); } catch (e) {}
+        }
+      });
+      return;
+    }
+
+    // Failure handling is armed for EVERY video immediately, not inside
+    // load(). A server-supplied src starts during parse, so a missing or
+    // undecodable file fires `error` before this script has even run — the
+    // listener load() used to attach arrived too late and the frame sat
+    // blank instead of falling back to the photograph.
+    Array.prototype.forEach.call(vids, function (v) {
+      if (v.error) { giveUp(v); return; }
+      v.addEventListener('error', function () { giveUp(v); }, { once: true });
+    });
 
     /** Is this video for the screen we're on? */
     function active(v) {
@@ -53,6 +101,9 @@
       v.dataset.videoFailed = '1';
       v.removeAttribute('data-video-ready');
       v.removeAttribute('src');
+      // The photograph, as a last resort. `data-video-failed` also tells
+      // MEDIA_CSS to uncover the still beneath a one-frame video.
+      showPhoto(v);
       try { v.load(); } catch (e) {}
     }
 
@@ -69,19 +120,27 @@
       if (v.dataset.videoLoaded || v.dataset.videoFailed || !active(v)) return;
       v.dataset.videoLoaded = '1';
       applyRate(v);
-      v.src = sourceFor(v);
-      // A failed load leaves the poster in place rather than a black frame.
-      v.addEventListener('error', function () { giveUp(v); }, { once: true });
-      // …and so does a file that LOADS but carries no picture. An audio-only
+      // Where one file serves both screens the server already put the src in
+      // the markup and the browser has been loading it since parse. Assigning
+      // the same URL again would restart that, so only set what is missing or
+      // wrong (the phone-cut case, which the server cannot choose).
+      var want = sourceFor(v);
+      if (want && v.getAttribute('src') !== want) v.src = want;
+      // `error` is already armed for every video above. What is left is the
+      // file that LOADS but carries no picture. An audio-only
       // file, or a video track in a codec this browser can't decode, reports a
       // perfectly healthy readyState and fires no error — it just paints
       // nothing, which on a full-bleed hero reads as the site being broken.
-      v.addEventListener('loadeddata', function () {
+      function ready() {
         if (!v.videoWidth || !v.videoHeight) { giveUp(v); return; }
-        // Has a picture: the still beneath a one-frame video can step aside.
         v.setAttribute('data-video-ready', '');
         applyRate(v);
-      }, { once: true });
+      }
+      // A server-supplied src has been loading since parse, so `loadeddata`
+      // may already be behind us — in which case the listener would never
+      // fire and a picture-less file would never be caught.
+      if (v.readyState >= 2) ready();
+      else v.addEventListener('loadeddata', ready, { once: true });
     }
 
     // Whether each video SHOULD be running — the intersection observer's

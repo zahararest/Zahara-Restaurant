@@ -1,5 +1,8 @@
 ---
-import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
+import {
+  resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot,
+  BLEED_WIDTHS, BLEED_MOBILE_COVER,
+} from '../../lib/photo';
 import type { Lang }       from '../../data/i18n';
 import type { PhotoEntry } from '../../data/photos';
 
@@ -27,11 +30,9 @@ export interface Props {
 const {
   lang, photo, caption, height, eager = false, mediaKey,
   // Matches the full-screen default height (100dvh) — same crop set as the hero.
-  mobileCrop = [[640, 1180], [820, 1500], [1080, 1980]] as const,
+  mobileCrop = BLEED_MOBILE_COVER,
 } = Astro.props;
 const classList = caption ? 'bleed-photo bleed-photo--caption' : 'bleed-photo';
-// Finer steps so a ~1400px-wide bleed picks ~1400, not the 1800 variant.
-const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
 ---
 
 <figure class={classList} data-caption={caption} style={height ? `height: ${height};` : undefined}>
@@ -41,6 +42,7 @@ const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
       poster: resized(photo.src, 1800),
       className: 'bleed-photo__video',
       mobile: true,
+      eager,
     }) : {})}
   >
   <picture>
@@ -58,6 +60,11 @@ const BLEED_WIDTHS = [800, 1100, 1400, 1700, 2100, 2560] as const;
       sizes="100vw"
       alt={photo.alt[lang]}
       loading={eager ? 'eager' : 'lazy'}
+      {/* An eager bleed band IS the page's LCP element (the Events page opens
+          on one). Without this the browser leaves it at default priority,
+          behind the stylesheet and fonts — Lighthouse reported it as
+          "fetchpriority should be applied" with a 1.8s render delay. */}
+      fetchpriority={eager ? 'high' : undefined}
       decoding="async"
     />
   </picture>

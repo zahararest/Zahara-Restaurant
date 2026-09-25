@@ -4,7 +4,7 @@
 // HE is hosted at the root (`/menu/`); EN is mirrored under `/en/` (`/en/menu/`).
 
 import type { Lang } from '../data/i18n';
-import { BASE, withBase } from './base';
+import { BASE, IS_ROOFTOP, withBase } from './base';
 
 export type RouteKey = 'home' | 'menu' | 'events' | 'about' | 'accessibility' | 'privacy';
 export type NavKey = 'menu' | 'events' | 'about';
@@ -41,5 +41,14 @@ export function altLangHref(currentPath: string, lang: Lang): string {
   return withBase(alt);
 }
 
-/** All site routes, in nav order — consumed by the header. */
-export const NAV_ORDER: NavKey[] = ['menu', 'events', 'about'];
+/** All site routes, in nav order — consumed by the header.
+ *
+ *  The rooftop does not take event enquiries. The page is built for both
+ *  venues (one source, two bases), so "not offered here" is a matter of not
+ *  linking to it and not listing it: the nav drops it, the sitemap excludes
+ *  it (astro.config.mjs) and /rooftop/events/ redirects to the rooftop home
+ *  (public/_redirects), so no visitor and no crawler arrives at a form that
+ *  would send the restaurant an enquiry about the bar. */
+export const NAV_ORDER: NavKey[] = IS_ROOFTOP
+  ? ['menu', 'about']
+  : ['menu', 'events', 'about'];

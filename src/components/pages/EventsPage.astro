@@ -8,9 +8,11 @@ import BaseLayout    from '../../layouts/BaseLayout.astro';
 import BleedPhoto    from '../sections/BleedPhoto.astro';
 import ContactForm   from '../sections/ContactForm.astro';
 import EventsExtras  from '../sections/EventsExtras.astro';
+import EventsGallery from '../sections/EventsGallery.astro';
 import { pick, contact as copy, eventsPage as pageCopy } from '../../data/i18n';
 import { PHOTOS }    from '../../data/photos';
 import { SITE_QUERY } from '../../lib/base';
+import { BLEED_WIDTHS } from '../../lib/photo';
 import type { Lang } from '../../data/i18n';
 
 export interface Props { lang: Lang }
@@ -32,19 +34,29 @@ const menuUrl = `/events-menu${SITE_QUERY}`;
 // inside a grey browser panel. Zoom, print and download live one tap away in
 // the "open in a separate page" button, which the note under the frame says.
 const menuEmbedUrl = `${menuUrl}#view=FitH&toolbar=0&navpanes=0`;
+
+// The opening band is this page's LCP element, and it was neither preloaded
+// nor marked high-priority: Lighthouse measured a 13.7s mobile LCP with
+// "fetchpriority should be applied" against it. These are the exact
+// parameters the <BleedPhoto> below renders with, so BaseLayout's preload
+// emits the same URLs the <picture> asks for rather than a second download.
+const HERO_MOBILE_CROP = [[640, 680], [820, 870], [1080, 1150]] as const;
 ---
 
 {/* Photo first, tucked under the transparent header, then the title +
     description below it in the cream band. The four benefit boxes were
     removed in favour of this quieter, more editorial opening. */}
 <BaseLayout title={title} seoTitle={page.seoTitle} lang={lang} transparentHeader
-            description={description}>
+            description={description}
+            heroImage={PHOTOS.menuEvents} heroImageKey="menuEvents"
+            heroWidths={BLEED_WIDTHS} heroMobileCrop={HERO_MOBILE_CROP} heroQuality={78}
+            floatingReserve={false}>
   <div class="events-hero">
     {/* Short band (~46vh) so it doesn't dominate; the header gradient sits over
         its top edge, hiding part of the photo behind the nav. */}
     <BleedPhoto lang={lang} photo={PHOTOS.menuEvents} eager mediaKey="menuEvents"
                 height="clamp(300px, 46vh, 460px)"
-                mobileCrop={[[640, 680], [820, 870], [1080, 1150]]} />
+                mobileCrop={HERO_MOBILE_CROP} />
   </div>
 
   {/* Centred editorial caption band under the photo — a warmer, deeper paper
@@ -323,6 +335,11 @@ const menuEmbedUrl = `${menuUrl}#view=FitH&toolbar=0&navpanes=0`;
   {/* The longer events section — the vertical film, the photographs and the
       notes. Ships hidden; switched on per venue in /admin/content → Events. */}
   <EventsExtras lang={lang} />
+
+  {/* Events we have hosted — a contact sheet of past evenings, each with its
+      own caption. Self-emptying: hidden until a photograph is uploaded for at
+      least one of its eight frames, so it needs no switch. */}
+  <EventsGallery lang={lang} />
 
   <ContactForm lang={lang} defaultMode="event" showToggle={false} />
 </BaseLayout>

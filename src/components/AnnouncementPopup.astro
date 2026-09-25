@@ -22,12 +22,14 @@
 
 import { pick, popup as copy } from '../data/i18n';
 import { RESTAURANT } from '../data/restaurant';
+import { VENUE } from '../lib/venue';
 import type { Lang } from '../data/i18n';
 
 export interface Props { lang: Lang }
 const { lang } = Astro.props;
 const c = pick(copy, lang);
-const brand = RESTAURANT.name[lang];
+// The venue this page belongs to — the rooftop's popup said "זהרה".
+const brand = VENUE.name[lang];
 ---
 
 <div id="zahara-announce" class="announce" hidden>

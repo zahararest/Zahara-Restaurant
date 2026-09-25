@@ -9,7 +9,7 @@
 // what it is. Falls back to a branded "Follow us" box when nothing's available.
 
 import { pick, home as copy } from '../../data/i18n';
-import { RESTAURANT } from '../../data/restaurant';
+import { VENUE } from '../../lib/venue';
 import type { Lang }  from '../../data/i18n';
 
 export interface Props {
@@ -59,7 +59,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
     <div class="ig-follow reveal-on-scroll">
       <a
         class="ig-follow__link"
-        href={RESTAURANT.instagram}
+        href={VENUE.instagram}
         target="_blank"
         rel="noopener noreferrer"
         data-track="instagram_click"
@@ -77,7 +77,7 @@ const htmlLang = lang === 'he' ? 'he' : 'en';
   </div>
 </section>
 
-<script is:inline define:vars={{ instagramUrl: RESTAURANT.instagram, t, htmlLang }}>
+<script is:inline define:vars={{ instagramUrl: VENUE.instagram, t, htmlLang }}>
   (function () {
     const feature   = document.querySelector('[data-ig-feature]');
     const reelsWrap = document.querySelector('[data-ig-reels]');

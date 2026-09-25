@@ -123,15 +123,13 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     }
   }
 
+  // Name, phone and email — and nothing else. These are what we need in order
+  // to reply at all; everything else is detail the visitor may not have yet.
+  // Event inquiries used to additionally require a date, a time of day and a
+  // description, which turned "tell us about the night" into a form you could
+  // not send until you had already decided on one.
   if (!name || !phone || !email) {
     return err('שדות חובה חסרים', 'Required fields missing', 400);
-  }
-  // Event inquiries additionally require a date, at least one time of day,
-  // and a description of the event. The form enforces this client-side;
-  // this is the real gate (no-JS posts).
-  if (inquiry_type === 'event' && (!event_date || event_times.length === 0 || !message)) {
-    return err('לאירוע יש לציין תאריך, זמן (בוקר / צהריים / ערב) ופרטים נוספים',
-               'Events require a date, a time of day (morning / afternoon / evening) and event details', 400);
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return err('כתובת אימייל לא תקינה', 'Invalid email address', 400);

@@ -20,6 +20,15 @@
 /rooftop/reserve/  /reserve/  301
 /rooftop/reserve   /reserve/  301
 
+# The rooftop does not take event enquiries. The page is built for both venues
+# (one source, two bases) and is simply not offered here: the nav drops it and
+# the sitemap excludes it, and these catch anyone arriving from an old link or
+# a crawler's memory. Delete these four lines to offer events on the rooftop.
+/rooftop/events/     /rooftop/     301
+/rooftop/events      /rooftop/     301
+/rooftop/en/events/  /rooftop/en/  301
+/rooftop/en/events   /rooftop/en/  301
+
 # security.txt — canonical location is /.well-known/ (RFC 9116). Redirect the
 # legacy root path so scanners that probe /security.txt still find it.
 /security.txt  /.well-known/security.txt  301

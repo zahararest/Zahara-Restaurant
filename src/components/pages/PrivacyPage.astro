@@ -5,6 +5,7 @@
 
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { RESTAURANT } from '../../data/restaurant';
+import { VENUE } from '../../lib/venue';
 import { pick, privacyPage as pageCopy } from '../../data/i18n';
 import type { Lang } from '../../data/i18n';
 
@@ -12,8 +13,9 @@ export interface Props { lang: Lang }
 const { lang } = Astro.props;
 const page = pick(pageCopy, lang);
 const today = new Date().toISOString().slice(0, 10);
-const phoneDial = lang === 'he' ? RESTAURANT.phone.dialHe : RESTAURANT.phone.dialEn;
-const phoneText = lang === 'he' ? RESTAURANT.phone.display : RESTAURANT.phone.intlDisplay;
+// The controller named here has to be the venue whose site this is.
+const phoneDial = lang === 'he' ? VENUE.phone.dialHe : VENUE.phone.dialEn;
+const phoneText = lang === 'he' ? VENUE.phone.display : VENUE.phone.intlDisplay;
 ---
 
 <BaseLayout title={page.pageTitle} lang={lang} description={page.pageDescription}>
@@ -28,7 +30,7 @@ const phoneText = lang === 'he' ? RESTAURANT.phone.display : RESTAURANT.phone.in
 
     <section class="privacy-page__body prose">
       <p>
-        <strong>{RESTAURANT.name[lang]}</strong> {page.dataIntro}
+        <strong>{VENUE.name[lang]}</strong> {page.dataIntro}
       </p>
 
       <h2>{page.dataHeading}</h2>
@@ -60,7 +62,7 @@ const phoneText = lang === 'he' ? RESTAURANT.phone.display : RESTAURANT.phone.in
       <p>{page.rightsText}</p>
       <ul>
         <li>{page.contactPhoneLabel}: <a href={`tel:${phoneDial}`}>{phoneText}</a></li>
-        <li>{page.contactEmailLabel}: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
+        <li>{page.contactEmailLabel}: <a href={`mailto:${VENUE.email}`}>{VENUE.email}</a></li>
       </ul>
       <p>{page.rightsResponse}</p>
 
@@ -70,10 +72,10 @@ const phoneText = lang === 'he' ? RESTAURANT.phone.display : RESTAURANT.phone.in
       <h2>{page.contactHeading}</h2>
       <p>{page.contactText}</p>
       <ul>
-        <li><strong>{page.contactRestaurant} {RESTAURANT.name[lang]}</strong></li>
+        <li><strong>{page.contactRestaurant} {VENUE.name[lang]}</strong></li>
         <li>{page.contactAddressLabel}: {RESTAURANT.address[lang]}</li>
         <li>{page.contactPhoneLabel}: <a href={`tel:${phoneDial}`}>{phoneText}</a></li>
-        <li>{page.contactEmailLabel}: <a href={`mailto:${RESTAURANT.email}`}>{RESTAURANT.email}</a></li>
+        <li>{page.contactEmailLabel}: <a href={`mailto:${VENUE.email}`}>{VENUE.email}</a></li>
       </ul>
     </section>
   </article>

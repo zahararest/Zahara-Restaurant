@@ -1,0 +1,275 @@
+---
+// "Events we have hosted" — the gallery on the Events page.
+//
+// A grid of photographs from past events, each with a caption describing the
+// evening. Deliberately NOT the home page's full-screen carousel: there the
+// photography is the subject and one frame fills the screen; here each picture
+// is evidence for a sentence, and the reader wants to see several at once and
+// read what each one was. So it is a magazine contact sheet — one column on a
+// phone, two or three on a desk — and every frame keeps its words beneath it.
+//
+// SELF-EMPTYING, like the rest of the Events page. No file ships for any of
+// the eight slots. Each frame appears only once a photograph has been uploaded
+// for it in /admin/images, and the whole band stays hidden until at least one
+// has — so the owner can add events one at a time and the page is never
+// showing empty rectangles. No switch to remember, no deploy to reveal it.
+
+import { PHOTOS } from '../../data/photos';
+import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
+import { pick, eventsPage as pageCopy } from '../../data/i18n';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = pick(pageCopy, lang);
+
+// Rendered at roughly half the reading column on a desk and full width on a
+// phone, at 4:5. The widths bracket that; `sizes` tells the browser which.
+const FRAME_WIDTHS = [420, 620, 840, 1100] as const;
+// Phones get a real portrait crop from /photos-m (the owner's phone upload if
+// there is one) rather than a landscape frame squeezed into a 4:5 box.
+const FRAME_MOBILE = [[560, 700], [760, 950]] as const;
+
+const frames = [
+  { key: 'eventsPast1', photo: PHOTOS.eventsPast1, captionKey: 'events.past1Caption' },
+  { key: 'eventsPast2', photo: PHOTOS.eventsPast2, captionKey: 'events.past2Caption' },
+  { key: 'eventsPast3', photo: PHOTOS.eventsPast3, captionKey: 'events.past3Caption' },
+  { key: 'eventsPast4', photo: PHOTOS.eventsPast4, captionKey: 'events.past4Caption' },
+  { key: 'eventsPast5', photo: PHOTOS.eventsPast5, captionKey: 'events.past5Caption' },
+  { key: 'eventsPast6', photo: PHOTOS.eventsPast6, captionKey: 'events.past6Caption' },
+  { key: 'eventsPast7', photo: PHOTOS.eventsPast7, captionKey: 'events.past7Caption' },
+  { key: 'eventsPast8', photo: PHOTOS.eventsPast8, captionKey: 'events.past8Caption' },
+];
+---
+
+<section class="events-gallery" data-events-gallery hidden aria-labelledby="events-gallery-title">
+  <div class="wrap events-gallery__inner">
+    <header class="events-gallery__head">
+      <p class="eyebrow eyebrow--center" data-content-key="events.galleryEyebrow">{t.galleryEyebrow}</p>
+      <h2 class="display events-gallery__title" id="events-gallery-title"
+          data-content-key="events.galleryHeading">{t.galleryHeading}</h2>
+      {/* Ships blank; shows only if the owner writes an opening line. */}
+      <p class="events-gallery__lede" data-content-key="events.galleryLede"></p>
+    </header>
+
+    <ul class="events-gallery__grid">
+      {frames.map((f) => (
+        <li class="events-gallery__item" data-past-frame
+            data-filename={f.photo.src.split('/').pop()} hidden>
+          <figure class="events-gallery__figure">
+            {/* A media slot like every other frame on the site, so a clip from
+                the evening can stand in for the photograph. The wrapper holds
+                the picture and nothing else — the caption sits outside it, or
+                a frame given a video would lose its words. */}
+            <div class="events-gallery__media" {...mediaSlot(f.key, f.photo.src, {
+              poster: resized(f.photo.src, 840),
+              className: 'events-gallery__img',
+              mobile: true,
+            })}>
+              <picture>
+                {/* No src / srcset until the confirm call below says this slot
+                    has a file. These slots ship empty, so a server-rendered
+                    src would be eight 404s on every visit to the page. */}
+                <source media="(max-width: 600px)"
+                        data-srcset={resizedMobileCoverSrcset(f.photo.src, FRAME_MOBILE)}
+                        sizes="100vw" />
+                <img
+                  class="events-gallery__img"
+                  data-src={resized(f.photo.src, 840)}
+                  data-srcset={resizedSrcset(f.photo.src, FRAME_WIDTHS)}
+                  sizes="(max-width: 600px) 100vw, (max-width: 1100px) 46vw, 30vw"
+                  alt={f.photo.alt[lang]}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+            </div>
+            <figcaption class="events-gallery__caption" data-content-key={f.captionKey}></figcaption>
+          </figure>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<script is:inline>
+  function zaharaEventsGallery() {
+    var section = document.querySelector('[data-events-gallery]');
+    if (!section) return;
+
+    var frames = Array.prototype.slice.call(section.querySelectorAll('[data-past-frame]'));
+    if (!frames.length) return;
+
+    // Every decision below reads copy that is ON the page, so it has to run
+    // after the editable-copy overlay has written it in — that script sits
+    // near the end of <body>, below this one, so DOMContentLoaded is the
+    // earliest safe moment. (Running inline reads empty elements and hides
+    // captions the owner has written.)
+    function written(el) { return !!(el && el.textContent.trim()); }
+
+    var lede = section.querySelector('.events-gallery__lede');
+    if (lede && !written(lede)) lede.hidden = true;
+
+    var revealed = false;
+    function reveal() {
+      if (revealed) return;
+      revealed = true;
+      section.hidden = false;
+    }
+
+    // What the middleware made of a slot: '1' a video on every screen,
+    // 'desktop' / 'mobile' a video on that frame only, '' a photograph.
+    var phone = window.matchMedia('(max-width: 600px)');
+    function videoKind(el) {
+      var slot = el.querySelector('[data-media-slot]');
+      return (slot && slot.dataset.mediaIsVideo) || '';
+    }
+
+    function promote(el) {
+      var kind = videoKind(el);
+
+      // Show the frame FIRST, then load its picture — not the other way
+      // round. Waiting for the image before revealing the frame deadlocks:
+      // the frame is `hidden` (display:none), and a `loading="lazy"` image
+      // inside a display:none subtree is never fetched, because it can never
+      // intersect the viewport. The frame stayed hidden forever and the
+      // gallery never appeared. Revealing first is also honest — the confirm
+      // call has already told us this slot holds a file. The aspect-ratio box
+      // reserves the space, so nothing shifts while the picture arrives.
+      el.hidden = false;
+      reveal();
+
+      // A video on every screen fills the frame on its own; no <img> to load.
+      if (kind === '1') return;
+
+      var img = el.querySelector('img[data-src]');
+      if (!img) return;
+      var source = el.querySelector('source[data-srcset]');
+      // Still the safety net: if the file turns out not to be servable after
+      // all, take the frame back out rather than leave a broken-image icon.
+      // A frame whose video covers this screen keeps its place — the clip is
+      // what fills it, and the photograph was only the other screen's.
+      img.addEventListener('error', function () {
+        if (kind) img.remove(); else el.remove();
+      }, { once: true });
+      if (source) source.srcset = source.dataset.srcset;
+      if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+      img.src = img.dataset.src;
+    }
+
+    // Ask which slots actually hold a file before fetching any of them, the
+    // same way the home gallery and the events notes do. Deferred until the
+    // band nears the viewport: it sits low on a long page, and calling it on
+    // load only lengthens the critical request chain.
+    function confirm() {
+      fetch('/api/gallery', { headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.ok ? r.json() : { filenames: [] }; })
+        .then(function (data) {
+          var have = {};
+          ((data && data.filenames) || []).forEach(function (f) { have[f] = true; });
+          frames.forEach(function (el) {
+            if (have[el.dataset.filename] || videoKind(el)) promote(el);
+            else el.remove();
+          });
+        })
+        .catch(function () { /* leave the band hidden rather than risk 404s */ });
+    }
+
+    // Deliberately NOT gated on an IntersectionObserver. This section ships
+    // `hidden`, and so does the one above it, and a hidden element has no box
+    // to intersect — an observer aimed at either never fires and the gallery
+    // never appears at all. The call is one small JSON response (and the same
+    // one the notes above already ask for, so it comes from the HTTP cache),
+    // so it simply waits for the page to be loaded and idle.
+    function later(fn) {
+      var go = function () {
+        if ('requestIdleCallback' in window) requestIdleCallback(fn, { timeout: 1500 });
+        else setTimeout(fn, 200);
+      };
+      if (document.readyState === 'complete') go();
+      else window.addEventListener('load', go, { once: true });
+    }
+    later(confirm);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', zaharaEventsGallery);
+  } else {
+    zaharaEventsGallery();
+  }
+</script>
+
+<style>
+  /* Hidden is hidden — the attribute has to win over the grid below. */
+  .events-gallery[hidden],
+  .events-gallery__item[hidden] { display: none !important; }
+
+  .events-gallery {
+    background: var(--paper);
+    border-block-end: 1px solid var(--rule-soft);
+    padding-block: clamp(3rem, 7vw, 5.5rem);
+  }
+  .events-gallery__inner { display: grid; gap: clamp(2rem, 5vw, 3rem); }
+
+  .events-gallery__head {
+    max-width: var(--readable-max);
+    margin-inline: auto;
+    text-align: center;
+    display: grid;
+    justify-items: center;
+    gap: var(--space-2xs);
+  }
+  .events-gallery__title { margin: 0; font-size: var(--step-4); }
+  .events-gallery__lede {
+    margin: 0; max-width: 52ch;
+    font-size: var(--step-1); line-height: 1.7; font-weight: 300;
+    color: var(--ink-soft);
+  }
+  .events-gallery__lede[hidden] { display: none; }
+
+  /* The contact sheet. One column on a phone, two from ~640px, three once
+     there is room for three pictures to still be worth looking at. */
+  .events-gallery__grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: clamp(1.75rem, 4vw, 2.75rem);
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    align-items: start;
+  }
+  .events-gallery__figure { margin: 0; display: grid; gap: var(--space-2xs); }
+
+  /* The photograph is the edge — no border, no shadow, no radius beyond the
+     site's 2px. Portrait, because event photography is mostly people. */
+  .events-gallery__media {
+    position: relative;      /* a one-frame video is laid over the still */
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    background: var(--paper-card);
+    border-radius: 2px;
+  }
+  .events-gallery__figure picture { display: contents; }
+  /* :global on the video — the middleware inserts it, so it never carries
+     Astro's scoping attribute. One rule covers the still and the clip. */
+  .events-gallery__media img,
+  .events-gallery__media :global(video) {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    /* Documentary, not catalogue — the same saturate-down the rest of the
+       site's photography carries. */
+    filter: saturate(0.92);
+  }
+
+  .events-gallery__caption {
+    margin: 0;
+    font-size: var(--step-0);
+    line-height: 1.65;
+    color: var(--ink-soft);
+  }
+  /* A frame the owner has photographed but not yet described. */
+  .events-gallery__caption:empty { display: none; }
+</style>

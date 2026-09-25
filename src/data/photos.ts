@@ -161,6 +161,21 @@ export const PHOTOS = {
   eventsExtra1: { src: `${base}/events-extra-1.jpg`, alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
   eventsExtra2: { src: `${base}/events-extra-2.jpg`, alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
   eventsExtra3: { src: `${base}/events-extra-3.jpg`, alt: { he: 'אירוע בזהרה', en: 'An evening at Zahara' } },
+
+  // ── "Events we have hosted" — the gallery on the Events page ────────────
+  // Eight optional slots, same contract as the home-gallery extras: no file
+  // ships, each frame appears only once a photograph is uploaded for it, and
+  // the whole band stays hidden while they are all empty. Each has its own
+  // caption in /admin/content → Events, which is where the event itself gets
+  // described.
+  eventsPast1: { src: `${base}/events-past-1.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast2: { src: `${base}/events-past-2.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast3: { src: `${base}/events-past-3.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast4: { src: `${base}/events-past-4.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast5: { src: `${base}/events-past-5.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast6: { src: `${base}/events-past-6.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast7: { src: `${base}/events-past-7.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+  eventsPast8: { src: `${base}/events-past-8.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
 } satisfies Record<string, PhotoEntry>;
 
 /** Hero photo shown above each menu category's content. */

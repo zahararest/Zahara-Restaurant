@@ -4,17 +4,25 @@ import { RESTAURANT }          from '../../data/restaurant';
 import { VENUE } from '../../lib/venue';
 import { PHOTOS }              from '../../data/photos';
 import { path }                from '../../lib/paths';
-import { SITE_QUERY }          from '../../lib/base';
+import { SITE_QUERY_AMP }          from '../../lib/base';
+import { resized }                 from '../../lib/photo';
 import type { Lang }           from '../../data/i18n';
 
 export interface Props { lang: Lang }
 
 const { lang } = Astro.props;
 const t        = pick(copy, lang);
-const dial     = lang === 'he' ? RESTAURANT.phone.dialHe    : RESTAURANT.phone.dialEn;
-const display  = lang === 'he' ? RESTAURANT.phone.display    : RESTAURANT.phone.intlDisplay;
+const dial     = lang === 'he' ? VENUE.phone.dialHe    : VENUE.phone.dialEn;
+const display  = lang === 'he' ? VENUE.phone.display    : VENUE.phone.intlDisplay;
 
-const kosherCert = PHOTOS.kosherCert.src + SITE_QUERY;
+// Two SIZED URLs, not the original. The certificate is a photograph of a
+// document — the file the owner uploads is routinely 400KB+, and the page was
+// fetching it whole, twice (the peek thumbnail and the lightbox), on a page
+// where nobody has asked to see it yet. It was the single largest download on
+// the home page. The thumbnail is served at the size it is shown; the full
+// view is fetched only when the lightbox is opened.
+const kosherThumb = resized(PHOTOS.kosherCert.src, 460) + SITE_QUERY_AMP;
+const kosherCert  = resized(PHOTOS.kosherCert.src, 1400) + SITE_QUERY_AMP;
 const closeLabel = lang === 'he' ? 'סגור' : 'Close';
 ---
 
@@ -23,7 +31,8 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
     <div class="info-strip__grid stagger reveal-on-scroll">
       <div class="info-strip__cell">
         <div class="meta-block__label" data-content-key="info.hoursLabel">{t.infoHoursLabel}</div>
-        <div class="meta-block__value" data-content-key="info.hoursValue">{t.infoHoursValue}</div>
+        {/* This venue's nights. See the note in Footer.astro. */}
+        <div class="meta-block__value" data-content-key="info.hoursValue">{VENUE.hours[lang]}</div>
       </div>
 
       <div class="info-strip__cell">
@@ -37,6 +46,11 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
         <a class="info-strip__sub"     href={VENUE.reserveUrl} target="_blank" rel="noopener" data-content-key="info.reservTabit">{t.infoTabit}</a>
       </div>
 
+      {/* Kashrut is the RESTAURANT's certification, issued to its kitchen.
+          The rooftop bar publishing it — certificate photo and all — would be
+          claiming something nobody has certified, so the whole cell, its peek
+          preview and its lightbox are simply not rendered there. */}
+      {VENUE.kosher && (
       <div class="info-strip__cell info-strip__cell--kosher" data-kosher-cell>
         <div class="meta-block__label" data-content-key="info.kosherLabel">{t.infoKosherLabel}</div>
         <button class="meta-block__value info-kosher__trigger" type="button"
@@ -44,13 +58,16 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
         <button class="info-strip__sub info-kosher__sub" type="button"
                 data-kosher-open data-content-key="info.kosherView">{t.infoKosherView}</button>
       </div>
+      )}
     </div>
   </div>
 </div>
 
+{VENUE.kosher && (
+<Fragment>
 {/* Hover/peek preview — position: fixed so overflow:hidden on parent cannot clip it */}
 <div class="info-kosher__preview" id="kosher-preview" aria-hidden="true">
-  <img class="info-kosher__thumb" src={kosherCert} alt="" width="210" height="297" loading="lazy" decoding="async" />
+  <img class="info-kosher__thumb" src={kosherThumb} alt="" width="210" height="297" loading="lazy" decoding="async" />
 </div>
 
 {/* Lightbox dialog */}
@@ -61,8 +78,10 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
       <path d="M18 6 6 18M6 6l12 12"/>
     </svg>
   </button>
-  <img class="kosher-dialog__img" src={kosherCert} alt={t.infoKosherLabel} />
+  <img class="kosher-dialog__img" data-src={kosherCert} alt={t.infoKosherLabel} />
 </dialog>
+</Fragment>
+)}
 
 <script>
   (() => {
@@ -77,14 +96,25 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
     const _cell    = cell!;
 
     // ── Probe: if cert not uploaded yet, hide all cert UI ──────────────────
-    const certSrc = (dialog.querySelector('img') as HTMLImageElement)?.src;
-    const probe   = new Image();
-    probe.onerror = () => {
+    // The peek thumbnail is the probe. It is small, it is on the page already,
+    // and reusing it means no second request just to ask whether a file
+    // exists — the old probe re-fetched the FULL-size certificate to find out.
+    const thumb = _preview.querySelector('img') as HTMLImageElement | null;
+    const hideCertUi = () => {
       _cell.style.display = 'none';
       _preview.remove();
       dialog.remove();
     };
-    probe.src = certSrc ?? '';
+    if (thumb) {
+      if (thumb.complete) { if (!thumb.naturalWidth) hideCertUi(); }
+      else thumb.addEventListener('error', hideCertUi, { once: true });
+    }
+
+    // The full-size certificate is fetched on the first open, never before.
+    const full = dialog.querySelector('img') as HTMLImageElement | null;
+    const loadFull = () => {
+      if (full && !full.src && full.dataset.src) full.src = full.dataset.src;
+    };
 
     // Anchor element — the "View certificate" link. The preview is always
     // pinned directly beneath it (it's position:fixed, so we track the
@@ -122,7 +152,7 @@ const closeLabel = lang === 'he' ? 'סגור' : 'Close';
 
     // ── Click → open lightbox (ALL devices) ──────────────────────────────────
     _cell.querySelectorAll('[data-kosher-open]').forEach((btn) => {
-      btn.addEventListener('click', () => dialog.showModal());
+      btn.addEventListener('click', () => { loadFull(); dialog.showModal(); });
     });
     dialog.querySelectorAll('[data-kosher-close]').forEach((btn) => {
       btn.addEventListener('click', () => dialog.close());

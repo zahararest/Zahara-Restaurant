@@ -36,8 +36,7 @@ const eventTypes: { value: string; label: string }[] = [
   { value: 'other',      label: t.typeOther      },
 ];
 
-// Time-of-day for the event — multi-select, none pre-checked, and required
-// in event mode (client check below + server check in functions/api/contact.ts).
+// Time-of-day for the event — multi-select, none pre-checked, optional.
 const eventTimes: { value: string; label: string }[] = [
   { value: 'morning',   label: t.whenMorning   },
   { value: 'afternoon', label: t.whenAfternoon },
@@ -108,21 +107,37 @@ const eventTimes: { value: string; label: string }[] = [
       <form class="form" method="POST" action="/api/contact" id="contact-form" novalidate>
         <input type="hidden" name="inquiry_type" value={isEvent ? 'event' : 'general'} data-inquiry-type />
 
+        {/* The three mandatory fields — everything we need in order to
+            reply. Each label carries the accent asterisk, and the note under
+            the row says what it means; `required` stays on the input so the
+            marker is not the only signal (assistive tech reads the attribute,
+            and a no-JS submission is still gated by the server). */}
         <div class="form__row form__row--2">
           <div class="field">
-            <label for="name" data-content-key="contact.fieldName">{t.fieldName}</label>
+            <label for="name">
+              <span data-content-key="contact.fieldName">{t.fieldName}</span>
+              <span class="field__req" aria-hidden="true">{t.requiredMark}</span>
+            </label>
             <input id="name" name="name" type="text" required autocomplete="name" />
           </div>
           <div class="field">
-            <label for="phone" data-content-key="contact.fieldPhone">{t.fieldPhone}</label>
+            <label for="phone">
+              <span data-content-key="contact.fieldPhone">{t.fieldPhone}</span>
+              <span class="field__req" aria-hidden="true">{t.requiredMark}</span>
+            </label>
             <input id="phone" name="phone" type="tel" required autocomplete="tel" />
           </div>
         </div>
 
         <div class="field">
-          <label for="email" data-content-key="contact.fieldEmail">{t.fieldEmail}</label>
+          <label for="email">
+            <span data-content-key="contact.fieldEmail">{t.fieldEmail}</span>
+            <span class="field__req" aria-hidden="true">{t.requiredMark}</span>
+          </label>
           <input id="email" name="email" type="email" required autocomplete="email" />
         </div>
+
+        <p class="form__required-note" data-content-key="contact.requiredNote">{t.requiredNote}</p>
 
         {/* Event-only fields. Rendered only when the form can actually reach
             event mode (the dedicated events page, or a page that shows the
@@ -130,9 +145,12 @@ const eventTimes: { value: string; label: string }[] = [
         {(isEvent || showToggle) && (
           <div class="contact-event-fields" data-event-only hidden={!isEvent}>
             <div class="form__row form__row--2">
+              {/* Optional. Most people asking about an event have a month in
+                  mind, not a date — requiring one turned an inquiry into a
+                  commitment and stopped the form being sent at all. */}
               <div class="field">
                 <label for="event_date" data-content-key="contact.fieldDate">{t.fieldDate}</label>
-                <input id="event_date" name="event_date" type="date" required={isEvent} data-event-required />
+                <input id="event_date" name="event_date" type="date" />
               </div>
               <div class="field">
                 <label for="guests" data-content-key="contact.fieldGuests">{t.fieldGuests}</label>
@@ -154,9 +172,8 @@ const eventTimes: { value: string; label: string }[] = [
                   event-type field) that opens a multi-choice menu; the chosen
                   options are written out below the control. Ships as a plain
                   visible list and is upgraded by JS, so a no-JS visitor still
-                  sees usable checkboxes. Mandatory in event mode: the submit
-                  handler blocks the send until at least one is ticked (the
-                  server re-checks for no-JS). */}
+                  sees usable checkboxes. Optional, like everything else
+                  outside the three fields marked with an asterisk. */}
               <fieldset class="field field--when" data-when-group>
                 <legend class="field__legend" id="event-time-label">
                   <span data-content-key="contact.fieldWhen">{t.fieldWhen}</span>
@@ -190,7 +207,7 @@ const eventTimes: { value: string; label: string }[] = [
 
         <div class="field">
           <label for="message" data-content-key="contact.fieldMessage">{t.fieldMessage}</label>
-          <textarea id="message" name="message" rows="5" required={isEvent} data-event-required></textarea>
+          <textarea id="message" name="message" rows="5"></textarea>
         </div>
 
         <!-- Honeypot — silently filled by bots, never by humans -->
@@ -224,6 +241,26 @@ const eventTimes: { value: string; label: string }[] = [
           <p id="form-status" role="status" aria-live="polite" class="form-status"></p>
         </div>
       </form>
+
+      {/* The confirmation. It takes the FORM's place in the card rather than
+          appearing over the page: a modal would be dismissed and leave the
+          reader looking at a blank form, unsure whether anything was sent,
+          and a line of status text under the button was too quiet for
+          something as consequential as handing over your event. This stays
+          until the visitor asks to write again.
+
+          It ships in the HTML (not built in script) so the words are
+          admin-editable like the rest of the page, and `hidden` so it is
+          inert — including for a no-JS visitor, whose ?submitted=1 redirect
+          reveals it the same way a fetch send does. */}
+      <div class="form-sent" data-form-sent hidden role="status" aria-live="polite">
+        <p class="eyebrow eyebrow--center" data-content-key="contact.sentEyebrow">{t.sentEyebrow}</p>
+        <span class="form-sent__ornament" aria-hidden="true"><i></i></span>
+        <h3 class="display form-sent__title" data-content-key="contact.sentTitle">{t.sentTitle}</h3>
+        <p class="form-sent__body" data-content-key="contact.sentBody">{t.sentBody}</p>
+        <button class="btn btn--ghost form-sent__again" type="button" data-form-again
+                data-content-key="contact.sentAgain">{t.sentAgain}</button>
+      </div>
     </div>
   </div>
 </section>
@@ -395,19 +432,90 @@ const eventTimes: { value: string; label: string }[] = [
 
 {/* Cloudflare Turnstile loader — only when a site key is configured. The
     site CSP sets only frame-ancestors, so the challenge iframe/script load
-    without any allow-list change. */}
+    without any allow-list change.
+
+    Fetched LATE, on purpose. The challenge platform is by far the heaviest
+    thing on any page carrying this form: measured on /events/ it pulled
+    ~795 KiB across four requests and ran a challenge on the main thread
+    while the page above it was still painting — and the form sits at the
+    BOTTOM of a long editorial page nobody reaches in the first second.
+    So the script is injected when the form comes within a screen of the
+    viewport, or the moment anyone focuses a field, whichever is first.
+    Turnstile's implicit rendering picks up the .cf-turnstile element
+    whenever it arrives, so nothing else has to change; the submit handler
+    below waits for the token the same way it always did. */}
 {TURNSTILE_SITEKEY && (
-  <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <script is:inline>
+    (function () {
+      var card = document.querySelector('[data-contact-card]');
+      var slot = document.querySelector('.cf-turnstile');
+      if (!card || !slot) return;
+
+      var done = false;
+      function load() {
+        if (done) return;
+        done = true;
+        if (io) io.disconnect();
+        card.removeEventListener('focusin', load);
+        var j = document.createElement('script');
+        j.src   = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+        j.async = true;
+        j.defer = true;
+        document.head.appendChild(j);
+      }
+
+      // Focusing any field means the visitor is filling the form in — the
+      // widget has to be there by the time they press send.
+      card.addEventListener('focusin', load);
+
+      // The submit handler's last-resort trigger. Focus covers every path a
+      // real visitor takes to a valid submission, but "every path" is a claim
+      // about browsers, and a rejected inquiry is too expensive to bet on it:
+      // sending forces the load and then waits for the token.
+      window.__zaharaLoadTurnstile = load;
+
+      // A short margin, not a whole screen: on the Events page the optional
+      // bands above the form collapse to nothing until the owner fills them,
+      // which puts the form close enough to the top that a one-viewport
+      // margin fired during the initial load — the very thing this defers.
+      // Observed only once the page has LAID OUT. This script runs inline
+      // during parse, when the photographs above the form have no height yet
+      // and the card therefore sits at the top of the document — an observer
+      // created here reported it on screen immediately and fetched the whole
+      // challenge platform at 75ms, which is the opposite of the intent.
+      // `load` is the first moment the images have their real heights.
+      function watch() {
+        if (done) return;
+        if (!('IntersectionObserver' in window)) { load(); return; }
+        // No margin. The Events page is short once its optional bands are
+        // empty, so any margin at all put the form "near" the viewport at
+        // rest and fetched the challenge before the reader had moved. The
+        // form entering the screen is early enough: focusing a field also
+        // triggers it, and sending forces it and waits (see below).
+        io = new IntersectionObserver(function (entries) {
+          if (entries.some(function (e) { return e.isIntersecting; })) load();
+        }, { rootMargin: '0px' });
+        io.observe(card);
+      }
+      var io = null;
+      if (document.readyState === 'complete') watch();
+      else window.addEventListener('load', watch, { once: true });
+    })();
+  </script>
 )}
 
 <script define:vars={{
-  msgSending:    t.statusSending,
-  msgSuccess:    t.statusSuccess,
-  msgErrNetwork: t.statusErrNetwork,
-  msgErrGeneral: t.statusErrGeneral,
-  msgErrEmail:   t.statusErrEmail,
-  msgErrWhen:    t.statusErrWhen,
-  pageLang:      lang,
+  msgSending:     t.statusSending,
+  msgErrNetwork:  t.statusErrNetwork,
+  msgErrGeneral:  t.statusErrGeneral,
+  msgErrEmail:    t.statusErrEmail,
+  // msgErrRequired was used by the validation branch below but never passed
+  // in here, so the branch threw a ReferenceError: submitting an incomplete
+  // form did nothing at all — no message, no focus, no send — because
+  // preventDefault had already run. It is the message people saw least and
+  // needed most.
+  msgErrRequired: t.statusErrRequired,
+  pageLang:       lang,
 }}>
   // ── Mode toggle (general / event) ─────────────────────────────────────────
   const toggleBtns   = Array.from(document.querySelectorAll('[data-contact-mode]'));
@@ -438,11 +546,8 @@ const eventTimes: { value: string; label: string }[] = [
     if (submitBtn) submitBtn.textContent = mode === 'event'
       ? submitBtn.dataset.submitEvent : submitBtn.dataset.submitGeneral;
     if (inquiryInput) inquiryInput.value = mode;
-    // Date is mandatory only for event inquiries — a hidden required field
-    // would silently block the general form, so requiredness follows the mode.
-    document.querySelectorAll('[data-event-required]').forEach((el) => {
-      el.required = mode === 'event';
-    });
+    // Nothing about requiredness follows the mode any more: name, phone and
+    // email are mandatory in both, and every event field is optional.
     // Reposition the sliding indicator under the new active tab.
     requestAnimationFrame(positionIndicator);
   }
@@ -479,10 +584,39 @@ const eventTimes: { value: string; label: string }[] = [
   const form   = document.getElementById('contact-form');
   const status = document.getElementById('form-status');
 
+  // ── The confirmation panel ────────────────────────────────────────────────
+  // Swaps places with the form: the card keeps its position on the page, so
+  // the reader's eye lands on the answer exactly where the question was.
+  const card    = document.querySelector('[data-contact-card]');
+  const sentBox = document.querySelector('[data-form-sent]');
+
+  function showSent() {
+    if (!card || !sentBox) return;
+    card.classList.add('is-sent');
+    sentBox.hidden = false;
+    // Next frame, so there is a laid-out element to fade in from.
+    requestAnimationFrame(() => sentBox.classList.add('is-in'));
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const rect   = card.getBoundingClientRect();
+    if (rect.top < 0 || rect.bottom > window.innerHeight) {
+      card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+    }
+  }
+
+  function showForm() {
+    if (!card || !sentBox) return;
+    sentBox.classList.remove('is-in');
+    sentBox.hidden = true;
+    card.classList.remove('is-sent');
+    document.getElementById('name')?.focus();
+  }
+
+  document.querySelector('[data-form-again]')?.addEventListener('click', showForm);
+
   if (status) {
     if (params.get('submitted') === '1') {
-      status.textContent = msgSuccess;
-      status.className   = 'form-status ok';
+      // The no-JS path: the server redirected back here after sending.
+      showSent();
       history.replaceState({}, '', window.location.pathname);
     } else if (params.get('error') === '1') {
       status.textContent = msgErrGeneral;
@@ -553,24 +687,33 @@ const eventTimes: { value: string; label: string }[] = [
     renderWhenSelected();
   }
 
-  if (form && status) {
-    const whenGroup = form.querySelector('[data-when-group]');
+  // Resolves once the Turnstile widget has written its token into the form,
+  // or after TURNSTILE_WAIT_MS, whichever comes first. A no-op on a page with
+  // no Turnstile configured, and on one where the token is already there.
+  const TURNSTILE_WAIT_MS = 8000;
+  function waitForTurnstile() {
+    const slot = document.querySelector('.cf-turnstile');
+    if (!slot) return Promise.resolve();
+    const token = () => form?.querySelector('[name="cf-turnstile-response"]')?.value;
+    if (token()) return Promise.resolve();
+    // Not loaded yet (or still solving) — make sure it is on its way.
+    try { window.__zaharaLoadTurnstile?.(); } catch { /* not on this page */ }
+    return new Promise((resolve) => {
+      const started = Date.now();
+      const tick = () => {
+        if (token() || Date.now() - started > TURNSTILE_WAIT_MS) resolve();
+        else setTimeout(tick, 150);
+      };
+      tick();
+    });
+  }
 
-    // Fixing a field clears its highlight immediately; ticking any
-    // time-of-day box clears the group's error state.
+  if (form && status) {
+    // Fixing a field clears its highlight immediately.
     form.querySelectorAll('input, select, textarea').forEach((el) => {
       const clear = () => el.classList.remove('is-invalid');
       el.addEventListener('input',  clear);
       el.addEventListener('change', clear);
-    });
-    form.querySelectorAll('input[name="event_time"]').forEach((box) => {
-      box.addEventListener('change', () => {
-        whenGroup?.classList.remove('is-error');
-        if (status.textContent === msgErrWhen) {
-          status.textContent = '';
-          status.className   = 'form-status';
-        }
-      });
     });
 
     form.addEventListener('submit', async (e) => {
@@ -595,36 +738,35 @@ const eventTimes: { value: string; label: string }[] = [
         if (bad) { invalid.push(el); el.classList.add('is-invalid'); }
       });
 
-      // Time-of-day group — no native "one of these" constraint exists for
-      // checkboxes, so it's validated as a unit in event mode.
-      const whenBoxes = Array.from(form.querySelectorAll('input[name="event_time"]'));
-      const whenBad   = mode === 'event' && whenBoxes.length > 0 && !whenBoxes.some((b) => b.checked);
-      whenGroup?.classList.toggle('is-error', whenBad);
-
-      if (invalid.length || whenBad) {
-        // One combined message; if a single field is wrong, say which kind.
-        let msg = msgErrRequired;
-        if (!invalid.length && whenBad) {
-          msg = msgErrWhen;
-        } else if (!whenBad && invalid.length === 1 && invalid[0].id === 'email' && invalid[0].value.trim()) {
-          msg = msgErrEmail;
-        }
+      if (invalid.length) {
+        // One combined message; a lone bad email says so specifically, since
+        // "fill in the highlighted fields" is unhelpful when the field is full.
+        const msg = (invalid.length === 1 && invalid[0].id === 'email' && invalid[0].value.trim())
+          ? msgErrEmail
+          : msgErrRequired;
         status.textContent = msg;
         status.className   = 'form-status err';
-        // First offender gets focus; for the time group that's the trigger
-        // (the checkboxes sit inside the closed dropdown).
-        (invalid[0] || (whenTrigger && !whenTrigger.hidden ? whenTrigger : whenBoxes[0]))?.focus();
+        invalid[0].focus();
         return;
       }
 
       status.textContent = msgSending;
       status.className   = 'form-status';
 
+      // Turnstile is fetched late (see the loader above), so on a fast path —
+      // browser autofill, then straight to Send — the widget may not have
+      // produced its token yet. The server rejects a tokenless post with
+      // "human verification failed", which would be a real inquiry lost to an
+      // optimisation. Wait for it instead; "Sending..." is already on screen.
+      // If it never arrives we post anyway and let the server decide, which
+      // is the same behaviour as before Turnstile was deferred.
+      await waitForTurnstile();
+
       try {
         const res = await fetch('/api/contact', { method: 'POST', body: new FormData(form) });
         if (res.ok) {
-          status.textContent = msgSuccess;
-          status.className   = 'form-status ok';
+          status.textContent = '';
+          status.className   = 'form-status';
           // GA4 — a *successful* send, unlike the auto-collected form_submit
           // which fires on the attempt. Queued via dataLayer so it works
           // regardless of script order and respects Consent Mode.
@@ -638,6 +780,7 @@ const eventTimes: { value: string; label: string }[] = [
           } catch { /* analytics must never break the form */ }
           form.reset();
           renderWhenSelected();
+          showSent();
         } else {
           const text = await res.text();
           status.textContent = text || msgErrGeneral;
