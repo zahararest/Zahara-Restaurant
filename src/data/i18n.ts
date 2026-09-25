@@ -26,7 +26,6 @@ export const header = {
   about:       { he: 'אודות',          en: 'About'     },
   reserve:     { he: 'הזמנה',          en: 'Reserve'   },
   rooftop:     { he: 'Rooftop', en: 'Rooftop' },
-  rooftopSoon: { he: 'בקרוב',         en: 'Soon'         },
   switchVenue: { he: 'מעבר בין המתחמים', en: 'Switch venue' },
   brandText:   { he: 'זהרה',            en: 'Zahara'     },
   langToggle:  { he: 'EN',             en: 'עברית'     },

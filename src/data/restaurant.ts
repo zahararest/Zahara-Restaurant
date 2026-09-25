@@ -50,13 +50,9 @@ export const RESTAURANT = {
   // '+', spaces, or dashes. Derived from phone.dialEn (+972 77 303 4180).
   whatsapp:       'https://wa.me/972773034180',
 
-  // Rooftop bar — coming soon. Update this URL when the site is live.
-  // Set to null to hide the header button entirely.
-  rooftopUrl:     null as string | null,
-
-  // Nucha Rooftop's own Tabit booking page. The rooftop has no site yet, but
-  // it DOES take reservations — the /reserve/ venue portal is the one place
-  // that link is published (see src/pages/reserve.astro).
+  // Nucha Rooftop's own Tabit booking page — used by the rooftop build
+  // (src/lib/venue.ts) and by the /reserve/ two-venue portal
+  // (see src/pages/reserve.astro).
   rooftopReservationUrl: 'https://tbit.be/0SB3xP',
 } as const;
 

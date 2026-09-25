@@ -115,27 +115,6 @@
    always perfectly aligned on the segment (no separate sliding pill). */
 .site-switch__seg.is-active,
 .site-switch__seg.is-active:hover { background: var(--accent); color: var(--shadow); }
-/* Clickable while the rooftop site is pre-launch: a tap scrolls back to the
-   top once you've left the first screen (site-switch handler in Header). It is
-   a <button>, so it needs the font it would have inherited as a link. */
-.site-switch__seg--soon { cursor: pointer; font: inherit; font-size: var(--step--1); }
-/* The drawer's pre-launch label — a .btn that is deliberately not a button. */
-.mobile-nav__cta .btn.is-soon {
-  cursor: default;
-  opacity: 0.62;
-  border-style: dashed;
-}
-.site-switch__soon {
-  font-size: 0.56rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-weight: 600;
-  padding: 0.14em 0.45em;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 12%, transparent);
-  color: var(--ink-muted);
-}
-
 /* On the photo-hero header — read in cream over the dark gradient. */
 .site-header.is-on-photo .site-switch {
   border-color: color-mix(in srgb, var(--paper-on-photo) 30%, transparent);
@@ -146,15 +125,10 @@
 .site-header.is-on-photo .site-switch__seg--brand { color: var(--paper-on-photo); }
 .site-header.is-on-photo .site-switch__seg.is-active,
 .site-header.is-on-photo .site-switch__seg.is-active:hover { background: var(--accent); color: var(--shadow); }
-.site-header.is-on-photo .site-switch__soon {
-  background: color-mix(in srgb, var(--paper-on-photo) 18%, transparent);
-  color: color-mix(in srgb, var(--paper-on-photo) 82%, transparent);
-}
 
 @media (max-width: 560px) {
   .site-switch__seg { padding: 0.3rem 0.7rem; font-size: var(--step--2); }
   .site-switch__seg--brand { font-size: 1rem; }
-  .site-switch__soon { display: none; }
 }
 
 .site-header.is-on-photo .nav a,
@@ -170,9 +144,6 @@
   background: var(--paper-on-photo);
   color: var(--ink);
 }
-/* Rooftop badge keeps its accent fill on photo too (buttons.css) — the
-   header scrim keeps it legible, so no on-photo override here. */
-
 .nav {
   display: flex;
   align-items: center;

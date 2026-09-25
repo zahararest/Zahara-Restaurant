@@ -140,9 +140,6 @@ html[lang="he"] .header-reserve {
   }
 }
 
-/* Mobile drawer rooftop button keeps .btn--ghost look; just center it */
-.mobile-nav__rooftop-soon { text-align: center; }
-
 /* ── Hero / on-photo CTAs — FIXED on-photo colours, never theme-flipping ────
    The hero buttons (and the header reserve link when it sits over the hero
    photo) live on a full-bleed photograph whose context is dark in BOTH themes.
