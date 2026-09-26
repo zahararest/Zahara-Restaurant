@@ -84,12 +84,18 @@ const MOBILE_COVER = HERO_MOBILE_COVER;
              className: 'hero-bleed__img',
              mobile: true,
            })}>
+        {/* No src until the page has loaded. `loading="lazy"` does not defer
+            these: they sit inside the hero, which is in the viewport, so the
+            browser treats them as needed now and fetched two or three more
+            full-screen photographs alongside the LCP image — on a phone, in
+            the LCP window, for frames the rotation will not show for 4.5s.
+            The script below promotes them once the hero has painted. */}
         <picture>
-          <source media="(max-width: 600px)" srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER, HERO_QUALITY)} sizes="100vw" />
+          <source media="(max-width: 600px)" data-srcset={resizedMobileCoverSrcset(p.src, MOBILE_COVER, HERO_QUALITY)} sizes="100vw" />
           <img
             class="hero-bleed__img"
-            src={resized(p.src, 1100, HERO_QUALITY)}
-            srcset={resizedSrcset(p.src, [800, 1100, 1400], HERO_QUALITY)}
+            data-src={resized(p.src, 1100, HERO_QUALITY)}
+            data-srcset={resizedSrcset(p.src, [800, 1100, 1400], HERO_QUALITY)}
             sizes="100vw"
             alt=""
             loading="lazy"
@@ -169,12 +175,45 @@ const MOBILE_COVER = HERO_MOBILE_COVER;
 
     var mqPhone  = window.matchMedia('(max-width: 600px)');
     var mqReduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    // ── Load the rotation frames, once the hero itself has painted ────────
+    // They carry data-src/data-srcset rather than the real attributes (see
+    // the markup above), so nothing competes with the LCP image for the
+    // phone's first screen. Called after load; the first advance is SLIDE_MS
+    // away, which is far more time than these need. Desktop never calls it:
+    // the extra frames are display:none there and the rotation is off.
+    var promoted = false;
+    function promoteSlides() {
+      if (promoted) return;
+      promoted = true;
+      slides.forEach(function (sl) {
+        var img = sl.querySelector('img[data-src]');
+        if (!img) return;                       // the base frame, or a video
+        var src = sl.querySelector('source[data-srcset]');
+        if (src) src.srcset = src.dataset.srcset;
+        if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+        img.src = img.dataset.src;
+      });
+    }
+    function promoteWhenIdle() {
+      if (!mqPhone.matches) return;             // desktop shows one frame
+      var go = function () {
+        if ('requestIdleCallback' in window) requestIdleCallback(promoteSlides, { timeout: 1200 });
+        else setTimeout(promoteSlides, 200);
+      };
+      if (document.readyState === 'complete') go();
+      else window.addEventListener('load', go, { once: true });
+    }
+    promoteWhenIdle();
+    // Crossing onto a phone width later (rotation, resize) still needs them.
+    if (mqPhone.addEventListener) mqPhone.addEventListener('change', promoteWhenIdle);
     var SLIDE_MS = 4500;
     var timer = null;   // auto-advance interval (null = not auto-rotating)
     var wired = false;  // manual controls (arrows/swipe) attached?
     var idx   = 0;
 
     function setActive(n) {
+      promoteSlides();   // never advance onto a frame with no picture in it
       slides[idx].classList.remove('is-active');
       slides[idx].setAttribute('aria-hidden', 'true');
       idx = (n + slides.length) % slides.length;
