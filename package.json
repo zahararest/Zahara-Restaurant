@@ -8,7 +8,8 @@
     "build:rooftop": "BUILD_BASE=/rooftop astro build --outDir dist/rooftop",
     "preview": "astro preview",
     "astro": "astro",
-    "dev:cf": "npm run build && NODE_OPTIONS=--max-old-space-size=4096 wrangler pages dev ./dist"
+    "dev:cf": "npm run build && NODE_OPTIONS=--max-old-space-size=4096 wrangler pages dev ./dist",
+    "postbuild": "node scripts/minify-inline.mjs"
   },
   "dependencies": {
     "astro": "^6.3.8"

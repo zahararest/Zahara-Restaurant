@@ -486,7 +486,17 @@ const schema = {
           // Whichever comes first: the visitor engages with the page, or the
           // page has been loaded and quiet for ANALYTICS_IDLE_MS.
           (function () {
-            var ANALYTICS_IDLE_MS = 3000;
+            // 10s, not 3s. Measured on the live site: at 3s the tags were
+            // still landing inside Lighthouse's trace on a throttled phone —
+            // ~210ms of main-thread work and 200KB+ attributed to the page
+            // load, which is exactly what deferring them was meant to avoid.
+            //
+            // 10s is not an arbitrary bigger number: it is GA4's own
+            // engaged-session threshold. A visit shorter than that, with no
+            // scroll, tap or key press, is one GA4 would not count as engaged
+            // anyway — and any visitor who does ANY of those things loads the
+            // tags immediately, which is nearly all of them.
+            var ANALYTICS_IDLE_MS = 10000;
             // Split deliberately. A pointer or key press is unambiguously the
             // visitor, and capture sees it even if something stops it from
             // propagating. Scrolling is NOT: scroll events do not bubble, but
