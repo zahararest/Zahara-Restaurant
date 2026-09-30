@@ -85,6 +85,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     .map(v => String(v).trim())
     .filter((v): v is typeof VALID_TIMES[number] => (VALID_TIMES as readonly string[]).includes(v));
   const isEvent      = inquiry_type === 'event' || !!(event_date || event_type || guests || event_times.length);
+  // Which venue the enquiry is for. Only the two-venue events page sends it;
+  // everything else leaves it out and reads exactly as before. Known values
+  // only — this lands in the subject line.
+  const VENUE_NAMES: Record<string, string> = { zahara: 'Zahara', rooftop: 'Nucha Rooftop' };
+  const venueName    = VENUE_NAMES[String(form.get('venue') || '').trim()] ?? '';
 
   const isFetch = isFetchRequest(request);
   const isEn    = (request.headers.get('referer') || '').includes('/en/');
@@ -153,9 +158,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const typeLabel  = event_type ? (TYPE_LABELS[event_type] ?? event_type) : '';
   const timesLabel = event_times.map(t => TIME_LABELS[t]).join(', ');
 
-  const heading = isEvent ? 'Event Inquiry — Zahara' : 'Contact — Zahara';
+  // The venue leads the subject when there is one, so a rooftop enquiry can't
+  // be mistaken for a restaurant one in a shared inbox.
+  const heading = isEvent ? `Event Inquiry — ${venueName || 'Zahara'}` : 'Contact — Zahara';
   const subject = isEvent
-    ? `Event inquiry — ${name}${typeLabel ? ` (${typeLabel})` : ''}`
+    ? `${venueName ? `${venueName} · ` : ''}Event inquiry — ${name}${typeLabel ? ` (${typeLabel})` : ''}`
     : `Contact — ${name}`;
 
   const html = `
@@ -164,6 +171,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         ${heading}
       </h2>
       <table style="width:100%;border-collapse:collapse;margin:1.5rem 0">
+        ${venueName ? `<tr><td style="padding:0.5rem 0;color:#7B7060;width:30%">Venue</td><td style="padding:0.5rem 0"><strong>${escape(venueName)}</strong></td></tr>` : ''}
         <tr><td style="padding:0.5rem 0;color:#7B7060;width:30%">Name</td><td style="padding:0.5rem 0"><strong>${escape(name)}</strong></td></tr>
         <tr><td style="padding:0.5rem 0;color:#7B7060">Phone</td><td style="padding:0.5rem 0"><a href="tel:${escape(phone)}">${escape(phone)}</a></td></tr>
         <tr><td style="padding:0.5rem 0;color:#7B7060">Email</td><td style="padding:0.5rem 0"><a href="mailto:${escape(email)}">${escape(email)}</a></td></tr>
@@ -177,6 +185,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const text = [
     heading,
+    venueName ? `Venue: ${venueName}` : '',
     `Name: ${name}`, `Phone: ${phone}`, `Email: ${email}`,
     event_date ? `Date: ${event_date}` : '',
     timesLabel ? `Time of day: ${timesLabel}` : '',

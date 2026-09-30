@@ -20,6 +20,13 @@
 /rooftop/reserve/  /reserve/  301
 /rooftop/reserve   /reserve/  301
 
+# The new events page shows BOTH venues on one page, so the same applies:
+# the rooftop build's duplicate folds into the one real page.
+/rooftop/events2/     /events2/     301
+/rooftop/events2      /events2/     301
+/rooftop/en/events2/  /en/events2/  301
+/rooftop/en/events2   /en/events2/  301
+
 # The rooftop does not take event enquiries. The page is built for both venues
 # (one source, two bases) and is simply not offered here: the nav drops it and
 # the sitemap excludes it, and these catch anyone arriving from an old link or

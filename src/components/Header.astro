@@ -1,7 +1,7 @@
 ---
 import { pick, header as labels } from '../data/i18n';
 import { VENUE } from '../lib/venue';
-import { path, altLangHref, NAV_ORDER, type RouteKey, type NavKey } from '../lib/paths';
+import { path, altLangHref, NAV_ORDER, type RouteKey, type NavKey, type VenueSwitch } from '../lib/paths';
 import { SITE_ID }                 from '../lib/base';
 import type { Lang }               from '../data/i18n';
 
@@ -9,9 +9,12 @@ export interface Props {
   lang?:        Lang;
   /** Set true on pages whose hero is a full-bleed photo behind the header. */
   transparent?: boolean;
+  /** A page showing BOTH venues takes over the venue switch — see VenueSwitch
+   *  in src/lib/paths.ts. */
+  venueSwitch?: VenueSwitch;
 }
 
-const { lang = 'he', transparent = false } = Astro.props;
+const { lang = 'he', transparent = false, venueSwitch } = Astro.props;
 const t        = pick(labels, lang);
 const currPath = Astro.url.pathname;
 // Contact points come from VENUE, not RESTAURANT: on the /rooftop build these
@@ -36,6 +39,15 @@ const otherLangHref = altLangHref(currPath, lang);
 const zaharaHome   = lang === 'he' ? '/' : '/en/';
 const rooftopHome  = lang === 'he' ? '/rooftop/' : '/rooftop/en/';
 const onRooftop    = SITE_ID === 'rooftop';
+
+// On a page that shows both venues, the switch is the page's: it points at the
+// page's own venue states, lights the one on show (none while the visitor is
+// still choosing), and carries data-venue-link for the page's script to flip
+// in place. It gives up the "scroll home" and cross-venue tracking hooks —
+// neither means anything there.
+const vs = venueSwitch;
+const zaharaActive  = vs ? vs.active === 'zahara'  : !onRooftop;
+const rooftopActive = vs ? vs.active === 'rooftop' : onRooftop;
 
 const isCurrent = (href: string) => {
   const norm = (s: string) => s.replace(/\/$/, '') || '/';
@@ -71,17 +83,21 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
         tapping it when already home scrolls to the top. Tapping the other
         segment switches venues (same UI, that venue's data). */}
     <div class="site-switch" role="group" aria-label={t.switchVenue}>
-      <a href={zaharaHome}
-         class={`site-switch__seg site-switch__seg--brand${onRooftop ? '' : ' is-active'}`}
-         data-switch-home={onRooftop ? undefined : true}
-         data-track={onRooftop ? 'zahara_click' : undefined}
-         aria-label={t.brandAria}>
+      <a href={vs ? vs.zahara : zaharaHome}
+         class={`site-switch__seg site-switch__seg--brand${zaharaActive ? ' is-active' : ''}`}
+         data-switch-home={!vs && !onRooftop ? true : undefined}
+         data-track={!vs && onRooftop ? 'zahara_click' : undefined}
+         data-venue-link={vs ? 'zahara' : undefined}
+         aria-current={vs && zaharaActive ? 'true' : undefined}
+         aria-label={vs ? undefined : t.brandAria}>
         <span data-content-key="header.brandText">{t.brandText}</span>
       </a>
-      <a href={rooftopHome}
-         class={`site-switch__seg${onRooftop ? ' is-active' : ''}`}
-         data-switch-home={onRooftop ? true : undefined}
-         data-track={onRooftop ? undefined : 'rooftop_click'}>
+      <a href={vs ? vs.rooftop : rooftopHome}
+         class={`site-switch__seg${rooftopActive ? ' is-active' : ''}`}
+         data-switch-home={!vs && onRooftop ? true : undefined}
+         data-track={!vs && !onRooftop ? 'rooftop_click' : undefined}
+         data-venue-link={vs ? 'rooftop' : undefined}
+         aria-current={vs && rooftopActive ? 'true' : undefined}>
         <span class="site-switch__name" data-content-key="header.rooftop">{t.rooftop}</span>
       </a>
     </div>
@@ -174,11 +190,15 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
     ))}
   </ul>
   <div class="mobile-nav__cta">
-    {/* Switch to the OTHER venue (same domain). */}
+    {/* Switch to the OTHER venue (same domain). Not on a page that shows both
+        venues itself — there the switch in the header bar already does it, in
+        place, and a second one here would leave the page instead. */}
+    {!vs && (
     <a class="btn btn--ghost" href={onRooftop ? zaharaHome : rooftopHome}
        data-track={onRooftop ? 'zahara_click' : 'rooftop_click'}>
       {onRooftop ? t.brandText : t.rooftop}
     </a>
+    )}
     <a class="btn" href={VENUE.reserveUrl} target="_blank" rel="noopener">{t.reserve}</a>
     <div class="mobile-nav__social">
       <a href={VENUE.instagram} target="_blank" rel="noopener" aria-label="Instagram" data-track="instagram_click">

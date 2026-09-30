@@ -26,13 +26,17 @@ export const onRequestGet: PagesFunction<SiteBindings> = async ({ params, env, r
     // Shared photos (the /reserve/ portal) live in one bucket for both
     // venues — same rule as the desktop route.
     const scope = siteScope(env, photoSite(siteFromRequest(request), meta.key));
-    // Mobile override first, then the desktop override(s).
+    // Mobile override first, then the desktop override(s). A stand-in from
+    // another venue (`fallbackSite`) is looked up in that venue's bucket, the
+    // same way the desktop route does it.
+    const cross = meta.fallbackKey && meta.fallbackSite ? meta.fallbackKey : null;
     const keys = [
       `${meta.key}${MOBILE_SUFFIX}`,
       meta.key,
-      ...(meta.fallbackKey ? [meta.fallbackKey] : []),
+      ...(meta.fallbackKey && !cross ? [meta.fallbackKey] : []),
     ];
-    const obj = await findOverride(scope, keys);
+    let obj = await findOverride(scope, keys);
+    if (!obj && cross && meta.fallbackSite) obj = await findOverride(siteScope(env, meta.fallbackSite), [cross]);
     if (obj) return serveR2Object(obj, request);
   }
 

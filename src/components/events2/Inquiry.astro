@@ -1,0 +1,577 @@
+---
+// The enquiry — the same form the Events page has always had (same fields,
+// same endpoint, same checks, same confirmation), set as the second half of a
+// spread: a photograph of the venue on one side, the form on the other.
+//
+// What changed, and why:
+//
+//   • It asks WHERE. The page shows two venues, so the form says which one the
+//     enquiry is for, as its first answer — preset to the venue being read
+//     about and kept in step with the page both ways (change it here and the
+//     page follows, without moving the form). The server puts it at the head
+//     of the email's subject line.
+//   • It asks about the evening before it asks about the person. Choosing an
+//     occasion and a date is the easy, pleasant part; by the time the three
+//     required fields arrive the visitor is already planning. Two groups, each
+//     with a quiet heading, instead of one long column of boxes.
+//   • Choices are choices. Event type and time of day were a select and a
+//     dropdown built to look like one; here they are the options themselves,
+//     one tap each, with nothing hidden behind a menu.
+//   • Fields are written on, not boxed — a single rule under each, the way a
+//     printed reply card is filled in. The message keeps its box: several
+//     lines need somewhere to go.
+//
+// The photograph is a sticky half of the screen on a desk: it stays put while
+// the form scrolls beside it, so the reader is always looking at the room they
+// are asking about. On a phone the photographs are already above; the form
+// stands alone.
+
+import { PHOTOS } from '../../data/photos';
+import { pick, events2Page, contact } from '../../data/i18n';
+import { resized, resizedSrcset, mediaSlot } from '../../lib/photo';
+import { TURNSTILE_SITEKEY } from '../../data/restaurant';
+import type { Lang } from '../../data/i18n';
+import { SIDE_WIDTHS, SIDE_SIZES } from './frames';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = pick(events2Page, lang);
+const f = pick(contact, lang);
+
+const sides = [
+  { id: 'zahara',  key: 'ev2ZaharaForm',  photo: PHOTOS.ev2ZaharaForm },
+  { id: 'rooftop', key: 'ev2RooftopForm', photo: PHOTOS.ev2RooftopForm },
+] as const;
+
+// Same values the server already knows how to label (functions/api/contact.ts).
+const eventTypes = [
+  { value: 'private',    label: f.typePrivate    },
+  { value: 'business',   label: f.typeBusiness   },
+  { value: 'birthday',   label: f.typeBirthday   },
+  { value: 'barmitzvah', label: f.typeBarMitzvah },
+  { value: 'wedding',    label: f.typeWedding    },
+  { value: 'other',      label: f.typeOther      },
+];
+const eventTimes = [
+  { value: 'morning',   label: f.whenMorning   },
+  { value: 'afternoon', label: f.whenAfternoon },
+  { value: 'evening',   label: f.whenEvening   },
+];
+---
+
+<section class="ev2-inquiry" id="inquiry" aria-labelledby="ev2-form-title" data-ev2-inquiry>
+  <div class="ev2-inquiry__side" aria-hidden="true">
+    <div class="ev2-inquiry__sticky">
+      {sides.map((s) => (
+        <div class="ev2-inquiry__frame" data-side={s.id}
+             {...mediaSlot(s.key, s.photo.src, { poster: resized(s.photo.src, 1400), className: 'ev2-inquiry__img' })}>
+          <img class="ev2-inquiry__img"
+               src={resized(s.photo.src, 1400)}
+               srcset={resizedSrcset(s.photo.src, SIDE_WIDTHS)}
+               sizes={SIDE_SIZES}
+               alt="" width="1400" height="1866"
+               loading="lazy" decoding="async" />
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <div class="ev2-inquiry__panel">
+    <div class="ev2-inquiry__inner" data-ev2-card>
+      <header class="ev2-inquiry__head">
+        <p class="eyebrow" data-venue-only="zahara" data-content-key="events2.zahara.formEyebrow">{t.zFormEyebrow}</p>
+        <p class="eyebrow" data-venue-only="rooftop" data-content-key="events2.rooftop.formEyebrow">{t.rFormEyebrow}</p>
+        <h2 class="display ev2-inquiry__title" id="ev2-form-title" tabindex="-1">
+          <span data-venue-only="zahara" data-content-key="events2.zahara.formHeading">{t.zFormHeading}</span>
+          <span data-venue-only="rooftop" data-content-key="events2.rooftop.formHeading">{t.rFormHeading}</span>
+        </h2>
+        <p class="ev2-inquiry__note" data-content-key="events2.formNote">{t.formNote}</p>
+      </header>
+
+      {/* novalidate: the script checks every field at once and marks them all;
+          the browser's own bubble stops at the first. A no-JS send is still
+          checked by the server. */}
+      <form class="ev2-form" method="POST" action="/api/contact" novalidate data-ev2-form
+            data-lang={lang}
+            data-msg-sending={f.statusSending}
+            data-msg-network={f.statusErrNetwork}
+            data-msg-general={f.statusErrGeneral}
+            data-msg-email={f.statusErrEmail}
+            data-msg-required={f.statusErrRequired}>
+        <input type="hidden" name="inquiry_type" value="event" />
+
+        <fieldset class="ev2-group">
+          <legend class="ev2-group__legend" data-content-key="events2.groupEvent">{t.groupEvent}</legend>
+          <div class="ev2-group__body">
+
+          <fieldset class="ev2-choice">
+            <legend class="ev2-label" data-content-key="events2.fieldVenue">{t.fieldVenue}</legend>
+            <div class="ev2-venues">
+              <label class="ev2-venue-opt">
+                <input type="radio" name="venue" value="zahara" checked data-venue-radio />
+                <span class="ev2-venue-opt__box">
+                  <span class="ev2-venue-opt__name" data-content-key="events2.zahara.name">{t.zName}</span>
+                  <span class="ev2-venue-opt__sub" data-content-key="events2.zahara.doorEyebrow">{t.zDoorEyebrow}</span>
+                </span>
+              </label>
+              <label class="ev2-venue-opt">
+                <input type="radio" name="venue" value="rooftop" data-venue-radio />
+                <span class="ev2-venue-opt__box">
+                  <span class="ev2-venue-opt__name" data-content-key="events2.rooftop.name">{t.rName}</span>
+                  <span class="ev2-venue-opt__sub" data-content-key="events2.rooftop.doorEyebrow">{t.rDoorEyebrow}</span>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="ev2-choice">
+            <legend class="ev2-label" data-content-key="contact.fieldType">{f.fieldType}</legend>
+            <div class="ev2-chips">
+              {eventTypes.map((o) => (
+                <label class="ev2-chip">
+                  <input type="radio" name="event_type" value={o.value} />
+                  <span>{o.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Both optional. Most people asking about an event have a month in
+              mind, not a date — requiring one turned an enquiry into a
+              commitment. */}
+          <div class="ev2-row">
+            <div class="ev2-field">
+              <label class="ev2-label" for="ev2-date" data-content-key="contact.fieldDate">{f.fieldDate}</label>
+              <input id="ev2-date" name="event_date" type="date" data-ev2-date />
+            </div>
+            <div class="ev2-field">
+              <label class="ev2-label" for="ev2-guests" data-content-key="contact.fieldGuests">{f.fieldGuests}</label>
+              <input id="ev2-guests" name="guests" type="number" min="1" max="2000" inputmode="numeric" />
+            </div>
+          </div>
+
+          <fieldset class="ev2-choice">
+            <legend class="ev2-label">
+              <span data-content-key="contact.fieldWhen">{f.fieldWhen}</span>
+              <span class="ev2-label__hint">· <span data-content-key="contact.fieldWhenHint">{f.fieldWhenHint}</span></span>
+            </legend>
+            <div class="ev2-chips">
+              {eventTimes.map((o) => (
+                <label class="ev2-chip">
+                  <input type="checkbox" name="event_time" value={o.value} />
+                  <span>{o.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          </div>
+        </fieldset>
+
+        {/* The three fields we need in order to reply at all — and nothing
+            else is required. `required` stays on the inputs so the asterisk
+            isn't the only signal. */}
+        <fieldset class="ev2-group">
+          <legend class="ev2-group__legend" data-content-key="events2.groupYou">{t.groupYou}</legend>
+          <div class="ev2-group__body">
+          <div class="ev2-row">
+            <div class="ev2-field">
+              <label class="ev2-label" for="ev2-name">
+                <span data-content-key="contact.fieldName">{f.fieldName}</span>
+                <span class="field__req" aria-hidden="true">{f.requiredMark}</span>
+              </label>
+              <input id="ev2-name" name="name" type="text" required autocomplete="name" />
+            </div>
+            <div class="ev2-field">
+              <label class="ev2-label" for="ev2-phone">
+                <span data-content-key="contact.fieldPhone">{f.fieldPhone}</span>
+                <span class="field__req" aria-hidden="true">{f.requiredMark}</span>
+              </label>
+              <input id="ev2-phone" name="phone" type="tel" required autocomplete="tel" />
+            </div>
+          </div>
+          <div class="ev2-field">
+            <label class="ev2-label" for="ev2-email">
+              <span data-content-key="contact.fieldEmail">{f.fieldEmail}</span>
+              <span class="field__req" aria-hidden="true">{f.requiredMark}</span>
+            </label>
+            <input id="ev2-email" name="email" type="email" required autocomplete="email" />
+          </div>
+          <p class="ev2-req-note" data-content-key="contact.requiredNote">{f.requiredNote}</p>
+          </div>
+        </fieldset>
+
+        <div class="ev2-field">
+          <label class="ev2-label" for="ev2-message" data-content-key="contact.fieldMessage">{f.fieldMessage}</label>
+          <textarea id="ev2-message" name="message" rows="4" maxlength="5000"></textarea>
+        </div>
+
+        <!-- Honeypot — filled by bots, never by people -->
+        <div class="visually-hidden" aria-hidden="true">
+          <label for="ev2-website">Leave this empty</label>
+          <input id="ev2-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+        </div>
+
+        {/* Cloudflare Turnstile — the server verifies the token it writes into
+            this form (functions/api/contact.ts). Fetched late; see below. */}
+        {TURNSTILE_SITEKEY && (
+          <div class="cf-turnstile ev2-form__turnstile" data-sitekey={TURNSTILE_SITEKEY}
+               data-language={lang} data-theme="auto"></div>
+        )}
+
+        <div class="ev2-form__submit">
+          <button class="btn ev2-form__send" type="submit" data-ev2-submit
+                  data-content-key="contact.submit">{f.submitEvent}</button>
+          <p class="form-status" role="status" aria-live="polite" data-ev2-status></p>
+        </div>
+      </form>
+
+      {/* The confirmation takes the form's place, in its own words (admin-
+          editable, Contact form tab) — the same one the rest of the site uses. */}
+      <div class="form-sent" data-ev2-sent hidden role="status" aria-live="polite">
+        <p class="eyebrow eyebrow--center" data-content-key="contact.sentEyebrow">{f.sentEyebrow}</p>
+        <span class="form-sent__ornament" aria-hidden="true"><i></i></span>
+        <h3 class="display form-sent__title" data-content-key="contact.sentTitle">{f.sentTitle}</h3>
+        <p class="form-sent__body" data-content-key="contact.sentBody">{f.sentBody}</p>
+        <button class="btn btn--ghost form-sent__again" type="button" data-ev2-again
+                data-content-key="contact.sentAgain">{f.sentAgain}</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .ev2-inquiry {
+    background: var(--paper-deep);
+    border-block-start: 1px solid var(--rule-soft);
+    /* Land the heading clear of the sticky header when jumped to. */
+    scroll-margin-top: 0;
+  }
+
+  /* ── The photograph ───────────────────────────────────────────────── */
+  .ev2-inquiry__side { display: none; }
+  @media (min-width: 1000px) {
+    .ev2-inquiry {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .ev2-inquiry__side { display: block; position: relative; }
+    .ev2-inquiry__sticky {
+      position: sticky;
+      inset-block-start: 0;
+      block-size: 100vh;
+      block-size: 100svh;
+      overflow: hidden;
+      background: var(--shadow);
+    }
+  }
+  /* Both venues' photographs are stacked; the one being asked about shows.
+     A cross-fade, like a slide changing in a dark room. */
+  .ev2-inquiry__frame {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.9s var(--ease-out);
+  }
+  :global(.ev2:not([data-venue='rooftop'])) .ev2-inquiry__frame[data-side='zahara'],
+  :global(.ev2[data-venue='rooftop']) .ev2-inquiry__frame[data-side='rooftop'] { opacity: 1; }
+  .ev2-inquiry__img,
+  .ev2-inquiry__frame :global(video) {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    filter: saturate(0.92);
+  }
+
+  /* ── The form's half ──────────────────────────────────────────────── */
+  .ev2-inquiry__panel {
+    padding: clamp(3.5rem, 9vw, 7rem) clamp(1.25rem, 4vw, 2.5rem) clamp(4rem, 9vw, 7rem);
+  }
+  .ev2-inquiry__inner {
+    max-inline-size: 38rem;
+    margin-inline: auto;
+    display: grid;
+    gap: clamp(2rem, 4vw, 2.75rem);
+  }
+  @media (min-width: 1000px) {
+    .ev2-inquiry__panel { padding-inline: clamp(2.5rem, 5.5vw, 6rem); }
+    .ev2-inquiry__inner { margin-inline: 0; }
+  }
+
+  .ev2-inquiry__head { display: grid; gap: 0.75rem; }
+  .ev2-inquiry__title {
+    margin: 0;
+    font-size: var(--step-4);
+    font-weight: 400;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .ev2-inquiry__title:focus { outline: none; }
+  .ev2-inquiry__note {
+    margin: 0;
+    max-inline-size: 44ch;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    color: var(--ink-muted);
+  }
+  .ev2-inquiry__note:empty { display: none; }
+
+  /* One venue's words at a time. With no script (the root carries no
+     data-venue at all) Zahara's show, and the form's own choice decides. */
+  :global(.ev2:not([data-venue='rooftop'])) .ev2-inquiry [data-venue-only='rooftop'],
+  :global(.ev2[data-venue='rooftop']) .ev2-inquiry [data-venue-only='zahara'] { display: none; }
+
+  /* Sent — the confirmation stands where the question was. */
+  .ev2-inquiry.is-sent .ev2-form,
+  .ev2-inquiry.is-sent .ev2-inquiry__head { display: none; }
+
+  /* ── The form ─────────────────────────────────────────────────────── */
+  .ev2-form { display: grid; gap: clamp(2rem, 4vw, 2.6rem); }
+
+  .ev2-group,
+  .ev2-choice {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-inline-size: 0;
+  }
+  /* A group's heading: the serif, small, over a hairline — a section of a
+     reply card. The fieldsets stay in block flow and the layout lives in a
+     body inside them: browsers special-case a <legend>, and a grid fieldset
+     is where that bites. */
+  .ev2-group__legend {
+    display: block;
+    inline-size: 100%;
+    margin-block-end: clamp(1.4rem, 3vw, 1.8rem);
+    padding: 0 0 0.7rem;
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    line-height: 1.2;
+    color: var(--ink);
+    border-block-end: 1px solid var(--rule);
+  }
+  .ev2-group__body { display: grid; gap: clamp(1.5rem, 3vw, 1.9rem); }
+
+  .ev2-row { display: grid; gap: clamp(1.5rem, 3vw, 1.9rem); }
+  @media (min-width: 560px) { .ev2-row { grid-template-columns: 1fr 1fr; } }
+
+  .ev2-field { display: grid; gap: 0.35rem; align-content: start; }
+
+  /* Labels: the site's small tracked caps. */
+  .ev2-label {
+    padding: 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .ev2-label__hint { letter-spacing: 0.02em; text-transform: none; font-weight: 400; }
+  .ev2-choice > .ev2-label { display: block; margin-block-end: 0.75rem; }
+
+  /* Written on, not boxed: one rule under the answer, which warms to the
+     accent while the field is being filled in. The answer is set in the
+     serif — it reads as handwriting on the card, not a value in a widget. */
+  .ev2-field input {
+    inline-size: 100%;
+    padding: 0.45rem 0 0.55rem;
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    line-height: 1.3;
+    color: var(--ink);
+    background: transparent;
+    border: 0;
+    border-block-end: 1px solid var(--rule);
+    border-radius: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* A date input keeps its picker affordance, but its text follows the page. */
+  .ev2-field input[type='date'] { min-block-size: 2.9rem; text-align: start; }
+  .ev2-field input[type='date']::-webkit-date-and-time-value { text-align: start; }
+  .ev2-field input[type='number'] { -moz-appearance: textfield; }
+  .ev2-field input::-webkit-outer-spin-button,
+  .ev2-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  .ev2-field textarea {
+    inline-size: 100%;
+    min-block-size: 7.5rem;
+    padding: 0.8rem 0.9rem;
+    font: inherit;
+    font-size: var(--step-0);
+    line-height: 1.6;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--paper-card) 70%, transparent);
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    resize: vertical;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .ev2-field input:focus,
+  .ev2-field textarea:focus {
+    /* Transparent, not none: forced-colours mode paints it. */
+    outline: 2px solid transparent;
+    border-color: var(--accent);
+  }
+  .ev2-field input:focus { box-shadow: 0 1px 0 0 var(--accent); }
+  .ev2-field textarea:focus { box-shadow: 0 0 0 1px var(--accent); }
+
+  .ev2-field input.is-invalid,
+  .ev2-field textarea.is-invalid { border-color: var(--err); }
+  .ev2-field input.is-invalid:focus { box-shadow: 0 1px 0 0 var(--err); }
+
+  .ev2-req-note {
+    margin: -0.4rem 0 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.08em;
+    color: var(--ink-muted);
+  }
+
+  /* ── Where — the venue, as two cards of type ───────────────────────── */
+  .ev2-venues {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+  .ev2-venue-opt { position: relative; display: grid; }
+  /* The native radio covers its card: it takes the tap and the focus, and a
+     screen reader hears a real radio group. */
+  .ev2-venue-opt input,
+  .ev2-chip input {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .ev2-venue-opt__box {
+    position: relative;
+    display: grid;
+    gap: 0.3rem;
+    align-content: start;
+    padding: 0.95rem 1.05rem 1rem;
+    border: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--paper-card) 55%, transparent);
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  }
+  .ev2-venue-opt__name {
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    line-height: 1.15;
+    color: var(--ink);
+  }
+  .ev2-venue-opt__sub {
+    font-size: var(--step--2);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  /* Chosen: the ink draws the card closed, and the site's diamond — the same
+     one the confirmation's ornament carries — marks it. */
+  .ev2-venue-opt input:checked + .ev2-venue-opt__box {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
+    background: var(--paper-card);
+  }
+  .ev2-venue-opt__box::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 1rem;
+    inset-inline-end: 1rem;
+    inline-size: 6px;
+    block-size: 6px;
+    background: var(--accent);
+    transform: rotate(45deg) scale(0);
+    transition: transform 0.3s var(--ease-out);
+  }
+  .ev2-venue-opt input:checked + .ev2-venue-opt__box::after { transform: rotate(45deg) scale(1); }
+  .ev2-venue-opt input:focus-visible + .ev2-venue-opt__box { outline: 2px solid var(--accent); outline-offset: 3px; }
+  @media (hover: hover) {
+    .ev2-venue-opt:hover input:not(:checked) + .ev2-venue-opt__box { border-color: var(--ink-muted); }
+  }
+
+  /* ── Occasion and time of day — the options themselves ────────────── */
+  .ev2-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .ev2-chip { position: relative; display: inline-grid; }
+  .ev2-chip span {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.75rem;
+    padding: 0.45rem 1rem;
+    font-size: var(--step--1);
+    letter-spacing: 0.03em;
+    color: var(--ink-soft);
+    border: 1px solid var(--rule);
+    background: color-mix(in srgb, var(--paper-card) 55%, transparent);
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  }
+  .ev2-chip input:checked + span {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+  .ev2-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+  @media (hover: hover) {
+    .ev2-chip:hover input:not(:checked) + span { border-color: var(--ink-muted); color: var(--ink); }
+  }
+
+  /* ── Send ─────────────────────────────────────────────────────────── */
+  .ev2-form__turnstile { margin-block: -0.5rem 0; }
+  .ev2-form__submit { display: grid; gap: 0.75rem; justify-items: start; }
+  .ev2-form__send { min-inline-size: min(100%, 16rem); justify-content: center; }
+  @media (max-width: 559px) { .ev2-form__send { inline-size: 100%; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ev2-inquiry__frame,
+    .ev2-venue-opt__box,
+    .ev2-venue-opt__box::after,
+    .ev2-chip span { transition: none; }
+  }
+</style>
+
+{/* Cloudflare Turnstile, fetched LATE. It is by far the heaviest thing on a
+    page carrying this form (~800 KiB, and a challenge run on the main
+    thread), and the form sits at the bottom of a page nobody reaches in the
+    first second — so it loads when the form scrolls into view or the moment
+    a field is focused, whichever is first. Until a venue is chosen the form
+    is not even displayed, so this costs nothing to anyone who never gets
+    that far. The submit handler waits for the token either way. */}
+{TURNSTILE_SITEKEY && (
+  <script is:inline>
+    (function () {
+      var card = document.querySelector('[data-ev2-card]');
+      var slot = card && card.querySelector('.cf-turnstile');
+      if (!card || !slot) return;
+      var done = false, io = null;
+      function load() {
+        if (done) return;
+        done = true;
+        if (io) io.disconnect();
+        card.removeEventListener('focusin', load);
+        var j = document.createElement('script');
+        j.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+        j.async = true;
+        j.defer = true;
+        document.head.appendChild(j);
+      }
+      card.addEventListener('focusin', load);
+      window.__zaharaLoadTurnstile = load;
+      function watch() {
+        if (done) return;
+        if (!('IntersectionObserver' in window)) { load(); return; }
+        io = new IntersectionObserver(function (entries) {
+          if (entries.some(function (e) { return e.isIntersecting; })) load();
+        });
+        io.observe(card);
+      }
+      if (document.readyState === 'complete') watch();
+      else window.addEventListener('load', watch, { once: true });
+    })();
+  </script>
+)}

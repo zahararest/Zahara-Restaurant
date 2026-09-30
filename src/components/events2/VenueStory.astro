@@ -1,0 +1,194 @@
+---
+// What a visitor reads under a venue's photograph: an opening — heading and
+// one paragraph, set as a spread — and then the four answers every event
+// enquiry starts with, in the order people ask them: how many, when, what,
+// and how to go about it.
+//
+// The four are a fact sheet, not a feature grid: short lines of type between
+// hairlines, the way a menu or a wine list sets its facts, so it reads in a
+// glance and never feels like more than it is. "How many" leads with a number
+// set large when there is one; a venue without a confirmed number simply
+// leaves that line empty and lets the words carry it.
+
+import { pick, events2Page } from '../../data/i18n';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang; venue: 'zahara' | 'rooftop' }
+const { lang, venue } = Astro.props;
+const t = pick(events2Page, lang);
+const p = venue === 'zahara' ? 'z' : 'r';
+const c = (field: string) => t[`${p}${field}` as keyof typeof t];
+const k = (field: string) => `events2.${venue}.${field}`;
+---
+
+<section class="ev2-story" aria-labelledby={`ev2-${venue}-title`}>
+  <div class="wrap ev2-story__spread">
+    <header class="ev2-story__head stagger">
+      <p class="eyebrow" data-content-key={k('introEyebrow')}>{c('IntroEyebrow')}</p>
+      {/* tabindex=-1: the page moves keyboard focus here when a venue is
+          chosen, so the next Tab continues into what was just opened. */}
+      <h2 class="display ev2-story__title" id={`ev2-${venue}-title`} tabindex="-1"
+          data-content-key={k('introHeading')} set:html={c('IntroHeading')} />
+    </header>
+    <p class="ev2-story__lede reveal-on-scroll" data-content-key={k('introBody')}>{c('IntroBody')}</p>
+  </div>
+
+  <div class="wrap">
+    <dl class="ev2-facts stagger">
+      <div class="ev2-fact ev2-fact--many">
+        <dt class="ev2-fact__label" data-content-key="events2.labelMany">{t.labelMany}</dt>
+        <dd class="ev2-fact__value">
+          <span class="ev2-fact__num" data-content-key={k('manyNum')}>{c('ManyNum')}</span>
+          <span class="ev2-fact__text" data-content-key={k('many')}>{c('Many')}</span>
+        </dd>
+      </div>
+      <div class="ev2-fact">
+        <dt class="ev2-fact__label" data-content-key="events2.labelWhen">{t.labelWhen}</dt>
+        <dd class="ev2-fact__value"><span class="ev2-fact__text" data-content-key={k('when')}>{c('When')}</span></dd>
+      </div>
+      <div class="ev2-fact">
+        <dt class="ev2-fact__label" data-content-key="events2.labelWhat">{t.labelWhat}</dt>
+        <dd class="ev2-fact__value"><span class="ev2-fact__text" data-content-key={k('what')}>{c('What')}</span></dd>
+      </div>
+      <div class="ev2-fact">
+        <dt class="ev2-fact__label" data-content-key="events2.labelHow">{t.labelHow}</dt>
+        <dd class="ev2-fact__value">
+          <span class="ev2-fact__text" data-content-key={k('how')}>{c('How')}</span>
+          <a class="ev2-fact__link" href="#inquiry" data-to-form>
+            <span data-content-key="events2.toForm">{t.toForm}</span><span aria-hidden="true">&nbsp;↓</span>
+          </a>
+        </dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<style>
+  .ev2-story {
+    padding-block: clamp(3.5rem, 8vw, 7rem) clamp(3rem, 6vw, 5rem);
+    display: grid;
+    gap: clamp(2.75rem, 6vw, 4.5rem);
+  }
+
+  /* ── The spread — heading on one side, the paragraph answering it ──── */
+  .ev2-story__spread {
+    display: grid;
+    gap: clamp(1.25rem, 3vw, 2rem);
+  }
+  @media (min-width: 960px) {
+    .ev2-story__spread {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      gap: clamp(3rem, 6vw, 6.5rem);
+      align-items: end;
+    }
+  }
+  .ev2-story__head { display: grid; gap: var(--space-s); }
+  .ev2-story__title {
+    margin: 0;
+    font-size: var(--step-5);
+    text-wrap: balance;
+  }
+  /* The page moves focus here after a choice; the heading needs no ring for
+     that — it was not the reader's Tab that put it there. */
+  .ev2-story__title:focus { outline: none; }
+  .ev2-story__lede {
+    margin: 0;
+    max-inline-size: 46ch;
+    font-size: var(--step-1);
+    line-height: 1.7;
+    font-weight: 300;
+    color: var(--ink-soft);
+  }
+
+  /* ── The fact sheet ─────────────────────────────────────────────────
+     Hairlines above and below, and between the four; type does the rest.
+     One column on a phone, a 2×2 block on a tablet, one row on a desk. */
+  .ev2-facts {
+    margin: 0;
+    display: grid;
+    border-block: 1px solid var(--rule);
+  }
+  @media (min-width: 620px) {
+    .ev2-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1080px) {
+    .ev2-facts { grid-template-columns: 1.25fr 1fr 1fr 1fr; }
+  }
+
+  .ev2-fact {
+    display: grid;
+    align-content: start;
+    gap: 0.7rem;
+    padding-block: clamp(1.35rem, 3vw, 2rem);
+  }
+  /* Between rows on a phone… */
+  .ev2-fact + .ev2-fact { border-block-start: 1px solid var(--rule-soft); }
+  @media (min-width: 620px) {
+    /* …and between columns once they sit side by side. */
+    .ev2-fact { padding-inline: clamp(1.25rem, 2.6vw, 2.25rem); }
+    .ev2-fact + .ev2-fact { border-block-start: 0; }
+    .ev2-fact:nth-child(even) { border-inline-start: 1px solid var(--rule-soft); }
+    .ev2-fact:nth-child(n + 3) { border-block-start: 1px solid var(--rule-soft); }
+    .ev2-fact:nth-child(odd) { padding-inline-start: 0; }
+  }
+  @media (min-width: 1080px) {
+    .ev2-fact:nth-child(n + 3) { border-block-start: 0; }
+    .ev2-fact + .ev2-fact { border-inline-start: 1px solid var(--rule-soft); }
+    .ev2-fact:nth-child(odd) { padding-inline-start: clamp(1.25rem, 2.6vw, 2.25rem); }
+    .ev2-fact:first-child { padding-inline-start: 0; }
+    .ev2-fact:last-child { padding-inline-end: 0; }
+  }
+
+  /* The label — the eyebrow's small tracked caps with its accent rule. */
+  .ev2-fact__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: var(--step--2);
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .ev2-fact__label::before {
+    content: '';
+    inline-size: 1.1rem;
+    block-size: 1px;
+    background: var(--accent);
+  }
+  .ev2-fact__value {
+    margin: 0;
+    display: grid;
+    gap: 0.5rem;
+    align-content: start;
+  }
+  .ev2-fact__num {
+    font-family: var(--font-display);
+    font-size: var(--step-4);
+    line-height: 1;
+    letter-spacing: -0.018em;
+    color: var(--ink);
+  }
+  .ev2-fact__num:empty { display: none; }
+  .ev2-fact__text {
+    font-family: var(--font-display);
+    font-size: var(--step-0);
+    line-height: 1.5;
+    color: var(--ink);
+    text-wrap: pretty;
+  }
+  .ev2-fact__link {
+    justify-self: start;
+    margin-block-start: 0.35rem;
+    padding-block-end: 2px;
+    font-size: var(--step--2);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--ink);
+    border-block-end: 1px solid var(--accent);
+    transition: color 0.2s ease;
+  }
+  .ev2-fact__link:hover { color: var(--accent-deep); }
+  .ev2-fact__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+</style>

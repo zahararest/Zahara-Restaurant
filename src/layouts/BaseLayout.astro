@@ -16,6 +16,7 @@ import {
   HERO_WIDTHS, HERO_MOBILE_COVER, HERO_QUALITY,
 } from '../lib/photo';
 import { BASE, IS_ROOFTOP, withBase } from '../lib/base';
+import type { VenueSwitch } from '../lib/paths';
 import { VENUE, venuePhotoUrl, venueOgImageUrl, OG_IMAGE_W, OG_IMAGE_H } from '../lib/venue';
 import { pick, layout as labels, header as headerLabels } from '../data/i18n';
 
@@ -66,6 +67,13 @@ export interface Props {
   /** The persistent floating "Reserve" button. On by default; pages where
    *  booking a table is not the action being asked for turn it off. */
   floatingReserve?: boolean;
+  /** Keep the page out of search: a `robots` noindex meta. Pair it with the
+   *  sitemap filter (astro.config.mjs) and an X-Robots-Tag in public/_headers,
+   *  and link it from nowhere — the same recipe /reserve/ uses. */
+  noindex?: boolean;
+  /** Hand the header's Zahara ↔ Rooftop switch to the page, for a page that
+   *  shows BOTH venues itself (see Header.astro). */
+  venueSwitch?: VenueSwitch;
 }
 
 const {
@@ -79,6 +87,8 @@ const {
   heroMobileCrop = HERO_MOBILE_COVER,
   heroQuality    = HERO_QUALITY,
   floatingReserve = true,
+  noindex = false,
+  venueSwitch,
 } = Astro.props;
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
@@ -384,6 +394,7 @@ const schema = {
     )}
 
     <title>{fullTitle}</title>
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <meta name="description" content={description} />
     <meta name="keywords"    content={keywords} />
     {/* The phone's browser chrome, tinted to match the page. These are static
@@ -740,7 +751,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="scroll-progress" aria-hidden="true">
       <div class="scroll-progress__bar"></div>
     </div>
-    <Header lang={lang} transparent={transparentHeader} />
+    <Header lang={lang} transparent={transparentHeader} venueSwitch={venueSwitch} />
     <main id="main">
       <slot />
     </main>

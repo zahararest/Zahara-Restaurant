@@ -55,10 +55,15 @@ export default defineConfig({
         // it is unlinked (src/lib/paths.ts), redirected (public/_redirects)
         // and must not be offered to crawlers either.
         const rooftopEvents = BASE === '/rooftop' && /^\/(en\/)?events\/?$/.test(p);
+        // /events2/ is the new two-venue events page, unlisted while it is
+        // being finished — noindexed, linked from nowhere, and kept out of
+        // BOTH venues' sitemaps. See src/components/pages/Events2Page.astro.
+        const events2 = /^\/(en\/)?events2\/?$/.test(p);
         return !p.startsWith('/admin') &&
                !p.startsWith('/api/') &&
                !p.startsWith('/reserve') &&
-               !rooftopEvents;
+               !rooftopEvents &&
+               !events2;
       },
       // Custom priority / changefreq per section
       customPages: [],

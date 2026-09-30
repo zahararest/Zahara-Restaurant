@@ -28,9 +28,13 @@ export const onRequestGet: PagesFunction<SiteBindings> = async ({ params, env, n
     // and neither can shadow it with its own copy.
     const scope = siteScope(env, photoSite(siteFromRequest(request), meta.key));
     // The photo's own override first; if a split key has none yet, the key it
-    // was split from (e.g. contact → interior).
-    const keys = meta.fallbackKey ? [meta.key, meta.fallbackKey] : [meta.key];
-    const obj  = await findOverride(scope, keys);
+    // was split from (e.g. contact → interior). A stand-in borrowed from
+    // ANOTHER venue (`fallbackSite`) is looked up in that venue's bucket, once
+    // the photo's own key has had its chance in its own.
+    const cross = meta.fallbackKey && meta.fallbackSite ? meta.fallbackKey : null;
+    const keys  = meta.fallbackKey && !cross ? [meta.key, meta.fallbackKey] : [meta.key];
+    let obj = await findOverride(scope, keys);
+    if (!obj && cross && meta.fallbackSite) obj = await findOverride(siteScope(env, meta.fallbackSite), [cross]);
     if (obj) return serveR2Object(obj, request);
   }
 

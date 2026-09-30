@@ -25,7 +25,7 @@
 // section each card appears under in /admin/images, and the order within
 // it (kept the same as the photo's real scroll order on the page).
 
-export type PhotoGroup = 'home' | 'menu' | 'events' | 'about' | 'reserve';
+export type PhotoGroup = 'home' | 'menu' | 'events' | 'about' | 'reserve' | 'events2z' | 'events2r';
 
 export interface PhotoMeta {
   key:          string;       // PHOTOS map key (e.g. 'hero')
@@ -34,6 +34,13 @@ export interface PhotoMeta {
   where:        string;       // where it appears on the live site
   group:        PhotoGroup;   // which page it belongs to
   fallbackKey?: string;       // serve this key's override if `key` has none
+  /** Look `fallbackKey` up in THIS venue's bucket instead of the photo's own.
+   *  Only meaningful on a `shared` photo: those live in Zahara's bucket, so a
+   *  plain fallbackKey can only ever borrow a Zahara photograph — and a
+   *  rooftop slot on a two-venue page that stood in with the restaurant's
+   *  dining room would be showing the wrong venue. With this set, the stand-in
+   *  is the rooftop's own upload for that key (then Zahara's, then nothing). */
+  fallbackSite?: 'rooftop';
   /** Lives in ONE bucket for both venues instead of being venue-scoped — for
    *  photos on a page that is shared between them. See isSharedPhotoKey(). */
   shared?:      boolean;
@@ -204,6 +211,94 @@ export const PHOTO_CATALOGUE: PhotoMeta[] = [
     fallbackKey: 'bar', aspect: '3 / 4', shared: true,
     label: 'Nucha Rooftop panel',
     where: 'The rooftop half of /reserve/ — the booking page shared as a direct link' },
+
+  // ── EVENTS — THE NEW TWO-VENUE PAGE (/events2/) ────────────────────────
+  // One page that shows Zahara's events AND the rooftop's, built once — so,
+  // like /reserve/, every photo on it is `shared`: it lives in one bucket,
+  // shows the same whichever venue the admin has selected, and either venue
+  // can manage it. Its video switch lives in the shared manifest too.
+  //
+  // Nothing here is empty on day one. Each slot stands in with a photograph
+  // the venue already has (`fallbackKey`) until a real one is uploaded, so the
+  // page can be judged as a whole before the event photography exists. The
+  // rooftop's stand-ins come from the ROOFTOP's own uploads (`fallbackSite`) —
+  // a shared slot would otherwise only ever borrow the restaurant's.
+  //
+  // The last four gallery frames per venue are `optional`: they ship empty and
+  // join the gallery only once something is uploaded for them.
+  { key: 'ev2Zahara', filename: 'events2-zahara.jpg', group: 'events2z', shared: true,
+    fallbackKey: 'menuEvents', mobile: true, mobileAspect: '4 / 5', aspect: '4 / 5',
+    label: 'Zahara — opening photo',
+    where: 'The Zahara half of the opening choice on the new Events page, and Zahara’s full-width photo once it is chosen' },
+  { key: 'ev2ZaharaPast1', filename: 'events2-zahara-past-1.jpg', group: 'events2z', shared: true,
+    fallbackKey: 'moodDining', aspect: '4 / 5',
+    label: 'Zahara gallery 1', where: 'First frame of Zahara’s gallery on the new Events page',
+    note: 'Showing the dining room until you upload a photograph from an event. Describe it in Content → Events (new page).' },
+  { key: 'ev2ZaharaPast2', filename: 'events2-zahara-past-2.jpg', group: 'events2z', shared: true,
+    fallbackKey: 'wine', aspect: '4 / 5',
+    label: 'Zahara gallery 2', where: 'Second frame of Zahara’s gallery on the new Events page' },
+  { key: 'ev2ZaharaPast3', filename: 'events2-zahara-past-3.jpg', group: 'events2z', shared: true,
+    fallbackKey: 'chef', aspect: '4 / 5',
+    label: 'Zahara gallery 3', where: 'Third frame of Zahara’s gallery on the new Events page' },
+  { key: 'ev2ZaharaPast4', filename: 'events2-zahara-past-4.jpg', group: 'events2z', shared: true,
+    fallbackKey: 'bar', aspect: '4 / 5',
+    label: 'Zahara gallery 4', where: 'Fourth frame of Zahara’s gallery on the new Events page' },
+  { key: 'ev2ZaharaPast5', filename: 'events2-zahara-past-5.jpg', group: 'events2z', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Zahara gallery 5 · Extra', where: 'Optional fifth frame of Zahara’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2ZaharaPast6', filename: 'events2-zahara-past-6.jpg', group: 'events2z', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Zahara gallery 6 · Extra', where: 'Optional sixth frame of Zahara’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2ZaharaPast7', filename: 'events2-zahara-past-7.jpg', group: 'events2z', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Zahara gallery 7 · Extra', where: 'Optional seventh frame of Zahara’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2ZaharaPast8', filename: 'events2-zahara-past-8.jpg', group: 'events2z', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Zahara gallery 8 · Extra', where: 'Optional eighth frame of Zahara’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2ZaharaForm', filename: 'events2-zahara-form.jpg', group: 'events2z', shared: true,
+    fallbackKey: 'detail2', aspect: '3 / 4',
+    label: 'Zahara — beside the form', where: 'The tall photograph beside the enquiry form while Zahara is chosen (computers and tablets)' },
+
+  { key: 'ev2Rooftop', filename: 'events2-rooftop.jpg', group: 'events2r', shared: true,
+    fallbackKey: 'reserveRooftop', mobile: true, mobileAspect: '4 / 5', aspect: '4 / 5',
+    label: 'Rooftop — opening photo',
+    where: 'The rooftop half of the opening choice on the new Events page, and the rooftop’s full-width photo once it is chosen' },
+  { key: 'ev2RooftopPast1', filename: 'events2-rooftop-past-1.jpg', group: 'events2r', shared: true,
+    fallbackKey: 'detail2', fallbackSite: 'rooftop', aspect: '4 / 5',
+    label: 'Rooftop gallery 1', where: 'First frame of the rooftop’s gallery on the new Events page',
+    note: 'Showing a rooftop photo until you upload one from an event. Describe it in Content → Events (new page).' },
+  { key: 'ev2RooftopPast2', filename: 'events2-rooftop-past-2.jpg', group: 'events2r', shared: true,
+    fallbackKey: 'moodDining', fallbackSite: 'rooftop', aspect: '4 / 5',
+    label: 'Rooftop gallery 2', where: 'Second frame of the rooftop’s gallery on the new Events page' },
+  { key: 'ev2RooftopPast3', filename: 'events2-rooftop-past-3.jpg', group: 'events2r', shared: true,
+    fallbackKey: 'menuFood', fallbackSite: 'rooftop', aspect: '4 / 5',
+    label: 'Rooftop gallery 3', where: 'Third frame of the rooftop’s gallery on the new Events page' },
+  { key: 'ev2RooftopPast4', filename: 'events2-rooftop-past-4.jpg', group: 'events2r', shared: true,
+    fallbackKey: 'kitchen', fallbackSite: 'rooftop', aspect: '4 / 5',
+    label: 'Rooftop gallery 4', where: 'Fourth frame of the rooftop’s gallery on the new Events page' },
+  { key: 'ev2RooftopPast5', filename: 'events2-rooftop-past-5.jpg', group: 'events2r', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Rooftop gallery 5 · Extra', where: 'Optional fifth frame of the rooftop’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2RooftopPast6', filename: 'events2-rooftop-past-6.jpg', group: 'events2r', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Rooftop gallery 6 · Extra', where: 'Optional sixth frame of the rooftop’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2RooftopPast7', filename: 'events2-rooftop-past-7.jpg', group: 'events2r', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Rooftop gallery 7 · Extra', where: 'Optional seventh frame of the rooftop’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2RooftopPast8', filename: 'events2-rooftop-past-8.jpg', group: 'events2r', shared: true,
+    optional: true, aspect: '4 / 5',
+    label: 'Rooftop gallery 8 · Extra', where: 'Optional eighth frame of the rooftop’s gallery — shows only once filled',
+    note: 'Empty — this frame joins the gallery once you upload a photograph or a video here.' },
+  { key: 'ev2RooftopForm', filename: 'events2-rooftop-form.jpg', group: 'events2r', shared: true,
+    fallbackKey: 'menuCocktails', fallbackSite: 'rooftop', aspect: '3 / 4',
+    label: 'Rooftop — beside the form', where: 'The tall photograph beside the enquiry form while the rooftop is chosen (computers and tablets)' },
 ];
 
 // ── Shared (venue-independent) photos ───────────────────────────────────────
@@ -249,9 +344,11 @@ export const FILENAME_TO_KEY: Record<string, string> =
 
 /** Friendly, page-based grouping for the admin UI (rendered in this order). */
 export const PHOTO_GROUPS = {
-  home:    'Home page',
-  menu:    'Menu pages',
-  events:  'Events page',
-  about:   'About page',
-  reserve: 'Reserve portal',
+  home:     'Home page',
+  menu:     'Menu pages',
+  events:   'Events page',
+  about:    'About page',
+  reserve:  'Reserve portal',
+  events2z: 'Events (new page) · Zahara',
+  events2r: 'Events (new page) · Nucha Rooftop',
 } as const;

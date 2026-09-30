@@ -164,7 +164,7 @@ export interface ContentGroup { title: string; note?: string; page: PageId; fiel
  *  so the owner edits one page's text at a time instead of one long scroll. */
 export type PageId =
   | 'site' | 'home' | 'about' | 'events' | 'menu' | 'contact'
-  | 'privacy' | 'accessibility' | 'popup' | 'reserve';
+  | 'privacy' | 'accessibility' | 'popup' | 'reserve' | 'events2';
 
 export interface PageTab {
   id:     PageId;
@@ -198,6 +198,9 @@ export const CONTENT_PAGES: PageTab[] = [
     note: 'The announcement shown over every page when someone arrives.' },
   { id: 'reserve',       label: 'Reserve portal', path: '/reserve',
     note: 'The two-venue booking page. Unlinked from the site — it’s the link you hand out.' },
+  { id: 'events2',       label: 'Events (new page)', path: '/events2',
+    note: 'The new two-venue events page — Zahara and the rooftop on one page. Not linked from the site and hidden from search while it is being finished. '
+        + 'Its words are shared: they read the same whichever venue is selected above. The form’s field labels and its “after sending” message come from the Contact form tab.' },
 ];
 
 /** Gallery photo keys that get an editable caption. Mirrors the gallery in
@@ -208,6 +211,23 @@ export const GALLERY_CAPTION_KEYS = [
 ] as const;
 
 export const galleryCaptionKey = (photoKey: string): string => `gallery.caption.${photoKey}`;
+
+/** The stand-in captions under the first four gallery frames per venue on the
+ *  new events page — each describes the venue photograph that frame shows
+ *  until an event photograph is uploaded. Mirrors `zPast*` / `rPast*` in
+ *  src/data/i18n.ts. Declared above CONTENT_GROUPS, which reads them. */
+const ZAHARA_PAST_DEFAULTS: { he: string; en: string }[] = [
+  { he: '<strong>האולם</strong><br />ערוך לערב — השולחנות מסודרים סביב רשימת האורחים שלכם.', en: '<strong>The dining room</strong><br />Set for the evening — tables arranged around your guest list.' },
+  { he: '<strong>לשולחן</strong><br />מנות לשיתוף ויין לצידן — התפריט נבנה עם השף.',             en: '<strong>For the table</strong><br />Plates to share, wine alongside — a menu built with the chef.' },
+  { he: '<strong>השף רועי אחדות</strong><br />מבשל את הערב שלכם במטבח הפתוח.',                   en: '<strong>Chef Roi Achdut</strong><br />Cooking your evening in the open kitchen.' },
+  { he: '<strong>הבר</strong><br />קוקטיילים ויינות שמלווים את הערב.',                           en: '<strong>The bar</strong><br />Cocktails and wines to carry the evening.' },
+];
+const ROOFTOP_PAST_DEFAULTS: { he: string; en: string }[] = [
+  { he: '<strong>הלאונג׳</strong><br />ספות נמוכות וקיר יין — מקום לקבוצה שלמה.', en: '<strong>The lounge</strong><br />Low banquettes and a wall of wine — room for a whole group.' },
+  { he: '<strong>קוקטיילים ומנות</strong><br />מהבר, ישר לשולחן.',               en: '<strong>Cocktails & plates</strong><br />Mixed at the bar, shared at the table.' },
+  { he: '<strong>מהמטבח של זהרה</strong><br />מנות שף, עד הגג.',                  en: '<strong>From Zahara’s kitchen</strong><br />Chef’s plates, sent up to the roof.' },
+  { he: '<strong>לחלוק</strong><br />מנות שנועדו לעבור מיד ליד.',                 en: '<strong>To share</strong><br />Plates made to be passed around.' },
+];
 
 /** Editor layout — groups of fields shown on /admin/content/. Field keys
  *  match the `data-content-key` attributes the components render. */
@@ -639,6 +659,146 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       he: 'הזמנת שולחן', en: 'Reserve a spot',
       hint: 'The underlined line at the bottom. The ↗ arrow is added automatically.' },
   ] },
+
+  // ── EVENTS — THE NEW TWO-VENUE PAGE (/events2/) ───────────────────────────
+  // Every key starts with `events2.` — shared between the venues, like the
+  // reserve portal's. Defaults mirror `events2Page` in src/data/i18n.ts; keep
+  // the two in step.
+  { title: 'The opening choice', page: 'events2',
+    note: 'The two photographs the page opens on. The visitor picks one; that photograph then widens into the top of the page.',
+    fields: [
+    { key: 'events2.eyebrow', label: 'Small line', role: 'eyebrow', onPhoto: true, align: 'center',
+      he: 'אירועים פרטיים · מלון נוצ׳ה', en: 'Private events · Nucha Hotel',
+      hint: 'The tiny line at the top, above the question.' },
+    { key: 'events2.question', label: 'Question', role: 'title', onPhoto: true, align: 'center',
+      he: 'איפה נארח אתכם?', en: 'Where shall we host you?',
+      hint: 'Asks the visitor to choose. It goes away once they have.' },
+    { key: 'events2.zahara.doorEyebrow', label: 'Zahara — small line', role: 'eyebrow', onPhoto: true, align: 'center',
+      he: 'המסעדה', en: 'The restaurant' },
+    { key: 'events2.zahara.name', label: 'Zahara — name', role: 'display', onPhoto: true, align: 'center',
+      he: 'זהרה', en: 'Zahara' },
+    { key: 'events2.zahara.doorLine', label: 'Zahara — one line about its events', role: 'body', onPhoto: true, align: 'center', multiline: true,
+      he: 'ארוחות שף לקבוצות — בפטיו המקורה, באולם או במסעדה כולה.',
+      en: 'Chef’s dinners for groups — in the covered patio, the dining room or the whole restaurant.' },
+    { key: 'events2.zahara.doorCta', label: 'Zahara — the line to press', role: 'button', onPhoto: true, align: 'center',
+      he: 'לאירועים בזהרה', en: 'Events at Zahara' },
+    { key: 'events2.rooftop.doorEyebrow', label: 'Rooftop — small line', role: 'eyebrow', onPhoto: true, align: 'center',
+      he: 'בר הגג', en: 'The rooftop bar' },
+    { key: 'events2.rooftop.name', label: 'Rooftop — name', role: 'display', onPhoto: true, align: 'center',
+      he: 'Nucha Rooftop', en: 'Nucha Rooftop' },
+    { key: 'events2.rooftop.doorLine', label: 'Rooftop — one line about its events', role: 'body', onPhoto: true, align: 'center', multiline: true,
+      he: 'קוקטיילים מעל העיר — מקבלת פנים בשקיעה ועד מסיבה על כל הגג.',
+      en: 'Cocktails above the city — from sunset drinks to a party across the whole roof.' },
+    { key: 'events2.rooftop.doorCta', label: 'Rooftop — the line to press', role: 'button', onPhoto: true, align: 'center',
+      he: 'לאירועים על הגג', en: 'Events on the roof' },
+    { key: 'events2.zahara.switchTo', label: 'Switch to Zahara (phones)', role: 'link', onPhoto: true,
+      he: 'או בזהרה', en: 'Or at Zahara',
+      hint: 'On a phone, the small line at the foot of the rooftop’s photo that switches to Zahara.' },
+    { key: 'events2.rooftop.switchTo', label: 'Switch to the rooftop (phones)', role: 'link', onPhoto: true,
+      he: 'או על הגג', en: 'Or on the roof',
+      hint: 'On a phone, the small line at the foot of Zahara’s photo that switches to the rooftop.' },
+  ] },
+
+  { title: 'Zahara — about its events', page: 'events2',
+    note: 'What a visitor reads under Zahara’s photograph: an opening, then four short answers — how many, when, what and how.',
+    fields: [
+    { key: 'events2.zahara.introEyebrow', label: 'Eyebrow', role: 'eyebrow', he: 'אירועים בזהרה', en: 'Events at Zahara' },
+    { key: 'events2.zahara.introHeading', label: 'Heading', role: 'display', html: true, multiline: true,
+      he: 'הערב שלכם,<br />מתוכנן עם השף.', en: 'Your evening,<br />planned with the chef.' },
+    { key: 'events2.zahara.introBody', label: 'Opening paragraph', role: 'lede', multiline: true,
+      he: 'בזהרה יש כמה חללים לאירוח, וכל אחד מהם נותן לערב אופי אחר — מארוחה אינטימית בפטיו המקורה ועד המסעדה כולה, סגורה לאורחים שלכם. את התפריט בונים יחד עם השף רועי אחדות: מנות לשיתוף, ויין וקוקטיילים שמלווים אותן — הכל מהמטבח הכשר שלנו.',
+      en: 'Zahara has several spaces for hosting, and each gives the evening its own character — from an intimate dinner in the covered patio to the whole restaurant, closed for your guests. The menu is built with chef Roi Achdut: plates to share, with wine and cocktails to match — all from our kosher kitchen.' },
+    { key: 'events2.zahara.manyNum', label: 'How many — the big number', role: 'value',
+      he: 'עד 24', en: 'Up to 24',
+      hint: 'Shown large. Leave it empty to let the words below say it instead.' },
+    { key: 'events2.zahara.many', label: 'How many — words', role: 'body', multiline: true,
+      he: 'אורחים בפטיו המקורה — איזור פרטי משלכם. קבוצות גדולות יותר: באולם, או במסעדה כולה.',
+      en: 'guests in the covered patio — a private area of its own. Larger groups: the dining room, or the whole restaurant.' },
+    { key: 'events2.zahara.when', label: 'When', role: 'body', multiline: true,
+      he: 'ערב, צהריים או בוקר — בתיאום מראש.', en: 'Evening, afternoon or morning — arranged ahead.' },
+    { key: 'events2.zahara.what', label: 'What', role: 'body', multiline: true,
+      he: 'ארוחות שף, קבלות פנים, ימי הולדת, בר ובת מצווה וערבי חברה. מטבח כשר.',
+      en: 'Chef’s dinners, receptions, birthdays, bar and bat mitzvahs, company evenings. A kosher kitchen.' },
+    { key: 'events2.zahara.how', label: 'How', role: 'body', multiline: true,
+      he: 'שלחו את הטופס למטה. נחזור אליכם תוך 48 שעות, ואת השאר — תפריט, שתייה ולוח זמנים — נתכנן יחד.',
+      en: 'Send the form below. We reply within 48 hours, and plan the rest with you — menu, drinks, timing.' },
+    { key: 'events2.zahara.galleryEyebrow', label: 'Gallery — eyebrow', role: 'eyebrow',
+      he: 'מתוך הערבים שלנו', en: 'From our evenings' },
+    { key: 'events2.zahara.galleryHeading', label: 'Gallery — heading', role: 'display',
+      he: 'ערבים בזהרה.', en: 'Evenings at Zahara.' },
+    { key: 'events2.zahara.formEyebrow', label: 'Form — eyebrow', role: 'eyebrow',
+      he: 'פנייה לאירוע · זהרה', en: 'Event inquiry · Zahara' },
+    { key: 'events2.zahara.formHeading', label: 'Form — heading', role: 'display',
+      he: 'ספרו לנו על הערב.', en: 'Tell us about the evening.' },
+  ] },
+
+  { title: 'Zahara — gallery captions', page: 'events2',
+    note: 'One caption per photograph, in Images → “Events (new page) · Zahara”. Put a short bold first line for the kind of evening (e.g. **Birthday · June**), then a sentence. '
+        + 'Frames 1–4 show the restaurant’s own photos (and describe them) until you upload event photographs; 5–8 appear only once filled.',
+    fields: [1, 2, 3, 4, 5, 6, 7, 8].map((n): ContentField => ({
+      key: `events2.zahara.past${n}`, label: `Photo ${n} — caption`, role: 'body', html: true, multiline: true,
+      he: ZAHARA_PAST_DEFAULTS[n - 1]?.he ?? '', en: ZAHARA_PAST_DEFAULTS[n - 1]?.en ?? '',
+      hint: n <= 4 ? 'Describes the stand-in photograph — rewrite it when you upload your own.' : 'Leave blank to show the photograph on its own.',
+    })) },
+
+  { title: 'Nucha Rooftop — about its events', page: 'events2',
+    note: 'What a visitor reads under the rooftop’s photograph. The big number is empty until you have one — type it in and it appears.',
+    fields: [
+    { key: 'events2.rooftop.introEyebrow', label: 'Eyebrow', role: 'eyebrow', he: 'אירועים על הגג', en: 'Events on the roof' },
+    { key: 'events2.rooftop.introHeading', label: 'Heading', role: 'display', html: true, multiline: true,
+      he: 'העיר למטה,<br />הערב שלכם למעלה.', en: 'The city below,<br />your evening above.' },
+    { key: 'events2.rooftop.introBody', label: 'Opening paragraph', role: 'lede', multiline: true,
+      he: 'Nucha Rooftop יושב על גג מלון נוצ׳ה, וירושלים פרושה מסביב. הגג נפתח לאירועים פרטיים — מקוקטייל שקיעה לקבוצה קטנה ועד מסיבה על כל המרפסת: קוקטיילים מהבר, מנות שף מהמטבח של זהרה, ומוזיקה שמתאימה לערב.',
+      en: 'Nucha Rooftop sits on the roof of Nucha Hotel, with Jerusalem laid out all around it. The roof opens for private events — from sunset cocktails for a small group to a party across the whole terrace: drinks from the bar, chef’s plates from Zahara’s kitchen, and music to suit the night.' },
+    { key: 'events2.rooftop.manyNum', label: 'How many — the big number', role: 'value',
+      he: '', en: '',
+      hint: 'Empty, so nothing large shows. Type e.g. “עד 60” / “Up to 60” to show it.' },
+    { key: 'events2.rooftop.many', label: 'How many — words', role: 'body', multiline: true,
+      he: 'מפינה שמורה לקבוצה קטנה ועד כל המרפסת — ספרו לנו כמה תהיו.',
+      en: 'From a reserved corner for a small group to the whole terrace — tell us how many you’ll be.' },
+    { key: 'events2.rooftop.when', label: 'When', role: 'body', multiline: true,
+      he: 'בערבים, בתיאום מראש — כולל שעת השקיעה.', en: 'Evenings, arranged ahead — sunset hour included.' },
+    { key: 'events2.rooftop.what', label: 'What', role: 'body', multiline: true,
+      he: 'קבלות פנים, ימי הולדת, ערבי חברה ומסיבות פרטיות. קוקטיילים ומנות לשיתוף.',
+      en: 'Receptions, birthdays, company evenings and private parties. Cocktails and plates to share.' },
+    { key: 'events2.rooftop.how', label: 'How', role: 'body', multiline: true,
+      he: 'שלחו את הטופס למטה. נחזור אליכם תוך 48 שעות, ואת השאר — תפריט, שתייה ולוח זמנים — נתכנן יחד.',
+      en: 'Send the form below. We reply within 48 hours, and plan the rest with you — menu, drinks, timing.' },
+    { key: 'events2.rooftop.galleryEyebrow', label: 'Gallery — eyebrow', role: 'eyebrow',
+      he: 'מתוך הלילות על הגג', en: 'From nights on the roof' },
+    { key: 'events2.rooftop.galleryHeading', label: 'Gallery — heading', role: 'display',
+      he: 'לילות על הגג.', en: 'Nights on the roof.' },
+    { key: 'events2.rooftop.formEyebrow', label: 'Form — eyebrow', role: 'eyebrow',
+      he: 'פנייה לאירוע · Nucha Rooftop', en: 'Event inquiry · Nucha Rooftop' },
+    { key: 'events2.rooftop.formHeading', label: 'Form — heading', role: 'display',
+      he: 'ספרו לנו על הערב על הגג.', en: 'Tell us about your night on the roof.' },
+  ] },
+
+  { title: 'Nucha Rooftop — gallery captions', page: 'events2',
+    note: 'One caption per photograph, in Images → “Events (new page) · Nucha Rooftop”. Same pattern: a short bold first line, then a sentence. '
+        + 'Frames 1–4 show the rooftop’s own photos until you upload event photographs; 5–8 appear only once filled.',
+    fields: [1, 2, 3, 4, 5, 6, 7, 8].map((n): ContentField => ({
+      key: `events2.rooftop.past${n}`, label: `Photo ${n} — caption`, role: 'body', html: true, multiline: true,
+      he: ROOFTOP_PAST_DEFAULTS[n - 1]?.he ?? '', en: ROOFTOP_PAST_DEFAULTS[n - 1]?.en ?? '',
+      hint: n <= 4 ? 'Describes the stand-in photograph — rewrite it when you upload your own.' : 'Leave blank to show the photograph on its own.',
+    })) },
+
+  { title: 'Shared labels', page: 'events2',
+    note: 'Small words used by both venues.',
+    fields: [
+    { key: 'events2.labelMany', label: 'Label — how many', role: 'label', he: 'כמה', en: 'How many' },
+    { key: 'events2.labelWhen', label: 'Label — when',     role: 'label', he: 'מתי', en: 'When' },
+    { key: 'events2.labelWhat', label: 'Label — what',     role: 'label', he: 'מה',  en: 'What' },
+    { key: 'events2.labelHow',  label: 'Label — how',      role: 'label', he: 'איך', en: 'How' },
+    { key: 'events2.toForm',    label: 'Link down to the form', role: 'link', he: 'לטופס הפנייה', en: 'To the inquiry form',
+      hint: 'Under “How”. The ↓ arrow is added automatically.' },
+    { key: 'events2.formNote',  label: 'Form — line under the heading', role: 'note', multiline: true,
+      he: 'נחזור אליכם תוך 48 שעות בימי עבודה, ראשון עד חמישי.',
+      en: 'We reply within 48 hours on working days, Sunday to Thursday.' },
+    { key: 'events2.groupEvent', label: 'Form — “the event” heading', role: 'label', he: 'האירוע',   en: 'The event' },
+    { key: 'events2.groupYou',   label: 'Form — “your details” heading', role: 'label', he: 'פרטי קשר', en: 'Your details' },
+    { key: 'events2.fieldVenue', label: 'Form — venue choice label', role: 'label', he: 'איפה', en: 'Where' },
+  ] },
 ];
 
 /** Every key the editor (and gallery captions) may write. Anything outside
@@ -825,7 +985,9 @@ export function mergeContent(existing: ContentMap, posted: unknown): ContentMap 
 // So the portal's keys are pinned to the shared store and either venue may edit
 // them. Mirrors `shared` on PhotoMeta in functions/data/photos-map.ts.
 
-const SHARED_CONTENT_PREFIXES = ['reserve.'] as const;
+// The new events page (/events2/) is the same kind of page — both venues,
+// built once — so its copy follows the same rule.
+const SHARED_CONTENT_PREFIXES = ['reserve.', 'events2.'] as const;
 
 /** True when this copy is shared by both venues rather than venue-scoped. */
 export function isSharedContentKey(key: string): boolean {

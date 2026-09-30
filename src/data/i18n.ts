@@ -335,6 +335,135 @@ export const eventsPage = {
   galleryHeading: { he: 'אירועים שהתארחו אצלנו.', en: 'Evenings we have hosted.' },
 };
 
+// ── The two-venue Events page (/events2/) ─────────────────────────────────────
+// Unlisted while it is being judged: nothing links to it and it is noindexed.
+// Every string with a `z`/`r` prefix belongs to one venue (Zahara / the
+// rooftop); the rest is shared. All of it is editable in /admin/content →
+// "Events (new page)" — the defaults there (functions/data/content.ts) mirror
+// these, so keep the two in step.
+//
+// Facts are only the ones the owner has published: the covered patio's 24,
+// the chef planning every event, the kosher kitchen (Zahara only — the rooftop
+// makes no kashrut claim anywhere on the site), the rooftop's chef's plates
+// from Zahara's kitchen. Numbers nobody has confirmed are left out rather than
+// guessed; the rooftop's "how many" says so in words until one is typed in.
+// [HTML] strings carry <br /> / <strong> and are rendered with set:html.
+export const events2Page = {
+  pageTitle: { he: 'אירועים', en: 'Events' },
+  seoTitle: {
+    he: 'אירועים פרטיים | זהרה ו-Nucha Rooftop, מלון נוצ׳ה ירושלים',
+    en: 'Private events | Zahara & Nucha Rooftop, Nucha Hotel Jerusalem',
+  },
+  pageDescription: {
+    he: 'אירועים פרטיים ועסקיים במסעדת זהרה ובבר הגג Nucha Rooftop — מלון נוצ׳ה, רחוב בן סירא 16, ירושלים.',
+    en: 'Private and corporate events at Zahara and on Nucha Rooftop — Nucha Hotel, Ben Sira 16 Street, Jerusalem.',
+  },
+
+  // ── The opening choice ─────────────────────────────────────────────────────
+  eyebrow:  { he: 'אירועים פרטיים · מלון נוצ׳ה', en: 'Private events · Nucha Hotel' },
+  question: { he: 'איפה נארח אתכם?',            en: 'Where shall we host you?'    },
+
+  // ── Shared labels ──────────────────────────────────────────────────────────
+  labelMany: { he: 'כמה', en: 'How many' },
+  labelWhen: { he: 'מתי', en: 'When'     },
+  labelWhat: { he: 'מה',  en: 'What'     },
+  labelHow:  { he: 'איך', en: 'How'      },
+  toForm:    { he: 'לטופס הפנייה', en: 'To the inquiry form' },
+  galleryPrev: { he: 'התמונה הקודמת', en: 'Previous photo' },
+  galleryNext: { he: 'התמונה הבאה',   en: 'Next photo'     },
+  formNote: {
+    he: 'נחזור אליכם תוך 48 שעות בימי עבודה, ראשון עד חמישי.',
+    en: 'We reply within 48 hours on working days, Sunday to Thursday.',
+  },
+  groupEvent: { he: 'האירוע',    en: 'The event'    },
+  groupYou:   { he: 'פרטי קשר',  en: 'Your details' },
+  fieldVenue: { he: 'איפה',      en: 'Where'        },
+
+  // ── Zahara ─────────────────────────────────────────────────────────────────
+  zDoorEyebrow: { he: 'המסעדה', en: 'The restaurant' },
+  zName:        { he: 'זהרה',   en: 'Zahara'         },
+  zDoorLine: {
+    he: 'ארוחות שף לקבוצות — בפטיו המקורה, באולם או במסעדה כולה.',
+    en: 'Chef’s dinners for groups — in the covered patio, the dining room or the whole restaurant.',
+  },
+  zDoorCta:  { he: 'לאירועים בזהרה', en: 'Events at Zahara' },
+  zSwitchTo: { he: 'או בזהרה',       en: 'Or at Zahara'     },
+  zIntroEyebrow: { he: 'אירועים בזהרה', en: 'Events at Zahara' },
+  // [HTML]
+  zIntroHeading: { he: 'הערב שלכם,<br />מתוכנן עם השף.', en: 'Your evening,<br />planned with the chef.' },
+  zIntroBody: {
+    he: 'בזהרה יש כמה חללים לאירוח, וכל אחד מהם נותן לערב אופי אחר — מארוחה אינטימית בפטיו המקורה ועד המסעדה כולה, סגורה לאורחים שלכם. את התפריט בונים יחד עם השף רועי אחדות: מנות לשיתוף, ויין וקוקטיילים שמלווים אותן — הכל מהמטבח הכשר שלנו.',
+    en: 'Zahara has several spaces for hosting, and each gives the evening its own character — from an intimate dinner in the covered patio to the whole restaurant, closed for your guests. The menu is built with chef Roi Achdut: plates to share, with wine and cocktails to match — all from our kosher kitchen.',
+  },
+  zManyNum: { he: 'עד 24', en: 'Up to 24' },
+  zMany: {
+    he: 'אורחים בפטיו המקורה — איזור פרטי משלכם. קבוצות גדולות יותר: באולם, או במסעדה כולה.',
+    en: 'guests in the covered patio — a private area of its own. Larger groups: the dining room, or the whole restaurant.',
+  },
+  zWhen: { he: 'ערב, צהריים או בוקר — בתיאום מראש.', en: 'Evening, afternoon or morning — arranged ahead.' },
+  zWhat: {
+    he: 'ארוחות שף, קבלות פנים, ימי הולדת, בר ובת מצווה וערבי חברה. מטבח כשר.',
+    en: 'Chef’s dinners, receptions, birthdays, bar and bat mitzvahs, company evenings. A kosher kitchen.',
+  },
+  zHow: {
+    he: 'שלחו את הטופס למטה. נחזור אליכם תוך 48 שעות, ואת השאר — תפריט, שתייה ולוח זמנים — נתכנן יחד.',
+    en: 'Send the form below. We reply within 48 hours, and plan the rest with you — menu, drinks, timing.',
+  },
+  zGalleryEyebrow: { he: 'מתוך הערבים שלנו', en: 'From our evenings'   },
+  zGalleryHeading: { he: 'ערבים בזהרה.',     en: 'Evenings at Zahara.' },
+  // [HTML] The four frames that stand in with the restaurant's own photography
+  // until event photographs are uploaded. Each describes the picture it sits
+  // under — no invented occasions. A bold first line is the frame's kicker.
+  zPast1: { he: '<strong>האולם</strong><br />ערוך לערב — השולחנות מסודרים סביב רשימת האורחים שלכם.', en: '<strong>The dining room</strong><br />Set for the evening — tables arranged around your guest list.' },
+  zPast2: { he: '<strong>לשולחן</strong><br />מנות לשיתוף ויין לצידן — התפריט נבנה עם השף.',             en: '<strong>For the table</strong><br />Plates to share, wine alongside — a menu built with the chef.' },
+  zPast3: { he: '<strong>השף רועי אחדות</strong><br />מבשל את הערב שלכם במטבח הפתוח.',                   en: '<strong>Chef Roi Achdut</strong><br />Cooking your evening in the open kitchen.' },
+  zPast4: { he: '<strong>הבר</strong><br />קוקטיילים ויינות שמלווים את הערב.',                           en: '<strong>The bar</strong><br />Cocktails and wines to carry the evening.' },
+  zFormEyebrow: { he: 'פנייה לאירוע · זהרה', en: 'Event inquiry · Zahara'      },
+  zFormHeading: { he: 'ספרו לנו על הערב.',   en: 'Tell us about the evening.'  },
+
+  // ── Nucha Rooftop ──────────────────────────────────────────────────────────
+  rDoorEyebrow: { he: 'בר הגג',        en: 'The rooftop bar' },
+  rName:        { he: 'Nucha Rooftop', en: 'Nucha Rooftop'   },
+  rDoorLine: {
+    he: 'קוקטיילים מעל העיר — מקבלת פנים בשקיעה ועד מסיבה על כל הגג.',
+    en: 'Cocktails above the city — from sunset drinks to a party across the whole roof.',
+  },
+  rDoorCta:  { he: 'לאירועים על הגג', en: 'Events on the roof' },
+  rSwitchTo: { he: 'או על הגג',        en: 'Or on the roof'     },
+  rIntroEyebrow: { he: 'אירועים על הגג', en: 'Events on the roof' },
+  // [HTML]
+  rIntroHeading: { he: 'העיר למטה,<br />הערב שלכם למעלה.', en: 'The city below,<br />your evening above.' },
+  rIntroBody: {
+    he: 'Nucha Rooftop יושב על גג מלון נוצ׳ה, וירושלים פרושה מסביב. הגג נפתח לאירועים פרטיים — מקוקטייל שקיעה לקבוצה קטנה ועד מסיבה על כל המרפסת: קוקטיילים מהבר, מנות שף מהמטבח של זהרה, ומוזיקה שמתאימה לערב.',
+    en: 'Nucha Rooftop sits on the roof of Nucha Hotel, with Jerusalem laid out all around it. The roof opens for private events — from sunset cocktails for a small group to a party across the whole terrace: drinks from the bar, chef’s plates from Zahara’s kitchen, and music to suit the night.',
+  },
+  // No confirmed capacity yet — the number line ships empty (and is hidden)
+  // and the words carry it. Type a number in /admin/content to show one.
+  rManyNum: { he: '', en: '' },
+  rMany: {
+    he: 'מפינה שמורה לקבוצה קטנה ועד כל המרפסת — ספרו לנו כמה תהיו.',
+    en: 'From a reserved corner for a small group to the whole terrace — tell us how many you’ll be.',
+  },
+  rWhen: { he: 'בערבים, בתיאום מראש — כולל שעת השקיעה.', en: 'Evenings, arranged ahead — sunset hour included.' },
+  rWhat: {
+    he: 'קבלות פנים, ימי הולדת, ערבי חברה ומסיבות פרטיות. קוקטיילים ומנות לשיתוף.',
+    en: 'Receptions, birthdays, company evenings and private parties. Cocktails and plates to share.',
+  },
+  rHow: {
+    he: 'שלחו את הטופס למטה. נחזור אליכם תוך 48 שעות, ואת השאר — תפריט, שתייה ולוח זמנים — נתכנן יחד.',
+    en: 'Send the form below. We reply within 48 hours, and plan the rest with you — menu, drinks, timing.',
+  },
+  rGalleryEyebrow: { he: 'מתוך הלילות על הגג', en: 'From nights on the roof' },
+  rGalleryHeading: { he: 'לילות על הגג.',      en: 'Nights on the roof.'     },
+  // [HTML] Stand-in captions, as above — each describes its own photograph.
+  rPast1: { he: '<strong>הלאונג׳</strong><br />ספות נמוכות וקיר יין — מקום לקבוצה שלמה.', en: '<strong>The lounge</strong><br />Low banquettes and a wall of wine — room for a whole group.' },
+  rPast2: { he: '<strong>קוקטיילים ומנות</strong><br />מהבר, ישר לשולחן.',               en: '<strong>Cocktails & plates</strong><br />Mixed at the bar, shared at the table.' },
+  rPast3: { he: '<strong>מהמטבח של זהרה</strong><br />מנות שף, עד הגג.',                  en: '<strong>From Zahara’s kitchen</strong><br />Chef’s plates, sent up to the roof.' },
+  rPast4: { he: '<strong>לחלוק</strong><br />מנות שנועדו לעבור מיד ליד.',                 en: '<strong>To share</strong><br />Plates made to be passed around.' },
+  rFormEyebrow: { he: 'פנייה לאירוע · Nucha Rooftop', en: 'Event inquiry · Nucha Rooftop'      },
+  rFormHeading: { he: 'ספרו לנו על הערב על הגג.',     en: 'Tell us about your night on the roof.' },
+};
+
 export const accessibilityPage = {
   pageTitle: { he: 'הצהרת נגישות', en: 'Accessibility statement' },
   pageDescription: {

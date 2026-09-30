@@ -65,3 +65,16 @@
   X-Robots-Tag: noindex, nofollow
 /reserve
   X-Robots-Tag: noindex, nofollow
+
+# The new two-venue events page (/events2/) is unlisted the same way while it
+# is being finished: noindex meta, out of the sitemap, linked from nowhere —
+# and, like /reserve/, deliberately NOT disallowed in robots.txt (a crawler
+# that is refused the page never reads the noindex, and robots.txt is public).
+/events2/*
+  X-Robots-Tag: noindex, nofollow
+/events2
+  X-Robots-Tag: noindex, nofollow
+/en/events2/*
+  X-Robots-Tag: noindex, nofollow
+/en/events2
+  X-Robots-Tag: noindex, nofollow

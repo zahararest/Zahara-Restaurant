@@ -1,0 +1,491 @@
+---
+// The opening of the two-venue events page — and, once a venue is chosen, its
+// hero. ONE element in three states, driven by `data-venue` on the page root:
+//
+//   ''         Two doors, side by side on a desk (stacked on a phone), filling
+//              the screen, with the question floating above them. Nothing else
+//              on the page is shown yet: the page asks before it tells.
+//   'zahara'   The chosen door widens into the full-width hero and the other
+//   'rooftop'  closes — to a slim spine on a desk (still a door: press it to
+//              cross over), to nothing on a phone, where a line at the foot of
+//              the photograph does that job instead.
+//
+// The move between states is a camera pan — the grid tracks slide, the
+// photographs re-crop as their frames change — never a cut. Switching venue
+// later pans the other way, so the two venues always read as two rooms side by
+// side rather than two pages.
+//
+// DESIGN NOTE — like /reserve/, this is a sanctioned break of pillar 1's "no
+// half-and-half splits": the split is the content, two venues at equal weight.
+// It lasts only until the visitor chooses; from then on the page has the
+// single full-bleed photograph pillar 1 asks for.
+//
+// No-JS: `data-venue` is never set, the stage stays a static split, and each
+// door is a plain link down to its venue's section — everything else on the
+// page is simply shown.
+
+import { PHOTOS } from '../../data/photos';
+import { pick, events2Page } from '../../data/i18n';
+import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
+import type { Lang } from '../../data/i18n';
+import { DOOR_WIDTHS, DOOR_MOBILE, DOOR_QUALITY, DOOR_SIZES } from './frames';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = pick(events2Page, lang);
+
+// The arrow points the way the line reads.
+const arrow = lang === 'he' ? '←' : '→';
+
+const doors = [
+  {
+    id: 'zahara', key: 'ev2Zahara', photo: PHOTOS.ev2Zahara, latin: lang === 'en',
+    eyebrow: t.zDoorEyebrow, name: t.zName, line: t.zDoorLine, cta: t.zDoorCta,
+  },
+  {
+    id: 'rooftop', key: 'ev2Rooftop', photo: PHOTOS.ev2Rooftop, latin: true,
+    eyebrow: t.rDoorEyebrow, name: t.rName, line: t.rDoorLine, cta: t.rDoorCta,
+  },
+] as const;
+---
+
+<section class="ev2-stage" aria-labelledby="ev2-question">
+  {/* Floats over both doors while the visitor chooses; fades once they have. */}
+  <header class="ev2-stage__head">
+    <p class="ev2-stage__eyebrow" data-content-key="events2.eyebrow">{t.eyebrow}</p>
+    <h1 class="ev2-stage__question" id="ev2-question" data-content-key="events2.question">{t.question}</h1>
+  </header>
+
+  {doors.map((d, i) => (
+    <div class={`ev2-door ev2-door--${d.id}`} data-door={d.id} style={`--stagger:${i * 140}ms`}>
+      {/* A media slot: /admin/images can put a clip in either door. */}
+      <div class="ev2-door__media"
+           {...mediaSlot(d.key, d.photo.src, {
+             poster: resized(d.photo.src, 1280, DOOR_QUALITY),
+             className: 'ev2-door__photo', mobile: true, eager: true,
+           })}>
+        <picture>
+          <source media="(max-width: 600px)"
+                  srcset={resizedMobileCoverSrcset(d.photo.src, DOOR_MOBILE, DOOR_QUALITY)}
+                  sizes="100vw" />
+          <img
+            class="ev2-door__photo"
+            src={resized(d.photo.src, 1280, DOOR_QUALITY)}
+            srcset={resizedSrcset(d.photo.src, DOOR_WIDTHS, DOOR_QUALITY)}
+            sizes={DOOR_SIZES}
+            alt=""
+            width="1280" height="1600"
+            loading="eager"
+            decoding="async"
+            fetchpriority={i === 0 ? 'high' : 'auto'}
+            data-door-img
+          />
+        </picture>
+      </div>
+      <span class="ev2-door__scrim" aria-hidden="true"></span>
+
+      <div class="ev2-door__body">
+        <p class="ev2-door__eyebrow" data-content-key={`events2.${d.id}.doorEyebrow`}>{d.eyebrow}</p>
+        <p class={`ev2-door__name${d.latin ? ' ev2-door__name--latin' : ''}`}
+           data-content-key={`events2.${d.id}.name`}>{d.name}</p>
+        <p class="ev2-door__line" data-content-key={`events2.${d.id}.doorLine`}>{d.line}</p>
+        {/* The whole door is this one link: its ::after is stretched over the
+            door, so the link's name is the words on it rather than every line
+            of the door read out as one. Gone once its venue is open. */}
+        <a class="ev2-door__cta" href={`#${d.id}`} data-venue-link={d.id} data-venue-via="door">
+          <span data-content-key={`events2.${d.id}.doorCta`}>{d.cta}</span>
+          <span class="ev2-door__arrow" aria-hidden="true">{arrow}</span>
+        </a>
+      </div>
+
+      {/* What a closed door shows on a desk: its name, turned on its side like
+          a book's spine. Decorative — the link above still names the door. */}
+      <span class={`ev2-door__spine${d.latin ? ' ev2-door__spine--latin' : ''}`} aria-hidden="true"
+            data-content-key={`events2.${d.id}.name`}>{d.name}</span>
+    </div>
+  ))}
+
+  {/* Phones only: once a venue is open the other door has closed completely
+      (a spine has no room on a narrow screen), so the way across is a line at
+      the foot of the photograph. Each link shows while the OTHER venue is. */}
+  <div class="ev2-stage__other">
+    <a href="#rooftop" data-venue-link="rooftop" data-venue-via="other" data-venue-only="zahara">
+      <span class="ev2-stage__other-text" data-content-key="events2.rooftop.switchTo">{t.rSwitchTo}</span>
+      <span class="ev2-door__arrow" aria-hidden="true">{arrow}</span>
+    </a>
+    <a href="#zahara" data-venue-link="zahara" data-venue-via="other" data-venue-only="rooftop">
+      <span class="ev2-stage__other-text" data-content-key="events2.zahara.switchTo">{t.zSwitchTo}</span>
+      <span class="ev2-door__arrow" aria-hidden="true">{arrow}</span>
+    </a>
+  </div>
+</section>
+
+<style>
+  /* ── The stage ────────────────────────────────────────────────────────
+     Tucked under the transparent header like every photo-first page. The
+     tracks are percentages on both sides of every state change — `fr` and
+     lengths don't interpolate with each other, percentages do — which is what
+     lets the doors slide rather than jump. */
+  .ev2-stage {
+    --ajar: 4.75rem;              /* a closed door's spine, on a desk */
+    --stage-open: 76svh;          /* the hero, once a venue is chosen */
+    --pan: 1.1s var(--ease-out);
+    position: relative;
+    display: grid;
+    grid-template-rows: 50% 50%;
+    block-size: 100vh;
+    block-size: 100svh;
+    min-block-size: 32rem;
+    margin-block-start: calc(var(--header-h) * -1);
+    overflow: hidden;
+    /* Near-black behind the photographs while they arrive, so the doors never
+       flash paper-coloured on a slow connection. */
+    background: var(--shadow);
+    transition:
+      grid-template-rows var(--pan),
+      grid-template-columns var(--pan),
+      block-size var(--pan),
+      min-block-size var(--pan);
+  }
+  @media (min-width: 900px) {
+    .ev2-stage {
+      --stage-open: min(82svh, 58rem);
+      grid-template-rows: none;
+      grid-template-columns: 50% 50%;
+    }
+  }
+
+  /* A venue is open. */
+  :global(.ev2[data-venue='zahara']) .ev2-stage,
+  :global(.ev2[data-venue='rooftop']) .ev2-stage {
+    block-size: var(--stage-open);
+    min-block-size: 26rem;
+  }
+  :global(.ev2[data-venue='zahara']) .ev2-stage  { grid-template-rows: 100% 0%; }
+  :global(.ev2[data-venue='rooftop']) .ev2-stage { grid-template-rows: 0% 100%; }
+  @media (min-width: 900px) {
+    :global(.ev2[data-venue='zahara']) .ev2-stage,
+    :global(.ev2[data-venue='rooftop']) .ev2-stage { grid-template-rows: none; }
+    :global(.ev2[data-venue='zahara']) .ev2-stage  { grid-template-columns: calc(100% - var(--ajar)) var(--ajar); }
+    :global(.ev2[data-venue='rooftop']) .ev2-stage { grid-template-columns: var(--ajar) calc(100% - var(--ajar)); }
+  }
+  /* The closed door opens a crack under the pointer — an invitation, not a
+     reveal. Same grid, so it slides like everything else. */
+  @media (hover: hover) and (min-width: 900px) {
+    :global(.ev2[data-venue='zahara']) .ev2-stage:has(.ev2-door--rooftop:hover),
+    :global(.ev2[data-venue='rooftop']) .ev2-stage:has(.ev2-door--zahara:hover) { --ajar: 6.25rem; }
+  }
+
+  /* ── The question ─────────────────────────────────────────────────── */
+  .ev2-stage__head {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: 3;
+    display: grid;
+    justify-items: center;
+    gap: 0.45rem;
+    padding: calc(var(--header-h) + clamp(0.75rem, 3vh, 2rem)) 1rem 2.5rem;
+    text-align: center;
+    pointer-events: none;
+    background: linear-gradient(to bottom,
+      color-mix(in srgb, var(--shadow) 42%, transparent),
+      transparent);
+    transition: opacity 0.5s var(--ease-out);
+  }
+  .ev2-stage__eyebrow {
+    margin: 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--paper-on-photo) 88%, transparent);
+  }
+  .ev2-stage__question {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(1.35rem, 1.05rem + 1.5vw, 2.3rem);
+    line-height: 1.15;
+    letter-spacing: -0.018em;
+    color: var(--paper-on-photo);
+  }
+  .ev2-stage__eyebrow:empty,
+  .ev2-stage__question:empty { display: none; }
+  /* Answered — out of the way, but still the page's <h1> to a screen reader. */
+  :global(.ev2[data-venue='zahara']) .ev2-stage__head,
+  :global(.ev2[data-venue='rooftop']) .ev2-stage__head { opacity: 0; }
+
+  /* ── One door ─────────────────────────────────────────────────────── */
+  .ev2-door {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    place-items: center;
+    min-block-size: 0;
+    min-inline-size: 0;
+    overflow: hidden;
+    color: var(--paper-on-photo);
+    transition: padding var(--pan);
+  }
+  /* A hairline seam where the two photographs meet — a join, not a border. */
+  .ev2-door + .ev2-door { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--paper-on-photo) 18%, transparent); }
+  @media (min-width: 900px) {
+    .ev2-door + .ev2-door { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--paper-on-photo) 18%, transparent); }
+    :global(html[dir='rtl']) .ev2-door + .ev2-door { box-shadow: inset -1px 0 0 color-mix(in srgb, var(--paper-on-photo) 18%, transparent); }
+  }
+
+  /* Where the words sit. A door's padding is part of its height, so only an
+     OPEN door (or one of the two while choosing) may carry any — a closed
+     door with padding could never close to nothing. On a phone the first door
+     starts under the header AND the question, so its words centre in the part
+     of the photograph that's left showing (the same offset /reserve/ uses). */
+  @media (max-width: 899px) {
+    :global(.ev2:not([data-venue])) .ev2-door--zahara,
+    :global(.ev2[data-venue='']) .ev2-door--zahara { padding-block-start: calc(var(--header-h) + 4.25rem); }
+    :global(.ev2[data-venue='zahara']) .ev2-door--zahara,
+    :global(.ev2[data-venue='rooftop']) .ev2-door--rooftop { padding-block-start: var(--header-h); }
+  }
+  @media (min-width: 900px) {
+    .ev2-door { padding-block-start: calc(var(--header-h) + 2rem); }
+  }
+
+  .ev2-door__media {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+  }
+  .ev2-door__media picture { display: contents; }
+  /* One rule for the still and the clip the middleware may put in its place. */
+  .ev2-door__photo,
+  .ev2-door__media :global(video) {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    /* Documentary, not catalogue. */
+    filter: saturate(0.92);
+    transition: transform 1.2s var(--ease-out), filter 0.8s var(--ease-out);
+  }
+  .ev2-door__scrim {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(to top,
+      color-mix(in srgb, var(--shadow) 74%, transparent),
+      color-mix(in srgb, var(--shadow) 26%, transparent) 55%,
+      color-mix(in srgb, var(--shadow) 40%, transparent));
+    transition: opacity 0.8s var(--ease-out);
+  }
+
+  .ev2-door__body {
+    display: grid;
+    justify-items: center;
+    gap: 0.55rem;
+    max-inline-size: 36rem;
+    padding: clamp(1.25rem, 5vw, 3rem);
+    text-align: center;
+    transition: opacity 0.45s var(--ease-out);
+  }
+
+  .ev2-door__eyebrow {
+    margin: 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  /* The eyebrow's accent rule, above the word — pillar 2's kicker. */
+  .ev2-door__eyebrow::before {
+    content: '';
+    display: block;
+    inline-size: 1.6rem;
+    block-size: 1px;
+    margin: 0 auto 0.7rem;
+    background: var(--accent);
+  }
+  .ev2-door__name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(2.6rem, 1.6rem + 5vw, 5.2rem);
+    line-height: 1.02;
+    letter-spacing: -0.018em;
+  }
+  /* Latin runs optically larger than the Hebrew wordmark at one size. */
+  .ev2-door__name--latin {
+    font-size: clamp(2.1rem, 1.35rem + 3.6vw, 4.1rem);
+  }
+  .ev2-door__line {
+    margin: 0.2rem 0 0;
+    max-inline-size: 30ch;
+    font-size: var(--step-0);
+    line-height: 1.55;
+    color: color-mix(in srgb, var(--paper-on-photo) 84%, transparent);
+    text-wrap: balance;
+  }
+  .ev2-door__cta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-block-start: clamp(0.5rem, 2vh, 1.1rem);
+    padding-block-end: 0.4rem;
+    font-size: var(--step--2);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--paper-on-photo);
+    border-block-end: 1px solid var(--accent);
+    transition: color 0.4s var(--ease-out);
+  }
+  /* The stretched link — the whole door answers the press. */
+  .ev2-door__cta::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+  .ev2-door__cta:focus-visible { outline: none; }
+  .ev2-door__cta:focus-visible::after {
+    outline: 2px solid var(--accent);
+    outline-offset: -6px;
+  }
+  .ev2-door__arrow { color: var(--accent); }
+
+  .ev2-door__eyebrow:empty,
+  .ev2-door__name:empty,
+  .ev2-door__line:empty { display: none; }
+
+  /* ── Open ─────────────────────────────────────────────────────────── */
+  /* The door that became the hero stops being a link: pressing the room you
+     are already in means nothing. */
+  :global(.ev2[data-venue='zahara']) .ev2-door--zahara .ev2-door__cta,
+  :global(.ev2[data-venue='rooftop']) .ev2-door--rooftop .ev2-door__cta { display: none; }
+
+  /* ── Closed ───────────────────────────────────────────────────────── */
+  /* Its words go first, and fast, so they never squeeze into a narrowing
+     frame. Opacity, not visibility: the stretched link is still the way
+     across. The photograph steps back so the spine reads over it. */
+  :global(.ev2[data-venue='zahara']) .ev2-door--rooftop .ev2-door__body,
+  :global(.ev2[data-venue='rooftop']) .ev2-door--zahara .ev2-door__body {
+    opacity: 0;
+    transition-duration: 0.25s;
+  }
+  :global(.ev2[data-venue='zahara']) .ev2-door--rooftop .ev2-door__photo,
+  :global(.ev2[data-venue='rooftop']) .ev2-door--zahara .ev2-door__photo { filter: saturate(0.92) brightness(0.62); }
+  /* On a phone a closed door is gone — out of the tab order too, once it has
+     finished closing. */
+  @media (max-width: 899px) {
+    :global(.ev2[data-venue='zahara']) .ev2-door--rooftop,
+    :global(.ev2[data-venue='rooftop']) .ev2-door--zahara {
+      visibility: hidden;
+      transition: padding var(--pan), visibility 0s linear 1.1s;
+    }
+  }
+
+  .ev2-door__spine {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: none;
+    place-items: center;
+    padding-block-start: var(--header-h);
+    writing-mode: vertical-rl;
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    color: var(--paper-on-photo);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s var(--ease-out) 0.35s, color 0.4s var(--ease-out);
+  }
+  .ev2-door__spine--latin { font-size: var(--step--1); letter-spacing: 0.24em; text-transform: uppercase; }
+  @media (min-width: 900px) {
+    .ev2-door__spine { display: grid; }
+    :global(.ev2[data-venue='zahara']) .ev2-door--rooftop .ev2-door__spine,
+    :global(.ev2[data-venue='rooftop']) .ev2-door--zahara .ev2-door__spine { opacity: 1; }
+  }
+
+  /* ── The way across, on a phone ───────────────────────────────────── */
+  .ev2-stage__other { display: none; }
+  @media (max-width: 899px) {
+    :global(.ev2[data-venue='zahara']) .ev2-stage__other,
+    :global(.ev2[data-venue='rooftop']) .ev2-stage__other {
+      position: absolute;
+      inset-inline: 0;
+      inset-block-end: 0;
+      z-index: 3;
+      display: flex;
+      justify-content: center;
+      padding: 0 1rem 0.6rem;
+      animation: ev2-settle 0.8s var(--ease-out) 0.7s backwards;
+    }
+  }
+  .ev2-stage__other a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-block-size: 44px;
+    font-size: var(--step--2);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--paper-on-photo) 92%, transparent);
+  }
+  .ev2-stage__other-text {
+    padding-block-end: 0.3rem;
+    border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 45%, transparent);
+  }
+  .ev2-stage__other a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+
+  /* ── Motion — a camera refocusing, nothing more ───────────────────── */
+  /* While choosing, on a desk: a slow push-in on the room under the pointer,
+     and the other room steps back half a stop. */
+  @media (hover: hover) and (min-width: 900px) {
+    :global(.ev2[data-venue='']) .ev2-door:hover .ev2-door__photo,
+    :global(.ev2[data-venue='']) .ev2-door:hover .ev2-door__media :global(video) { transform: scale(1.03); }
+    :global(.ev2[data-venue='']) .ev2-door:hover .ev2-door__scrim { opacity: 0.78; }
+    :global(.ev2[data-venue='']) .ev2-stage:has(.ev2-door:hover) .ev2-door:not(:hover) .ev2-door__photo {
+      filter: saturate(0.92) brightness(0.8);
+    }
+    :global(.ev2[data-venue='']) .ev2-door:hover .ev2-door__cta { color: var(--accent); }
+    .ev2-door:hover .ev2-door__spine { color: var(--accent); }
+  }
+
+  /* The entrance moves only the words — the photographs paint at full
+     opacity from the first frame, so the LCP never waits on an animation.
+     `backwards`, not `both`: a held end-state would outrank the rules above
+     that fade a closed door's words and the answered question. */
+  @keyframes ev2-settle {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .ev2-stage__head { animation: ev2-settle 0.9s var(--ease-out) backwards; }
+  .ev2-door__body  { animation: ev2-settle 0.9s var(--ease-out) calc(180ms + var(--stagger, 0ms)) backwards; }
+
+  /* A visitor who arrives with a venue already in the link sees it open, not
+     opening — and every later change still moves. */
+  :global(.ev2[data-ev2-instant]) .ev2-stage,
+  :global(.ev2[data-ev2-instant]) .ev2-stage * { transition: none !important; animation: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ev2-stage,
+    .ev2-door,
+    .ev2-stage__head,
+    .ev2-door__body,
+    .ev2-door__photo,
+    .ev2-door__scrim,
+    .ev2-door__spine,
+    .ev2-door__cta,
+    .ev2-stage__other { transition: none !important; animation: none !important; }
+    .ev2-door:hover .ev2-door__photo { transform: none !important; }
+  }
+
+  /* Short screens (an SE-class phone, a laptop with the bookmarks bar open):
+     the words give up air before they give up size — the name is the thing
+     being chosen. */
+  @media (max-height: 640px) {
+    .ev2-door__body { gap: 0.35rem; padding: 1rem; }
+    .ev2-door__line { display: none; }
+    .ev2-door__eyebrow::before { margin-block-end: 0.45rem; }
+  }
+</style>

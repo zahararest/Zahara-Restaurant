@@ -1,0 +1,223 @@
+---
+// A venue's past evenings — a rail of portrait frames, each with its caption.
+//
+// A rail rather than a grid because of how the page has to feel: whatever the
+// number of frames, the band stays one frame tall, so eight evenings never
+// make the page twice as long as four. On a phone it is the swipe everyone
+// already knows (the next frame peeks in from the edge to say so); on a desk
+// it is the same rail with two quiet arrows. Portrait, because event
+// photography is people — and a clip shot on a phone at the event itself is
+// portrait too, which is what makes a video frame sit here naturally.
+//
+// Every frame is a media slot (Images → "Events (new page)"), so the owner can
+// swap any photograph for a clip. The first four stand in with the venue's own
+// photography until event photographs are uploaded; frames 5–8 ship empty and
+// join the rail only once something is uploaded for them — the page's script
+// asks /api/gallery which, before it fetches a single one.
+
+import { PHOTOS } from '../../data/photos';
+import { pick, events2Page } from '../../data/i18n';
+import { resized, resizedSrcset, mediaSlot } from '../../lib/photo';
+import type { Lang } from '../../data/i18n';
+import { FRAME_WIDTHS, FRAME_SIZES } from './frames';
+
+export interface Props { lang: Lang; venue: 'zahara' | 'rooftop' }
+const { lang, venue } = Astro.props;
+const t = pick(events2Page, lang);
+const p = venue === 'zahara' ? 'z' : 'r';
+const cap = (n: number) => (t as Record<string, string>)[`${p}Past${n}`] ?? '';
+const base = venue === 'zahara' ? 'ev2ZaharaPast' : 'ev2RooftopPast';
+
+const frames = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => {
+  const key = `${base}${n}` as keyof typeof PHOTOS;
+  return { n, key, photo: PHOTOS[key], optional: n > 4 };
+});
+
+// The arrows follow the reading direction: "next" points the way the rail
+// runs, which on a Hebrew page is to the left.
+const rtl = lang === 'he';
+---
+
+<section class="ev2-gallery" aria-labelledby={`ev2-${venue}-gallery-title`} data-ev2-gallery>
+  <div class="wrap ev2-gallery__head">
+    <div class="ev2-gallery__titles stagger">
+      <p class="eyebrow" data-content-key={`events2.${venue}.galleryEyebrow`}>{t[`${p}GalleryEyebrow` as keyof typeof t]}</p>
+      <h3 class="display ev2-gallery__title" id={`ev2-${venue}-gallery-title`}
+          data-content-key={`events2.${venue}.galleryHeading`}>{t[`${p}GalleryHeading` as keyof typeof t]}</h3>
+    </div>
+    {/* Shown only when the rail actually overflows, and only where there is
+        a pointer to use them — a phone swipes. */}
+    <div class="ev2-gallery__nav" data-rail-nav hidden>
+      <button class="ev2-gallery__btn" type="button" data-rail-step="-1" aria-label={t.galleryPrev}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d={rtl ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+        </svg>
+      </button>
+      <button class="ev2-gallery__btn" type="button" data-rail-step="1" aria-label={t.galleryNext}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d={rtl ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  {/* A focusable scroller, so the rail can be moved with the arrow keys. */}
+  <ul class="ev2-rail" data-rail tabindex="0" aria-labelledby={`ev2-${venue}-gallery-title`}>
+    {frames.map((f) => (
+      <li class="ev2-frame" data-frame data-filename={f.photo.src.split('/').pop()}
+          data-optional={f.optional ? '' : undefined} hidden={f.optional}>
+        <figure class="ev2-frame__figure">
+          {/* The wrapper holds the picture and nothing else — a frame given a
+              video would otherwise lose its caption with it. */}
+          <div class="ev2-frame__media" {...mediaSlot(f.key, f.photo.src, {
+            poster: resized(f.photo.src, 840),
+            className: 'ev2-frame__img',
+          })}>
+            {f.optional ? (
+              /* No src until /api/gallery says this slot holds a file: these
+                 ship empty, and eight 404s a visit is not a gallery. */
+              <img class="ev2-frame__img"
+                   data-src={resized(f.photo.src, 840)}
+                   data-srcset={resizedSrcset(f.photo.src, FRAME_WIDTHS)}
+                   sizes={FRAME_SIZES}
+                   alt={f.photo.alt[lang]} width="840" height="1050"
+                   loading="lazy" decoding="async" />
+            ) : (
+              <img class="ev2-frame__img"
+                   src={resized(f.photo.src, 840)}
+                   srcset={resizedSrcset(f.photo.src, FRAME_WIDTHS)}
+                   sizes={FRAME_SIZES}
+                   alt={f.photo.alt[lang]} width="840" height="1050"
+                   loading="lazy" decoding="async" />
+            )}
+          </div>
+          <figcaption class="ev2-frame__caption" data-content-key={`events2.${venue}.past${f.n}`}
+                      set:html={cap(f.n)} />
+        </figure>
+      </li>
+    ))}
+  </ul>
+</section>
+
+<style>
+  .ev2-gallery {
+    /* The rail's first frame lines up with the page's text column; the rail
+       itself runs off the far edge of the screen, the way a contact sheet
+       runs off a table. */
+    --gutter: clamp(1.25rem, 4vw, 2.5rem);
+    --rail-pad: max(var(--gutter), calc((100% - var(--content-max)) / 2 + var(--gutter)));
+    display: grid;
+    gap: clamp(1.75rem, 4vw, 2.75rem);
+    padding-block: clamp(2.5rem, 5vw, 4rem) clamp(4rem, 9vw, 7.5rem);
+  }
+
+  .ev2-gallery__head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-m);
+  }
+  .ev2-gallery__titles { display: grid; gap: var(--space-2xs); }
+  .ev2-gallery__title {
+    margin: 0;
+    font-size: var(--step-4);
+  }
+
+  .ev2-gallery__nav { display: flex; gap: 0.5rem; flex: none; }
+  .ev2-gallery__nav[hidden] { display: none; }
+  @media (hover: none) { .ev2-gallery__nav { display: none; } }
+  .ev2-gallery__btn {
+    display: grid;
+    place-items: center;
+    inline-size: 2.9rem;
+    block-size: 2.9rem;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    color: var(--ink);
+    transition: border-color 0.25s ease, color 0.25s ease, opacity 0.25s ease;
+  }
+  .ev2-gallery__btn svg {
+    inline-size: 1.1rem;
+    block-size: 1.1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .ev2-gallery__btn:hover:not(:disabled) { border-color: var(--ink); }
+  .ev2-gallery__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .ev2-gallery__btn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── The rail ─────────────────────────────────────────────────────── */
+  .ev2-rail {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem var(--rail-pad) 0.5rem;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: min(76vw, 19rem);
+    gap: clamp(1rem, 2.2vw, 1.75rem);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--rail-pad);
+    scrollbar-width: none;
+    /* The rail scrolls in place; smooth steps are asked for in script, where
+       reduced motion can be honoured. */
+    scroll-behavior: auto;
+  }
+  .ev2-rail::-webkit-scrollbar { display: none; }
+  @media (min-width: 700px) { .ev2-rail { grid-auto-columns: clamp(15rem, 30vw, 21rem); } }
+  @media (min-width: 1200px) { .ev2-rail { grid-auto-columns: clamp(16rem, 22vw, 22rem); } }
+  .ev2-rail:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  /* Hidden is hidden — the attribute has to beat the grid item's display. */
+  .ev2-frame[hidden] { display: none !important; }
+  .ev2-frame { scroll-snap-align: start; }
+  .ev2-frame__figure { margin: 0; display: grid; gap: 0.95rem; }
+
+  /* The photograph is the edge — no border, no shadow, no radius past the
+     site's 2px. */
+  .ev2-frame__media {
+    position: relative;          /* a one-frame video is laid over the still */
+    aspect-ratio: 4 / 5;
+    overflow: hidden;
+    border-radius: 2px;
+    background: var(--paper-deep);
+  }
+  /* :global on the video — the middleware inserts it after Astro's scoping. */
+  .ev2-frame__img,
+  .ev2-frame__media :global(video) {
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    display: block;
+    filter: saturate(0.92);
+  }
+
+  /* The caption: a small tracked kicker (the bold first line the owner
+     writes — **Birthday · June**), then a sentence set in the serif. */
+  .ev2-frame__caption {
+    margin: 0;
+    max-inline-size: 32ch;
+    font-family: var(--font-display);
+    font-size: var(--step-0);
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+  .ev2-frame__caption :global(strong) {
+    display: block;
+    margin-block-end: 0.4rem;
+    font-family: var(--font-body);
+    font-size: var(--step--2);
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  /* The kicker is already its own line — the break typed after it would
+     otherwise leave a blank one. */
+  .ev2-frame__caption :global(strong + br) { display: none; }
+  .ev2-frame__caption:empty { display: none; }
+</style>

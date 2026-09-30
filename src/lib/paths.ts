@@ -41,6 +41,18 @@ export function altLangHref(currentPath: string, lang: Lang): string {
   return withBase(alt);
 }
 
+/** The header's Zahara ↔ Rooftop switch, handed to a page that shows BOTH
+ *  venues itself (the two-venue events page). Everywhere else the switch
+ *  crosses to the other venue's home; given this, its two segments link to
+ *  the page's own venue states instead, the page's script flips them in place,
+ *  and `active` is the venue on show (`null` while the visitor is still
+ *  choosing). */
+export interface VenueSwitch {
+  zahara:  string;
+  rooftop: string;
+  active:  'zahara' | 'rooftop' | null;
+}
+
 /** All site routes, in nav order — consumed by the header.
  *
  *  The rooftop does not take event enquiries. The page is built for both

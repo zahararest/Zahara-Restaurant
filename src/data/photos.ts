@@ -176,6 +176,31 @@ export const PHOTOS = {
   eventsPast6: { src: `${base}/events-past-6.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
   eventsPast7: { src: `${base}/events-past-7.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
   eventsPast8: { src: `${base}/events-past-8.jpg`, alt: { he: 'אירוע שהתארח בזהרה', en: 'An event hosted at Zahara' } },
+
+  // ── The new two-venue Events page (/events2/) ──────────────────────────
+  // Shared slots (one bucket for both venues, like /reserve/). Every one
+  // stands in with a photograph the venue already has until its own is
+  // uploaded — see the `events2*` rows in functions/data/photos-map.ts.
+  ev2Zahara:      { src: `${base}/events2-zahara.jpg`,       alt: { he: 'אולם זהרה ערוך לאירוח', en: 'Zahara’s dining room, set for guests' } },
+  ev2Rooftop:     { src: `${base}/events2-rooftop.jpg`,      alt: { he: 'בר הגג של מלון נוצ׳ה', en: 'The bar on the roof of Nucha Hotel' } },
+  ev2ZaharaForm:  { src: `${base}/events2-zahara-form.jpg`,  alt: { he: 'אורחות מרימות כוסית בבר של זהרה', en: 'Guests raising a glass at Zahara’s bar' } },
+  ev2RooftopForm: { src: `${base}/events2-rooftop-form.jpg`, alt: { he: 'קוקטייל בבר הגג', en: 'A cocktail at the rooftop bar' } },
+  ev2ZaharaPast1: { src: `${base}/events2-zahara-past-1.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast2: { src: `${base}/events2-zahara-past-2.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast3: { src: `${base}/events2-zahara-past-3.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast4: { src: `${base}/events2-zahara-past-4.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast5: { src: `${base}/events2-zahara-past-5.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast6: { src: `${base}/events2-zahara-past-6.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast7: { src: `${base}/events2-zahara-past-7.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2ZaharaPast8: { src: `${base}/events2-zahara-past-8.jpg`, alt: { he: 'ערב בזהרה', en: 'An evening at Zahara' } },
+  ev2RooftopPast1: { src: `${base}/events2-rooftop-past-1.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast2: { src: `${base}/events2-rooftop-past-2.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast3: { src: `${base}/events2-rooftop-past-3.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast4: { src: `${base}/events2-rooftop-past-4.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast5: { src: `${base}/events2-rooftop-past-5.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast6: { src: `${base}/events2-rooftop-past-6.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast7: { src: `${base}/events2-rooftop-past-7.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
+  ev2RooftopPast8: { src: `${base}/events2-rooftop-past-8.jpg`, alt: { he: 'ערב על הגג', en: 'An evening on the roof' } },
 } satisfies Record<string, PhotoEntry>;
 
 /** Hero photo shown above each menu category's content. */
