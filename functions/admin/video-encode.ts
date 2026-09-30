@@ -53,10 +53,15 @@ window.ZAHARA_VIDEO = (function () {
   // A slot video is atmosphere behind text, under a gradient, usually moving
   // slowly. It does not need to be a master.
   var MAX_EDGE   = 1920;   // longest side; a 4K master is pointlessly big here
-  var MAX_FPS    = 30;
-  var BPP        = 0.025;  // bits per pixel per second → ~1.5 Mbps at 1080x1920x30
-  var MIN_RATE   = 500000;
-  var MAX_RATE   = 3500000;
+  var MAX_FPS    = 30;     // a ceiling, not a target — see rateFor() below
+  // Bits per pixel per second. 0.025 was borrowed from an "ffmpeg -crf 26
+  // -preset slow" result, and handing that budget to a BROWSER encoder was the
+  // mistake: x264 at preset slow spends seconds per frame looking for savings
+  // this one cannot spend milliseconds on, so the same bitrate buys visibly
+  // less. At 0.025 a 1080x1920 clip came out at 1.5 Mbps and looked like 480p.
+  var BPP        = 0.045;  // ~2.8 Mbps at 1080x1920x30
+  var MIN_RATE   = 800000;
+  var MAX_RATE   = 6000000;
   var TIMESCALE  = 90000;
 
   function supported() {
@@ -308,10 +313,13 @@ window.ZAHARA_VIDEO = (function () {
       bitrate: bitrate,
       framerate: MAX_FPS,
       avc: { format: 'avc' },
-      // No B-frames. They would buy a little size on a clip this simple and
-      // cost a composition-offset table in the muxer, plus the reordering
-      // hazard above. A background loop is not worth that.
-      latencyMode: 'realtime',
+      // 'realtime' tunes for a video call: no lookahead, and a rate control
+      // that must hit its target every single frame. On a hero loop that is
+      // the wrong trade twice over — it spends bits evenly instead of where
+      // the picture needs them, and it silently dropped chunks under load
+      // (435 emitted for 450 encoded). 'quality' keeps every chunk and looks
+      // markedly better at the same bitrate.
+      latencyMode: 'quality',
     };
     var check = await VideoEncoder.isConfigSupported(config);
     if (!check || !check.supported) {
@@ -351,22 +359,36 @@ window.ZAHARA_VIDEO = (function () {
     // is sampled twice and nothing is invented.
     var done = false;
     var frames = 0;
-    var minGap = 1000000 / MAX_FPS;   // microseconds; drop anything faster
-    var lastEnc = -Infinity;
+
+    // ── Which presented frames to keep ──────────────────────────────────────
+    // This used to be "skip anything closer than 1/30s to the last frame we
+    // kept", which quietly threw away a THIRD of every clip: the browser
+    // presents frames a hair under the nominal spacing, so a 30 fps source was
+    // sampled at about 20 and the result visibly stuttered.
+    //
+    // The rule now is a schedule, not a gap. "nextWanted" advances by exactly
+    // one output frame each time a frame is taken, so it cannot drift, and a
+    // source at or below the ceiling is never thinned at all — only genuinely
+    // faster footage (a 60 fps phone clip) is halved.
+    var minGap = 1000000 / MAX_FPS;
+    var nextWanted = -Infinity;
 
     await new Promise(function (resolve, reject) {
       function onFrame(now, meta) {
         if (done) return;
         if (failure) { done = true; reject(failure); return; }
         var ts = Math.round((meta && meta.mediaTime != null ? meta.mediaTime : v.currentTime) * 1000000);
-        if (ts - lastEnc >= minGap - 1) {
+        // Half a frame of slack, so a presented frame that lands a few
+        // microseconds early still counts as the one we were waiting for.
+        if (ts >= nextWanted - minGap / 2) {
+          if (nextWanted === -Infinity) nextWanted = ts;
+          nextWanted += minGap;
           try {
             var frame = new VideoFrame(v, { timestamp: ts });
             // A keyframe every 2s keeps looping and seeking cheap without
             // costing much size on slow-moving footage.
             encoder.encode(frame, { keyFrame: frames % (MAX_FPS * 2) === 0 });
             frame.close();
-            lastEnc = ts;
             frames++;
           } catch (e) { done = true; reject(e); return; }
         }

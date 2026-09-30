@@ -3514,8 +3514,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     if (!photos.length) return '';
     const cards = photos.map((p) => {
       const hasOverride = overrideSet.has(p.key);
-      const fallbackFromLabel = !hasOverride && p.fallbackKey && overrideSet.has(p.fallbackKey)
-        ? labelOf(p.fallbackKey) : null;
+      // A stand-in borrowed from the rooftop's bucket isn't in the listing
+      // above whichever venue is open, so it can't be checked here; the card's
+      // thumbnail is fetched through /photos, which does resolve it.
+      const fallbackFromLabel = !hasOverride && p.fallbackKey &&
+        (p.fallbackSite || overrideSet.has(p.fallbackKey))
+        ? labelOf(p.fallbackKey) + (p.fallbackSite === 'rooftop' ? ' (Rooftop)' : '') : null;
       if (!hasOverride && !fallbackFromLabel && !p.reserved && !p.optional &&
           !videoFiles.has(p.key)) missingCount++;
       const caption = GALLERY_CAPTION_SET.has(p.key) ? (content[galleryCaptionKey(p.key)] ?? {}) : null;

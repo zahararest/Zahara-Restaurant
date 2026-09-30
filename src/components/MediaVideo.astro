@@ -21,22 +21,24 @@
 // paused when off-screen or when the tab is hidden so it costs nothing to
 // scroll past, and never started at all under prefers-reduced-motion.
 //
-// ── Nothing hides behind a video that isn't playing ─────────────────────────
+// ── A video frame shows video, or it shows nothing ──────────────────────────
 //
-// This script owns `data-video-showing`, and MEDIA_CSS covers the still only
-// while that attribute is there. It goes on when a frame has actually decoded
-// and comes off the moment the clip gives up, so the photograph is what fills
-// the frame in every case the clip cannot: a codec this browser can't decode,
-// a file that never arrives, a slot the script never reached. The one slot
-// that gets the attribute from the server is the one whose src the server
-// shipped — that clip has been decoding since parse, and waiting for this
-// script would show a photograph for a frame and then cut away from it.
+// It never shows the photograph it replaced. MEDIA_CSS hides the still on a
+// video's own frame from the first paint, and this script does not put it
+// back: a clip that fails leaves the frame transparent and the page's own
+// background showing through. Watching an old photograph appear for a second
+// and then get yanked away as the video cuts in reads as the site loading the
+// wrong thing and correcting itself, which is worse than a frame that simply
+// fills when it is ready.
 //
-// The photograph a video replaced is NOT shipped as its poster, for the same
-// reason. It waits on the wrapper as `data-media-poster`, and this script
-// restores it in exactly two cases: reduced motion, and a video that cannot
-// play. (A both-frame slot with two cuts has no still left to uncover, so the
-// server does ship its poster — see the note in functions/_middleware.ts.)
+// The photograph is still in the markup, for the other breakpoint and for
+// prefers-reduced-motion — where a still picture is the intended result, not a
+// consolation — and `data-media-poster` on the wrapper is how this script
+// reaches it in that one case.
+//
+// `data-video-showing` is now an internal flag only: it records that a frame
+// has really decoded, which the stall watchdog and the breakpoint switch both
+// need. Nothing in CSS reads it any more.
 //
 // ── …and a video that won't start has something to press ────────────────────
 //
@@ -90,17 +92,9 @@
       return slot ? slot.querySelector('[data-video-tap]') : null;
     }
 
-    /** Is there any picture to fall back to — a still left in the slot, or a
-     *  poster? If not, giving up leaves a black rectangle, and the button is
-     *  better than nothing even on a clip we have little hope for. */
-    function hasFallback(v) {
-      if (photo(v) || v.getAttribute('poster')) return true;
-      var slot = v.parentElement;
-      return !!(slot && slot.querySelector('img'));
-    }
-
-    /** Put the photograph back. Used for reduced motion and for a video that
-     *  cannot play — the only two times a still is the right answer. */
+    /** Put the photograph back. Reduced motion ONLY — it is the one case where
+     *  a still picture is the intended result rather than a consolation. A
+     *  video that fails shows the page behind it instead; see giveUp(). */
     function showPhoto(v) {
       var src = photo(v);
       if (src && v.getAttribute('poster') !== src) v.setAttribute('poster', src);
@@ -135,6 +129,16 @@
     // listener load() used to attach arrived too late and the frame sat
     // blank instead of falling back to the photograph.
     Array.prototype.forEach.call(vids, function (v) {
+      // Muted, as a PROPERTY, not just the attribute the server wrote. Every
+      // browser blocks autoplay for a video it considers audible, and a few
+      // have shipped bugs where the attribute alone did not set the property
+      // — which turns a silent background loop into a clip that refuses to
+      // start for a reason nothing on the page can see. The files themselves
+      // carry no audio track at all (the uploader strips it), so this can
+      // never silence anything a visitor wanted to hear.
+      v.muted = true;
+      v.defaultMuted = true;
+      v.volume = 0;
       // The button is wired FIRST. A video that has already errored by the
       // time this runs is exactly the one whose button has to work, and
       // wiring it after an early return left it inert.
@@ -181,36 +185,26 @@
       if (btn) btn.hidden = true;
     }
 
-    // Put the photograph back. Dropping `data-video-showing` uncovers the
-    // still (or, for a slot whose still was replaced, leaves the poster
-    // showing), so a clip this browser cannot show degrades to the picture it
-    // was standing in for rather than to a black rectangle with a dead play
-    // arrow on it.
+    // Stop, and leave the frame empty. There is nothing to uncover — the still
+    // on this frame is hidden by MEDIA_CSS whatever happens — so what a failed
+    // clip leaves behind is the page itself, plus a button to try again.
     function giveUp(v, why) {
       v.dataset.videoFailed = '1';
       v.removeAttribute('data-video-ready');
       v.removeAttribute('data-video-showing');
       clearWatchdog(v);
       v.removeAttribute('src');
-      showPhoto(v);
       try { v.load(); } catch (e) {}
-      // Whether to leave a button on a frame we have just given up on turns
-      // entirely on WHY we gave up, because a button that cannot work is a
-      // worse answer than the photograph it would sit on:
-      //
-      //   'source' — the file errored, or loaded without a picture. We know
-      //     it is the file. Pressing anything would be a promise we cannot
-      //     keep, so the photograph stands on its own.
-      //   'stall'  — no data arrived in time. If this browser had ALSO
-      //     refused to autoplay, that is very likely why: a gesture would
-      //     both start the clip and fetch it. Worth offering.
-      //
-      // Either way a slot with no photograph anywhere behind it keeps the
-      // button, because the alternative there is a bare black rectangle.
-      var worthAsking = (why === 'stall' && v.dataset.videoRefused === '1') || !hasFallback(v);
-      // offerTap() won't touch a clip already marked failed, so reveal it here.
-      if (worthAsking) { var btn = tap(v); if (btn) btn.hidden = false; }
-      else hideTap(v);
+      // The button always stays up on a frame that gave up. There is no
+      // photograph underneath any more — a video frame shows video or it shows
+      // the page behind it — so the choice is not "button or picture", it is
+      // "button or an empty rectangle the reader cannot do anything about".
+      // A press re-arms the whole thing from scratch (see pressed()), which is
+      // a real second chance on every cause except a file that is simply
+      // broken. offerTap() won't touch a clip already marked failed, so the
+      // button is revealed here directly.
+      var btn = tap(v);
+      if (btn) btn.hidden = false;
     }
 
     // ── The stall watchdog ──────────────────────────────────────────────────

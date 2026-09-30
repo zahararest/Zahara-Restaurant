@@ -150,29 +150,34 @@ function attr(el: { getAttribute(name: string): string | null }, name: string): 
 //
 // 600px is the phone breakpoint every <picture> and MediaVideo.astro use.
 //
-// ── What covers the still, and WHEN ────────────────────────────────────────
-// The still used to be hidden from the first paint, so that a "fit whole"
-// clip didn't letterbox onto the photograph. That was right for the slot
-// whose src the server ships — the browser is already decoding it during
-// parse, so the gap is a frame or two. It was wrong for every other slot,
-// because those have NO src until MediaVideo.astro picks one, and it was
-// catastrophic for a slot whose file the browser cannot decode at all: the
-// photograph was hidden behind an empty <video>, which iOS and Safari paint
-// as a big translucent PLAY ARROW. A dead play button over a hidden
-// photograph, for as long as the visitor cared to look at it.
+// ── A frame showing a video shows NOTHING else ─────────────────────────────
+// Not the photograph it replaced, not at first paint, not while the clip is
+// still arriving, not if the clip never arrives at all. The still is hidden
+// on this frame from the very first paint and stays hidden.
 //
-// So the still is covered on one signal only: `data-video-showing`, which
-// means this clip has a picture to show. The server sets it on the slot it
-// ships a src for (already decoding — cover the still now, no flash); the
-// script sets it on everything else once a frame has actually decoded, and
-// takes it away again if the clip gives up. Nothing is ever hidden behind a
-// video that is not playing.
+// This was tried the other way round — the photograph left up until the clip
+// had a picture — and it is worse. What the owner sees is the OLD photograph
+// flashing up for a second or two on every single load and then being yanked
+// away as the video cuts in, which reads as the site loading the wrong thing
+// and then correcting itself. An empty frame that fills with video reads as
+// the video simply arriving. Whatever is behind the slot — the page's own
+// background — is what shows in the meantime, and that is deliberate.
+//
+// The photograph is still THERE, in the markup, for two things only: the
+// other breakpoint (a slot can be a video on phones and a photograph on
+// desktop) and prefers-reduced-motion, where the photograph IS the intended
+// picture. Switching a slot back to its photograph is a pointer in the media
+// manifest, not a layer in the page — see functions/data/media.ts.
+//
+// `visibility` rather than `display` on purpose: it keeps the frame's box, so
+// nothing reflows when the video appears, and the slot is simply transparent
+// until then.
 const MEDIA_CSS =
   '[data-media-is-video=desktop]>video,[data-media-is-video=mobile]>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}' +
   '@media (max-width:600px){[data-media-is-video=desktop]>video,[data-media-is-video=desktop]>[data-video-tap]{display:none!important}' +
-    '[data-media-is-video=mobile]:has(>video[data-video-showing])>:not(video):not([data-video-tap]){visibility:hidden}}' +
+    '[data-media-is-video=mobile]>:not(video):not([data-video-tap]){visibility:hidden}}' +
   '@media (min-width:601px){[data-media-is-video=mobile]>video,[data-media-is-video=mobile]>[data-video-tap]{display:none!important}' +
-    '[data-media-is-video=desktop]:has(>video[data-video-showing])>:not(video):not([data-video-tap]){visibility:hidden}}' +
+    '[data-media-is-video=desktop]>:not(video):not([data-video-tap]){visibility:hidden}}' +
   '@media (prefers-reduced-motion:reduce){[data-media-is-video]>:not(video){visibility:visible!important}}' +
   'video[data-video-framed]{object-fit:var(--vf,cover)!important;object-position:var(--vp,50% 50%)!important}' +
   '@media (max-width:600px){video[data-video-framed]{object-fit:var(--vf-m,var(--vf,cover))!important;' +
@@ -500,20 +505,16 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
           const oneFile = both && phoneSrc === desktopSrc;
           const eager   = el.hasAttribute('data-media-eager');
 
-          // ── The one case that still wants a poster ──────────────────────
-          // See the note above: no poster on the slot whose src is shipped,
-          // because the clip is already decoding and a poster would only
-          // paint a photograph for one frame and then cut away from it.
+          // No poster, on any slot. A poster is the photograph this video
+          // replaced, and the browser paints it the instant it arrives — which
+          // is exactly the "old photo shows for a second and then switches"
+          // that the frame-visibility note above exists to stop. An empty
+          // frame that fills with video is the wanted behaviour; a photograph
+          // that is swapped out from under the reader is not.
           //
-          // But a BOTH-frame slot with two different cuts has its still
-          // REPLACED (setInnerContent below), and no src until the script has
-          // worked out which screen this is. There is nothing behind that
-          // <video> at all — which is how a play arrow over a black rectangle
-          // becomes the first thing a visitor sees. A poster is the whole
-          // answer there: the photograph until the clip has a picture, and
-          // the photograph again if it never does.
-          const needsPoster = both && !oneFile;
-          const poster      = attr(el, 'data-media-poster');
+          // The photograph is still reachable: `data-media-poster` stays on
+          // the wrapper and MediaVideo.astro puts it back under
+          // prefers-reduced-motion, where a still picture is the point.
 
           el.setAttribute('data-media-is-video', both ? '1' : only);
           const video =
@@ -530,7 +531,6 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
             // now rather than a frame later. Every other slot earns this
             // attribute from the script once a picture actually exists.
             (oneFile ? ` data-video-showing=""` : '') +
-            (needsPoster && poster ? ` poster="${escAttr(poster)}"` : '') +
             ` aria-hidden="true" tabindex="-1"` +
             (framed ? ` data-video-framed style="${escAttr(style)}"` : '') +
             (rate !== 1 ? ` data-video-rate="${escAttr(String(rate))}"` : '') +
