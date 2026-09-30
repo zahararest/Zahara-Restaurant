@@ -1671,8 +1671,9 @@ const SCRIPT = `
           : null;
 
         function rejectVideo(f) {
-          if (!/^video\\/(mp4|webm|quicktime)$/.test(f.type || '')) {
-            return 'That file isn\\'t a video we can use. Please pick an MP4 or a WebM.';
+          if (!/^video\\/(mp4|quicktime)$/.test(f.type || '')) {
+            return 'That file isn\\'t a video we can use. Please pick an MP4 (H.264) — ' +
+                   'a WebM cannot play on iPhones, and most visitors are on one.';
           }
           if (f.size > MAX_VIDEO) {
             return 'That video is ' + Math.round(f.size / 1024 / 1024) + ' MB — the limit is 40 MB. ' +
@@ -3166,7 +3167,7 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   // render and every later one can't drift apart.
   const videoRow = !v ? '' : `
         <div class="card__video-row" data-video-row>
-          <input class="card__file" type="file" data-input-video accept="video/mp4,video/webm,video/quicktime" />
+          <input class="card__file" type="file" data-input-video accept="video/mp4,video/quicktime" />
           <div class="card__row">
             <button class="btn btn--ghost" type="button" data-btn-video>${isMobile ? 'Use a video on phones…' : 'Use a video instead…'}</button>
             <button class="btn btn--ghost" type="button" data-btn-video-pick hidden>Choose existing video…</button>

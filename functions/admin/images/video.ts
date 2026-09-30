@@ -12,7 +12,8 @@
 //                'options' save fit / position / speed for this frame
 //                'copy'    reuse a video already uploaded elsewhere:
 //                          `from` (catalogue key) + `fromVariant`
-//   file     — video/mp4 or video/webm, ≤ MAX_BYTES (upload only)
+//   file     — an MP4 / H.264 video, ≤ MAX_BYTES (upload only). See
+//              inspect() and refuse() below for what is turned away and why.
 //
 // The two frames are independent: a phone can play a video over a desktop
 // photograph and the other way round. Until the owner makes a choice for
@@ -49,7 +50,11 @@ interface Env extends AuthEnv, ContentEnv, MediaEnv { IMAGES?: R2Bucket; }
  *  accidentally puts a 4K master on the home page. */
 const MAX_BYTES = 40 * 1024 * 1024;
 
-const VALID_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+// The MIME type the BROWSER claims, which is only a first filter — every
+// upload is then read for what it actually contains (inspect()). WebM is no
+// longer on the list: iOS Safari cannot play it, so a WebM hero is a hero
+// that is broken for most of this site's visitors.
+const VALID_TYPES = new Set(['video/mp4', 'video/quicktime']);
 
 function json(body: object, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -74,6 +79,8 @@ function fourcc(bytes: Uint8Array, at: number): string {
  *   WebM      — the EBML header 1A 45 DF A3. */
 function detectVideoType(bytes: Uint8Array): string | null {
   if (bytes.length < 16) return null;
+  // Still recognised, so that refuse() can turn it away by name rather than
+  // with a generic "not a video" — see inspect().
   if (bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3) return 'video/webm';
   if (fourcc(bytes, 4) === 'ftyp') {
     // 'qt  ' brand is a QuickTime .mov. Browsers play the common H.264 ones,
@@ -83,28 +90,134 @@ function detectVideoType(bytes: Uint8Array): string | null {
   return null;
 }
 
-/** True when the file's ISO-BMFF brands say HEVC / H.265.
+/** Find a four-character code anywhere in the buffer. Used to read the codec
+ *  out of the sample-description box without walking the whole atom tree — the
+ *  codes below are distinctive enough that a false positive in compressed
+ *  video data would be an extraordinary coincidence, and the cost of one is a
+ *  clear error message asking for an H.264 export. */
+function contains(bytes: Uint8Array, code: string): boolean {
+  const a = code.charCodeAt(0), b = code.charCodeAt(1), c = code.charCodeAt(2), d = code.charCodeAt(3);
+  for (let i = 0; i + 3 < bytes.length; i++) {
+    if (bytes[i] === a && bytes[i + 1] === b && bytes[i + 2] === c && bytes[i + 3] === d) return true;
+  }
+  return false;
+}
+
+/** What is actually inside the file, as far as it matters to a browser.
  *
- *  This is the format an iPhone records in by default, and it is the single
- *  most likely reason a video that uploaded perfectly plays nowhere: Safari
- *  decodes it, Chrome and Firefox do not, so the owner sees it on their phone,
- *  the site looks broken to everyone else, and nothing anywhere reports an
- *  error. Cheaper to refuse it here with an explanation than to let it go live.
+ *  Every field here exists because a file that passed the old checks went live
+ *  and played nowhere. The rule this enforces is the only one that holds
+ *  everywhere: **H.264 video in an MP4, with the index at the front.**
  *
- *  Only the brand list in the leading `ftyp` box is read — a few dozen bytes,
- *  not a scan of a 40 MB buffer. The browser-side check in /admin/images is
- *  the thorough one; this is the backstop for anything that reaches the API
- *  another way. */
-function looksLikeHevc(bytes: Uint8Array): boolean {
-  if (fourcc(bytes, 4) !== 'ftyp') return false;
+ *   • `hevc` — H.265, what an iPhone records by default. Safari decodes it,
+ *     Chrome, Edge and Firefox do not. The owner uploads from a Mac, sees it
+ *     play, and the site is broken for most visitors with no error anywhere.
+ *     The old check read only the `ftyp` brand list, which a QuickTime .mov
+ *     does not put codec brands in — so an HEVC .mov sailed through and the
+ *     rooftop hero sat on a dead play arrow in every Chrome.
+ *   • `webm` — VP8/VP9/AV1 in WebM. The mirror image: Chrome plays it, iOS
+ *     Safari does not, and on a restaurant site most visitors are on an
+ *     iPhone. It used to be an accepted upload type. It is not any more.
+ *   • `prores` / other QuickTime-only codecs — an editing master, not a web
+ *     file. Nothing in a browser decodes them.
+ *   • `faststart` — where the `moov` index sits. Behind the media data, the
+ *     player cannot know the duration or the codec until it has fetched to
+ *     the end of the file, so a background loop either stalls or downloads
+ *     whole before showing a frame.
+ *
+ *  Only the head and the tail are scanned. `moov` lives at one end or the
+ *  other by construction, and the codec code lives inside it, so a 40 MB
+ *  buffer is read at its two edges rather than end to end. */
+const SNIFF_BYTES = 512 * 1024;
+
+interface VideoFacts {
+  container: 'mp4' | 'mov' | 'webm' | null;
+  hevc:      boolean;
+  h264:      boolean;
+  prores:    boolean;
+  faststart: boolean;
+}
+
+function inspect(bytes: Uint8Array): VideoFacts {
+  const facts: VideoFacts = { container: null, hevc: false, h264: false, prores: false, faststart: true };
+
+  if (bytes[0] === 0x1A && bytes[1] === 0x45 && bytes[2] === 0xDF && bytes[3] === 0xA3) {
+    facts.container = 'webm';
+    return facts;
+  }
+  if (fourcc(bytes, 4) !== 'ftyp') return facts;
+
   const size = Math.min((bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]) >>> 0, 256);
   const brands: string[] = [];
   for (let at = 8; at + 4 <= size && at + 4 <= bytes.length; at += 4) brands.push(fourcc(bytes, at));
-  const hevc = new Set(['hvc1', 'hev1', 'hvcC', 'hevc', 'hevx']);
-  const good = new Set(['avc1', 'avcC', 'mp41', 'mp42', 'isom', 'iso2', 'iso4', 'iso5', 'iso6', 'M4V ', 'dby1']);
-  // A file that claims HEVC AND a baseline mp4 brand usually carries an H.264
-  // track too, so only refuse the ones with no fallback brand at all.
-  return brands.some((b) => hevc.has(b)) && !brands.some((b) => good.has(b));
+  facts.container = brands[0] === 'qt  ' ? 'mov' : 'mp4';
+
+  // The head and the tail, which between them always hold `moov`.
+  const head = bytes.subarray(0, Math.min(SNIFF_BYTES, bytes.length));
+  const tail = bytes.length > SNIFF_BYTES ? bytes.subarray(bytes.length - SNIFF_BYTES) : head;
+
+  // Faststart means `moov` comes BEFORE the first `mdat`.
+  //
+  // Read it from `mdat`, not from `moov`: a long clip's index can itself run
+  // past the window scanned here, and "I did not find moov in the first half
+  // megabyte" would then condemn a perfectly good file. Not finding `mdat`
+  // means the media data has not begun yet, which is only true when the index
+  // is still in front of it.
+  const moovHead = indexOfCode(head, 'moov');
+  const mdatHead = indexOfCode(head, 'mdat');
+  facts.faststart = mdatHead < 0 || (moovHead >= 0 && moovHead < mdatHead);
+
+  for (const where of [head, tail]) {
+    if (contains(where, 'hvc1') || contains(where, 'hev1')) facts.hevc = true;
+    if (contains(where, 'avc1') || contains(where, 'avcC')) facts.h264 = true;
+    if (contains(where, 'apcn') || contains(where, 'apch') ||
+        contains(where, 'apcs') || contains(where, 'ap4h')) facts.prores = true;
+  }
+  // A brand list that names HEVC and nothing else counts too — some encoders
+  // write the codec only there.
+  if (brands.some((b) => b === 'hvc1' || b === 'hev1' || b === 'hevc' || b === 'hevx')) facts.hevc = true;
+  return facts;
+}
+
+function indexOfCode(bytes: Uint8Array, code: string): number {
+  const a = code.charCodeAt(0), b = code.charCodeAt(1), c = code.charCodeAt(2), d = code.charCodeAt(3);
+  for (let i = 0; i + 3 < bytes.length; i++) {
+    if (bytes[i] === a && bytes[i + 1] === b && bytes[i + 2] === c && bytes[i + 3] === d) return i;
+  }
+  return -1;
+}
+
+/** The refusal a file earns, or null if it is fit to serve. One message per
+ *  problem, each one saying what to do about it — an owner reading "unsupported
+ *  format" learns nothing they can act on. */
+function refuse(facts: VideoFacts): string | null {
+  const reexport =
+    'Re-export it as MP4 / H.264 (in QuickTime, Photos or any editor: “most compatible”, ' +
+    'or H.264 1080p), then upload it again.';
+
+  if (!facts.container) return 'That file does not look like a video at all.';
+
+  if (facts.container === 'webm') {
+    return 'That video is a WebM (VP8/VP9). iPhones and iPads cannot play WebM at all, ' +
+           'and most visitors here are on one — they would see the photograph instead. ' + reexport;
+  }
+  if (facts.prores && !facts.h264) {
+    return 'That video is a ProRes editing master — no browser can play it, and the file is ' +
+           'far bigger than a web loop needs. ' + reexport;
+  }
+  if (facts.hevc && !facts.h264) {
+    return 'That video is HEVC (H.265) — iPhones record this by default and Chrome, Edge and ' +
+           'Firefox cannot play it, so most visitors would see the photograph instead. ' +
+           'On the iPhone: Settings → Camera → Formats → “Most Compatible”, then re-record — ' +
+           'or ' + reexport.charAt(0).toLowerCase() + reexport.slice(1);
+  }
+  if (!facts.faststart) {
+    return 'That video has its index at the end of the file, so a browser has to download ' +
+           'the whole clip before it can show a single frame — which reads as a video that ' +
+           'never starts. Re-save it “optimised for web” / with faststart (ffmpeg: ' +
+           '-movflags +faststart), then upload it again.';
+  }
+  return null;
 }
 
 /** Everything the admin needs to draw one slot's video controls — the SAME
@@ -297,6 +410,10 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     // few bytes and means a file that somehow got in another way can't spread.
     const detected = detectVideoType(buffer);
     if (!detected) return json({ ok: false, error: 'That stored file is not a video we can serve' }, 415);
+    const storedProblem = refuse(inspect(buffer));
+    if (storedProblem) {
+      return json({ ok: false, error: 'That video cannot be reused: ' + storedProblem }, 415);
+    }
 
     try {
       await bucket.put(`images/${objectKey}`, buffer, { httpMetadata: { contentType: detected } });
@@ -334,16 +451,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   const buffer   = new Uint8Array(await file.arrayBuffer());
   const detected = detectVideoType(buffer);
-  if (!detected) return json({ ok: false, error: 'That file does not look like an MP4 or WebM video' }, 415);
-  if (looksLikeHevc(buffer)) {
-    return json({
-      ok: false,
-      error: 'That video is HEVC (H.265) — iPhones record this by default and ' +
-             'Chrome, Edge and Firefox cannot play it, so most visitors would ' +
-             'see the photograph instead. On the iPhone: Settings → Camera → ' +
-             'Formats → “Most Compatible”, then re-record or re-export the clip.',
-    }, 415);
-  }
+  if (!detected) return json({ ok: false, error: 'That file does not look like an MP4 video' }, 415);
+  // What is actually in the file, not what its name or its MIME type claims.
+  // This is the gate that was missing: the hero videos on both venues were
+  // accepted here — one a VP9 WebM named .mp4, one an HEVC QuickTime named
+  // .mp4 — and each one played on the machine it was uploaded from and
+  // nowhere else.
+  const problem = refuse(inspect(buffer));
+  if (problem) return json({ ok: false, error: problem }, 415);
 
   try {
     await bucket.put(`images/${objectKey}`, buffer, { httpMetadata: { contentType: detected } });

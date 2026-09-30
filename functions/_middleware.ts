@@ -149,22 +149,81 @@ function attr(el: { getAttribute(name: string): string | null }, name: string): 
 //    different part of the clip without the server knowing the screen.
 //
 // 600px is the phone breakpoint every <picture> and MediaVideo.astro use.
-// The still under a ONE-frame video is hidden from the first paint, not once
-// the clip is ready. Waiting for `data-video-ready` meant the frame opened on
-// the photograph and then cut to the video — the same flash the poster caused
-// on both-frame slots. The still comes back only if the video gives up
-// (`data-video-failed`), or if the visitor asked for reduced motion, in which
-// case the photograph IS the intended picture.
+//
+// ── What covers the still, and WHEN ────────────────────────────────────────
+// The still used to be hidden from the first paint, so that a "fit whole"
+// clip didn't letterbox onto the photograph. That was right for the slot
+// whose src the server ships — the browser is already decoding it during
+// parse, so the gap is a frame or two. It was wrong for every other slot,
+// because those have NO src until MediaVideo.astro picks one, and it was
+// catastrophic for a slot whose file the browser cannot decode at all: the
+// photograph was hidden behind an empty <video>, which iOS and Safari paint
+// as a big translucent PLAY ARROW. A dead play button over a hidden
+// photograph, for as long as the visitor cared to look at it.
+//
+// So the still is covered on one signal only: `data-video-showing`, which
+// means this clip has a picture to show. The server sets it on the slot it
+// ships a src for (already decoding — cover the still now, no flash); the
+// script sets it on everything else once a frame has actually decoded, and
+// takes it away again if the clip gives up. Nothing is ever hidden behind a
+// video that is not playing.
 const MEDIA_CSS =
   '[data-media-is-video=desktop]>video,[data-media-is-video=mobile]>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}' +
-  '@media (max-width:600px){[data-media-is-video=desktop]>video{display:none!important}' +
-    '[data-media-is-video=mobile]:has(>video:not([data-video-failed]))>:not(video){visibility:hidden}}' +
-  '@media (min-width:601px){[data-media-is-video=mobile]>video{display:none!important}' +
-    '[data-media-is-video=desktop]:has(>video:not([data-video-failed]))>:not(video){visibility:hidden}}' +
+  '@media (max-width:600px){[data-media-is-video=desktop]>video,[data-media-is-video=desktop]>[data-video-tap]{display:none!important}' +
+    '[data-media-is-video=mobile]:has(>video[data-video-showing])>:not(video):not([data-video-tap]){visibility:hidden}}' +
+  '@media (min-width:601px){[data-media-is-video=mobile]>video,[data-media-is-video=mobile]>[data-video-tap]{display:none!important}' +
+    '[data-media-is-video=desktop]:has(>video[data-video-showing])>:not(video):not([data-video-tap]){visibility:hidden}}' +
   '@media (prefers-reduced-motion:reduce){[data-media-is-video]>:not(video){visibility:visible!important}}' +
   'video[data-video-framed]{object-fit:var(--vf,cover)!important;object-position:var(--vp,50% 50%)!important}' +
   '@media (max-width:600px){video[data-video-framed]{object-fit:var(--vf-m,var(--vf,cover))!important;' +
-    'object-position:var(--vp-m,var(--vp,50% 50%))!important}}';
+    'object-position:var(--vp-m,var(--vp,50% 50%))!important}}' +
+  // ── The native start-playback button, suppressed ────────────────────────
+  // WebKit paints its own play arrow over any <video> it is not playing, and
+  // it is unreachable by design: these elements are aria-hidden atmosphere
+  // with no controls, so tapping it did nothing on a file Safari could not
+  // decode. Ours replaces it — same job, one that works. (Chrome and Firefox
+  // paint nothing here, so this rule is inert for them.)
+  'video[data-video-src]::-webkit-media-controls{display:none!important}' +
+  'video[data-video-src]::-webkit-media-controls-start-playback-button{display:none!important;-webkit-appearance:none}' +
+  // ── …and the one we control ─────────────────────────────────────────────
+  // Hidden until the script has a reason to offer it: the clip loaded but the
+  // browser refused to start it on its own (Low Power Mode, an autoplay
+  // setting, a policy this page cannot see). Then it is a real button, and a
+  // tap is a user gesture — the one thing every browser honours. Restrained
+  // on purpose: a hairline ring on photography, no fill, no shadow.
+  '[data-video-tap]{position:absolute;inset:0;margin:auto;width:4.25rem;height:4.25rem;' +
+    'display:grid;place-items:center;z-index:3;padding:0;border-radius:50%;' +
+    'border:1px solid rgba(255,255,255,.7);background:rgba(20,18,16,.28);' +
+    'color:#fff;cursor:pointer;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);' +
+    'transition:background .25s ease,border-color .25s ease}' +
+  '[data-video-tap][hidden]{display:none!important}' +
+  '[data-video-tap]>svg{width:1.5rem;height:1.5rem;display:block;' +
+    'margin-inline-start:.2rem;fill:currentColor}' +
+  '[data-video-tap]:hover,[data-video-tap]:focus-visible{background:rgba(20,18,16,.44);border-color:#fff}' +
+  '[data-video-tap]:focus-visible{outline:2px solid #fff;outline-offset:3px}' +
+  '@media (prefers-reduced-motion:reduce){[data-video-tap]{display:none!important}}';
+
+// ── The play button a stuck video falls back to ─────────────────────────────
+// Shipped `hidden` with every video slot and revealed by MediaVideo.astro in
+// the one case it is the right answer: the clip is loadable but the browser
+// refused to start it by itself. That happens for reasons a page cannot see or
+// override — iOS Low Power Mode, Safari's "Auto-Play" setting, a data-saver
+// mode, a per-site policy the visitor set once and forgot — and there is
+// exactly one thing that beats all of them: a real tap. So the visitor gets
+// something to tap.
+//
+// A clip the browser cannot DECODE is a different problem and gets a different
+// answer: the photograph, with no button, because pressing it would be a lie.
+//
+// `data-video-only` is copied across so MEDIA_CSS can keep the button off the
+// screen the clip does not belong to.
+function tapButton(lang: string, only: string): string {
+  const label = lang.startsWith('he') ? 'הפעל את הסרטון' : 'Play video';
+  return `<button type="button" data-video-tap${only ? ` data-video-only="${only}"` : ''} hidden ` +
+    `aria-label="${escAttr(label)}" title="${escAttr(label)}">` +
+    `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>` +
+    `</button>`;
+}
 
 function memoised<T>(key: string, load: () => Promise<T>): Promise<T> {
   const hit = memos.get(key);
@@ -347,7 +406,15 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
     return m.desktop || m.mobile;
   });
   if (anyVideo) {
+    // The page's language, for the play button's label. `html` opens before
+    // any slot, so by the time a slot is rewritten this is set. Two strings
+    // is not worth reaching into src/data/i18n.ts from a Pages Function —
+    // this is the only place either one is rendered.
+    let pageLang = 'he';
     res = new HTMLRewriter()
+      .on('html', {
+        element(el) { pageLang = (el.getAttribute('lang') || 'he').toLowerCase(); },
+      })
       .on('head', {
         element(el) { el.append(`<style id="zahara-media">${MEDIA_CSS}</style>`, { html: true }); },
       })
@@ -433,13 +500,37 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
           const oneFile = both && phoneSrc === desktopSrc;
           const eager   = el.hasAttribute('data-media-eager');
 
+          // ── The one case that still wants a poster ──────────────────────
+          // See the note above: no poster on the slot whose src is shipped,
+          // because the clip is already decoding and a poster would only
+          // paint a photograph for one frame and then cut away from it.
+          //
+          // But a BOTH-frame slot with two different cuts has its still
+          // REPLACED (setInnerContent below), and no src until the script has
+          // worked out which screen this is. There is nothing behind that
+          // <video> at all — which is how a play arrow over a black rectangle
+          // becomes the first thing a visitor sees. A poster is the whole
+          // answer there: the photograph until the clip has a picture, and
+          // the photograph again if it never does.
+          const needsPoster = both && !oneFile;
+          const poster      = attr(el, 'data-media-poster');
+
           el.setAttribute('data-media-is-video', both ? '1' : only);
           const video =
             `<video class="${escAttr(cls)}"${scope} playsinline muted loop autoplay` +
             // preload=auto on an above-the-fold frame; elsewhere the browser's
             // own autoplay heuristics hold the bytes until it is near.
+            // `none` is only ever on an element with no src yet, so it holds
+            // nothing back — MediaVideo.astro raises it to `auto` at the
+            // moment it assigns one, because WebKit will not autoplay a
+            // source it was told not to preload.
             ` preload="${oneFile && eager ? 'auto' : 'none'}"` +
             (oneFile ? ` src="${escAttr(desktopSrc)}"` : '') +
+            // The browser is already decoding this one, so cover the still
+            // now rather than a frame later. Every other slot earns this
+            // attribute from the script once a picture actually exists.
+            (oneFile ? ` data-video-showing=""` : '') +
+            (needsPoster && poster ? ` poster="${escAttr(poster)}"` : '') +
             ` aria-hidden="true" tabindex="-1"` +
             (framed ? ` data-video-framed style="${escAttr(style)}"` : '') +
             (rate !== 1 ? ` data-video-rate="${escAttr(String(rate))}"` : '') +
@@ -447,7 +538,7 @@ export const onRequest: PagesFunction<Env> = async (ctx) => {
             (only ? ` data-video-only="${only}"` : '') +
             ` data-video-src="${escAttr(only === 'mobile' ? phoneSrc : desktopSrc)}"` +
             (both && phoneSrc !== desktopSrc ? ` data-video-src-mobile="${escAttr(phoneSrc)}"` : '') +
-            `></video>`;
+            `></video>` + tapButton(pageLang, only);
           if (both) el.setInnerContent(video, { html: true });
           else      el.append(video, { html: true });
         },

@@ -21,11 +21,33 @@
 // paused when off-screen or when the tab is hidden so it costs nothing to
 // scroll past, and never started at all under prefers-reduced-motion.
 //
-// The photograph a video replaced is NOT shipped as the poster — a poster is
-// painted the instant it arrives, which made every video slot open on the
-// still and then cut to the clip. It waits on the wrapper as
-// `data-media-poster`, and this script restores it in exactly two cases:
-// reduced motion, and a video that cannot play.
+// ── Nothing hides behind a video that isn't playing ─────────────────────────
+//
+// This script owns `data-video-showing`, and MEDIA_CSS covers the still only
+// while that attribute is there. It goes on when a frame has actually decoded
+// and comes off the moment the clip gives up, so the photograph is what fills
+// the frame in every case the clip cannot: a codec this browser can't decode,
+// a file that never arrives, a slot the script never reached. The one slot
+// that gets the attribute from the server is the one whose src the server
+// shipped — that clip has been decoding since parse, and waiting for this
+// script would show a photograph for a frame and then cut away from it.
+//
+// The photograph a video replaced is NOT shipped as its poster, for the same
+// reason. It waits on the wrapper as `data-media-poster`, and this script
+// restores it in exactly two cases: reduced motion, and a video that cannot
+// play. (A both-frame slot with two cuts has no still left to uncover, so the
+// server does ship its poster — see the note in functions/_middleware.ts.)
+//
+// ── …and a video that won't start has something to press ────────────────────
+//
+// A browser that CAN decode a clip and still refuses to start it on its own is
+// the one case a photograph is the wrong answer: nothing is broken, the
+// visitor just landed under iOS Low Power Mode, or Safari's "Auto-Play" set to
+// never, or a data saver. None of that is visible from here and none of it can
+// be overridden — but all of it yields to a real tap. So `offerTap` reveals
+// the button the middleware shipped `hidden` beside every video, and a press
+// starts the clip with a user gesture behind it. A clip that cannot be decoded
+// never gets the button: there would be nothing behind the press.
 ---
 <script is:inline>
   (function () {
@@ -35,12 +57,46 @@
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     var phone  = window.matchMedia('(max-width: 600px)');
 
+    /** How long a clip may sit without producing a picture before we stop
+     *  waiting and show the photograph. A background loop is a few hundred KB
+     *  of an already-warm connection; anything this slow is not going to
+     *  arrive in time to be atmosphere. Without this, a file that neither
+     *  errors nor decodes — a container the browser half-understands, a range
+     *  request that stalls — left the frame waiting forever. */
+    var STALL_MS = 8000;
+
+    /** Live watchdog timers, one per video.
+     *
+     *  Declared HERE, not beside the functions that use it, because `var` only
+     *  hoists the declaration and not the assignment: a video whose src the
+     *  server shipped can already have errored by the time this script runs,
+     *  which calls giveUp() → clearWatchdog() on the very first pass below. A
+     *  WeakMap that was still `undefined` at that point threw in the middle of
+     *  giveUp, so the rooftop hero kept its dead src and never got its
+     *  photograph back — the exact failure this whole file exists to prevent. */
+    var timers = new WeakMap();
+
     /** The photograph this video replaced. It is no longer shipped as the
      *  video's poster — see the note in functions/_middleware.ts — so it lives
-     *  on the wrapper until one of the two cases below calls for it. */
+     *  on the wrapper until one of the cases below calls for it. */
     function photo(v) {
       var slot = v.parentElement;
       return (slot && slot.getAttribute('data-media-poster')) || '';
+    }
+
+    /** The button shipped beside this video, or null. */
+    function tap(v) {
+      var slot = v.parentElement;
+      return slot ? slot.querySelector('[data-video-tap]') : null;
+    }
+
+    /** Is there any picture to fall back to — a still left in the slot, or a
+     *  poster? If not, giving up leaves a black rectangle, and the button is
+     *  better than nothing even on a clip we have little hope for. */
+    function hasFallback(v) {
+      if (photo(v) || v.getAttribute('poster')) return true;
+      var slot = v.parentElement;
+      return !!(slot && slot.querySelector('img'));
     }
 
     /** Put the photograph back. Used for reduced motion and for a video that
@@ -62,6 +118,7 @@
     if (reduce.matches) {
       Array.prototype.forEach.call(vids, function (v) {
         showPhoto(v);
+        v.removeAttribute('data-video-showing');
         try { v.pause(); } catch (e) {}
         v.removeAttribute('autoplay');
         if (v.getAttribute('src')) {
@@ -78,8 +135,19 @@
     // listener load() used to attach arrived too late and the frame sat
     // blank instead of falling back to the photograph.
     Array.prototype.forEach.call(vids, function (v) {
-      if (v.error) { giveUp(v); return; }
-      v.addEventListener('error', function () { giveUp(v); }, { once: true });
+      // The button is wired FIRST. A video that has already errored by the
+      // time this runs is exactly the one whose button has to work, and
+      // wiring it after an early return left it inert.
+      var btn = tap(v);
+      if (btn) btn.addEventListener('click', function () { pressed(v); });
+      // Running is the only proof that there is nothing left to ask for.
+      v.addEventListener('playing', function () {
+        delete v.dataset.videoRefused;
+        hideTap(v);
+        if (v.videoWidth && v.videoHeight) v.setAttribute('data-video-showing', '');
+      });
+      if (v.error) { giveUp(v, 'source'); return; }
+      v.addEventListener('error', function () { giveUp(v, 'source'); }, { once: true });
     });
 
     /** Is this video for the screen we're on? */
@@ -93,18 +161,76 @@
       return (phone.matches && m) ? m : v.getAttribute('data-video-src');
     }
 
-    // Put the photograph back. Dropping the source and reloading returns the
-    // element to its poster — or, for a one-frame video, uncovers the still it
-    // sits on — so a clip the browser cannot show degrades to the picture it
-    // was standing in for rather than to a black rectangle.
-    function giveUp(v) {
+    /** Offer the play button. Only ever called for a clip the browser has
+     *  loaded and declined to start by itself.
+     *
+     *  `videoRefused` outlives the offer on purpose: it means "this browser
+     *  can play this, it just won't do it unasked". If the clip then STALLS,
+     *  that refusal is the likeliest reason nothing arrived, so giveUp()
+     *  reads this flag and keeps the button rather than taking away the one
+     *  control that would have fixed the frame. */
+    function offerTap(v) {
+      if (v.dataset.videoFailed) return;
+      v.dataset.videoRefused = '1';
+      var btn = tap(v);
+      if (btn) btn.hidden = false;
+    }
+
+    function hideTap(v) {
+      var btn = tap(v);
+      if (btn) btn.hidden = true;
+    }
+
+    // Put the photograph back. Dropping `data-video-showing` uncovers the
+    // still (or, for a slot whose still was replaced, leaves the poster
+    // showing), so a clip this browser cannot show degrades to the picture it
+    // was standing in for rather than to a black rectangle with a dead play
+    // arrow on it.
+    function giveUp(v, why) {
       v.dataset.videoFailed = '1';
       v.removeAttribute('data-video-ready');
+      v.removeAttribute('data-video-showing');
+      clearWatchdog(v);
       v.removeAttribute('src');
-      // The photograph, as a last resort. `data-video-failed` also tells
-      // MEDIA_CSS to uncover the still beneath a one-frame video.
       showPhoto(v);
       try { v.load(); } catch (e) {}
+      // Whether to leave a button on a frame we have just given up on turns
+      // entirely on WHY we gave up, because a button that cannot work is a
+      // worse answer than the photograph it would sit on:
+      //
+      //   'source' — the file errored, or loaded without a picture. We know
+      //     it is the file. Pressing anything would be a promise we cannot
+      //     keep, so the photograph stands on its own.
+      //   'stall'  — no data arrived in time. If this browser had ALSO
+      //     refused to autoplay, that is very likely why: a gesture would
+      //     both start the clip and fetch it. Worth offering.
+      //
+      // Either way a slot with no photograph anywhere behind it keeps the
+      // button, because the alternative there is a bare black rectangle.
+      var worthAsking = (why === 'stall' && v.dataset.videoRefused === '1') || !hasFallback(v);
+      // offerTap() won't touch a clip already marked failed, so reveal it here.
+      if (worthAsking) { var btn = tap(v); if (btn) btn.hidden = false; }
+      else hideTap(v);
+    }
+
+    // ── The stall watchdog ──────────────────────────────────────────────────
+    // `error` catches a file the browser rejects. This catches the file it
+    // simply never finishes: no error, no frame, no end to waiting.
+    // (Its WeakMap is declared at the top — see the note there.)
+    function clearWatchdog(v) {
+      var t = timers.get(v);
+      if (t) { clearTimeout(t); timers.delete(v); }
+    }
+    function startWatchdog(v) {
+      clearWatchdog(v);
+      timers.set(v, setTimeout(function () {
+        timers.delete(v);
+        if (v.dataset.videoFailed || v.hasAttribute('data-video-showing')) return;
+        // A picture did arrive, just too quietly to have been noticed — that
+        // is not a stall, it is a `loadeddata` that went missing.
+        if (v.videoWidth > 0 && v.videoHeight > 0) { ready(v); return; }
+        giveUp(v, 'stall');
+      }, STALL_MS));
     }
 
     // Speed, where the owner asked for one in /admin/images — per frame, since
@@ -116,31 +242,51 @@
       try { v.playbackRate = rate; } catch (e) {}
     }
 
+    // A file that LOADS but carries no picture — an audio-only file, or a video
+    // track in a codec this browser can't decode — reports a perfectly healthy
+    // readyState and fires no error. It just paints nothing, which on a
+    // full-bleed hero reads as the site being broken. So a clip has to show a
+    // measurable frame before it is allowed to cover the photograph.
+    function ready(v) {
+      if (v.dataset.videoFailed) return;
+      if (!v.videoWidth || !v.videoHeight) { giveUp(v, 'source'); return; }
+      clearWatchdog(v);
+      v.setAttribute('data-video-ready', '');
+      v.setAttribute('data-video-showing', '');
+      applyRate(v);
+      // Deliberately NOT hideTap(). A clip can decode perfectly and still be
+      // refused a start — that is precisely the Low Power Mode case — and
+      // hiding the button here left the visitor looking at a frozen first
+      // frame with the one control that would have fixed it taken away. The
+      // button comes down on `playing`, when there is really nothing left to
+      // ask for. Trying again costs nothing and re-offers it if refused.
+      play(v);
+    }
+
     function load(v) {
       if (v.dataset.videoLoaded || v.dataset.videoFailed || !active(v)) return;
       v.dataset.videoLoaded = '1';
       applyRate(v);
+      // `preload="none"` is how a lazy slot holds its bytes back, and it has
+      // to come OFF at the moment a source is assigned: WebKit will not
+      // autoplay a source it was told not to preload, so the clip loaded,
+      // waited, and painted a play arrow instead of starting. The attribute
+      // has done its job by now — nothing was fetched before this point.
+      if (v.preload === 'none') v.preload = 'auto';
       // Where one file serves both screens the server already put the src in
       // the markup and the browser has been loading it since parse. Assigning
       // the same URL again would restart that, so only set what is missing or
       // wrong (the phone-cut case, which the server cannot choose).
       var want = sourceFor(v);
       if (want && v.getAttribute('src') !== want) v.src = want;
-      // `error` is already armed for every video above. What is left is the
-      // file that LOADS but carries no picture. An audio-only
-      // file, or a video track in a codec this browser can't decode, reports a
-      // perfectly healthy readyState and fires no error — it just paints
-      // nothing, which on a full-bleed hero reads as the site being broken.
-      function ready() {
-        if (!v.videoWidth || !v.videoHeight) { giveUp(v); return; }
-        v.setAttribute('data-video-ready', '');
-        applyRate(v);
-      }
+      // `error` is already armed for every video above; the watchdog covers
+      // the file that neither errors nor arrives.
+      startWatchdog(v);
       // A server-supplied src has been loading since parse, so `loadeddata`
       // may already be behind us — in which case the listener would never
       // fire and a picture-less file would never be caught.
-      if (v.readyState >= 2) ready();
-      else v.addEventListener('loadeddata', ready, { once: true });
+      if (v.readyState >= 2) ready(v);
+      else v.addEventListener('loadeddata', function () { ready(v); }, { once: true });
     }
 
     // Whether each video SHOULD be running — the intersection observer's
@@ -150,10 +296,68 @@
     function want(v)  { return v.dataset.videoOnScreen === '1'; }
     function play(v)  {
       if (!v.dataset.videoLoaded || v.dataset.videoFailed || document.hidden || !want(v) || !active(v)) return;
-      var p = v.play();
-      if (p && p.catch) p.catch(function () {});
+      var p;
+      try { p = v.play(); } catch (e) { return handleRefusal(v, e); }
+      if (p && p.catch) p.catch(function (e) { handleRefusal(v, e); });
     }
     function pause(v) { if (!v.paused) v.pause(); }
+
+    /** A refused play(). The two reasons are not the same problem and must not
+     *  get the same answer:
+     *
+     *    NotAllowedError — the browser can play this, it just won't do it
+     *      unprompted. Offer the button; a tap clears it.
+     *    AbortError      — a new load interrupted this play (a breakpoint
+     *      change, a src swap). Nothing is wrong; the next play() follows.
+     *    anything else   — the source itself. Show the photograph.
+     *
+     *  Swallowing all three, which is what a bare `.catch(function(){})` did,
+     *  is how a phone ended up holding a play arrow over a hidden photograph
+     *  with nothing listening for the press. */
+    function handleRefusal(v, err) {
+      var name = (err && err.name) || '';
+      if (name === 'AbortError') return;
+      if (name === 'NotAllowedError') { offerTap(v); return; }
+      giveUp(v, 'source');
+    }
+
+    /** The button was pressed. This is a user gesture, so it beats every
+     *  autoplay policy there is — and it is also the one chance to retry a
+     *  clip we had already given up on, which is why it re-arms rather than
+     *  just calling play(). */
+    function pressed(v) {
+      hideTap(v);
+      var wasFailed = v.dataset.videoFailed;
+      delete v.dataset.videoFailed;
+      if (wasFailed) {
+        delete v.dataset.videoLoaded;
+        v.dataset.videoOnScreen = '1';
+        load(v);
+      }
+      applyRate(v);
+      var p;
+      try { p = v.play(); } catch (e) { return giveUp(v, 'source'); }
+      if (p && p.then) {
+        p.then(function () {
+          delete v.dataset.videoRefused;
+          // Cover the still as soon as there is something to cover it with.
+          if (v.videoWidth && v.videoHeight) {
+            clearWatchdog(v);
+            v.setAttribute('data-video-ready', '');
+            v.setAttribute('data-video-showing', '');
+            applyRate(v);
+          } else {
+            startWatchdog(v);
+            v.addEventListener('loadeddata', function () { ready(v); }, { once: true });
+          }
+        }, function () {
+          // Still refused with a gesture behind it — that is the source, not
+          // a policy, and there is nothing further to offer.
+          delete v.dataset.videoRefused;
+          giveUp(v, 'source');
+        });
+      }
+    }
 
     // Load on approach, play only while actually on screen. The hero is
     // already in view on load, so it starts immediately; a gallery frame five
@@ -199,7 +403,13 @@
           return;
         }
         var src = sourceFor(v);
-        if (src && v.getAttribute('src') !== src) v.src = src;
+        if (src && v.getAttribute('src') !== src) {
+          v.src = src;
+          // A different file: it has no picture yet, so this one has to earn
+          // `data-video-showing` again before it covers anything.
+          startWatchdog(v);
+          v.addEventListener('loadeddata', function () { ready(v); }, { once: true });
+        }
         applyRate(v);
         play(v);
       });
