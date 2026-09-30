@@ -187,6 +187,135 @@ function indexOfCode(bytes: Uint8Array, code: string): number {
   return -1;
 }
 
+// ── Faststart, without re-encoding ──────────────────────────────────────────
+//
+// A file whose ONLY fault is the position of its index does not need a new
+// encode — it needs its boxes in a different order. `moov` is the index;
+// behind `mdat` it forces a player to fetch to the end of the file before it
+// can show one frame, which is the "video that never starts" this whole
+// change is about. In front of it, the same bytes play immediately.
+//
+// So move it. The catch is that `stco` / `co64` inside `moov` hold ABSOLUTE
+// file offsets of the media chunks, so every one of them has to be shifted by
+// however far `mdat` moved. Get that wrong and the file is silently gutted —
+// it parses, reports a duration, and decodes garbage — so this refuses to
+// guess: anything it does not fully understand is left alone and falls
+// through to the ordinary refusal.
+
+interface Box { type: string; start: number; size: number; body: number }
+
+/** Top-level boxes, in order. Returns null if the file is not cleanly a
+ *  sequence of boxes (a truncated upload, or something that is not ISO-BMFF). */
+function topLevelBoxes(b: Uint8Array): Box[] | null {
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const out: Box[] = [];
+  let at = 0;
+  while (at + 8 <= b.length) {
+    let size = view.getUint32(at);
+    const type = String.fromCharCode(b[at + 4], b[at + 5], b[at + 6], b[at + 7]);
+    let body = at + 8;
+    if (size === 1) {
+      // 64-bit size. The high word is zero for anything this route accepts.
+      if (at + 16 > b.length) return null;
+      if (view.getUint32(at + 8) !== 0) return null;
+      size = view.getUint32(at + 12);
+      body = at + 16;
+    } else if (size === 0) {
+      size = b.length - at;           // "to end of file"
+    }
+    if (size < 8 || at + size > b.length) return null;
+    out.push({ type, start: at, size, body });
+    at += size;
+  }
+  return at === b.length ? out : null;
+}
+
+/** Add `delta` to every chunk offset in this box tree. Returns false if a box
+ *  is malformed, which aborts the whole remux rather than writing a file with
+ *  some offsets shifted and some not. */
+function shiftChunkOffsets(b: Uint8Array, from: number, to: number, delta: number): boolean {
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  let at = from;
+  while (at + 8 <= to) {
+    let size = view.getUint32(at);
+    const type = String.fromCharCode(b[at + 4], b[at + 5], b[at + 6], b[at + 7]);
+    let body = at + 8;
+    if (size === 1) {
+      if (at + 16 > to || view.getUint32(at + 8) !== 0) return false;
+      size = view.getUint32(at + 12);
+      body = at + 16;
+    }
+    if (size < 8 || at + size > to) return false;
+    const end = at + size;
+
+    if (type === 'stco' || type === 'co64') {
+      // FullBox: 1 version + 3 flags, then a u32 count, then the entries.
+      if (body + 8 > end) return false;
+      const count = view.getUint32(body + 4);
+      let p = body + 8;
+      for (let i = 0; i < count; i++) {
+        if (type === 'stco') {
+          if (p + 4 > end) return false;
+          view.setUint32(p, (view.getUint32(p) + delta) >>> 0);
+          p += 4;
+        } else {
+          if (p + 8 > end) return false;
+          // Only the low word can be non-zero at these file sizes, but add
+          // through the full 64 bits so a large file is still correct.
+          const hi = view.getUint32(p), lo = view.getUint32(p + 4);
+          const sum = hi * 4294967296 + lo + delta;
+          view.setUint32(p, Math.floor(sum / 4294967296));
+          view.setUint32(p + 4, sum >>> 0);
+          p += 8;
+        }
+      }
+    } else if (CONTAINER_BOXES.has(type)) {
+      if (!shiftChunkOffsets(b, body, end, delta)) return false;
+    }
+    at = end;
+  }
+  return true;
+}
+
+/** Boxes that hold other boxes on the path from `moov` down to `stco`. */
+const CONTAINER_BOXES = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'mvex']);
+
+/** Rewrite the file with `moov` in front of `mdat`, or null if it cannot be
+ *  done safely. Lossless: not a single media byte is re-encoded. */
+function faststart(input: Uint8Array): Uint8Array | null {
+  const boxes = topLevelBoxes(input);
+  if (!boxes) return null;
+
+  const moov = boxes.find((x) => x.type === 'moov');
+  const mdat = boxes.find((x) => x.type === 'mdat');
+  if (!moov || !mdat) return null;
+  if (moov.start < mdat.start) return input;      // already in front
+
+  // A copy of moov, so the offsets inside it can be shifted without touching
+  // the original buffer.
+  const moovCopy = input.slice(moov.start, moov.start + moov.size);
+  // New order: everything that is not moov and not mdat, in its original
+  // order, then moov, then mdat. Each kept box lands wherever the ones before
+  // it put it, so the only thing that moves the MEDIA is moov's size.
+  const before = boxes.filter((x) => x.type !== 'moov' && x.type !== 'mdat' && x.start < mdat.start);
+  const after  = boxes.filter((x) => x.type !== 'moov' && x.type !== 'mdat' && x.start > mdat.start);
+
+  let head = 0;
+  for (const x of before) head += x.size;
+  const newMdatStart = head + moov.size;
+  const delta = newMdatStart - mdat.start;
+  if (!shiftChunkOffsets(moovCopy, 8, moovCopy.length, delta)) return null;
+
+  const total = head + moov.size + mdat.size + after.reduce((n, x) => n + x.size, 0);
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const x of before) { out.set(input.subarray(x.start, x.start + x.size), p); p += x.size; }
+  out.set(moovCopy, p); p += moovCopy.length;
+  out.set(input.subarray(mdat.start, mdat.start + mdat.size), p); p += mdat.size;
+  for (const x of after) { out.set(input.subarray(x.start, x.start + x.size), p); p += x.size; }
+  return out;
+}
+
 /** The refusal a file earns, or null if it is fit to serve. One message per
  *  problem, each one saying what to do about it — an owner reading "unsupported
  *  format" learns nothing they can act on. */
@@ -457,11 +586,28 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // accepted here — one a VP9 WebM named .mp4, one an HEVC QuickTime named
   // .mp4 — and each one played on the machine it was uploaded from and
   // nowhere else.
-  const problem = refuse(inspect(buffer));
+  // A file whose only fault is the index position is repaired here rather than
+  // refused — moving `moov` in front of `mdat` is byte surgery, not a re-encode,
+  // so it costs nothing and loses nothing. Everything else still has to arrive
+  // in a shape the web can play; the uploader converts it in the browser first
+  // (see prepareVideo in functions/admin/images.ts), and this is the backstop
+  // for anything that reaches the API another way.
+  let bytes = buffer;
+  let facts = inspect(bytes);
+  let remuxed = false;
+  if (!facts.faststart && facts.h264 && !facts.hevc && !facts.prores) {
+    const moved = faststart(bytes);
+    if (moved) {
+      bytes = moved;
+      facts = inspect(bytes);
+      remuxed = facts.faststart;
+    }
+  }
+  const problem = refuse(facts);
   if (problem) return json({ ok: false, error: problem }, 415);
 
   try {
-    await bucket.put(`images/${objectKey}`, buffer, { httpMetadata: { contentType: detected } });
+    await bucket.put(`images/${objectKey}`, bytes, { httpMetadata: { contentType: detected } });
   } catch (err) {
     console.error('[admin/images/video] R2 put failed', err);
     return json({ ok: false, error: 'Storage failed' }, 500);
@@ -482,5 +628,5 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return saveFailed(err, 'The video uploaded, but switching the slot to it failed');
   }
 
-  return finish();
+  return finish(remuxed ? { remuxed: true } : {});
 };

@@ -28,6 +28,7 @@ import type { PagesFunction, R2Bucket } from '@cloudflare/workers-types';
 import { checkAccess, unauthorized, type AuthEnv } from './auth';
 import { CHROME_CSS, adminHead, topbar } from './chrome';
 import { SHRINK_JS } from './shrink';
+import { VIDEO_JS }  from './video-encode';
 import { PHOTO_CATALOGUE, PHOTO_GROUPS, canShowVideo, type PhotoMeta } from '../data/photos-map';
 import {
   readMediaMap, videoFilename, videoState, type MediaEnv, type MediaMap, type VideoState,
@@ -1662,6 +1663,10 @@ const SCRIPT = `
       // data-video-init attribute, afterwards from every endpoint response.
       if (videoBtn) {
         const MAX_VIDEO = 40 * 1024 * 1024;
+        // What may be PICKED. The upload ceiling is MAX_VIDEO and applies to
+        // the converted file; a source can be bigger, because converting is
+        // usually what brings it under.
+        const MAX_SOURCE_VIDEO = 300 * 1024 * 1024;
         const hasPhoneFrame = card.dataset.phoneFrame === '1';
         let lastState = null;
         // The photo badge a video badge is standing in front of, so it can be
@@ -1670,16 +1675,73 @@ const SCRIPT = `
           ? { cls: badge.dataset.photoClass || badge.className, text: badge.dataset.photoText || badge.textContent }
           : null;
 
+        // Anything this browser will open is fair game now: whatever it is, the
+        // converter below hands the server a faststart H.264 MP4 or nothing.
+        // The size ceiling is about the UPLOAD, and conversion happens before
+        // the upload, so it is checked against the converted file too.
         function rejectVideo(f) {
-          if (!/^video\\/(mp4|quicktime)$/.test(f.type || '')) {
-            return 'That file isn\\'t a video we can use. Please pick an MP4 (H.264) — ' +
-                   'a WebM cannot play on iPhones, and most visitors are on one.';
+          if (!/^video\\//.test(f.type || '')) {
+            return 'That does not look like a video file. Pick a clip — MP4, MOV or WebM ' +
+                   'all work; it gets converted here before it is uploaded.';
           }
-          if (f.size > MAX_VIDEO) {
-            return 'That video is ' + Math.round(f.size / 1024 / 1024) + ' MB — the limit is 40 MB. ' +
-                   'A 10–20 second clip at 1080p is usually well under it.';
+          if (f.size > MAX_SOURCE_VIDEO) {
+            return 'That video is ' + Math.round(f.size / 1024 / 1024) + ' MB, which is more ' +
+                   'than this page will take. Trim it to 10–20 seconds and try again.';
           }
           return null;
+        }
+
+        /** Anything past this gets converted even when nothing is WRONG with
+         *  it: a 12 MB H.264 clip plays everywhere and still costs a visitor on
+         *  cellular twelve megabytes for something behind the text. */
+        const BIG_ENOUGH_TO_SHRINK = 6 * 1024 * 1024;
+
+        /** Put the file in a shape the site can actually serve.
+         *
+         *  Returns the file to upload, which is usually a NEW one. The rule:
+         *  convert when the file is wrong (HEVC, WebM, ProRes, index at the
+         *  end) or merely heavy, leave it alone when it is already a lean
+         *  faststart H.264 MP4 — re-encoding that would only lose a
+         *  generation for nothing.
+         *
+         *  If conversion is needed and this browser cannot do it, that is said
+         *  plainly rather than uploading something that will not play. */
+        async function prepareVideo(f, say) {
+          const V = window.ZAHARA_VIDEO;
+          if (!V) return f;
+          let look = null;
+          try { look = await V.examine(f); } catch (e) { /* unreadable header — let the server judge */ }
+          // An index in the wrong place is the one fault NOT worth re-encoding
+          // for: the server moves the box losslessly in a few milliseconds
+          // (faststart() in functions/admin/images/video.ts). Re-encoding it
+          // here would cost a generation of quality and a minute of waiting to
+          // fix something that is only a matter of byte order.
+          const onlyIndex = look && look.facts && !look.facts.faststart &&
+                            look.facts.h264 && !look.facts.hevc && !look.facts.prores &&
+                            look.facts.container !== 'webm';
+          const wrong = look && look.problem && !onlyIndex;
+          const heavy = f.size > BIG_ENOUGH_TO_SHRINK;
+          if (!wrong && !heavy) return f;
+
+          if (!V.supported()) {
+            if (!wrong) return f;   // heavy but playable: better than refusing
+            throw new Error(
+              'This video will not play for most visitors — ' + look.problem + ' — and this ' +
+              'browser cannot convert it. Open /admin/images in Chrome, Edge or Safari and ' +
+              'upload it again there, and it will be converted for you.');
+          }
+
+          say(wrong
+            ? 'Converting: ' + look.problem + '. This plays the clip through once, so it takes about as long as the clip.'
+            : 'Converting to a lighter file. This plays the clip through once, so it takes about as long as the clip.');
+          const out = await V.transcode(f, (p) => {
+            say('Converting — ' + Math.round(p * 100) + '%. It plays through once, so this takes about as long as the clip.');
+          });
+          if (out.size > MAX_VIDEO) {
+            throw new Error('Even after converting, that clip is ' + Math.round(out.size / 1024 / 1024) +
+                            ' MB. Trim it to 10–20 seconds and try again.');
+          }
+          return out;
         }
 
         /** Ask THIS browser whether it can actually show the file, before 40 MB
@@ -1962,27 +2024,40 @@ const SCRIPT = `
 
           setBusy('Checking video…');
           setStatus('Checking that this video will play…', false);
+          // Can this browser DECODE it? Nothing below can help if not — there
+          // would be no frames to re-encode — so this stays the first question.
           const probe = await inspectVideo(f);
           if (!probe.ok) {
             setBusy('');
             setStatus(
-              'This browser can\\'t play that video, so most visitors couldn\\'t either — ' +
-              'usually an iPhone HEVC clip. On the iPhone: Settings → Camera → Formats → ' +
-              '“Most Compatible”, then re-record or re-export it. An H.264 MP4 always works.',
+              'This browser can\\'t play that video at all, so it can\\'t convert it either. ' +
+              'It is usually an editing master (ProRes) or a codec nothing on the web reads. ' +
+              'Export it as an H.264 MP4 and upload that.',
               true,
             );
             return;
           }
 
-          setBusy('Uploading video…');
-          setStatus('Uploading — a video takes longer than a photo.', false);
           try {
+            // Whatever was picked becomes a faststart H.264 MP4 here, or the
+            // reason it couldn't is said out loud. Nothing that cannot play
+            // everywhere reaches the bucket.
+            setBusy('Converting…');
+            const ready = await prepareVideo(f, (msg) => setStatus(msg, false));
+            const converted = ready !== f;
+
+            setBusy('Uploading video…');
+            setStatus('Uploading — a video takes longer than a photo.', false);
             const fd = new FormData();
-            fd.append('file', f);
+            fd.append('file', ready);
             const st = await postVideo(fd);
             applyEverywhere(st);
             const dims = probe.w ? ' · ' + probe.w + '×' + probe.h : '';
-            setStatus('Saved' + dims + '. The preview above is the same file the site serves' +
+            const saved = converted
+              ? ' · converted to H.264 MP4, ' + Math.round(ready.size / 1024 / 1024 * 10) / 10 + ' MB' +
+                (f.size > ready.size ? ' from ' + Math.round(f.size / 1024 / 1024 * 10) / 10 + ' MB' : '')
+              : '';
+            setStatus('Saved' + dims + saved + '. The preview above is the same file the site serves' +
                       (isMobile ? ' to phones' : '') + '. ' +
                       'Give the live page up to half a minute to pick it up.', false);
           } catch (err) {
@@ -3167,7 +3242,7 @@ function renderCard(p: PhotoMeta, o: CardOpts): string {
   // render and every later one can't drift apart.
   const videoRow = !v ? '' : `
         <div class="card__video-row" data-video-row>
-          <input class="card__file" type="file" data-input-video accept="video/mp4,video/quicktime" />
+          <input class="card__file" type="file" data-input-video accept="video/*" />
           <div class="card__row">
             <button class="btn btn--ghost" type="button" data-btn-video>${isMobile ? 'Use a video on phones…' : 'Use a video instead…'}</button>
             <button class="btn btn--ghost" type="button" data-btn-video-pick hidden>Choose existing video…</button>
@@ -3715,6 +3790,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     window.ADMIN_SITE_SUFFIX = ${JSON.stringify(site === 'rooftop' ? '&site=rooftop' : '')};
   </script>
   <script>${SHRINK_JS}</script>
+  <script>${VIDEO_JS}</script>
   <script>${SCRIPT}</script>
 </body>
 </html>`;
