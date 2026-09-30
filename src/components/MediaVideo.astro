@@ -353,11 +353,31 @@
       }
     }
 
-    // Load on approach, play only while actually on screen. The hero is
-    // already in view on load, so it starts immediately; a gallery frame five
-    // screens down costs nothing until it is nearly there. A video for the
-    // other frame is remembered as near but not loaded, so resizing across the
-    // breakpoint can start it without waiting for another scroll.
+    // ── The hero does not wait to be observed ───────────────────────────────
+    // An IntersectionObserver callback is delivered after layout, which for a
+    // frame that is unarguably on screen is a round-trip spent doing nothing.
+    // It costs nothing for a gallery frame five screens down, but the hero is
+    // the one video a visitor is actually waiting on, and on a phone every
+    // fraction of a second before the first byte is requested is visible as
+    // "the video takes a while to start".
+    //
+    // A slot the build marked eager is above the fold by definition, so it is
+    // started here, synchronously, before any observer is even created. The
+    // observers below still attach — they are what pauses it off-screen — and
+    // load() is idempotent, so being called twice changes nothing.
+    Array.prototype.forEach.call(vids, function (v) {
+      var slot = v.parentElement;
+      if (!slot || !slot.hasAttribute('data-media-eager')) return;
+      v.dataset.videoNear = '1';
+      v.dataset.videoOnScreen = '1';
+      load(v);
+      play(v);
+    });
+
+    // Load on approach, play only while actually on screen. A gallery frame
+    // five screens down costs nothing until it is nearly there. A video for
+    // the other frame is remembered as near but not loaded, so resizing across
+    // the breakpoint can start it without waiting for another scroll.
     if ('IntersectionObserver' in window) {
       var near = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) {

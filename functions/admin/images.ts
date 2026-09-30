@@ -2052,12 +2052,27 @@ const SCRIPT = `
             fd.append('file', ready);
             const st = await postVideo(fd);
             applyEverywhere(st);
-            const dims = probe.w ? ' · ' + probe.w + '×' + probe.h : '';
+            // The OUTPUT size, not the source's. They differ exactly when it
+            // matters: an anamorphic source reports a display size smaller than
+            // what it stores, and reporting that number hid a hero that had
+            // gone up at half its resolution.
+            const outW = ready.zaharaWidth  || probe.w;
+            const outH = ready.zaharaHeight || probe.h;
+            const dims = outW ? ' · ' + outW + '×' + outH : '';
             const saved = converted
               ? ' · converted to H.264 MP4, ' + Math.round(ready.size / 1024 / 1024 * 10) / 10 + ' MB' +
                 (f.size > ready.size ? ' from ' + Math.round(f.size / 1024 / 1024 * 10) / 10 + ' MB' : '')
               : '';
-            setStatus('Saved' + dims + saved + '. The preview above is the same file the site serves' +
+            // A hero fills a phone screen that is well over 1000 pixels wide in
+            // real pixels. Anything much under that is being stretched, and no
+            // encoder setting can put back detail the file never had — so say
+            // so plainly rather than letting it go live looking soft.
+            const thin = outW && Math.max(outW, outH) < 1000
+              ? ' This clip is only ' + outW + '×' + outH + ', which is smaller than a phone screen, ' +
+                'so it will look soft however it is encoded. If you have the original recording ' +
+                '(straight off the camera or phone, before any conversion), upload that instead.'
+              : '';
+            setStatus('Saved' + dims + saved + '.' + thin + ' The preview above is the same file the site serves' +
                       (isMobile ? ' to phones' : '') + '. ' +
                       'Give the live page up to half a minute to pick it up.', false);
           } catch (err) {

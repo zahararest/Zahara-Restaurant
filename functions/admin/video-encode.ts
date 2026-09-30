@@ -155,7 +155,10 @@ window.ZAHARA_VIDEO = (function () {
       var url = URL.createObjectURL(file);
       var v = document.createElement('video');
       v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
-      v.onloadedmetadata = function () {
+      // "loadeddata", not "loadedmetadata": a frame has to exist before
+      // codedSize() can look at one, and metadata alone does not guarantee
+      // that. The size check is the same either way.
+      v.onloadeddata = function () {
         if (!v.videoWidth || !v.videoHeight) {
           URL.revokeObjectURL(url);
           reject(new Error('This browser cannot decode that video.'));
@@ -170,12 +173,53 @@ window.ZAHARA_VIDEO = (function () {
     });
   }
 
-  /** Even dimensions, capped to MAX_EDGE. H.264 requires even width/height. */
-  function targetSize(w, h) {
+  /** What to encode at, given what the file DISPLAYS as and how many samples
+   *  it actually stores.
+   *
+   *  These are not always the same number, and the difference cost a hero its
+   *  resolution. A clip can be stored ANAMORPHIC — non-square pixels, declared
+   *  by a pixel aspect ratio — and then "videoWidth"/"videoHeight" report the
+   *  display size, not the stored one. A phone clip that had been through a
+   *  conversion arrived stored 1080x1080 with a 9:16 pixel aspect, so the
+   *  browser reported 607x1080, and encoding at 607x1080 threw away nearly
+   *  half of the 1080 samples the file still had across. The hero went live
+   *  looking like it had been shot for a smaller screen.
+   *
+   *  So: keep the DISPLAY shape, which is what the picture is meant to look
+   *  like, at the smallest size that still holds every sample the source
+   *  stores — then cap the long edge, because a 4K master on a background loop
+   *  is bytes nobody sees. Never below the display size either, so a normal
+   *  square-pixel clip comes through at exactly its own dimensions. */
+  function targetSize(dispW, dispH, codedW, codedH) {
+    var aspect = dispW / dispH;
+    // Grow the display box until it covers the stored sample grid in both
+    // directions. One of these two is the binding constraint; taking the max
+    // satisfies both at once.
+    var w = Math.max(dispW, codedW || 0, (codedH || 0) * aspect);
+    var h = w / aspect;
+    // …then the ceiling.
     var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
-    var tw = Math.max(2, Math.round(w * scale / 2) * 2);
-    var th = Math.max(2, Math.round(h * scale / 2) * 2);
-    return { w: tw, h: th };
+    w *= scale; h *= scale;
+    // H.264 wants even dimensions.
+    return {
+      w: Math.max(2, Math.round(w / 2) * 2),
+      h: Math.max(2, Math.round(h / 2) * 2),
+    };
+  }
+
+  /** The stored sample grid, which "videoWidth"/"videoHeight" do not report.
+   *  A single VideoFrame knows both; it is the only way to see an anamorphic
+   *  source for what it is. Falls back to the display size when a frame cannot
+   *  be taken, which simply restores the old behaviour for that file. */
+  function codedSize(v) {
+    try {
+      var f = new VideoFrame(v, { timestamp: 0 });
+      var out = { w: f.codedWidth, h: f.codedHeight };
+      f.close();
+      return out;
+    } catch (e) {
+      return { w: 0, h: 0 };
+    }
   }
 
   // ── A very small MP4 writer ───────────────────────────────────────────────
@@ -303,7 +347,8 @@ window.ZAHARA_VIDEO = (function () {
 
     var opened = await openVideo(file);
     var v = opened.el;
-    var size = targetSize(v.videoWidth, v.videoHeight);
+    var coded = codedSize(v);
+    var size  = targetSize(v.videoWidth, v.videoHeight, coded.w, coded.h);
     var duration = isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
 
     var bitrate = Math.round(Math.min(MAX_RATE, Math.max(MIN_RATE, size.w * size.h * MAX_FPS * BPP)));
@@ -424,7 +469,12 @@ window.ZAHARA_VIDEO = (function () {
     if (onProgress) onProgress(1);
 
     var name = (file.name || 'video').replace(/\.[^.]+$/, '') + '.mp4';
-    return new File([bytes], name, { type: 'video/mp4' });
+    var out = new File([bytes], name, { type: 'video/mp4' });
+    // What was actually produced, so the admin can report the OUTPUT rather
+    // than the source — the two differ exactly when it matters most.
+    out.zaharaWidth  = size.w;
+    out.zaharaHeight = size.h;
+    return out;
   }
 
   return {
