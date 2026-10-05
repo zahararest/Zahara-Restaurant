@@ -43,8 +43,10 @@ const onRooftop    = SITE_ID === 'rooftop';
 // On a page that shows both venues, the switch is the page's: it points at the
 // page's own venue states, lights the one on show (none while the visitor is
 // still choosing), and carries data-venue-link for the page's script to flip
-// in place. It gives up the "scroll home" and cross-venue tracking hooks —
-// neither means anything there.
+// in place. Pressing the venue already on show leaves for that venue's home
+// (data-venue-home) — the switch's ordinary meaning, back where it applies.
+// It gives up the "scroll home" and cross-venue tracking hooks — neither
+// means anything there.
 const vs = venueSwitch;
 const zaharaActive  = vs ? vs.active === 'zahara'  : !onRooftop;
 const rooftopActive = vs ? vs.active === 'rooftop' : onRooftop;
@@ -88,6 +90,7 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
          data-switch-home={!vs && !onRooftop ? true : undefined}
          data-track={!vs && onRooftop ? 'zahara_click' : undefined}
          data-venue-link={vs ? 'zahara' : undefined}
+         data-venue-home={vs ? zaharaHome : undefined}
          aria-current={vs && zaharaActive ? 'true' : undefined}
          aria-label={vs ? undefined : t.brandAria}>
         <span data-content-key="header.brandText">{t.brandText}</span>
@@ -97,6 +100,7 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
          data-switch-home={!vs && onRooftop ? true : undefined}
          data-track={!vs && !onRooftop ? 'rooftop_click' : undefined}
          data-venue-link={vs ? 'rooftop' : undefined}
+         data-venue-home={vs ? rooftopHome : undefined}
          aria-current={vs && rooftopActive ? 'true' : undefined}>
         <span class="site-switch__name" data-content-key="header.rooftop">{t.rooftop}</span>
       </a>

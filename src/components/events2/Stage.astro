@@ -388,7 +388,10 @@ const doors = [
     z-index: 1;
     display: none;
     place-items: center;
-    padding-block-start: var(--header-h);
+    /* Physical, on purpose: in a vertical writing mode "block-start" is the
+       RIGHT edge, and a logical padding here pushed the name sideways out of
+       its own spine instead of down past the header. */
+    padding-top: var(--header-h);
     writing-mode: vertical-rl;
     font-family: var(--font-display);
     font-size: var(--step-1);
@@ -421,6 +424,9 @@ const doors = [
       animation: ev2-settle 0.8s var(--ease-out) 0.7s backwards;
     }
   }
+  /* One link at a time: the way to whichever venue is NOT open. */
+  :global(.ev2:not([data-venue='zahara'])) .ev2-stage__other a[data-venue-only='zahara'],
+  :global(.ev2:not([data-venue='rooftop'])) .ev2-stage__other a[data-venue-only='rooftop'] { display: none; }
   .ev2-stage__other a {
     display: inline-flex;
     align-items: center;

@@ -45,9 +45,9 @@ const rtl = lang === 'he';
       <h3 class="display ev2-gallery__title" id={`ev2-${venue}-gallery-title`}
           data-content-key={`events2.${venue}.galleryHeading`}>{t[`${p}GalleryHeading` as keyof typeof t]}</h3>
     </div>
-    {/* Shown only when the rail actually overflows, and only where there is
-        a pointer to use them — a phone swipes. */}
-    <div class="ev2-gallery__nav" data-rail-nav hidden>
+    {/* Desks and tablets: the arrows sit at the end of the heading. Shown
+        only when the rail actually overflows. */}
+    <div class="ev2-gallery__nav ev2-gallery__nav--top" data-rail-nav hidden>
       <button class="ev2-gallery__btn" type="button" data-rail-step="-1" aria-label={t.galleryPrev}>
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d={rtl ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
@@ -97,6 +97,22 @@ const rtl = lang === 'he';
       </li>
     ))}
   </ul>
+
+  {/* Phones: the frame in view is centred, so its arrows sit centred under
+      it, a thumb's reach away, with where-you-are between them. */}
+  <div class="ev2-gallery__nav ev2-gallery__nav--below" data-rail-nav hidden>
+    <button class="ev2-gallery__btn" type="button" data-rail-step="-1" aria-label={t.galleryPrev}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d={rtl ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+        </svg>
+    </button>
+    <span class="ev2-gallery__count" aria-hidden="true"><span data-rail-pos>1</span> / <span data-rail-total>4</span></span>
+    <button class="ev2-gallery__btn" type="button" data-rail-step="1" aria-label={t.galleryNext}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d={rtl ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
+        </svg>
+    </button>
+  </div>
 </section>
 
 <style>
@@ -123,9 +139,21 @@ const rtl = lang === 'he';
     font-size: var(--step-4);
   }
 
-  .ev2-gallery__nav { display: flex; gap: 0.5rem; flex: none; }
-  .ev2-gallery__nav[hidden] { display: none; }
-  @media (hover: none) { .ev2-gallery__nav { display: none; } }
+  .ev2-gallery__nav { display: flex; align-items: center; gap: 0.5rem; flex: none; }
+  .ev2-gallery__nav[hidden],
+  .ev2-gallery__nav--below { display: none; }
+  .ev2-gallery__count {
+    min-inline-size: 3.75em;
+    text-align: center;
+    font-size: var(--step--1);
+    letter-spacing: 0.14em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-muted);
+    /* "2 / 5" is a figure, and figures run left to right in Hebrew too —
+       left to the page's direction it reads "5 / 2". */
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
   .ev2-gallery__btn {
     display: grid;
     place-items: center;
@@ -169,7 +197,7 @@ const rtl = lang === 'he';
   }
   .ev2-rail::-webkit-scrollbar { display: none; }
   @media (min-width: 700px) { .ev2-rail { grid-auto-columns: clamp(15rem, 30vw, 21rem); } }
-  @media (min-width: 1200px) { .ev2-rail { grid-auto-columns: clamp(16rem, 22vw, 22rem); } }
+
   .ev2-rail:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   /* Hidden is hidden — the attribute has to beat the grid item's display. */
@@ -220,4 +248,33 @@ const rtl = lang === 'he';
      otherwise leave a blank one. */
   .ev2-frame__caption :global(strong + br) { display: none; }
   .ev2-frame__caption:empty { display: none; }
+
+  /* ── Phones: one frame, centred ──────────────────────────────────────
+     The frame in view sits in the middle of the screen with its neighbours
+     peeking in at both edges — the gallery is centred like the page around
+     it, and the peek on either side says "there is more" without a word.
+     Kept at the END of this stylesheet on purpose: these rules share
+     specificity with the base frame and caption rules, so source order is
+     what lets the phone layout win. */
+  @media (max-width: 699px) {
+    .ev2-gallery { --frame-w: min(78vw, 22rem); }
+    .ev2-rail {
+      grid-auto-columns: var(--frame-w);
+      padding-inline: calc((100% - var(--frame-w)) / 2);
+      scroll-padding-inline: 0;
+    }
+    .ev2-frame { scroll-snap-align: center; }
+    .ev2-gallery__head { justify-content: center; text-align: center; }
+    .ev2-gallery__titles { justify-items: center; }
+    .ev2-frame__caption { margin-inline: auto; text-align: center; }
+    .ev2-gallery__nav--top { display: none !important; }
+    .ev2-gallery__nav--below:not([hidden]) {
+      display: flex;
+      justify-content: center;
+      gap: 1.1rem;
+      margin-block-start: -0.35rem;
+    }
+  }
+  @media (min-width: 1200px) { .ev2-rail { grid-auto-columns: clamp(16rem, 22vw, 22rem); } }
+
 </style>

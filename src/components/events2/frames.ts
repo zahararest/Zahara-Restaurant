@@ -18,7 +18,7 @@ export const DOOR_QUALITY = 74;
 
 /** Gallery frames: portrait 4:5, about a quarter of a desk, most of a phone. */
 export const FRAME_WIDTHS = [420, 620, 840, 1100] as const;
-export const FRAME_SIZES  = '(max-width: 600px) 76vw, (max-width: 1100px) 34vw, 22rem';
+export const FRAME_SIZES  = '(max-width: 699px) 78vw, (max-width: 1100px) 34vw, 22rem';
 
 /** The photograph beside the form: half a desk wide, the full height. */
 export const SIDE_WIDTHS  = [720, 1000, 1400, 1800] as const;

@@ -37,8 +37,9 @@ const eventTypes: { value: string; label: string }[] = [
 ];
 
 // Time-of-day for the event — multi-select, none pre-checked, optional.
+// No mornings: events are hosted in the afternoon or the evening. (The server
+// still accepts 'morning', so a page cached from before this sends cleanly.)
 const eventTimes: { value: string; label: string }[] = [
-  { value: 'morning',   label: t.whenMorning   },
   { value: 'afternoon', label: t.whenAfternoon },
   { value: 'evening',   label: t.whenEvening   },
 ];

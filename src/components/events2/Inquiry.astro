@@ -52,8 +52,8 @@ const eventTypes = [
   { value: 'wedding',    label: f.typeWedding    },
   { value: 'other',      label: f.typeOther      },
 ];
+// No mornings: events are hosted in the afternoon or the evening.
 const eventTimes = [
-  { value: 'morning',   label: f.whenMorning   },
   { value: 'afternoon', label: f.whenAfternoon },
   { value: 'evening',   label: f.whenEvening   },
 ];
@@ -241,10 +241,7 @@ const eventTimes = [
 
 <style>
   .ev2-inquiry {
-    background: var(--paper-deep);
     border-block-start: 1px solid var(--rule-soft);
-    /* Land the heading clear of the sticky header when jumped to. */
-    scroll-margin-top: 0;
   }
 
   /* ── The photograph ───────────────────────────────────────────────── */
@@ -284,20 +281,50 @@ const eventTimes = [
     filter: saturate(0.92);
   }
 
-  /* ── The form's half ──────────────────────────────────────────────── */
+  /* ── The form's half ──────────────────────────────────────────────────
+     The one part of the page that asks something of the reader, so it stands
+     on ground of its own rather than the paper everything else sits on: the
+     events band — the warm field the owner tunes in /admin/colors (a soft
+     wash in light, brown into near-black in dark) — with a pool of the accent
+     light behind the form, and the form itself raised on it as a card with a
+     gilt edge. Lit from behind, like a table set before the guests arrive. */
   .ev2-inquiry__panel {
-    padding: clamp(3.5rem, 9vw, 7rem) clamp(1.25rem, 4vw, 2.5rem) clamp(4rem, 9vw, 7rem);
+    position: relative;
+    isolation: isolate;
+    padding: clamp(3.5rem, 9vw, 7rem) clamp(0.85rem, 4vw, 2.5rem) clamp(4rem, 9vw, 7rem);
+    /* The band is deepened a step toward --paper-edge: on its own, the light
+       theme's band is nearly the page's paper, and the whole point here is
+       that this ground is NOT the page. */
+    background:
+      radial-gradient(80% 62% at 50% 26%,
+        color-mix(in srgb, var(--accent) 34%, transparent), transparent 74%),
+      linear-gradient(165deg,
+        color-mix(in srgb, var(--events-band-from) 45%, var(--paper-edge)),
+        color-mix(in srgb, var(--events-band-to) 70%, var(--paper-edge)));
   }
   .ev2-inquiry__inner {
     max-inline-size: 38rem;
     margin-inline: auto;
     display: grid;
     gap: clamp(2rem, 4vw, 2.75rem);
+    padding: clamp(1.4rem, 5vw, 3.25rem);
+    background: var(--paper-card);
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--rule));
+    border-block-start: 2px solid var(--accent);
+    box-shadow: var(--shadow-2);
   }
   @media (min-width: 1000px) {
-    .ev2-inquiry__panel { padding-inline: clamp(2.5rem, 5.5vw, 6rem); }
+    .ev2-inquiry__panel {
+      display: grid;
+      align-content: start;
+      padding-inline: clamp(2.5rem, 5vw, 5.5rem);
+    }
     .ev2-inquiry__inner { margin-inline: 0; }
   }
+  /* The max-contrast mode the accessibility menu offers flattens the field
+     and the glow — they are atmosphere, and it asks for none. */
+  :global(html.a11y-contrast) .ev2-inquiry__panel { background: none; }
+  :global(html.a11y-contrast) .ev2-inquiry__inner { box-shadow: none; }
 
   .ev2-inquiry__head { display: grid; gap: 0.75rem; }
   .ev2-inquiry__title {
@@ -492,6 +519,15 @@ const eventTimes = [
   }
   .ev2-venue-opt input:checked + .ev2-venue-opt__box::after { transform: rotate(45deg) scale(1); }
   .ev2-venue-opt input:focus-visible + .ev2-venue-opt__box { outline: 2px solid var(--accent); outline-offset: 3px; }
+  /* A phone's two cards are narrow: keep "Nucha Rooftop" on one line, and
+     give the card's eyebrow a little less tracking so it holds one too. */
+  @media (max-width: 520px) {
+    .ev2-venue-opt__box { padding: 0.8rem 0.8rem 0.85rem; }
+    .ev2-venue-opt__name { font-size: var(--step-0); }
+    .ev2-venue-opt__sub { letter-spacing: 0.14em; }
+    .ev2-venue-opt__box::after { inset-block-start: 0.75rem; inset-inline-end: 0.7rem; }
+    .ev2-inquiry__head :global(.eyebrow) { letter-spacing: 0.2em; font-size: var(--step--2); }
+  }
   @media (hover: hover) {
     .ev2-venue-opt:hover input:not(:checked) + .ev2-venue-opt__box { border-color: var(--ink-muted); }
   }

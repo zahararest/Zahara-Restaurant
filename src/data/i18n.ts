@@ -360,7 +360,7 @@ export const events2Page = {
   },
 
   // ── The opening choice ─────────────────────────────────────────────────────
-  eyebrow:  { he: 'אירועים פרטיים · מלון נוצ׳ה', en: 'Private events · Nucha Hotel' },
+  eyebrow:  { he: 'אירועים פרטיים', en: 'Private events · Zahara & Nucha Rooftop' },
   question: { he: 'איפה נארח אתכם?',            en: 'Where shall we host you?'    },
 
   // ── Shared labels ──────────────────────────────────────────────────────────
@@ -383,8 +383,8 @@ export const events2Page = {
   zDoorEyebrow: { he: 'המסעדה', en: 'The restaurant' },
   zName:        { he: 'זהרה',   en: 'Zahara'         },
   zDoorLine: {
-    he: 'ארוחות שף לקבוצות — בפטיו המקורה, באולם או במסעדה כולה.',
-    en: 'Chef’s dinners for groups — in the covered patio, the dining room or the whole restaurant.',
+    he: 'ארוחות שף לקבוצות, בפטיו המקורה או במסעדה כולה.',
+    en: 'Chef’s dinners for groups — in the covered patio or the whole restaurant.',
   },
   zDoorCta:  { he: 'לאירועים בזהרה', en: 'Events at Zahara' },
   zSwitchTo: { he: 'או בזהרה',       en: 'Or at Zahara'     },
@@ -395,12 +395,14 @@ export const events2Page = {
     he: 'בזהרה יש כמה חללים לאירוח, וכל אחד מהם נותן לערב אופי אחר — מארוחה אינטימית בפטיו המקורה ועד המסעדה כולה, סגורה לאורחים שלכם. את התפריט בונים יחד עם השף רועי אחדות: מנות לשיתוף, ויין וקוקטיילים שמלווים אותן — הכל מהמטבח הכשר שלנו.',
     en: 'Zahara has several spaces for hosting, and each gives the evening its own character — from an intimate dinner in the covered patio to the whole restaurant, closed for your guests. The menu is built with chef Roi Achdut: plates to share, with wine and cocktails to match — all from our kosher kitchen.',
   },
-  zManyNum: { he: 'עד 24', en: 'Up to 24' },
+  // The numbers live in the words (owner's choice): the big-number line is
+  // left empty, and hides itself.
+  zManyNum: { he: '', en: '' },
   zMany: {
-    he: 'אורחים בפטיו המקורה — איזור פרטי משלכם. קבוצות גדולות יותר: באולם, או במסעדה כולה.',
-    en: 'guests in the covered patio — a private area of its own. Larger groups: the dining room, or the whole restaurant.',
+    he: 'אורחים בפטיו המקורה — איזור פרטי משלכם עד 24 איש. קבוצות גדולות יותר: במסעדה כולה עד 100 איש.',
+    en: 'Guests in the covered patio — a private area of your own, up to 24 people. Larger groups: the whole restaurant, up to 100 people.',
   },
-  zWhen: { he: 'ערב, צהריים או בוקר — בתיאום מראש.', en: 'Evening, afternoon or morning — arranged ahead.' },
+  zWhen: { he: 'ערב או צהריים — בתיאום מראש.', en: 'Evening or afternoon — arranged ahead.' },
   zWhat: {
     he: 'ארוחות שף, קבלות פנים, ימי הולדת, בר ובת מצווה וערבי חברה. מטבח כשר.',
     en: 'Chef’s dinners, receptions, birthdays, bar and bat mitzvahs, company evenings. A kosher kitchen.',
