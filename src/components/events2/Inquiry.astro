@@ -230,6 +230,11 @@ const sides = [
   :global(html.a11y-contrast) .ev2-inquiry__inner { box-shadow: none; }
 
   .ev2-inquiry__head { display: grid; gap: 0.7rem; }
+  /* On a phone the card is narrow: a little less tracking keeps the venue's
+     line ("… · NUCHA ROOFTOP") on one line. */
+  @media (max-width: 520px) {
+    .ev2-inquiry__head :global(.eyebrow) { letter-spacing: 0.18em; font-size: var(--step--2); }
+  }
   .ev2-inquiry__title {
     margin: 0;
     font-size: var(--step-4);
