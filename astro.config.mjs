@@ -58,7 +58,7 @@ export default defineConfig({
         // /events2/ is the new two-venue events page, unlisted while it is
         // being finished — noindexed, linked from nowhere, and kept out of
         // BOTH venues' sitemaps. See src/components/pages/Events2Page.astro.
-        const events2 = /^\/(en\/)?events2\/?$/.test(p);
+        const events2 = /^\/(en\/)?events2(\/|$)/.test(p);   // and its /thanks/
         return !p.startsWith('/admin') &&
                !p.startsWith('/api/') &&
                !p.startsWith('/reserve') &&

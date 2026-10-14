@@ -22,6 +22,8 @@
 
 # The new events page shows BOTH venues on one page, so the same applies:
 # the rooftop build's duplicate folds into the one real page.
+/rooftop/events2/thanks/     /events2/thanks/     301
+/rooftop/en/events2/thanks/  /en/events2/thanks/  301
 /rooftop/events2/     /events2/     301
 /rooftop/events2      /events2/     301
 /rooftop/en/events2/  /en/events2/  301

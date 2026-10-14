@@ -360,8 +360,14 @@ export const events2Page = {
   },
 
   // ── The opening choice ─────────────────────────────────────────────────────
-  eyebrow:  { he: 'אירועים פרטיים', en: 'Private events · Zahara & Nucha Rooftop' },
-  question: { he: 'איפה נארח אתכם?',            en: 'Where shall we host you?'    },
+  // The page's <h1>: what it is, for whom, and how many — the line a visitor
+  // (and a search engine, once the page is public) reads first. It sits in a
+  // band of its own above the two photographs, which grows with it.
+  eyebrow:  { he: 'זהרה · Nucha Rooftop', en: 'Zahara · Nucha Rooftop' },
+  question: {
+    he: 'אירועים פרטיים במסעדת שף כשרה בירושלים, 24 עד 100 אורחים',
+    en: 'Private events at a kosher chef restaurant in Jerusalem, 24 to 100 guests',
+  },
 
   // ── Shared labels ──────────────────────────────────────────────────────────
   labelMany: { he: 'כמה', en: 'How many' },
@@ -371,13 +377,27 @@ export const events2Page = {
   toForm:    { he: 'לטופס הפנייה', en: 'To the inquiry form' },
   galleryPrev: { he: 'התמונה הקודמת', en: 'Previous photo' },
   galleryNext: { he: 'התמונה הבאה',   en: 'Next photo'     },
-  formNote: {
-    he: 'נחזור אליכם תוך 48 שעות בימי עבודה, ראשון עד חמישי.',
-    en: 'We reply within 48 hours on working days, Sunday to Thursday.',
+  formNote:   { he: 'חוזרים אליכם בהקדם, תודה רבה', en: 'We’ll get back to you soon — thank you.' },
+  fieldNotes: { he: 'הערות', en: 'Notes' },
+  // The one floating button: down to the form.
+  fabLabel:   { he: 'שלחו פנייה', en: 'Send an inquiry' },
+  // Under the form (and on the thank-you page): the phone and WhatsApp, as
+  // words — they leave the header on this page, where there was room only
+  // for icons.
+  talkLead:     { he: 'מעדיפים לדבר?', en: 'Rather talk?' },
+  talkCall:     { he: 'חייגו',         en: 'Call'         },
+  talkWhatsapp: { he: 'וואטסאפ',       en: 'WhatsApp'     },
+
+  // ── The thank-you page (/events2/thanks/) ──────────────────────────────────
+  thanksPageTitle: { he: 'תודה', en: 'Thank you' },
+  thanksEyebrow:   { he: 'הפנייה התקבלה', en: 'Inquiry received' },
+  thanksTitle:     { he: 'תודה רבה!', en: 'Thank you so much!' },
+  thanksBody: {
+    he: 'קיבלנו את הפנייה שלכם — חוזרים אליכם בהקדם.',
+    en: 'We have your inquiry — we’ll get back to you soon.',
   },
-  groupEvent: { he: 'האירוע',    en: 'The event'    },
-  groupYou:   { he: 'פרטי קשר',  en: 'Your details' },
-  fieldVenue: { he: 'איפה',      en: 'Where'        },
+  thanksBack: { he: 'חזרה לאירועים', en: 'Back to events' },
+  thanksHome: { he: 'לדף הבית',      en: 'Home page'      },
 
   // ── Zahara ─────────────────────────────────────────────────────────────────
   zDoorEyebrow: { he: 'המסעדה', en: 'The restaurant' },
@@ -408,8 +428,8 @@ export const events2Page = {
     en: 'Chef’s dinners, receptions, birthdays, bar and bat mitzvahs, company evenings. A kosher kitchen.',
   },
   zHow: {
-    he: 'שלחו את הטופס למטה. נחזור אליכם תוך 48 שעות, ואת השאר — תפריט, שתייה ולוח זמנים — נתכנן יחד.',
-    en: 'Send the form below. We reply within 48 hours, and plan the rest with you — menu, drinks, timing.',
+    he: 'השאירו פרטים בטופס הקצר למטה — חוזרים אליכם בהקדם, ואת השאר נתכנן יחד: תפריט, שתייה ולוח זמנים.',
+    en: 'Leave your details in the short form below — we’ll get back to you soon, and plan the rest together: menu, drinks, timing.',
   },
   zGalleryEyebrow: { he: 'מתוך הערבים שלנו', en: 'From our evenings'   },
   zGalleryHeading: { he: 'ערבים בזהרה.',     en: 'Evenings at Zahara.' },
@@ -452,8 +472,8 @@ export const events2Page = {
     en: 'Receptions, birthdays, company evenings and private parties. Cocktails and plates to share.',
   },
   rHow: {
-    he: 'שלחו את הטופס למטה. נחזור אליכם תוך 48 שעות, ואת השאר — תפריט, שתייה ולוח זמנים — נתכנן יחד.',
-    en: 'Send the form below. We reply within 48 hours, and plan the rest with you — menu, drinks, timing.',
+    he: 'השאירו פרטים בטופס הקצר למטה — חוזרים אליכם בהקדם, ואת השאר נתכנן יחד: תפריט, שתייה ולוח זמנים.',
+    en: 'Leave your details in the short form below — we’ll get back to you soon, and plan the rest together: menu, drinks, timing.',
   },
   rGalleryEyebrow: { he: 'מתוך הלילות על הגג', en: 'From nights on the roof' },
   rGalleryHeading: { he: 'לילות על הגג.',      en: 'Nights on the roof.'     },
@@ -613,6 +633,10 @@ export const consent = {
     en: 'We use measurement cookies (Google Analytics / Ads) to understand how the site is used — only with your consent.',
   },
   learnMore: { he: 'מדיניות הפרטיות', en: 'Privacy policy' },
+  // The one-line bar (ConsentBanner `compact`) — the same promise, short
+  // enough to share a phone's width with its two buttons.
+  short:     { he: 'עוגיות מדידה, רק בהסכמתכם.', en: 'Measurement cookies, only with your consent.' },
+  details:   { he: 'פרטים', en: 'Details' },
   accept:    { he: 'אישור',           en: 'Accept'         },
   decline:   { he: 'סירוב',           en: 'Decline'        },
   ariaLabel: { he: 'הודעת עוגיות',     en: 'Cookie notice'  },

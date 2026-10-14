@@ -74,6 +74,13 @@ export interface Props {
   /** Hand the header's Zahara ↔ Rooftop switch to the page, for a page that
    *  shows BOTH venues itself (see Header.astro). */
   venueSwitch?: VenueSwitch;
+  /** Pin this page to one theme, whatever the visitor's saved choice. For a
+   *  page whose photographs ARE the pitch (the events page): the site's
+   *  default dark sank them. Decided in the pre-paint script, so there is no
+   *  flash of the other theme; the page should hide the theme toggles. */
+  theme?: 'light' | 'dark';
+  /** The one-line cookie bar instead of the full one (ConsentBanner). */
+  compactConsent?: boolean;
 }
 
 const {
@@ -89,6 +96,8 @@ const {
   floatingReserve = true,
   noindex = false,
   venueSwitch,
+  theme,
+  compactConsent = false,
 } = Astro.props;
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const t = pick(labels, lang);
@@ -350,7 +359,7 @@ const schema = {
 ---
 
 <!doctype html>
-<html lang={lang} dir={dir}>
+<html lang={lang} dir={dir} data-force-theme={theme}>
   <head>
     <meta charset="UTF-8" />
     {/* Google Tag Manager + the Google tag — see the deferred loader at the
@@ -401,8 +410,14 @@ const schema = {
         fallbacks (a <meta> can't read a CSS variable); the boot script below
         rewrites them from the owner's saved --paper so the chrome doesn't stay
         cream after the palette is changed in /admin/colors. */}
-    <meta name="theme-color" content="#F0E8D2" media="(prefers-color-scheme: light)" data-theme-color="light" />
-    <meta name="theme-color" content="#0F0B07" media="(prefers-color-scheme: dark)"  data-theme-color="dark" />
+    {theme === 'light' ? (
+      <meta name="theme-color" content="#F0E8D2" data-theme-color="light" />
+    ) : (
+      <>
+        <meta name="theme-color" content="#F0E8D2" media="(prefers-color-scheme: light)" data-theme-color="light" />
+        <meta name="theme-color" content="#0F0B07" media="(prefers-color-scheme: dark)"  data-theme-color="dark" />
+      </>
+    )}
     <meta name="format-detection" content="telephone=yes" />
 
     <link rel="canonical"      href={Astro.url.href} />
@@ -615,11 +630,15 @@ const schema = {
         } catch (_) { /* matchMedia unsupported — leave content visible */ }
 
         // ── 1. Theme (two states only: light + dark) ──────────────
+        // A page may pin one (data-force-theme — the events page shows its
+        // photographs on the light paper whatever the visitor chose).
+        var forced = root.getAttribute('data-force-theme');
+        if (forced !== 'light' && forced !== 'dark') forced = null;
         try {
           var saved = localStorage.getItem('zahara-theme');
-          root.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+          root.setAttribute('data-theme', forced || (saved === 'light' ? 'light' : 'dark'));
         } catch (_) {
-          root.setAttribute('data-theme', 'dark');
+          root.setAttribute('data-theme', forced || 'dark');
         }
 
         // ── 2. Palette overrides (light + dark) ───────────────────
@@ -727,7 +746,7 @@ const schema = {
         // ── 4. Cross-tab THEME sync via storage events ───────────
         try {
           window.addEventListener('storage', function (e) {
-            if (e.key === 'zahara-theme') {
+            if (e.key === 'zahara-theme' && !forced) {
               root.setAttribute('data-theme', e.newValue === 'dark' ? 'dark' : 'light');
             }
           });
@@ -852,7 +871,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         visitor accepts, Consent Mode v2 (set in <head>) keeps analytics/ads
         cookies off, so a site with no gtag never shows this and sets no
         tracking cookies at all. */}
-    {gtagId && <ConsentBanner lang={lang} />}
+    {gtagId && <ConsentBanner lang={lang} compact={compactConsent} />}
 
     {/* Event tracking — one delegated listener catches every Reserve button
         (Header, hero, footer, info strip, floating CTA — they all link to the

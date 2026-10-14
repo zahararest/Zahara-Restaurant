@@ -180,18 +180,26 @@ const k = (field: string) => `events2.${venue}.${field}`;
     color: var(--ink);
     text-wrap: pretty;
   }
+  /* A full 44px target: the underline is drawn on the words, the height is
+     the link's own. */
   .ev2-fact__link {
     justify-self: start;
-    margin-block-start: 0.35rem;
-    padding-block-end: 2px;
-    font-size: var(--step--2);
-    letter-spacing: 0.2em;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+    margin-block-start: 0.1rem;
+    font-size: var(--step--1);
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--ink);
-    border-block-end: 1px solid var(--accent);
     transition: color 0.2s ease;
   }
+  .ev2-fact__link > span:first-child {
+    padding-block-end: 2px;
+    border-block-end: 1px solid var(--accent);
+  }
+  :global(html[lang='he']) .ev2-fact__link { letter-spacing: 0.04em; text-transform: none; }
   .ev2-fact__link:hover { color: var(--accent-deep); }
   .ev2-fact__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 </style>

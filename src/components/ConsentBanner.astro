@@ -13,18 +13,23 @@
 import { pick, consent as copy } from '../data/i18n';
 import type { Lang } from '../data/i18n';
 
-export interface Props { lang: Lang }
-const { lang } = Astro.props;
+export interface Props {
+  lang: Lang;
+  /** One slim line — the short message and two buttons in a single row —
+   *  for a page where the full bar took a quarter of a phone's screen. */
+  compact?: boolean;
+}
+const { lang, compact = false } = Astro.props;
 const c = pick(copy, lang);
 const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
 ---
 
-<aside id="zahara-consent" class="consent" role="region" aria-label={c.ariaLabel} hidden>
+<aside id="zahara-consent" class={`consent${compact ? ' consent--compact' : ''}`} role="region" aria-label={c.ariaLabel} hidden>
   <div class="consent__inner">
     <p class="consent__text">
-      {c.message}
+      {compact ? c.short : c.message}
       {' '}
-      <a class="consent__link" href={privacyHref}>{c.learnMore}</a>
+      <a class="consent__link" href={privacyHref}>{compact ? c.details : c.learnMore}</a>
     </p>
     <div class="consent__actions">
       <button type="button" class="consent__btn consent__btn--ghost"  data-consent-decline>{c.decline}</button>
@@ -144,6 +149,59 @@ const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
     color: var(--accent-deep);
     border-color: var(--accent-deep);
   }
+
+  /* ── Compact: one slim line ──────────────────────────────────────────
+     The short message, its link and both buttons share one row at any
+     width — a phone included — and every button is a full 44px target. */
+  .consent--compact {
+    border-block-start-color: var(--rule);
+    box-shadow: 0 -10px 30px -22px color-mix(in srgb, var(--shadow) 45%, transparent);
+  }
+  .consent--compact .consent__inner {
+    max-width: var(--content-max);
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+    padding: 0.35rem clamp(0.75rem, 3vw, 1.5rem) calc(0.35rem + env(safe-area-inset-bottom, 0px));
+  }
+  .consent--compact .consent__text {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    max-width: none;
+    font-size: clamp(0.78rem, 0.74rem + 0.2vw, 0.88rem);
+    line-height: 1.35;
+    font-weight: 400;
+  }
+  .consent--compact .consent__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+    padding-inline: 0.15rem;
+  }
+  .consent--compact .consent__actions { gap: 0.4rem; }
+  .consent--compact .consent__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+    padding: 0 0.9rem;
+    border-color: var(--rule);
+    color: var(--ink-soft);
+  }
+  .consent--compact .consent__btn--accept {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--paper);
+  }
+  .consent--compact .consent__btn--accept:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .consent__btn:focus-visible,
+  .consent__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Camera, not interface — honour reduced motion: no slide, just a short fade. */
   @media (prefers-reduced-motion: reduce) {

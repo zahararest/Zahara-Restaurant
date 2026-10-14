@@ -35,7 +35,7 @@ function isFetchRequest(request: Request): boolean {
   return !accept.includes('text/html');
 }
 
-function redirectBack(request: Request, param: string): Response {
+function redirectBack(request: Request, param: string, venue = ''): Response {
   // Return the visitor to the page they submitted from (the form lives on
   // /about/ and /events/, plus their /en/ variants). We only ever use the
   // referer's PATH and rebuild a relative Location, so this can't become an
@@ -49,6 +49,17 @@ function redirectBack(request: Request, param: string): Response {
       const p = new URL(referer).pathname;
       if (p && !p.startsWith('/contact')) path = p;
     } catch { /* malformed referer — keep the /about/ fallback */ }
+  }
+  // The two-venue events page has a thank-you page of its own: a sent form
+  // from there lands on it (with the venue it was about), as the page's own
+  // script does for a visitor with JavaScript.
+  const events2 = /^\/(en\/)?events2\/?$/.exec(path);
+  if (events2 && param === 'submitted=1') {
+    const venueQ = venue ? `?venue=${encodeURIComponent(venue)}` : '';
+    return new Response(null, {
+      status:  303,
+      headers: { Location: `/${events2[1] ?? ''}events2/thanks/${venueQ}` },
+    });
   }
   return new Response(null, {
     status:  303,
@@ -89,7 +100,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   // everything else leaves it out and reads exactly as before. Known values
   // only — this lands in the subject line.
   const VENUE_NAMES: Record<string, string> = { zahara: 'Zahara', rooftop: 'Nucha Rooftop' };
-  const venueName    = VENUE_NAMES[String(form.get('venue') || '').trim()] ?? '';
+  const venueKey     = String(form.get('venue') || '').trim();
+  const venueName    = VENUE_NAMES[venueKey] ?? '';
 
   const isFetch = isFetchRequest(request);
   const isEn    = (request.headers.get('referer') || '').includes('/en/');
@@ -221,5 +233,5 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   return isFetch
     ? new Response('OK', { status: 200 })
-    : redirectBack(request, 'submitted=1');
+    : redirectBack(request, 'submitted=1', venueName ? venueKey : '');
 };

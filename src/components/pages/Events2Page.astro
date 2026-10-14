@@ -7,38 +7,45 @@
 // is a SHARED photo slot or a SHARED `events2.` copy key, so it reads the same
 // whichever venue the admin has open.
 //
+// It is pinned to the LIGHT theme: the photographs are the reason anyone books
+// an event here, and on the site's default dark they sank. The header follows
+// what is under it — on-photo over the photographs, paper everywhere else —
+// rather than staying dark all the way down the page.
+//
 // ── How it moves ──────────────────────────────────────────────────────────────
 // One piece of state: `data-venue` on the root — '' while the visitor chooses,
 // 'zahara' or 'rooftop' once they have. CSS does all the showing and hiding
 // from that attribute; the script below only ever changes it. It is set before
 // first paint by the inline script at the top of the root (so a link that
 // already names a venue — ?venue=rooftop — opens on it, with no flash of the
-// doors), and changed afterwards by four things that all mean "this venue":
+// doors), and changed afterwards by three things that all mean "this venue":
 //
 //   the doors            the opening choice                (Stage.astro)
 //   the header switch    Zahara | Rooftop, always in reach (Header.astro)
 //   the way across       a closed door's spine on a desk, a line under the
 //                        photograph on a phone             (Stage.astro)
-//   the form's "Where"   keeps the page in step, without moving the form
-//   the floating switch  bottom corner, once the hero is behind the reader
 //
 // Pressing the venue ALREADY on show in the header leaves for that venue's
 // home page — the switch's ordinary meaning elsewhere on the site.
+//
+// One button floats: "send an inquiry", down to the form. The form knows the
+// venue from the page (a hidden field), and a successful send lands on the
+// thank-you page (/events2/thanks/?venue=…).
 //
 // The address follows with ?venue=, so a venue can be linked to, reloaded and
 // shared; choosing pushes one history entry (Back returns to the doors) and
 // switching replaces it (Back doesn't ping-pong between the two).
 //
 // No JavaScript: `data-venue` is never set, and the page is simply everything
-// — the doors are links down to each venue's section, and the form's own
-// "Where" says which one the enquiry is for.
+// — the doors are links down to each venue's section, and the form below.
 
 import BaseLayout   from '../../layouts/BaseLayout.astro';
+import Chrome       from '../events2/Chrome.astro';
 import Stage        from '../events2/Stage.astro';
 import VenueStory   from '../events2/VenueStory.astro';
 import VenueGallery from '../events2/VenueGallery.astro';
 import Inquiry      from '../events2/Inquiry.astro';
-import { pick, events2Page, header as headerCopy } from '../../data/i18n';
+import { pick, events2Page } from '../../data/i18n';
 import { PHOTOS } from '../../data/photos';
 import { resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
 import { DOOR_WIDTHS, DOOR_MOBILE, DOOR_QUALITY, DOOR_SIZES } from '../events2/frames';
@@ -47,8 +54,6 @@ import type { Lang } from '../../data/i18n';
 export interface Props { lang: Lang }
 const { lang } = Astro.props;
 const t = pick(events2Page, lang);
-const h = pick(headerCopy, lang);
-const arrows = 'M7 7h11m0 0-3.5-3.5M18 7l-3.5 3.5M17 17H6m0 0 3.5-3.5M6 17l3.5 3.5';
 
 // The first door is the LCP on every screen while the visitor chooses — the
 // same exact parameters Stage.astro renders it with, or the preload is a
@@ -57,7 +62,7 @@ const lcp = PHOTOS.ev2Zahara;
 ---
 
 <BaseLayout title={t.pageTitle} seoTitle={t.seoTitle} description={t.pageDescription}
-            lang={lang} transparentHeader noindex floatingReserve={false}
+            lang={lang} noindex theme="light" compactConsent floatingReserve={false}
             venueSwitch={{ zahara: '#zahara', rooftop: '#rooftop', active: null }}>
   <Fragment slot="head">
     {/* data-hero-preload lets the middleware drop these when the door is a
@@ -70,9 +75,11 @@ const lcp = PHOTOS.ev2Zahara;
           imagesizes={DOOR_SIZES} media="(min-width: 601px)" />
   </Fragment>
 
+  <Chrome />
+
   <div class="ev2" data-ev2>
     {/* Runs before anything below it is parsed: the state is right on the
-        very first paint, including the header switch above. */}
+        very first paint, including the header above. */}
     <script is:inline>
       (function () {
         var root = document.currentScript && document.currentScript.parentElement;
@@ -95,6 +102,10 @@ const lcp = PHOTOS.ev2Zahara;
             history.replaceState(null, '', url.href);
           }
         }
+        // The header: over a photograph (a venue's hero) it takes the
+        // on-photo treatment; over the title band it stays paper.
+        var header = document.getElementById('site-header');
+        if (header) header.classList.toggle('is-on-photo', !!v);
         // The header switch: the venue on show is lit, and — as everywhere
         // else on the site — its segment is a link to that venue's home.
         var segs = document.querySelectorAll('.site-switch [data-venue-link]');
@@ -124,23 +135,17 @@ const lcp = PHOTOS.ev2Zahara;
 
     <Inquiry lang={lang} />
 
-    {/* The floating switch — the way across from anywhere on the page, in
-        the corner the site's floating Reserve button uses elsewhere (it is
-        off here: this page asks for an event, not a table). It appears once
-        the hero is behind the reader — before that, the hero itself offers
-        the other venue — and always names the venue it goes TO. */}
-    <div class="ev2-fab" data-ev2-fab>
-      <a class="ev2-fab__link" href="#rooftop" data-venue-link="rooftop" data-venue-via="fab" data-venue-only="zahara">
-        <svg class="ev2-fab__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={arrows} /></svg>
-        <span class="visually-hidden">{h.switchVenue}: </span>
-        <span data-content-key="events2.rooftop.doorCta">{t.rDoorCta}</span>
-      </a>
-      <a class="ev2-fab__link" href="#zahara" data-venue-link="zahara" data-venue-via="fab" data-venue-only="rooftop">
-        <svg class="ev2-fab__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d={arrows} /></svg>
-        <span class="visually-hidden">{h.switchVenue}: </span>
-        <span data-content-key="events2.zahara.doorCta">{t.zDoorCta}</span>
-      </a>
-    </div>
+    {/* The one floating button — down to the form. In the corner the site's
+        floating Reserve pill uses elsewhere (it is off here: this page asks
+        for an event, not a table). It appears once the hero is behind the
+        reader and steps aside while the form is on screen. */}
+    <a class="ev2-fab" href="#inquiry" data-ev2-fab data-to-form>
+      <svg class="ev2-fab__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
+        <path d="m3.5 6 8.5 7 8.5-7" />
+      </svg>
+      <span data-content-key="events2.fabLabel">{t.fabLabel}</span>
+    </a>
   </div>
 </BaseLayout>
 
@@ -148,7 +153,7 @@ const lcp = PHOTOS.ev2Zahara;
   import { DOOR_SIZES_OPEN } from '../events2/frames';
 
   type Venue = 'zahara' | 'rooftop';
-  type Via = 'door' | 'header' | 'other' | 'fab' | 'form' | 'history';
+  type Via = 'door' | 'header' | 'other' | 'history';
 
   const root = document.querySelector<HTMLElement>('[data-ev2]');
   if (root) init(root);
@@ -158,11 +163,13 @@ const lcp = PHOTOS.ev2Zahara;
     const isVenue = (v: unknown): v is Venue => v === 'zahara' || v === 'rooftop';
     const current = (): Venue | '' => (isVenue(root.dataset.venue) ? root.dataset.venue : '');
 
-    const stage   = root.querySelector<HTMLElement>('.ev2-stage');
-    const fab     = root.querySelector<HTMLElement>('[data-ev2-fab]');
+    const stage   = root.querySelector<HTMLElement>('[data-ev2-stage]');
+    const head    = root.querySelector<HTMLElement>('[data-ev2-head]');
     const inquiry = root.querySelector<HTMLElement>('[data-ev2-inquiry]');
     const form    = root.querySelector<HTMLFormElement>('[data-ev2-form]');
-    const radios  = Array.from(root.querySelectorAll<HTMLInputElement>('[data-venue-radio]'));
+    const venueIn = root.querySelector<HTMLInputElement>('[data-venue-input]');
+    const fab     = root.querySelector<HTMLElement>('[data-ev2-fab]');
+    const header  = document.getElementById('site-header');
     const panels: Record<Venue, HTMLElement | null> = {
       zahara:  root.querySelector('[data-venue-panel="zahara"]'),
       rooftop: root.querySelector('[data-venue-panel="rooftop"]'),
@@ -187,7 +194,20 @@ const lcp = PHOTOS.ev2Zahara;
       else window.scrollTo({ top: y, behavior: 'smooth' });
     }
 
-    // ── Everything outside the root that shows the venue ─────────────────
+    // ── The header: on-photo over photographs, paper everywhere else ─────
+    // It sits over the title band while the visitor chooses (paper), over the
+    // hero once a venue is open (on-photo), and over paper again once the
+    // hero has scrolled away.
+    function placeHeader() {
+      if (!header || !stage) return;
+      const hh   = header.offsetHeight;
+      const box  = stage.getBoundingClientRect();
+      const band = current() || !head ? 0 : head.getBoundingClientRect().height;
+      const onPhoto = box.top + band <= hh / 2 && box.bottom > hh;
+      header.classList.toggle('is-on-photo', onPhoto);
+    }
+
+    // ── Everything outside the stage that shows the venue ────────────────
     function syncChrome(v: Venue | '') {
       document.querySelectorAll<HTMLAnchorElement>('.site-switch [data-venue-link]').forEach((a) => {
         const on = a.dataset.venueLink === v;
@@ -197,9 +217,8 @@ const lcp = PHOTOS.ev2Zahara;
         // The venue on show links to its home; the other, to its own events.
         a.setAttribute('href', on && a.dataset.venueHome ? a.dataset.venueHome : `#${a.dataset.venueLink}`);
       });
-      // The form's own answer follows the page (and stays Zahara's while
-      // nothing is chosen, which is also what it ships with).
-      radios.forEach((r) => { r.checked = r.value === (v || 'zahara'); });
+      // The form asks no "where": the venue on show rides along with it.
+      if (venueIn) venueIn.value = v;
       // The open door fills the screen now: let it fetch the cut for that.
       // Only ever widened — narrowing it back would just be a second download
       // of a smaller copy of a picture the browser already has.
@@ -219,11 +238,10 @@ const lcp = PHOTOS.ev2Zahara;
       const els = Array.from(panel.querySelectorAll<HTMLElement>('.reveal-on-scroll, .stagger'));
       els.forEach((el) => el.classList.remove('is-in-view'));
       arm(panel);
-      // Motion's observer holds anything in the bottom 8% of the screen until
-      // it is scrolled further in — right for a page being read downwards,
-      // wrong here: the top of the venue that just opened is exactly what
-      // peeks out under the photograph, and it would sit blank until touched.
-      // Whatever is already on screen rises now.
+      // Motion holds anything in the bottom 8% of the screen until it is
+      // scrolled further in — wrong here: the top of the venue that just
+      // opened is exactly what peeks out under the photograph. Whatever is
+      // already on screen rises now.
       requestAnimationFrame(() => {
         const fold = window.innerHeight;
         els.forEach((el) => {
@@ -235,51 +253,62 @@ const lcp = PHOTOS.ev2Zahara;
       });
     }
 
+    // While choosing, the title band takes whatever height its words need
+    // (`auto`). `auto` doesn't animate, so before the stage MOVES the band's
+    // height is pinned (--head-h, .is-measured) — the tracks are then explicit
+    // on both sides of the change and slide. Back at the doors, it lets go
+    // again once the move has finished, so a later resize can't clip it.
+    function pinHead() {
+      if (!stage || !head) return;
+      stage.style.setProperty('--head-h', `${head.scrollHeight}px`);
+      stage.classList.add('is-measured');
+    }
+    stage?.addEventListener('transitionend', (e) => {
+      if (e.target === stage && !current()) stage.classList.remove('is-measured');
+    });
+    window.addEventListener('resize', () => {
+      if (stage && !current()) stage.classList.remove('is-measured');
+    }, { passive: true });
+
     // ── The state change ─────────────────────────────────────────────────
     function setVenue(v: Venue | '', via: Via) {
       const was = current();
       if (v === was) {
-        // Already on show (only a stale click can get here — the header's
-        // own segment is handled before this): back to its top.
         if (v) glideTo(0);
         return;
       }
 
       const apply = () => {
+        if (!was || !v) {
+          // The band is about to fold away (or come back): pin it first, and
+          // let the pinned height take effect before the state changes.
+          pinHead();
+          if (stage) void stage.offsetHeight;
+        }
         root.dataset.venue = v;
         syncChrome(v);
+        placeHeader();
         if (!v) return;
         const panel = panels[v];
-        if (panel && via !== 'form') rearm(panel);
+        if (panel) rearm(panel);
         confirmOptionalFrames();
         updateRails();
       };
 
-      if (via === 'form') {
-        // The visitor is filling the form in: change the page above it and
-        // hold the form exactly where it is on the screen.
-        const anchor = form || inquiry;
-        const before = anchor ? anchor.getBoundingClientRect().top : 0;
-        apply();
-        if (anchor) jumpTo(window.scrollY + (anchor.getBoundingClientRect().top - before));
-      } else {
-        const deep = stage ? window.scrollY > stage.offsetHeight * 0.6 : false;
-        // The floating switch has done its job; it comes back once the new
-        // hero is behind the reader again.
-        if (fab) fab.classList.remove('is-visible');
-        if (was && v && deep && !reduce.matches) {
-          // Deep inside one venue: a short fade, a cut to the top, and the
-          // other venue fades in with its photograph still panning across.
-          root.classList.add('is-leaving');
-          window.setTimeout(() => {
-            apply();
-            jumpTo(0);
-            requestAnimationFrame(() => root.classList.remove('is-leaving'));
-          }, 260);
-        } else {
+      const deep = stage ? window.scrollY > stage.offsetHeight * 0.6 : false;
+      if (fab) fab.classList.remove('is-visible');
+      if (was && v && deep && !reduce.matches) {
+        // Deep inside one venue: a short fade, a cut to the top, and the other
+        // venue fades in with its photograph still panning across.
+        root.classList.add('is-leaving');
+        window.setTimeout(() => {
           apply();
-          if (window.scrollY > 0) glideTo(0);
-        }
+          jumpTo(0);
+          requestAnimationFrame(() => root.classList.remove('is-leaving'));
+        }, 260);
+      } else {
+        apply();
+        if (window.scrollY > 0) glideTo(0);
       }
 
       // The address: ?venue=, and one history entry per visit to the doors.
@@ -320,46 +349,47 @@ const lcp = PHOTOS.ev2Zahara;
       setVenue(v, via);
     });
 
-    radios.forEach((r) => r.addEventListener('change', () => {
-      if (r.checked && isVenue(r.value)) setVenue(r.value, 'form');
-    }));
-
     window.addEventListener('popstate', () => {
       const q = new URL(window.location.href).searchParams.get('venue');
       setVenue(isVenue(q) ? q : '', 'history');
     });
 
-    // "To the form" — down to it without writing #inquiry into the address.
+    // "Send an inquiry" (the floating button) and "to the inquiry form" (under
+    // the facts) — down to the form, without writing #inquiry into the
+    // address, and focus on its heading so the next Tab is the first field.
     root.querySelectorAll<HTMLAnchorElement>('[data-to-form]').forEach((a) => a.addEventListener('click', (e) => {
-      if (!inquiry) return;
+      if (!inquiry || !current()) return;
       e.preventDefault();
-      glideTo(inquiry.getBoundingClientRect().top + window.scrollY);
+      const top = inquiry.getBoundingClientRect().top + window.scrollY;
+      // On a desk the form's half starts level with the photograph; on a phone
+      // the heading wants to sit just under the header.
+      const offset = window.innerWidth >= 1000 ? 0 : (header ? header.offsetHeight : 0);
+      glideTo(top - offset);
       const heading = document.getElementById('ev2-form-title');
       if (heading) heading.focus({ preventScroll: true });
     }));
 
-    // ── The floating switch: there once the hero is behind the reader ──────
-    if (fab && stage) {
-      let queued = false;
-      const place = () => {
-        queued = false;
-        // Not over the form: there the form's own "Where" is the switch, and
-        // a fixed button would ride on top of a phone's keyboard, over the
-        // very field being typed in.
+    // ── Scroll-driven bits: the header, and the floating button ──────────
+    let queued = false;
+    function onScroll() {
+      queued = false;
+      placeHeader();
+      if (fab && stage) {
+        // Not over the form (there it would ride on top of a phone's keyboard,
+        // over the very field being typed in) and not before the hero is
+        // behind the reader.
         const box = inquiry ? inquiry.getBoundingClientRect() : null;
-        const mid = window.innerHeight / 2;
-        const atForm = !!box && box.top < mid && box.bottom > mid;
-        const on = !!current() && !atForm && window.scrollY > stage.offsetHeight * 0.75;
+        const atForm = !!box && box.top < window.innerHeight * 0.75 && box.bottom > 0;
+        const on = !!current() && !atForm && window.scrollY > stage.offsetHeight * 0.6;
         fab.classList.toggle('is-visible', on);
-      };
-      window.addEventListener('scroll', () => {
-        if (queued) return;
-        queued = true;
-        requestAnimationFrame(place);
-      }, { passive: true });
-      window.addEventListener('resize', place, { passive: true });
-      place();
+      }
     }
+    window.addEventListener('scroll', () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(onScroll);
+    }, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
 
     // ── The galleries ────────────────────────────────────────────────────
     const railStates = Array.from(root.querySelectorAll<HTMLElement>('[data-ev2-gallery]')).map(setupRail);
@@ -410,11 +440,11 @@ const lcp = PHOTOS.ev2Zahara;
           behavior: reduce.matches ? 'auto' : 'smooth',
         });
       }));
-      let queued = false;
+      let railQueued = false;
       rail.addEventListener('scroll', () => {
-        if (queued) return;
-        queued = true;
-        requestAnimationFrame(() => { queued = false; state(); });
+        if (railQueued) return;
+        railQueued = true;
+        requestAnimationFrame(() => { railQueued = false; state(); });
       }, { passive: true });
       window.addEventListener('resize', state, { passive: true });
       return state;
@@ -470,12 +500,10 @@ const lcp = PHOTOS.ev2Zahara;
     }
 
     // ── The form ─────────────────────────────────────────────────────────
-    if (form && inquiry) setupForm(form, inquiry);
+    if (form) setupForm(form);
 
-    function setupForm(form: HTMLFormElement, inquiry: HTMLElement) {
-      const status = inquiry.querySelector<HTMLElement>('[data-ev2-status]');
-      const sent   = inquiry.querySelector<HTMLElement>('[data-ev2-sent]');
-      const again  = inquiry.querySelector<HTMLButtonElement>('[data-ev2-again]');
+    function setupForm(form: HTMLFormElement) {
+      const status = form.querySelector<HTMLElement>('[data-ev2-status]');
       const submit = form.querySelector<HTMLButtonElement>('[data-ev2-submit]');
       const msg = {
         sending:  form.dataset.msgSending  || '',
@@ -484,14 +512,6 @@ const lcp = PHOTOS.ev2Zahara;
         email:    form.dataset.msgEmail    || '',
         required: form.dataset.msgRequired || '',
       };
-
-      // No past dates in the picker.
-      const date = form.querySelector<HTMLInputElement>('[data-ev2-date]');
-      if (date) {
-        const d = new Date();
-        const pad = (n: number) => String(n).padStart(2, '0');
-        date.min = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-      }
 
       // Fixing a field clears its mark at once.
       form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach((el) => {
@@ -505,24 +525,6 @@ const lcp = PHOTOS.ev2Zahara;
         status.textContent = text;
         status.className = err ? 'form-status err' : 'form-status';
       }
-
-      function showSent() {
-        if (!sent) return;
-        inquiry.classList.add('is-sent');
-        sent.hidden = false;
-        requestAnimationFrame(() => sent.classList.add('is-in'));
-        const r = sent.getBoundingClientRect();
-        if (r.top < 0 || r.bottom > window.innerHeight) {
-          sent.scrollIntoView({ behavior: reduce.matches ? 'auto' : 'smooth', block: 'center' });
-        }
-      }
-      again?.addEventListener('click', () => {
-        if (!sent) return;
-        sent.classList.remove('is-in');
-        sent.hidden = true;
-        inquiry.classList.remove('is-sent');
-        form.querySelector<HTMLInputElement>('#ev2-name')?.focus();
-      });
 
       // Turnstile is fetched late (Inquiry.astro), so a fast send — autofill,
       // then straight to the button — can beat its token. Wait for it rather
@@ -554,7 +556,7 @@ const lcp = PHOTOS.ev2Zahara;
         const invalid: (HTMLInputElement | HTMLTextAreaElement)[] = [];
         form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach((el) => {
           const type = el.getAttribute('type') || '';
-          if (type === 'hidden' || type === 'checkbox' || type === 'radio' || el.disabled) return;
+          if (type === 'hidden' || el.disabled) return;
           if (el.closest('.visually-hidden')) return;
           el.classList.remove('is-invalid');
           let bad = !el.checkValidity();
@@ -575,8 +577,7 @@ const lcp = PHOTOS.ev2Zahara;
         try {
           const res = await fetch('/api/contact', { method: 'POST', body: new FormData(form) });
           if (res.ok) {
-            say('', false);
-            const venue = (form.querySelector<HTMLInputElement>('[data-venue-radio]:checked') || { value: '' }).value;
+            const venue = venueIn ? venueIn.value : '';
             // A SUCCESSFUL send — unlike GA4's own form_submit, which counts
             // the attempt.
             try {
@@ -584,16 +585,17 @@ const lcp = PHOTOS.ev2Zahara;
                 inquiry_type: 'event', page_lang: form.dataset.lang || '', venue,
               });
             } catch { /* analytics must never break the form */ }
-            form.reset();
-            // reset() puts the venue back to its default; the page hasn't moved.
-            radios.forEach((r) => { r.checked = r.value === (current() || 'zahara'); });
-            showSent();
+            // The thank-you page, showing the venue that was asked about. A
+            // beat's pause lets the event above leave before the page does.
+            const to = new URL(form.dataset.thanks || '/events2/thanks/', window.location.origin);
+            if (venue) to.searchParams.set('venue', venue);
+            window.setTimeout(() => { window.location.assign(to.href); }, 150);
           } else {
             say((await res.text()) || msg.general, true);
+            if (submit) submit.disabled = false;
           }
         } catch {
           say(msg.network, true);
-        } finally {
           if (submit) submit.disabled = false;
         }
       });
@@ -601,10 +603,11 @@ const lcp = PHOTOS.ev2Zahara;
 
     // Arrived with a venue already open (a shared link, a reload). The inline
     // script above could set the state and the header, but the form below it
-    // had not been parsed yet — so bring the form's "Where" (and the open
-    // door's full-width cut) in step now, or an enquiry sent from a rooftop
-    // link would go out labelled Zahara.
+    // had not been parsed yet — bring its hidden venue (and the open door's
+    // full-width cut) in step now, or an enquiry sent from a rooftop link
+    // would go out labelled for no venue at all.
     syncChrome(current());
+    placeHeader();
     // …and its extra frames and rail arrows need the same start a choice
     // would give them.
     if (current()) {
@@ -617,7 +620,7 @@ const lcp = PHOTOS.ev2Zahara;
 
 <style>
   /* ── What shows, from the one attribute ─────────────────────────────── */
-  /* Choosing: the doors, and nothing else. */
+  /* Choosing: the title and the doors, and nothing else. */
   .ev2[data-venue=''] .ev2-venue,
   .ev2[data-venue=''] :global(.ev2-inquiry) { display: none; }
   /* One venue open: the other's sections step out. */
@@ -642,61 +645,56 @@ const lcp = PHOTOS.ev2Zahara;
   /* A jump to a venue's section (no-JS) lands clear of the header. */
   .ev2-venue { scroll-margin-top: var(--header-h); }
 
-  /* ── The floating switch ─────────────────────────────────────────────
-     The floating Reserve pill's corner, size and entrance, in the button
-     contract the scroll-to-top button above it uses (ink fill, paper glyph,
-     accent on hover) — so the two stack as one family, and it never reads as
-     a second "Reserve". */
+  /* ── The one floating button: "send an inquiry" ──────────────────────
+     The floating Reserve pill's corner, shape and accent — on this page the
+     enquiry IS the reservation. A full 48px target with the words on it.
+     It stands on top of the cookie bar while that shows (--consent-h, see
+     Chrome.astro), opposite the accessibility button. */
   .ev2-fab {
     position: fixed;
-    inset-block-end: 1.4rem;
-    inset-inline-end: 1.4rem;
+    inset-block-end: calc(1rem + var(--consent-h, 0px));
+    inset-inline-end: 1rem;
     z-index: 76;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-block-size: 48px;
+    padding: 0.75rem 1.25rem;
+    font-family: var(--font-body);
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    white-space: nowrap;
+    color: var(--on-accent);
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    box-shadow: 0 14px 34px -14px color-mix(in srgb, var(--shadow) 55%, transparent);
     opacity: 0;
     transform: translateY(14px) scale(0.94);
     pointer-events: none;
-    transition: opacity 0.35s var(--ease-out), transform 0.35s var(--ease-out);
+    transition:
+      opacity 0.35s var(--ease-out),
+      transform 0.35s var(--ease-out),
+      background 0.25s ease,
+      border-color 0.25s ease,
+      inset-block-end 0.35s var(--ease-out);
   }
   .ev2-fab.is-visible {
     opacity: 1;
     transform: none;
     pointer-events: auto;
   }
-  .ev2-fab__link {
-    display: none;
-    align-items: center;
-    gap: 0.55rem;
-    padding: 0.8rem 1.2rem;
-    font-family: var(--font-body);
-    font-size: var(--step--1);
-    letter-spacing: 0.12em;
-    font-weight: 600;
-    text-transform: uppercase;
-    line-height: 1;
-    white-space: nowrap;
-    color: var(--button-color);
-    background: var(--button-background);
-    border: 1px solid var(--button-border);
-    border-radius: 999px;
-    box-shadow: 0 14px 34px -14px color-mix(in srgb, var(--shadow) 60%, transparent);
-    transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s var(--ease-out);
-  }
-  /* Only ever the way to the venue NOT on show. */
-  .ev2[data-venue='zahara'] .ev2-fab__link[data-venue-only='zahara'],
-  .ev2[data-venue='rooftop'] .ev2-fab__link[data-venue-only='rooftop'] { display: inline-flex; }
-  :global(html[lang='he']) .ev2-fab__link { letter-spacing: 0.04em; text-transform: none; font-weight: 700; }
+  :global(html[lang='he']) .ev2-fab { letter-spacing: 0.04em; text-transform: none; font-weight: 700; }
   @media (hover: hover) {
-    .ev2-fab__link:hover {
-      color: var(--button-hover-color);
-      background: var(--button-hover-background);
-      border-color: var(--button-hover-border);
-      transform: translateY(-2px);
-    }
+    .ev2-fab:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
   }
-  .ev2-fab__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .ev2-fab:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
   .ev2-fab__icon {
-    inline-size: 1.05rem;
-    block-size: 1.05rem;
+    inline-size: 1.15rem;
+    block-size: 1.15rem;
     flex: none;
     fill: none;
     stroke: currentColor;
@@ -704,13 +702,11 @@ const lcp = PHOTOS.ev2Zahara;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  @media (max-width: 560px) {
-    .ev2-fab { inset-block-end: 1rem; inset-inline-end: 1rem; }
-    .ev2-fab__link { padding: 0.75rem 1rem; font-size: var(--step--2); }
+  @media (min-width: 600px) {
+    .ev2-fab { inset-block-end: calc(1.5rem + var(--consent-h, 0px)); inset-inline-end: 1.5rem; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .ev2-fab,
-    .ev2-fab__link { transition: none; }
+    .ev2-fab { transition: none; }
   }
   @media print { .ev2-fab { display: none; } }
 </style>

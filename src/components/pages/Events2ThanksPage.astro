@@ -1,0 +1,202 @@
+---
+// /events2/thanks/ — where the events form lands once it has been sent.
+//
+// A page of its own rather than a message in place of the form: the visitor
+// gets an unmistakable "it's done" (and a page to come back to), and the
+// owner gets a URL a conversion can be counted on — a thank-you page is the
+// one thing every analytics and ads tool understands.
+//
+// It shows the venue that was asked about: ?venue=zahara|rooftop picks the
+// photograph and the name (set before first paint, like the events page; with
+// no venue, Zahara's). Unlisted with the rest of /events2/: noindex here, the
+// same X-Robots-Tag rule in public/_headers covers it, and the sitemap filter
+// drops everything under /events2/.
+
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Chrome     from '../events2/Chrome.astro';
+import Talk       from '../events2/Talk.astro';
+import { pick, events2Page } from '../../data/i18n';
+import { PHOTOS } from '../../data/photos';
+import { VENUE } from '../../lib/venue';
+import { resized, resizedSrcset, resizedMobileCoverSrcset } from '../../lib/photo';
+import { DOOR_WIDTHS, DOOR_MOBILE, DOOR_QUALITY } from '../events2/frames';
+import type { Lang } from '../../data/i18n';
+
+export interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = pick(events2Page, lang);
+
+const events = lang === 'he' ? '/events2/' : '/en/events2/';
+const home   = lang === 'he' ? '/' : '/en/';
+
+const venues = [
+  { id: 'zahara',  photo: PHOTOS.ev2Zahara,  name: t.zName, home: home },
+  { id: 'rooftop', photo: PHOTOS.ev2Rooftop, name: t.rName, home: lang === 'he' ? '/rooftop/' : '/rooftop/en/' },
+] as const;
+---
+
+<BaseLayout title={t.thanksPageTitle} seoTitle={`${t.thanksPageTitle} — ${lang === 'he' ? 'זהרה · Nucha Rooftop' : 'Zahara · Nucha Rooftop'}`}
+            description={t.pageDescription} lang={lang} noindex theme="light" compactConsent
+            floatingReserve={false} transparentHeader>
+  <Chrome />
+
+  <div class="ev2t" data-ev2t>
+    <script is:inline>
+      (function () {
+        var root = document.currentScript && document.currentScript.parentElement;
+        if (!root) return;
+        var v = new URL(location.href).searchParams.get('venue');
+        root.setAttribute('data-venue', v === 'rooftop' ? 'rooftop' : 'zahara');
+      })();
+    </script>
+
+    <section class="ev2t-hero" aria-labelledby="ev2t-title">
+      {/* Both venues' photographs ship; the one asked about shows. Lazy, so
+          the one that is display:none is never fetched. */}
+      {venues.map((v) => (
+        <picture class="ev2t-photo" data-venue-only={v.id}>
+          <source media="(max-width: 600px)"
+                  srcset={resizedMobileCoverSrcset(v.photo.src, DOOR_MOBILE, DOOR_QUALITY)}
+                  sizes="100vw" />
+          <img src={resized(v.photo.src, 1600, DOOR_QUALITY)}
+               srcset={resizedSrcset(v.photo.src, DOOR_WIDTHS, DOOR_QUALITY)}
+               sizes="100vw" alt="" width="1600" height="1067"
+               loading="lazy" decoding="async" />
+        </picture>
+      ))}
+
+      <div class="ev2t-card">
+        <span class="ev2t-ornament" aria-hidden="true"><i></i></span>
+        <p class="ev2t-eyebrow">
+          <span data-content-key="events2.thanksEyebrow">{t.thanksEyebrow}</span>
+          {venues.map((v) => (
+            <span data-venue-only={v.id}> · <span data-content-key={`events2.${v.id}.name`}>{v.name}</span></span>
+          ))}
+        </p>
+        <h1 class="display ev2t-title" id="ev2t-title" data-content-key="events2.thanksTitle">{t.thanksTitle}</h1>
+        <p class="ev2t-body" data-content-key="events2.thanksBody">{t.thanksBody}</p>
+        <div class="ev2t-actions">
+          {venues.map((v) => (
+            <a class="btn ev2t-btn" data-venue-only={v.id} href={`${events}?venue=${v.id}`}>
+              <span data-content-key="events2.thanksBack">{t.thanksBack}</span>
+            </a>
+          ))}
+          {venues.map((v) => (
+            <a class="btn btn--ghost ev2t-btn" data-venue-only={v.id} href={v.home}>
+              <span data-content-key="events2.thanksHome">{t.thanksHome}</span>
+            </a>
+          ))}
+        </div>
+        <Talk lang={lang} phone={VENUE.phone} whatsapp={VENUE.whatsapp} center />
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<style>
+  /* One venue at a time — Zahara's unless the address says the rooftop. */
+  .ev2t:not([data-venue='rooftop']) [data-venue-only='rooftop'],
+  .ev2t[data-venue='rooftop'] [data-venue-only='zahara'] { display: none !important; }
+
+  /* The venue's photograph fills the screen under the header; the card sits
+     on it. No blanket darkening — the room is the point — only a soft pool
+     of shade where the card is, so its edge reads. */
+  .ev2t-hero {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    place-items: center;
+    min-block-size: 100vh;
+    min-block-size: 100svh;
+    margin-block-start: calc(var(--header-h) * -1);
+    padding: calc(var(--header-h) + clamp(1.5rem, 5vh, 3rem)) clamp(0.85rem, 4vw, 2rem) clamp(2rem, 6vh, 4rem);
+    background: var(--paper-deep);
+    overflow: hidden;
+  }
+  .ev2t-hero::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(60% 55% at 50% 55%,
+      color-mix(in srgb, var(--shadow) 28%, transparent), transparent 75%);
+  }
+  .ev2t-photo { position: absolute; inset: 0; z-index: -2; }
+  .ev2t-photo img {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    filter: saturate(0.96);
+  }
+
+  /* The card — the same raised paper and gilt edge as the form it answers. */
+  .ev2t-card {
+    inline-size: min(100%, 34rem);
+    display: grid;
+    justify-items: center;
+    gap: 0.85rem;
+    padding: clamp(1.75rem, 6vw, 3rem) clamp(1.25rem, 5vw, 3rem);
+    text-align: center;
+    background: var(--paper-card);
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--rule));
+    border-block-start: 2px solid var(--accent);
+    box-shadow: var(--shadow-2);
+    animation: ev2t-settle 0.9s var(--ease-out) 0.1s backwards;
+  }
+  @keyframes ev2t-settle {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+  /* Hairline · diamond · hairline — the site's confirmation ornament. */
+  .ev2t-ornament { display: flex; align-items: center; gap: 0.9rem; }
+  .ev2t-ornament::before,
+  .ev2t-ornament::after {
+    content: '';
+    inline-size: 2.75rem;
+    block-size: 1px;
+    background: color-mix(in srgb, var(--ink) 22%, transparent);
+  }
+  .ev2t-ornament i { inline-size: 6px; block-size: 6px; background: var(--accent); transform: rotate(45deg); }
+  .ev2t-eyebrow {
+    margin: 0;
+    font-size: var(--step--2);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-muted);
+  }
+  .ev2t-title {
+    margin: 0;
+    font-size: var(--step-5);
+    font-weight: 400;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  .ev2t-body {
+    margin: 0;
+    max-inline-size: 34ch;
+    font-size: var(--step-1);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    text-wrap: balance;
+  }
+  .ev2t-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    margin-block: 0.5rem 0.25rem;
+  }
+  .ev2t-btn { min-block-size: 48px; justify-content: center; }
+  @media (max-width: 480px) {
+    .ev2t-actions { display: grid; inline-size: 100%; }
+  }
+  /* The card's "rather talk?" row sits flush with it. */
+  .ev2t-card :global(.ev2-talk) { inline-size: 100%; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ev2t-card { animation: none; }
+  }
+</style>

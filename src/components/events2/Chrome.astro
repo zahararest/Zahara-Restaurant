@@ -1,0 +1,120 @@
+---
+// The site's shared chrome — header, drawer, footer, floating widgets — as the
+// events pages need it. Nothing here touches another page: these are global
+// rules in a component only the two events pages render, so they ship in
+// those pages' CSS alone.
+//
+// What and why:
+//   • Every control a 44px target with words on it (the finger standard). The
+//     header's language link and venue switch, the drawer's links, the
+//     footer's links all grow to 44px. The two unlabelled header icons (call,
+//     WhatsApp) leave the phone header — there is no room there to name them —
+//     and live under the form as labelled buttons instead (Talk.astro).
+//   • One floating button. The scroll-to-top button goes; the page's own
+//     "send an inquiry" button (Events2Page) is the only thing that floats
+//     beside the accessibility button, which stays — it is the site's
+//     accessibility menu, and Israeli regulations expect it.
+//   • Nothing floats over the cookie bar: while it shows, the floating
+//     buttons stand on top of it (--consent-h, kept by the script below).
+//   • The page is pinned to the light theme (BaseLayout `theme`), so the
+//     theme switch would only ever do nothing — it is hidden here.
+---
+
+<script is:inline>
+  // --consent-h: the cookie bar's height while it is on screen, 0 otherwise.
+  // The bar sits at the foot of <body>, below this script, so wait for it.
+  (function () {
+    function watch() {
+      var bar = document.getElementById('zahara-consent');
+      var root = document.documentElement;
+      function set() {
+        var on = bar && !bar.hidden && bar.classList.contains('is-visible');
+        root.style.setProperty('--consent-h', on ? bar.offsetHeight + 'px' : '0px');
+      }
+      set();
+      if (!bar) return;
+      new MutationObserver(set).observe(bar, { attributes: true, attributeFilter: ['hidden', 'class'] });
+      if ('ResizeObserver' in window) new ResizeObserver(set).observe(bar);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch, { once: true });
+    else watch();
+  })();
+</script>
+
+<style>
+  /* ── The header ───────────────────────────────────────────────────── */
+  /* The venue switch's segments become 44px targets, which makes the phone
+     header as tall as the desktop one — say so, so everything that sits
+     under the header (the page's first band, the drawer) moves with it. */
+  @media (max-width: 860px) {
+    :global(html:root) { --header-h: 62px; --header-h-sm: 62px; }
+    /* Call + WhatsApp as unlabelled icons: here they are words, under the
+       form (Talk.astro). */
+    :global(.site-header .header-quick) { display: none !important; }
+  }
+  :global(.site-header .site-switch) { padding: 0; }
+  :global(.site-header .site-switch__seg) {
+    min-block-size: 44px;
+    padding-inline: 1rem;
+  }
+  :global(.site-header .lang-toggle) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+    padding-inline: 0.35rem;
+  }
+  :global(.site-header .header-social a) { inline-size: 44px; block-size: 44px; }
+  :global(.site-header .nav a) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+  /* Pinned to light: a theme switch here would do nothing. */
+  :global([data-theme-toggle]) { display: none !important; }
+
+  /* ── The phone drawer ─────────────────────────────────────────────── */
+  :global(.mobile-nav__social) { flex-wrap: wrap; gap: 0.6rem; }
+  :global(.mobile-nav__social a) {
+    inline-size: auto;
+    block-size: 44px;
+    display: inline-flex;
+    gap: 0.5rem;
+    padding-inline: 0.9rem;
+    border-radius: 999px;
+    font-size: var(--step--1);
+  }
+  :global(.mobile-nav__social-name) { display: inline; }
+  :global(.mobile-nav__cta .text-link) {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+
+  /* ── The footer ───────────────────────────────────────────────────── */
+  :global(.site-footer .footer-block a) {
+    display: flex;
+    align-items: center;
+    min-block-size: 44px;
+    margin: 0;
+  }
+  :global(.site-footer .footer-bottom a) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+
+  /* ── Floating widgets ─────────────────────────────────────────────── */
+  :global(.scroll-top) { display: none !important; }
+  :global(.a11y-toggle) { inset-block-end: calc(1rem + var(--consent-h, 0px)); }
+  :global(.a11y-panel)  { inset-block-end: calc(4.5rem + var(--consent-h, 0px)); }
+  @media (min-width: 600px) {
+    :global(.a11y-toggle) { inset-block-end: calc(1.5rem + var(--consent-h, 0px)); }
+    :global(.a11y-panel)  { inset-block-end: calc(5.5rem + var(--consent-h, 0px)); }
+  }
+</style>
