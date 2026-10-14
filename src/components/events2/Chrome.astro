@@ -65,7 +65,51 @@
     min-inline-size: 44px;
     padding-inline: 0.35rem;
   }
-  :global(.site-header .header-social a) { inline-size: 44px; block-size: 44px; }
+  /* The desktop header's four social icons have no room for their names;
+     on this page they are words elsewhere — call and WhatsApp under the
+     form, Instagram, WhatsApp and Facebook in the footer. */
+  :global(.site-header .header-social) { display: none !important; }
+
+  /* The burger, with its word beside it: three bars and "תפריט" / "Menu" in
+     one 44px-tall button. A grid keeps the bars exactly where the open-state
+     rules expect them (2px bars, 6px apart — they still fold into an ×). */
+  @media (max-width: 860px) {
+    :global(.site-header .burger) {
+      display: grid;
+      grid-template-columns: 26px auto;
+      grid-template-rows: repeat(3, 2px);
+      row-gap: 6px;
+      column-gap: 0.45rem;
+      align-content: center;
+      align-items: center;
+      inline-size: auto;
+      block-size: auto;
+      min-block-size: 44px;
+      min-inline-size: 44px;
+      padding: 0 0.4rem;
+      margin: 0 -0.4rem;
+      box-sizing: border-box;
+    }
+    :global(.site-header .burger span) { grid-column: 1; }
+    :global(.site-header .burger .burger__label) {
+      display: block;
+      grid-column: 2;
+      grid-row: 1 / -1;
+      inline-size: auto;
+      block-size: auto;
+      background: none;
+      border-radius: 0;
+      font-size: var(--step--1);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      color: var(--ink);
+    }
+    :global(.site-header.is-on-photo .burger .burger__label) { color: var(--paper-on-photo); }
+    /* A little less side padding on the venue switch, so the burger's word
+       and the language link fit either side of it on the narrowest phones. */
+    :global(.site-header .site-switch__seg) { padding-inline: 0.75rem; }
+  }
   :global(.site-header .nav a) {
     display: inline-flex;
     align-items: center;
@@ -111,6 +155,19 @@
 
   /* ── Floating widgets ─────────────────────────────────────────────── */
   :global(.scroll-top) { display: none !important; }
+  /* The accessibility button stays (the site's accessibility menu — Israeli
+     regulations expect it), with its name beside the figure. */
+  :global(.a11y-toggle) {
+    inline-size: auto;
+    min-inline-size: 46px;
+    gap: 0.4rem;
+    grid-auto-flow: column;
+    padding-inline: 0.75rem 0.9rem;
+    border-radius: 999px;
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+  :global(.a11y-toggle__label) { display: inline; }
   :global(.a11y-toggle) { inset-block-end: calc(1rem + var(--consent-h, 0px)); }
   :global(.a11y-panel)  { inset-block-end: calc(4.5rem + var(--consent-h, 0px)); }
   @media (min-width: 600px) {

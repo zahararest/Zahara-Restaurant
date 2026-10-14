@@ -31,7 +31,7 @@
 
 import { PHOTOS } from '../../data/photos';
 import { pick, events2Page } from '../../data/i18n';
-import { resized, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
+import { resized, resizedCover, resizedSrcset, resizedMobileCoverSrcset, mediaSlot } from '../../lib/photo';
 import type { Lang } from '../../data/i18n';
 import { DOOR_WIDTHS, DOOR_MOBILE, DOOR_QUALITY, DOOR_SIZES } from './frames';
 
@@ -112,14 +112,21 @@ const doors = [
   ))}
 
   {/* Phones only: once a venue is open the other door has closed completely
-      (a spine has no room on a narrow screen), so the way across is a line at
-      the foot of the photograph. Each link shows while the OTHER venue is. */}
+      (a spine has no room on a narrow screen), so the way across is a button
+      at the foot of the photograph — paper on the picture, with a glimpse of
+      the other door in it, so it can't be taken for a caption. Each shows
+      while the OTHER venue is. The glimpse is lazy: on a desk the button is
+      never displayed, so it is never fetched. */}
   <div class="ev2-stage__other">
     <a href="#rooftop" data-venue-link="rooftop" data-venue-via="other" data-venue-only="zahara">
+      <img class="ev2-stage__other-thumb" src={resizedCover(PHOTOS.ev2Rooftop.src, 132, 132, 72)}
+           alt="" width="132" height="132" loading="lazy" decoding="async" />
       <span class="ev2-stage__other-text" data-content-key="events2.rooftop.switchTo">{t.rSwitchTo}</span>
       <span class="ev2-door__arrow" aria-hidden="true">{arrow}</span>
     </a>
     <a href="#zahara" data-venue-link="zahara" data-venue-via="other" data-venue-only="rooftop">
+      <img class="ev2-stage__other-thumb" src={resizedCover(PHOTOS.ev2Zahara.src, 132, 132, 72)}
+           alt="" width="132" height="132" loading="lazy" decoding="async" />
       <span class="ev2-stage__other-text" data-content-key="events2.zahara.switchTo">{t.zSwitchTo}</span>
       <span class="ev2-door__arrow" aria-hidden="true">{arrow}</span>
     </a>
@@ -148,7 +155,7 @@ const doors = [
     /* The screen, less the cookie bar while it shows (--consent-h, kept by
        Chrome.astro): both doors and their buttons stay above it. */
     block-size: calc(100svh - var(--consent-h, 0px));
-    min-block-size: 36rem;
+    min-block-size: 30rem;
     margin-block-start: calc(var(--header-h) * -1);
     overflow: hidden;
     /* Paper behind the photographs while they arrive: this page is light. */
@@ -259,6 +266,10 @@ const doors = [
     overflow: hidden;
     color: var(--paper-on-photo);
     transition: padding var(--pan);
+    /* Each door measures itself, so its words fit whatever is left for it
+       — the title above can take two lines or three, Hebrew or English, on
+       a 320px phone or a desk. See the @container rules below. */
+    container: door / size;
   }
   /* A hairline seam where the two photographs meet — a join, not a border. */
   .ev2-door + .ev2-door { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--paper-on-photo) 30%, transparent); }
@@ -360,7 +371,8 @@ const doors = [
     justify-content: center;
     gap: 0.55rem;
     min-block-size: 44px;
-    margin-block-start: clamp(0.35rem, 1.6vh, 0.9rem);
+    margin-block-start: 0.6rem;
+    margin-block-start: clamp(0.35rem, 2.4cqh, 0.9rem);
     padding: 0.55rem 1.25rem;
     font-size: var(--step--1);
     letter-spacing: 0.16em;
@@ -458,32 +470,50 @@ const doors = [
       z-index: 3;
       display: flex;
       justify-content: center;
-      padding: 0 1rem 0.5rem;
+      padding: 0 1rem 1rem;
       animation: ev2-settle 0.8s var(--ease-out) 0.7s backwards;
     }
   }
   /* One link at a time: the way to whichever venue is NOT open. */
   :global(.ev2:not([data-venue='zahara'])) .ev2-stage__other a[data-venue-only='zahara'],
   :global(.ev2:not([data-venue='rooftop'])) .ev2-stage__other a[data-venue-only='rooftop'] { display: none; }
+  /* Paper on the photograph — the one light thing on it, so the eye finds
+     it — with the other door's picture at its start: a glimpse of where it
+     leads. */
   .ev2-stage__other a {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    min-block-size: 44px;
-    padding-inline: 0.5rem;
+    gap: 0.75rem;
+    min-block-size: 54px;
+    padding-block: 0.3rem;
+    padding-inline: 0.3rem 1.1rem;
     font-size: var(--step--1);
-    letter-spacing: 0.18em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     font-weight: 600;
-    color: var(--paper-on-photo);
-    text-shadow: 0 1px 8px color-mix(in srgb, var(--shadow) 70%, transparent);
+    line-height: 1.2;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    border: 1px solid color-mix(in srgb, var(--paper-on-photo) 70%, transparent);
+    border-radius: 2px;
+    box-shadow: 0 14px 30px -16px color-mix(in srgb, var(--shadow) 80%, transparent);
+    transition: background 0.25s ease, color 0.25s ease;
   }
-  :global(html[lang='he']) .ev2-stage__other a { letter-spacing: 0.04em; text-transform: none; }
-  .ev2-stage__other-text {
-    padding-block-end: 0.25rem;
-    border-block-end: 1px solid color-mix(in srgb, var(--paper-on-photo) 60%, transparent);
+  :global(html[lang='he']) .ev2-stage__other a { letter-spacing: 0.04em; text-transform: none; font-weight: 700; }
+  .ev2-stage__other-thumb {
+    flex: none;
+    inline-size: 46px;
+    block-size: 46px;
+    object-fit: cover;
+    border-radius: 1px;
+    background: var(--paper-deep);
+    filter: saturate(0.96);
   }
-  .ev2-stage__other a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .ev2-stage__other a .ev2-door__arrow { color: var(--accent); }
+  @media (hover: hover) {
+    .ev2-stage__other a:hover { background: var(--paper); color: var(--accent); }
+  }
+  .ev2-stage__other a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
   /* ── Motion — a camera refocusing, nothing more ───────────────────── */
   /* While choosing, on a desk: a slow push-in on the room under the pointer,
@@ -533,16 +563,37 @@ const doors = [
     .ev2-door:hover .ev2-door__photo { transform: none !important; }
   }
 
-  /* Short screens (an SE-class phone, a laptop with the bookmarks bar open):
+  /* Short doors (an SE-class phone, a laptop with the bookmarks bar open):
      the words give up air before they give up size — the name is the thing
-     being chosen, and the button is what gets pressed. */
-  @media (max-height: 720px) {
+     being chosen, and the button is what gets pressed. Everything here is
+     measured on the door itself, never the screen: a door is short when the
+     title above it takes three lines, or the cookie bar is up, too. */
+  @container door (max-height: 420px) {
     .ev2-door__body { gap: 0.35rem; padding: 0.75rem 1rem; }
     .ev2-door__eyebrow::before { margin-block-end: 0.4rem; }
   }
-  /* Only while choosing, and only where two doors under the title can't
-     hold it: once a door is the hero there is room for every line. */
-  @media (max-height: 620px) {
-    :global(.ev2[data-venue='']) .ev2-door__line { display: none; }
+  /* A door too short for all its words gives up the sentence first, then the
+     small line above the name — never the name, never the button. Wider
+     screens set the words larger, so they give up sooner. The limits hold
+     for the words as written, in both languages; the page script sheds one
+     step more on a door whose words still don't fit (a longer sentence
+     written in /admin, say) — `data-fit`. */
+  @container door (max-height: 230px) {
+    .ev2-door__line { display: none; }
   }
+  @container door (min-width: 600px) and (max-height: 250px) {
+    .ev2-door__line { display: none; }
+  }
+  @container door (max-height: 170px) {
+    .ev2-door__eyebrow { display: none; }
+    .ev2-door__body { gap: 0.2rem; padding-block: 0.4rem; }
+    .ev2-door__cta { margin-block-start: 0.2rem; }
+  }
+  @container door (min-width: 600px) and (max-height: 190px) {
+    .ev2-door__eyebrow { display: none; }
+    .ev2-door__body { gap: 0.2rem; padding-block: 0.4rem; }
+    .ev2-door__cta { margin-block-start: 0.2rem; }
+  }
+  .ev2-door[data-fit] .ev2-door__line,
+  .ev2-door[data-fit='2'] .ev2-door__eyebrow { display: none; }
 </style>

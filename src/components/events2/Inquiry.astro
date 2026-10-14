@@ -113,10 +113,8 @@ const sides = [
             <span data-content-key="events2.fieldNotes">{t.fieldNotes}</span>
             <span class="ev2-label__hint">· {f.optionalMark}</span>
           </label>
-          <textarea id="ev2-message" name="message" rows="3" maxlength="5000"></textarea>
+          <textarea id="ev2-message" name="message" rows="2" maxlength="5000"></textarea>
         </div>
-        <p class="ev2-req-note" data-content-key="contact.requiredNote">{f.requiredNote}</p>
-
         <!-- Honeypot — filled by bots, never by people -->
         <div class="visually-hidden" aria-hidden="true">
           <label for="ev2-website">Leave this empty</label>
@@ -127,19 +125,20 @@ const sides = [
             this form (functions/api/contact.ts). Fetched late; see below. */}
         {TURNSTILE_SITEKEY && (
           <div class="cf-turnstile ev2-form__turnstile" data-sitekey={TURNSTILE_SITEKEY}
-               data-language={lang} data-theme="light"></div>
+               data-language={lang} data-theme="light" data-appearance="interaction-only"></div>
         )}
 
         <div class="ev2-form__submit">
           <button class="btn ev2-form__send" type="submit" data-ev2-submit
                   data-content-key="contact.submit">{f.submitEvent}</button>
-          <p class="form-status" role="status" aria-live="polite" data-ev2-status></p>
+          <p class="ev2-req-note" data-content-key="contact.requiredNote">{f.requiredNote}</p>
         </div>
+        <p class="form-status ev2-form__status" role="status" aria-live="polite" data-ev2-status></p>
       </form>
 
       {/* The phone and WhatsApp, as words — on this page they live here, not
           as two unlabelled icons in the header. */}
-      <Talk lang={lang} phone={VENUE.phone} whatsapp={VENUE.whatsapp} />
+      <Talk lang={lang} phone={VENUE.phone} whatsapp={VENUE.whatsapp} row />
     </div>
   </div>
 </section>
@@ -152,20 +151,22 @@ const sides = [
     scroll-margin-top: var(--header-h);
   }
 
-  /* ── The photograph ───────────────────────────────────────────────── */
+  /* ── The photograph ───────────────────────────────────────────────────
+     Exactly as tall as the form beside it — the two halves start and end
+     together, so there is no scrolling past a finished form while a
+     photograph keeps going (it used to be a full-screen sticky panel). The
+     column stretches to the row the form sets; the picture fills it. */
   .ev2-inquiry__side { display: none; }
   @media (min-width: 1000px) {
     .ev2-inquiry {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: stretch;
     }
-    .ev2-inquiry__side { display: block; position: relative; }
+    .ev2-inquiry__side { display: block; position: relative; overflow: hidden; }
     .ev2-inquiry__sticky {
-      position: sticky;
-      inset-block-start: 0;
-      block-size: 100vh;
-      block-size: 100svh;
-      overflow: hidden;
+      position: absolute;
+      inset: 0;
       background: var(--paper-deep);
     }
   }
@@ -197,7 +198,7 @@ const sides = [
   .ev2-inquiry__panel {
     position: relative;
     isolation: isolate;
-    padding: clamp(3rem, 8vw, 6.5rem) clamp(0.85rem, 4vw, 2.5rem) clamp(3.5rem, 8vw, 6.5rem);
+    padding: clamp(1.25rem, 3.5vw, 2rem) clamp(0.85rem, 3vw, 2rem);
     background:
       radial-gradient(80% 62% at 50% 26%,
         color-mix(in srgb, var(--accent) 34%, transparent), transparent 74%),
@@ -209,8 +210,8 @@ const sides = [
     max-inline-size: 34rem;
     margin-inline: auto;
     display: grid;
-    gap: clamp(1.75rem, 3.5vw, 2.4rem);
-    padding: clamp(1.4rem, 5vw, 3rem);
+    gap: clamp(1rem, 2vw, 1.25rem);
+    padding: clamp(1.15rem, 2.2vw, 1.6rem);
     background: var(--paper-card);
     border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--rule));
     border-block-start: 2px solid var(--accent);
@@ -220,7 +221,7 @@ const sides = [
     .ev2-inquiry__panel {
       display: grid;
       align-content: center;
-      padding-inline: clamp(2.5rem, 5vw, 5.5rem);
+      padding: clamp(1rem, 1.6vw, 1.5rem) clamp(2rem, 4vw, 4rem);
     }
     .ev2-inquiry__inner { margin-inline: 0; }
   }
@@ -229,7 +230,7 @@ const sides = [
   :global(html.a11y-contrast) .ev2-inquiry__panel { background: none; }
   :global(html.a11y-contrast) .ev2-inquiry__inner { box-shadow: none; }
 
-  .ev2-inquiry__head { display: grid; gap: 0.7rem; }
+  .ev2-inquiry__head { display: grid; gap: 0.4rem; }
   /* On a phone the card is narrow: a little less tracking keeps the venue's
      line ("… · NUCHA ROOFTOP") on one line. */
   @media (max-width: 520px) {
@@ -237,9 +238,9 @@ const sides = [
   }
   .ev2-inquiry__title {
     margin: 0;
-    font-size: var(--step-4);
+    font-size: var(--step-2);
     font-weight: 400;
-    line-height: 1.05;
+    line-height: 1.1;
     text-wrap: balance;
   }
   .ev2-inquiry__title:focus { outline: none; }
@@ -258,11 +259,26 @@ const sides = [
   :global(.ev2[data-venue='rooftop']) .ev2-inquiry [data-venue-only='zahara'] { display: none; }
 
   /* ── The form ─────────────────────────────────────────────────────── */
-  .ev2-form { display: grid; gap: clamp(1.4rem, 3vw, 1.75rem); }
-  .ev2-row { display: grid; gap: clamp(1.4rem, 3vw, 1.75rem); }
-  @media (min-width: 560px) { .ev2-row { grid-template-columns: 1fr 1fr; } }
+  /* A column of flex, not grid: in a grid an empty item still costs a gap
+     (see the security check below); in a flex column a margin can hand it
+     back. */
+  .ev2-form {
+    --form-gap: clamp(0.95rem, 2vw, 1.15rem);
+    display: flex;
+    flex-direction: column;
+    gap: var(--form-gap);
+    container-type: inline-size;
+  }
+  /* Name and phone share a line wherever the card is wide enough for two
+     short answers — on a phone too: one row less to scroll past. */
+  .ev2-row { display: grid; gap: var(--form-gap); }
+  @container (min-width: 290px) { .ev2-row { grid-template-columns: 1fr 1fr; column-gap: 1rem; } }
+  /* The security check is invisible unless it needs a press (interaction-
+     only): while it is, it takes no row of its own — its gap is handed back.
+     When it does show, it sits right on top of the button it guards. */
+  .ev2-form__turnstile { margin-block-end: calc(var(--form-gap) * -1); }
 
-  .ev2-field { display: grid; gap: 0.35rem; align-content: start; }
+  .ev2-field { display: grid; gap: 0.2rem; align-content: start; }
 
   /* Labels: the site's small tracked caps. */
   .ev2-label {
@@ -279,8 +295,8 @@ const sides = [
      serif — it reads as handwriting on the card, not a value in a widget. */
   .ev2-field input {
     inline-size: 100%;
-    min-block-size: 48px;
-    padding: 0.45rem 0 0.55rem;
+    min-block-size: 44px;
+    padding: 0.35rem 0 0.4rem;
     font-family: var(--font-display);
     font-size: var(--step-1);
     line-height: 1.3;
@@ -301,8 +317,8 @@ const sides = [
 
   .ev2-field textarea {
     inline-size: 100%;
-    min-block-size: 6.5rem;
-    padding: 0.75rem 0.9rem;
+    min-block-size: 4.25rem;
+    padding: 0.6rem 0.8rem;
     font: inherit;
     font-size: var(--step-0);
     line-height: 1.6;
@@ -328,20 +344,32 @@ const sides = [
   .ev2-field input.is-invalid:focus { box-shadow: 0 1px 0 0 var(--err); }
 
   .ev2-req-note {
-    margin: -0.4rem 0 0;
+    margin: 0;
     font-size: var(--step--2);
     letter-spacing: 0.08em;
     color: var(--ink-muted);
   }
 
   /* ── Send ─────────────────────────────────────────────────────────── */
-  .ev2-form__submit { display: grid; gap: 0.75rem; justify-items: start; }
+  /* The button with the "* required" note beside it — one row. */
+  .ev2-form__submit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem 1rem;
+    margin-block-start: 0.2rem;
+  }
   .ev2-form__send {
-    min-inline-size: min(100%, 16rem);
-    min-block-size: 50px;
+    flex: 0 1 15rem;
+    min-inline-size: min(100%, 11.5rem);
+    min-block-size: 48px;
     justify-content: center;
   }
-  @media (max-width: 559px) { .ev2-form__send { inline-size: 100%; } }
+  .ev2-form__status:empty { display: none; }
+  .ev2-form__status { margin: -0.35rem 0 0; }
+  /* A phone: the button takes the line, less the note beside it — or the
+     whole line, with the note under it, where the two can't share one. */
+  @media (max-width: 559px) { .ev2-form__send { flex: 1 1 11.5rem; } }
 </style>
 
 {/* Cloudflare Turnstile, fetched LATE. It is by far the heaviest thing on a

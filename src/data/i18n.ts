@@ -33,6 +33,10 @@ export const header = {
   themeLight:  { he: 'בהיר',           en: 'Light'        },
   themeDark:   { he: 'כהה',            en: 'Dark'         },
   burgerAria:  { he: 'תפריט ניווט',   en: 'Navigation menu' },
+  // The burger's visible word, where a page shows it (the events pages: every
+  // control carries words, not just an icon). Part of the aria-label above,
+  // so what is seen is what is announced.
+  burgerLabel: { he: 'תפריט',          en: 'Menu' },
   navAria:     { he: 'ניווט ראשי',     en: 'Primary'          },
   brandAria:   { he: 'מסעדת זהרה', en: "Zahara's Restaurant" },
   langToggleAria: { he: 'English',      en: 'עברית'           },
@@ -377,6 +381,9 @@ export const events2Page = {
   toForm:    { he: 'לטופס הפנייה', en: 'To the inquiry form' },
   galleryPrev: { he: 'התמונה הקודמת', en: 'Previous photo' },
   galleryNext: { he: 'התמונה הבאה',   en: 'Next photo'     },
+  // What the arrows SAY — each a word of its own label above.
+  galleryPrevText: { he: 'הקודמת', en: 'Previous' },
+  galleryNextText: { he: 'הבאה',   en: 'Next'     },
   formNote:   { he: 'חוזרים אליכם בהקדם, תודה רבה', en: 'We’ll get back to you soon — thank you.' },
   fieldNotes: { he: 'הערות', en: 'Notes' },
   // The one floating button: down to the form.
@@ -635,7 +642,7 @@ export const consent = {
   learnMore: { he: 'מדיניות הפרטיות', en: 'Privacy policy' },
   // The one-line bar (ConsentBanner `compact`) — the same promise, short
   // enough to share a phone's width with its two buttons.
-  short:     { he: 'עוגיות מדידה, רק בהסכמתכם.', en: 'Measurement cookies, only with your consent.' },
+  short:     { he: 'עוגיות מדידה, רק בהסכמתכם.', en: 'Cookies only with your consent.' },
   details:   { he: 'פרטים', en: 'Details' },
   accept:    { he: 'אישור',           en: 'Accept'         },
   decline:   { he: 'סירוב',           en: 'Decline'        },

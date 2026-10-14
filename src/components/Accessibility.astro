@@ -42,6 +42,9 @@ const t = pick(copy, lang);
     <path d="M12 14 L8.5 20.5" />
     <path d="M12 14 L15.5 20.5" />
   </svg>
+  {/* Its name as a visible word — shown only on pages that ask for words on
+      every control (the events pages). The aria-label above says the same. */}
+  <span class="a11y-toggle__label" aria-hidden="true">{t.toggle}</span>
 </button>
 
 <!-- The adjustments panel. Hidden by default; toggled by the button. -->

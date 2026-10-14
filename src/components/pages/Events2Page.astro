@@ -270,6 +270,33 @@ const lcp = PHOTOS.ev2Zahara;
       if (stage && !current()) stage.classList.remove('is-measured');
     }, { passive: true });
 
+    // ── The doors' words, fitted ─────────────────────────────────────────
+    // Stage's @container rules shed a short door's sentence, then its small
+    // line — limits set for the words as written. The owner can write longer
+    // ones in /admin, so look: a door whose words still overflow sheds one
+    // step more (data-fit). A hero has room for everything. Re-checked once
+    // a door has stopped changing size — never frame by frame mid-move.
+    const doors = Array.from(root.querySelectorAll<HTMLElement>('[data-door]'));
+    function fitDoors() {
+      doors.forEach((door) => {
+        delete door.dataset.fit;
+        const body = door.querySelector<HTMLElement>('.ev2-door__body');
+        if (current() || !body || body.offsetHeight <= door.clientHeight) return;
+        door.dataset.fit = '1';
+        if (body.offsetHeight > door.clientHeight) door.dataset.fit = '2';
+      });
+    }
+    if ('ResizeObserver' in window) {
+      let settle = 0;
+      const sizes = new ResizeObserver(() => {
+        window.clearTimeout(settle);
+        settle = window.setTimeout(fitDoors, 150);
+      });
+      doors.forEach((d) => sizes.observe(d));
+    }
+    fitDoors();
+    if (document.fonts) document.fonts.ready.then(fitDoors);
+
     // ── The state change ─────────────────────────────────────────────────
     function setVenue(v: Venue | '', via: Via) {
       const was = current();
@@ -288,6 +315,9 @@ const lcp = PHOTOS.ev2Zahara;
         root.dataset.venue = v;
         syncChrome(v);
         placeHeader();
+        // The hero shows all its words at once (back at the doors, they are
+        // fitted once the doors have settled).
+        if (v) fitDoors();
         if (!v) return;
         const panel = panels[v];
         if (panel) rearm(panel);
@@ -361,9 +391,9 @@ const lcp = PHOTOS.ev2Zahara;
       if (!inquiry || !current()) return;
       e.preventDefault();
       const top = inquiry.getBoundingClientRect().top + window.scrollY;
-      // On a desk the form's half starts level with the photograph; on a phone
-      // the heading wants to sit just under the header.
-      const offset = window.innerWidth >= 1000 ? 0 : (header ? header.offsetHeight : 0);
+      // Just under the header — on a desk the photograph and the form then
+      // fit the screen together, top to bottom.
+      const offset = header ? header.offsetHeight : 0;
       glideTo(top - offset);
       const heading = document.getElementById('ev2-form-title');
       if (heading) heading.focus({ preventScroll: true });

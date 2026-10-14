@@ -26,11 +26,20 @@ const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
 
 <aside id="zahara-consent" class={`consent${compact ? ' consent--compact' : ''}`} role="region" aria-label={c.ariaLabel} hidden>
   <div class="consent__inner">
-    <p class="consent__text">
-      {compact ? c.short : c.message}
-      {' '}
-      <a class="consent__link" href={privacyHref}>{compact ? c.details : c.learnMore}</a>
-    </p>
+    {compact ? (
+      /* One 44px link — the short message and "details" together, to the
+         privacy policy — so the bar stays a single slim row even where the
+         words wrap on a narrow phone. */
+      <a class="consent__text consent__text--link" href={privacyHref}>
+        <span>{c.short} <span class="consent__more">{c.details}</span></span>
+      </a>
+    ) : (
+      <p class="consent__text">
+        {c.message}
+        {' '}
+        <a class="consent__link" href={privacyHref}>{c.learnMore}</a>
+      </p>
+    )}
     <div class="consent__actions">
       <button type="button" class="consent__btn consent__btn--ghost"  data-consent-decline>{c.decline}</button>
       <button type="button" class="consent__btn consent__btn--accept" data-consent-accept>{c.accept}</button>
@@ -171,14 +180,20 @@ const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
     line-height: 1.35;
     font-weight: 400;
   }
-  .consent--compact .consent__link {
-    display: inline-flex;
+  .consent--compact .consent__text--link {
+    display: flex;
     align-items: center;
-    justify-content: center;
     min-block-size: 44px;
-    min-inline-size: 44px;
-    padding-inline: 0.15rem;
+    color: var(--ink-soft);
+    text-decoration: none;
   }
+  .consent--compact .consent__more {
+    color: var(--accent-deep);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+  }
+  .consent--compact .consent__text--link:hover .consent__more { color: var(--ink); }
   .consent--compact .consent__actions { gap: 0.4rem; }
   .consent--compact .consent__btn {
     display: inline-flex;
@@ -186,7 +201,7 @@ const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
     justify-content: center;
     min-block-size: 44px;
     min-inline-size: 44px;
-    padding: 0 0.9rem;
+    padding: 0 clamp(0.6rem, 2.4vw, 0.9rem);
     border-color: var(--rule);
     color: var(--ink-soft);
   }
@@ -201,7 +216,8 @@ const privacyHref = lang === 'he' ? '/privacy/' : '/en/privacy/';
     color: var(--on-accent);
   }
   .consent__btn:focus-visible,
-  .consent__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .consent__link:focus-visible,
+  .consent__text--link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* Camera, not interface — honour reduced motion: no slide, just a short fade. */
   @media (prefers-reduced-motion: reduce) {

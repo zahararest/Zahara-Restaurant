@@ -343,6 +343,9 @@ html[dir="rtl"] .mobile-nav__theme { letter-spacing: 0.04em; text-transform: non
   pointer-events: none;
 }
 .burger:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
+/* The burger's word — hidden unless a page shows it (see Header.astro). Out-
+   ranks `.burger span`, which would otherwise draw it as a fourth bar. */
+.burger .burger__label { display: none; }
 .burger.is-open span:nth-child(1) { transform: translateY(8px) rotate(45deg); }
 .burger.is-open span:nth-child(2) { opacity: 0; }
 .burger.is-open span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }

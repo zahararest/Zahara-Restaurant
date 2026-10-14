@@ -1287,6 +1287,7 @@ html[lang="he"] .menu-toc__line { font-family: var(--font-body-he); font-style: 
   transform: translateY(-2px);
 }
 .a11y-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.a11y-toggle__label { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .a11y-toggle { transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
 }

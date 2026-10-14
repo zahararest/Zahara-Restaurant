@@ -33,6 +33,10 @@ const k = (field: string) => `events2.${venue}.${field}`;
     <p class="ev2-story__lede reveal-on-scroll" data-content-key={k('introBody')}>{c('IntroBody')}</p>
   </div>
 
+  {/* The four answers stand apart from the page the same way the form does:
+      on the warm band with the pool of light, raised as a card with the gilt
+      edge — so the two things a visitor acts on look alike. */}
+  <div class="ev2-facts-band">
   <div class="wrap">
     <dl class="ev2-facts stagger">
       <div class="ev2-fact ev2-fact--many">
@@ -61,6 +65,7 @@ const k = (field: string) => `events2.${venue}.${field}`;
       </div>
     </dl>
   </div>
+  </div>
 </section>
 
 <style>
@@ -68,9 +73,11 @@ const k = (field: string) => `events2.${venue}.${field}`;
     /* A short step down from the photograph, so the eyebrow and the top of
        the heading show under it — the page says there is more before it is
        asked. */
-    padding-block: clamp(3rem, 5.5vw, 5rem) clamp(3rem, 6vw, 5rem);
+    /* No foot: the fact band closes the section, and the gallery's own top
+       padding is the step to what follows. */
+    padding-block: clamp(3rem, 5.5vw, 5rem) 0;
     display: grid;
-    gap: clamp(2.75rem, 6vw, 4.5rem);
+    gap: clamp(2.25rem, 5vw, 3.5rem);
   }
 
   /* ── The spread — heading on one side, the paragraph answering it ──── */
@@ -104,13 +111,32 @@ const k = (field: string) => `events2.${venue}.${field}`;
   }
 
   /* ── The fact sheet ─────────────────────────────────────────────────
-     Hairlines above and below, and between the four; type does the rest.
-     One column on a phone, a 2×2 block on a tablet, one row on a desk. */
+     On the same ground as the form (Inquiry.astro): the events band —
+     deepened toward --paper-edge — with a pool of accent light, and the
+     sheet raised on it as a card with a gilt edge. Inside, hairlines
+     between the four; type does the rest. One column on a phone, a 2×2
+     block on a tablet, one row on a desk. */
+  .ev2-facts-band {
+    padding-block: clamp(1.5rem, 4vw, 2.75rem);
+    background:
+      radial-gradient(80% 90% at 50% 30%,
+        color-mix(in srgb, var(--accent) 34%, transparent), transparent 74%),
+      linear-gradient(165deg,
+        color-mix(in srgb, var(--events-band-from) 45%, var(--paper-edge)),
+        color-mix(in srgb, var(--events-band-to) 70%, var(--paper-edge)));
+    border-block: 1px solid var(--rule-soft);
+  }
+  :global(html.a11y-contrast) .ev2-facts-band { background: none; }
   .ev2-facts {
     margin: 0;
     display: grid;
-    border-block: 1px solid var(--rule);
+    padding-inline: clamp(1.1rem, 3vw, 2.25rem);
+    background: var(--paper-card);
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--rule));
+    border-block-start: 2px solid var(--accent);
+    box-shadow: var(--shadow-2);
   }
+  :global(html.a11y-contrast) .ev2-facts { box-shadow: none; }
   @media (min-width: 620px) {
     .ev2-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }

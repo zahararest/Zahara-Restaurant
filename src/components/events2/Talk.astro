@@ -16,13 +16,16 @@ export interface Props {
   whatsapp: string;
   /** Centre the row (the thank-you page) instead of starting it at the edge. */
   center?: boolean;
+  /** "Rather talk?" and its two buttons on one line, where there is room
+   *  (under the form — every line saved is less to scroll). */
+  row?: boolean;
 }
-const { lang, phone, whatsapp, center = false } = Astro.props;
+const { lang, phone, whatsapp, center = false, row = false } = Astro.props;
 const t = pick(events2Page, lang);
 const dial = lang === 'he' ? phone.dialHe : phone.dialEn;
 ---
 
-<div class={`ev2-talk${center ? ' ev2-talk--center' : ''}`}>
+<div class={`ev2-talk${center ? ' ev2-talk--center' : ''}${row ? ' ev2-talk--row' : ''}`}>
   <p class="ev2-talk__lead" data-content-key="events2.talkLead">{t.talkLead}</p>
   <div class="ev2-talk__actions">
     <a class="ev2-talk__btn" href={`tel:${dial}`}>
@@ -48,6 +51,14 @@ const dial = lang === 'he' ? phone.dialHe : phone.dialEn;
     border-block-start: 1px solid var(--rule-soft);
   }
   .ev2-talk--center { justify-items: center; text-align: center; }
+  .ev2-talk--row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding-block-start: clamp(0.75rem, 1.6vw, 0.9rem);
+  }
   .ev2-talk__lead {
     margin: 0;
     font-size: var(--step--1);

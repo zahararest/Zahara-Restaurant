@@ -70,6 +70,10 @@ const headerClass = `site-header${transparent ? ' is-on-photo' : ''}`;
       aria-controls="mobile-nav"
     >
       <span></span><span></span><span></span>
+      {/* Shown only where a page asks for words on every control (the events
+          pages, events2/Chrome.astro). Kept after the three bars, which the
+          open-state rules address by position. */}
+      <span class="burger__label" aria-hidden="true">{t.burgerLabel}</span>
     </button>
 
     <nav class="nav nav-row" aria-label={t.navAria}>

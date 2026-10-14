@@ -52,8 +52,10 @@ const rtl = lang === 'he';
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d={rtl ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
         </svg>
+        <span class="ev2-gallery__btn-text" aria-hidden="true">{t.galleryPrevText}</span>
       </button>
       <button class="ev2-gallery__btn" type="button" data-rail-step="1" aria-label={t.galleryNext}>
+        <span class="ev2-gallery__btn-text" aria-hidden="true">{t.galleryNextText}</span>
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d={rtl ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
         </svg>
@@ -105,9 +107,11 @@ const rtl = lang === 'he';
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d={rtl ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
         </svg>
+        <span class="ev2-gallery__btn-text" aria-hidden="true">{t.galleryPrevText}</span>
     </button>
     <span class="ev2-gallery__count" aria-hidden="true"><span data-rail-pos>1</span> / <span data-rail-total>4</span></span>
     <button class="ev2-gallery__btn" type="button" data-rail-step="1" aria-label={t.galleryNext}>
+        <span class="ev2-gallery__btn-text" aria-hidden="true">{t.galleryNextText}</span>
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d={rtl ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
         </svg>
@@ -124,7 +128,9 @@ const rtl = lang === 'he';
     --rail-pad: max(var(--gutter), calc((100% - var(--content-max)) / 2 + var(--gutter)));
     display: grid;
     gap: clamp(1.75rem, 4vw, 2.75rem);
-    padding-block: clamp(2.5rem, 5vw, 4rem) clamp(4rem, 9vw, 7.5rem);
+    /* A short foot: the form follows straight on (its own band supplies the
+       breathing room). */
+    padding-block: clamp(2.5rem, 5vw, 4rem) clamp(1.5rem, 3vw, 2.25rem);
   }
 
   .ev2-gallery__head {
@@ -154,13 +160,20 @@ const rtl = lang === 'he';
     direction: ltr;
     unicode-bidi: isolate;
   }
+  /* Words beside the chevrons — "previous" / "next" — in a 44px pill. */
   .ev2-gallery__btn {
-    display: grid;
-    place-items: center;
-    inline-size: 2.9rem;
-    block-size: 2.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+    padding-inline: 0.85rem;
+    font-size: var(--step--1);
+    font-weight: 600;
+    letter-spacing: 0.04em;
     border: 1px solid var(--rule);
-    border-radius: 50%;
+    border-radius: 999px;
     color: var(--ink);
     transition: border-color 0.25s ease, color 0.25s ease, opacity 0.25s ease;
   }
